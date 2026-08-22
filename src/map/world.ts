@@ -184,6 +184,9 @@ function extraProp(scene: SceneId, ch: string): { kind: PropKind; tag: string } 
   if (ch === "f" && (scene === "wharf" || scene === "pier" || scene === "plot" || scene === "ridge")) {
     return { kind: "cart", tag: "cart" };
   }
+  if ((scene === "luoyang" || scene.startsWith("luoyang_")) && ch === "f") {
+    return { kind: "cart", tag: "carriage" };
+  }
   // 古井：仅户外特定场景用 o；室内 o 留给凳
   if (ch === "o" && (scene === "wharf" || scene === "spit" || scene === "yard" || scene === "ridge" || scene === "plot" || scene === "lamp" || scene === "sluice" || scene === "pier")) {
     return { kind: "well", tag: "well" };
@@ -191,11 +194,24 @@ function extraProp(scene: SceneId, ch: string): { kind: PropKind; tag: string } 
   if (scene === "drums" && ch === "z") return { kind: "drum", tag: "watchDrum" };
   if (scene === "clinic" && ch === "f") return { kind: "basin", tag: "wash" };
   if ((scene === "wine" || scene === "lodge") && ch === "f") return { kind: "board", tag: "kitchen" };
-  if ((scene === "yamen" || scene === "escort") && ch === "h") return { kind: "banner", tag: "flag" };
+  if ((scene === "yamen" || scene === "escort") && ch === "h") return { kind: "post", tag: "flag" };
   if ((scene === "shrine" || scene === "tea") && ch === "c") return { kind: "mat", tag: "mat" };
   if (scene === "pawn" && ch === "k") return { kind: "counter", tag: "pawnDesk" };
   if (ch === "S" && (scene === "wharf" || scene === "lane")) return { kind: "stall", tag: "stall" };
-  if (ch === "H" && (scene === "plot" || scene === "ridge" || scene === "wharf" || scene === "lane" || scene === "flower" || scene === "escort" || scene === "yamen" || scene === "martial")) {
+  if (ch === "H" && scene === "linan") return { kind: "house", tag: "雷峰塔" };
+  if (ch === "H" && scene === "chuzhou") return { kind: "house", tag: "醉翁亭" };
+  if (ch === "H" && scene === "huainan") return { kind: "house", tag: "驿馆" };
+  if (
+    ch === "H" &&
+    (scene === "plot" ||
+      scene === "ridge" ||
+      scene === "wharf" ||
+      scene === "lane" ||
+      scene === "flower" ||
+      scene === "escort" ||
+      scene === "yamen" ||
+      scene === "martial")
+  ) {
     return { kind: "house", tag: "shed" };
   }
   // Decorative gates: walkable, not portals. ; = named 税卡 / 门额, : = plain arch (no「门」字).
@@ -556,6 +572,271 @@ export function loadScene(scene: SceneId, run: Run, arrival: string | null = nul
     }
   }
 
+  // 洛阳：干道让路 + 仅挪到「洪水可达」格，避免踢进封闭院落死角
+  if (scene === "luoyang" || scene === "luoyang_yamen_prison" || scene === "luoyang_yanbo_inner") {
+    const cx = Math.floor(width / 2);
+    const cy = Math.floor(h / 2);
+    const arterial = (x: number, y: number) => x === cx || y === cy - 5 || y === cy;
+    const blocked = new Set<string>();
+    blocked.add(`${player.x},${player.y}`);
+    for (const n of npcs) blocked.add(`${n.x},${n.y}`);
+    for (const p of portals) blocked.add(`${p.x},${p.y}`);
+    for (const t of talkers) blocked.add(`${t.x},${t.y}`);
+    const nearRoad = (x: number, y: number) =>
+      [
+        [0, 1],
+        [0, -1],
+        [1, 0],
+        [-1, 0],
+      ].some(([dx, dy]) => tiles[y + dy]?.[x + dx] === "road");
+    const canStand = (x: number, y: number) => {
+      if (blocked.has(`${x},${y}`)) return false;
+      if (arterial(x, y)) return false;
+      const t = tiles[y]?.[x];
+      if (t !== "floor" && t !== "pack") return false;
+      if (props.some((p) => p.x === x && p.y === y && BLOCKING.includes(p.kind))) return false;
+      return true;
+    };
+    const tryPlaceNear = (t: { x: number; y: number }, roadFirst: boolean) => {
+      for (let r = 1; r <= 10; r++) {
+        for (let dy = -r; dy <= r; dy++) {
+          for (let dx = -r; dx <= r; dx++) {
+            if (Math.abs(dx) + Math.abs(dy) !== r) continue;
+            const nx = t.x + dx;
+            const ny = t.y + dy;
+            if (!canStand(nx, ny)) continue;
+            if (roadFirst && !nearRoad(nx, ny)) continue;
+            t.x = nx;
+            t.y = ny;
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+    for (const t of talkers) {
+      if (!arterial(t.x, t.y) && tiles[t.y]?.[t.x] !== "road") continue;
+      blocked.delete(`${t.x},${t.y}`);
+      if (!tryPlaceNear(t, true)) tryPlaceNear(t, false);
+      blocked.add(`${t.x},${t.y}`);
+    }
+
+    // 空图洪水：开阔贴路候选；再带 talker 迭代救援（院门堵死）
+    const shellWorld = (): World =>
+      ({
+        scene,
+        chapter: def.chapter,
+        w: width,
+        h,
+        tiles,
+        player,
+        facing: "down",
+        seals,
+        order: [...def.order],
+        progress: [] as SealId[],
+        gate: def.gate,
+        npcs,
+        talkers,
+        portals,
+        items,
+        props,
+        braziers,
+        signs,
+        caches,
+        arrival,
+        hp: run.hp,
+        hpMax: run.hpMax,
+        dueling: null,
+        speaker: "rail",
+        thought: "",
+        explored: new Set<string>(),
+        path: [] as Dir[],
+        pathGoal: null,
+        toast: "",
+        toastMs: 0,
+        message: "",
+        said: [],
+        reply: "",
+        choices: [],
+      }) as unknown as World;
+
+    const parked = talkers.splice(0, talkers.length);
+    const seenFree = floodFloor(shellWorld(), run, true);
+    talkers.push(...parked);
+
+    const touchOf = (x: number, y: number, seen: Set<string>) =>
+      seen.has(`${x},${y}`) ||
+      [
+        [0, 1],
+        [0, -1],
+        [1, 0],
+        [-1, 0],
+      ].some(([dx, dy]) => seen.has(`${x + dx},${y + dy}`));
+
+    const openness = (x: number, y: number) =>
+      [
+        [0, 1],
+        [0, -1],
+        [1, 0],
+        [-1, 0],
+      ].filter(([dx, dy]) => seenFree.has(`${x + dx},${y + dy}`)).length;
+
+  // 当救援找不到空位时：优先清掉挡路的车，绝不删 NPC
+    for (let iter = 0; iter < 24; iter++) {
+      const seen = floodFloor(shellWorld(), run, true);
+      const stuck = talkers.filter(
+        (t) => !touchOf(t.x, t.y, seen) || arterial(t.x, t.y) || tiles[t.y]?.[t.x] === "road",
+      );
+      if (stuck.length === 0) break;
+
+      // 先拆阻塞路径的车（props + tiles）
+      if (stuck.length > 0) {
+        const carts = props.filter((p) => p.kind === "cart");
+        for (const c of carts) {
+          const adjStuck = stuck.some((t) => Math.abs(t.x - c.x) + Math.abs(t.y - c.y) <= 2);
+          const onSpine = Math.abs(c.x - cx) <= 1 || c.y === cy - 5 || c.y === cy;
+          if (!adjStuck && !onSpine) continue;
+          const idx = props.indexOf(c);
+          if (idx >= 0) props.splice(idx, 1);
+          if (tiles[c.y]?.[c.x] === "floor" || tiles[c.y]?.[c.x] === "pack") {
+            /* keep */
+          }
+        }
+      }
+
+      const used = new Set<string>([`${player.x},${player.y}`]);
+      for (const n of npcs) used.add(`${n.x},${n.y}`);
+      for (const p of portals) used.add(`${p.x},${p.y}`);
+      for (const t of talkers) {
+        if (!stuck.includes(t)) used.add(`${t.x},${t.y}`);
+      }
+      for (const t of stuck) {
+        used.delete(`${t.x},${t.y}`);
+        let best: { x: number; y: number; score: number } | null = null;
+        for (const key of seenFree) {
+          const comma = key.indexOf(",");
+          const nx = Number(key.slice(0, comma));
+          const ny = Number(key.slice(comma + 1));
+          if (used.has(key)) continue;
+          if (arterial(nx, ny)) continue;
+          if (Math.abs(nx - cx) <= 1) continue;
+          if (tiles[ny]?.[nx] !== "floor" && tiles[ny]?.[nx] !== "pack") continue;
+          if (props.some((p) => p.x === nx && p.y === ny && BLOCKING.includes(p.kind))) continue;
+          const open = openness(nx, ny);
+          if (open < 2) continue;
+          // 禁止贴路列队：贴路扣分；与其他 NPC 间距 <2 扣分
+          let nearNpc = 0;
+          for (const o of talkers) {
+            if (o === t) continue;
+            if (Math.abs(o.x - nx) + Math.abs(o.y - ny) < 2) nearNpc += 1;
+          }
+          const d = Math.abs(nx - t.x) + Math.abs(ny - t.y);
+          const roadPenalty = nearRoad(nx, ny) ? -25 : 8;
+          const score = roadPenalty + open * 8 - d * 0.3 - nearNpc * 40 + ((nx * 13 + ny * 7) % 5);
+          if (!best || score > best.score) best = { x: nx, y: ny, score };
+        }
+        if (best) {
+          t.x = best.x;
+          t.y = best.y;
+        }
+        used.add(`${t.x},${t.y}`);
+      }
+    }
+
+    // 打散列队：仅挪到空图洪水可达格，避免踢进死角
+    {
+      const usedPos = new Set(talkers.map((t) => `${t.x},${t.y}`));
+      const tryNudge = (t: (typeof talkers)[0]) => {
+        for (let r = 2; r <= 8; r++) {
+          for (let dy = -r; dy <= r; dy++) {
+            for (let dx = -r; dx <= r; dx++) {
+              if (Math.abs(dx) + Math.abs(dy) !== r) continue;
+              const nx = t.x + dx;
+              const ny = t.y + dy;
+              const key = `${nx},${ny}`;
+              if (!seenFree.has(key) || usedPos.has(key)) continue;
+              if (arterial(nx, ny) || Math.abs(nx - cx) <= 1) continue;
+              if (tiles[ny]?.[nx] !== "floor" && tiles[ny]?.[nx] !== "pack") continue;
+              if (props.some((p) => p.x === nx && p.y === ny && BLOCKING.includes(p.kind))) continue;
+              if (talkers.some((o) => o !== t && Math.abs(o.x - nx) + Math.abs(o.y - ny) < 2)) continue;
+              usedPos.delete(`${t.x},${t.y}`);
+              t.x = nx;
+              t.y = ny;
+              usedPos.add(key);
+              return true;
+            }
+          }
+        }
+        return false;
+      };
+      for (let pass = 0; pass < 5; pass++) {
+        const runs: (typeof talkers)[] = [];
+        const byRow = new Map<number, typeof talkers>();
+        const byCol = new Map<number, typeof talkers>();
+        for (const t of talkers) {
+          if (!byRow.has(t.y)) byRow.set(t.y, []);
+          if (!byCol.has(t.x)) byCol.set(t.x, []);
+          byRow.get(t.y)!.push(t);
+          byCol.get(t.x)!.push(t);
+        }
+        const collect = (list: typeof talkers, axis: "x" | "y") => {
+          const sorted = [...list].sort((a, b) => (axis === "x" ? a.x - b.x : a.y - b.y));
+          let run: typeof talkers = [];
+          const flush = () => {
+            if (run.length >= 3) runs.push(run);
+            run = [];
+          };
+          for (const cur of sorted) {
+            if (!run.length) {
+              run = [cur];
+              continue;
+            }
+            const prev = run[run.length - 1]!;
+            const gap = axis === "x" ? cur.x - prev.x : cur.y - prev.y;
+            if (gap <= 2) run.push(cur);
+            else {
+              flush();
+              run = [cur];
+            }
+          }
+          flush();
+        };
+        for (const list of byRow.values()) if (list.length >= 3) collect(list, "x");
+        for (const list of byCol.values()) if (list.length >= 3) collect(list, "y");
+        for (const g of runs) {
+          for (let i = 1; i < g.length - 1; i++) tryNudge(g[i]!);
+        }
+      }
+      // 再跑一轮可达救援（打散后可能仍贴干道）
+      for (let iter = 0; iter < 8; iter++) {
+        const seen = floodFloor(shellWorld(), run, true);
+        const stuck = talkers.filter((t) => !touchOf(t.x, t.y, seen));
+        if (!stuck.length) break;
+        const used2 = new Set(talkers.map((t) => `${t.x},${t.y}`));
+        for (const t of stuck) {
+          used2.delete(`${t.x},${t.y}`);
+          let best: { x: number; y: number; score: number } | null = null;
+          for (const key of seenFree) {
+            const comma = key.indexOf(",");
+            const nx = Number(key.slice(0, comma));
+            const ny = Number(key.slice(comma + 1));
+            if (used2.has(key) || arterial(nx, ny) || Math.abs(nx - cx) <= 1) continue;
+            if (tiles[ny]?.[nx] !== "floor" && tiles[ny]?.[nx] !== "pack") continue;
+            if (props.some((p) => p.x === nx && p.y === ny && BLOCKING.includes(p.kind))) continue;
+            if (talkers.some((o) => o !== t && Math.abs(o.x - nx) + Math.abs(o.y - ny) < 2)) continue;
+            const score = openness(nx, ny) * 10 - (nearRoad(nx, ny) ? 20 : 0);
+            if (!best || score > best.score) best = { x: nx, y: ny, score };
+          }
+          if (best) {
+            t.x = best.x;
+            t.y = best.y;
+          }
+          used2.add(`${t.x},${t.y}`);
+        }
+      }
+    }
+  }
+
   const progress = [...((run.sealProgress[scene] ?? []) as SealId[])];
   return {
     scene,
@@ -732,6 +1013,7 @@ function talkCtx(run: Run, talkerId: string, pick?: string) {
     step: run.talks?.[talkerId] ?? 0,
     pick,
     hero: run.hero ?? ("rail" as const),
+    silver: run.silver ?? 0,
   };
 }
 
@@ -1166,6 +1448,7 @@ export function interact(
       party: run.party,
       step: run.talks?.[talker.id] ?? 0,
       pick,
+      silver: run.silver ?? 0,
     });
     const spoken = label && !beat.reply ? { ...beat, reply: `“${label}。”` } : beat;
     const flags = applyVoice(next, spoken);

@@ -43,6 +43,8 @@ export type SceneId =
   | "huainan"
   | "linan"
   | "luoyang"
+  | "luoyang_yamen_prison"
+  | "luoyang_yanbo_inner"
   | "bianjing"
   | "usurpCamp"
   | "changan"

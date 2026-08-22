@@ -1,4 +1,5 @@
 import type { Dir, SceneId, Tile } from "./types";
+import { npcById } from "./npc";
 
 export const OUTDOOR = new Set<SceneId>([
   "wharf",
@@ -705,7 +706,24 @@ export function plantStamp(scene: SceneId, tile: Tile, x: number, y: number, til
 }
 
 /** Authored trees pick a nearby canopy so a yard is not one clone stamped over. */
-export function treeStampAt(x: number, y: number): StampName {
+export function treeStampAt(x: number, y: number, tiles?: Tile[][]): StampName {
+  if (tiles) {
+    const nearWater = [
+      [0, 1],
+      [0, -1],
+      [1, 0],
+      [-1, 0],
+      [1, 1],
+      [-1, 1],
+    ].some(([dx, dy]) => tiles[y + dy]?.[x + dx] === "water");
+    if (nearWater) {
+      const n = hash(x, y, 7);
+      // 柳/荷意象：olive 偏柔，bush 作矮荷丛
+      if (n < 0.35) return "bush";
+      if (n < 0.7) return "tree-olive";
+      return "tree";
+    }
+  }
   const n = hash(x, y, 7);
   if (n < 0.18) return "bush";
   if (n < 0.4) return "tree-pine";
@@ -781,17 +799,17 @@ const SPRITE: Record<string, string> = {
   stakeboss: "foe",
   hawker: "woman",
   vendor: "worker",
-  kid: "rail",
+  kid: "worker",
   aunt: "woman",
   farmer: "woman",
   sentry: "clerk",
   woodcut: "worker",
-  docker: "sapper",
-  carter: "seer",
+  docker: "worker",
+  carter: "worker",
   barber: "clerk",
   butcher: "foe",
   monk: "woman",
-  bailiff: "foe",
+  bailiff: "clerk",
   barkeep: "clerk",
   drinker: "worker",
   hostess: "woman",
@@ -804,11 +822,129 @@ const SPRITE: Record<string, string> = {
   tutorEdge: "clerk",
   seer: "seer",
   sapper: "sapper",
+  usurper: "foe",
+  thief: "foe",
+  hillBandit: "foe",
+  riverThug: "foe",
+  // 洛阳身份立绘（复用轮廓，palette 另着色）
+  judge: "clerk",
+  caseclerk: "clerk",
+  luoBailiff: "clerk",
+  luoClerk: "clerk",
+  luoJailer: "foe",
+  luoGate: "clerk",
+  luoAsha: "woman",
+  luoMadam: "woman",
+  luoMusician: "woman",
+  luoBarkeeper: "worker",
+  luoCook: "worker",
+  luoCoach: "foe",
+  luoDisciple: "foe",
+  luoDoctor: "clerk",
+  luoVendor: "worker",
+  luoHerb: "worker",
+  luoAntique: "worker",
+  luoHawker: "worker",
+  luoPost: "worker",
+  luoTemple: "woman",
+  luoRaconteur: "worker",
 };
 
+/** 洛阳 / 通用 NPC 色板（CSS class；不增 PNG） */
+export const NPC_PALETTE: Record<string, string> = {
+  judge: "yamenInk",
+  caseclerk: "yamenInk",
+  luoBailiff: "yamenInk",
+  luoClerk: "yamenInk",
+  luoJailer: "yamenInk",
+  passClerk: "yamenInk",
+  townWatch: "yamenInk",
+  luoGate: "yamenInk",
+  luoAsha: "yanboRouge",
+  luoMadam: "yanboRouge",
+  luoMusician: "yanboRouge",
+  luoBarkeeper: "taibaiEarth",
+  luoCook: "taibaiEarth",
+  luoCoach: "martialIron",
+  luoDisciple: "martialIron",
+  butcher: "martialIron",
+  luoDoctor: "merchantOchre",
+  luoVendor: "merchantOchre",
+  luoHerb: "merchantOchre",
+  luoAntique: "merchantOchre",
+  luoHawker: "merchantOchre",
+  luoPost: "postOchre",
+  messenger: "postOchre",
+  luoTemple: "clergyOchre",
+  luoRaconteur: "folkInk",
+  rumorTea: "folkInk",
+  roadHawker: "folkInk",
+  townHawker: "folkInk",
+  docker: "folkInk",
+  carter: "folkInk",
+  barber: "folkInk",
+  luoWaiter: "taibaiEarth",
+  luoWaiter2: "taibaiEarth",
+  luoGuest: "folkInk",
+  luoGuest2: "folkInk",
+  luoGirl: "yanboRouge",
+  luoGirl2: "yanboRouge",
+  luoTurtle: "yanboRouge",
+  luoDisciple2: "martialIron",
+  luoDisciple3: "martialIron",
+  luoYardHand: "folkInk",
+  luoHerbBoy: "merchantOchre",
+  luoHerb2: "merchantOchre",
+  luoShopHand: "merchantOchre",
+  luoElder: "folkInk",
+  luoElder2: "folkInk",
+  luoKid: "folkInk",
+  luoKid2: "folkInk",
+  luoWife: "folkInk",
+  luoBeggar: "folkInk",
+  luoJailer2: "yamenInk",
+  luoPrisoner: "folkInk",
+};
+
+export function npcPalette(id: string): string {
+  const n = npcById(id);
+  if (n) return n.palette;
+  return NPC_PALETTE[id] ?? "";
+}
+
 export function spriteSrc(id: string): string {
+  const n = npcById(id);
+  if (n) {
+    // 四维轮廓走 SVG；PNG 仅作回退（按性别/职业粗分）
+    const fallback =
+      n.gender === "f" ? "woman" : n.job === "martial" || n.job === "yamen" ? (n.job === "martial" ? "foe" : "clerk") : "worker";
+    return `/art/sprites/sprite-${fallback}.png`;
+  }
   return `/art/sprites/sprite-${SPRITE[id] ?? "worker"}.png`;
 }
+
+/** 配套物件 tag → 复用既有 obj PNG（不增外部资源） */
+export const OBJ_TAG: Record<string, string> = {
+  "cart:carriage": "cart",
+  "cart:sedan": "cart",
+  "cart:wheelbarrow": "cart",
+  "crate:cargo": "chest",
+  "crate:goods": "chest",
+  "crate:tea": "chest",
+  "barrel:anvil": "barrel",
+  "barrel:clapper": "barrel",
+  "barrel:fishbasket": "barrel",
+  "barrel:cargo": "barrel",
+  "lantern:watch": "lantern",
+  "rack:rod": "rack",
+  "post:forge": "pile",
+  "post:teastove": "pile",
+  "post:battlement": "pile",
+  "tree:willow": "tree",
+  "tree:pine": "tree",
+  "tree:bamboo": "tree",
+  "tree:lotus": "tree",
+};
 
 const OBJ: Record<string, string> = {
   barrel: "barrel",
@@ -844,7 +980,11 @@ const OBJ: Record<string, string> = {
   desk: "desk",
 };
 
-export function objSrc(kind: string): string {
+export function objSrc(kind: string, tag?: string): string {
+  if (tag) {
+    const mapped = OBJ_TAG[`${kind}:${tag}`];
+    if (mapped) return `/art/objs/obj-${mapped}.png`;
+  }
   return `/art/objs/obj-${OBJ[kind] ?? "barrel"}.png`;
 }
 
@@ -923,19 +1063,29 @@ const POST = new Set<SceneId>([
   "suzhousu",
   "huainan",
 ]);
-const SHRINE = new Set<SceneId>(["shrine", "tea", "chuzhou"]);
-const WINE = new Set<SceneId>(["wine", "wineUp", "flower", "taxWine", "ropeWine", "taxTea"]);
+const SHRINE = new Set<SceneId>(["shrine", "tea"]);
+const PAVILION = new Set<SceneId>(["chuzhou"]);
+const WINE = new Set<SceneId>([
+  "wine",
+  "wineUp",
+  "flower",
+  "taxWine",
+  "ropeWine",
+  "taxTea",
+  "luoyang_yanbo_inner",
+]);
 const CAMP = new Set<SceneId>(["usurpCamp"]);
 
 export function doorKind(to: SceneId): DoorKind {
   if (CAMP.has(to)) return "camp";
   if (WINE.has(to)) return "wine";
+  if (PAVILION.has(to)) return "pavilion";
   if (SHRINE.has(to)) return "shrine";
   if (FERRY.has(to)) return "ferry";
   if (POST.has(to)) return "post";
   if (TEMPLE.has(to)) return "paifang";
   if (STORE.has(to)) return "hall";
-  if (to === "cave" || to === "cellar") return "hall";
+  if (to === "cave" || to === "cellar" || to === "luoyang_yamen_prison") return "hall";
   if (to === "hut" || to === "plot") return "hut";
   if (to === "ridge") return "post";
   return "hall";

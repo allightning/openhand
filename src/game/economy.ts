@@ -11,7 +11,7 @@
  * - 精材、玄铁、神髓
  */
 import type { BagGoodsId } from "./bag";
-import { BAG_NAME } from "./bag";
+import { BAG_NAME, bagCount } from "./bag";
 import { stageOfScene, stageSilver, type Stage } from "./progress";
 import type { CompanionId, EnemyId, Reward, Run } from "./types";
 import { gearById, nextGrade } from "./weapons";
@@ -118,43 +118,47 @@ export function stageLootWeights(stage: Stage): {
   forgeJing: number;
   forgeXuan: number;
   forgeShen: number;
+  forgeAlt: number;
   pass: number;
   scrollBox: number;
 } {
   if (stage === "early") {
     return {
-      silver: 0.52,
+      silver: 0.5,
       yuanbao: 0.02,
-      fanPill: 0.25,
+      fanPill: 0.24,
       liangPill: 0.08,
-      forgeJing: 0.08,
+      forgeJing: 0.06,
       forgeXuan: 0,
       forgeShen: 0,
+      forgeAlt: 0.05,
       pass: 0.02,
       scrollBox: 0.03,
     };
   }
   if (stage === "mid") {
     return {
-      silver: 0.33,
+      silver: 0.3,
       yuanbao: 0.1,
-      fanPill: 0.14,
-      liangPill: 0.15,
-      forgeJing: 0.14,
-      forgeXuan: 0.06,
+      fanPill: 0.13,
+      liangPill: 0.14,
+      forgeJing: 0.12,
+      forgeXuan: 0.05,
       forgeShen: 0,
+      forgeAlt: 0.08,
       pass: 0.04,
       scrollBox: 0.04,
     };
   }
   return {
-    silver: 0.22,
+    silver: 0.2,
     yuanbao: 0.14,
-    fanPill: 0.1,
-    liangPill: 0.12,
-    forgeJing: 0.12,
-    forgeXuan: 0.1,
+    fanPill: 0.09,
+    liangPill: 0.11,
+    forgeJing: 0.1,
+    forgeXuan: 0.09,
     forgeShen: 0.04,
+    forgeAlt: 0.07,
     pass: 0.06,
     scrollBox: 0.1,
   };
@@ -176,6 +180,10 @@ export function rollSideLoot(_run: Run, scene: string): Reward[] {
   if (hit(w.forgeJing)) return [{ kind: "goods", id: "forgeJing", n: 1 }];
   if (hit(w.forgeXuan)) return [{ kind: "goods", id: "forgeXuan", n: 1 }];
   if (hit(w.forgeShen)) return [{ kind: "goods", id: "forgeShen", n: 1 }];
+  if (hit(w.forgeAlt)) {
+    const alt: BagGoodsId[] = ["forgeIron", "forgeCoal", "forgeOil"];
+    return [{ kind: "goods", id: alt[Math.floor(Math.random() * alt.length)]!, n: 1 }];
+  }
   if (hit(w.pass)) return [{ kind: "pass", amount: 1 }];
   if (hit(w.scrollBox)) return [{ kind: "scrollBox" }];
   return [{ kind: "silver", amount: stageSilver(stage, 2) }];
@@ -189,12 +197,39 @@ export function addPass(run: Run, n: number): Run {
   return { ...run, passes: (run.passes ?? 0) + n };
 }
 
-/** 铁匠：精→神 锻造所需材料。 */
+/** 铁匠：精→神 锻造所需材料（主配方）。 */
 export function forgeNeed(grade: number): Partial<Record<BagGoodsId, number>> | null {
-  if (grade === 3) return { forgeJing: 1, copper: 1 };
-  if (grade === 4) return { forgeXuan: 1, forgeJing: 1 };
-  if (grade === 5) return { forgeShen: 1, forgeXuan: 1 };
+  return forgeNeedOptions(grade)?.[0] ?? null;
+}
+
+/** 同成色可替代配方：生铁/焦炭顶赤铜，淬油顶一截精材。 */
+export function forgeNeedOptions(grade: number): Partial<Record<BagGoodsId, number>>[] | null {
+  if (grade === 3) {
+    return [
+      { forgeJing: 1, copper: 1 },
+      { forgeJing: 1, forgeIron: 1 },
+      { forgeJing: 1, forgeCoal: 1 },
+    ];
+  }
+  if (grade === 4) {
+    return [
+      { forgeXuan: 1, forgeJing: 1 },
+      { forgeXuan: 1, forgeOil: 1 },
+    ];
+  }
+  if (grade === 5) return [{ forgeShen: 1, forgeXuan: 1 }];
   return null;
+}
+
+/** 按行囊现有货色挑一条能锻的配方；都不够则返回主配方供缺材提示。 */
+export function matchForgeNeed(run: Run, grade: number): Partial<Record<BagGoodsId, number>> | null {
+  const opts = forgeNeedOptions(grade);
+  if (!opts?.length) return null;
+  for (const need of opts) {
+    const ok = (Object.entries(need) as [BagGoodsId, number][]).every(([k, n]) => bagCount(run, k) >= n);
+    if (ok) return need;
+  }
+  return opts[0]!;
 }
 
 /**

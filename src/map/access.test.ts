@@ -39,4 +39,10 @@ describe("road access", () => {
     const usurped = addFlag(makeRun("empty", "rail"), "roadUsurp");
     expect(canTravelTo("bianjing", "usurpCamp", usurped).ok).toBe(true);
   });
+
+  it("unlocks all travel in testMode", () => {
+    const run = addFlag(makeRun("empty"), "testMode");
+    expect(canTravelTo("huainan", "bianjing", run).ok).toBe(true);
+    expect(canTravelTo("bianjing", "usurpCamp", run).ok).toBe(true);
+  });
 });

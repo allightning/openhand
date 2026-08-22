@@ -115,7 +115,10 @@ export type CardId =
   | "lateMute"
   | "lateLeech"
   | "lateHand"
-  | "latePouch";
+  | "latePouch"
+  | "jinwuToken"
+  | "peonyBrew"
+  | "drunkFist";
 
 export type CardType = "attack" | "skill";
 export type Phase = "player" | "won" | "lost";
@@ -426,6 +429,9 @@ export interface Run {
   talks: Record<string, number>;
   mateDecks: Record<string, CardId[]>;
   falls: number;
+  /** 命数：战败扣 1；每场开战满血。 */
+  lives: number;
+  livesMax: number;
   hero: HeroId;
   /** 银两 — meta currency for shops / clinics / bribes. Keep rewards modest. */
   silver: number;

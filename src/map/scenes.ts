@@ -45,6 +45,9 @@ import {
   tidePoetBeat,
 } from "../game/midPuzzles";
 import { fordManBeat, hamPorterBeat, roadOfficialBeat } from "../game/midRoads";
+import { luoyangTalkBeat } from "../game/midLuoyang";
+import { bountyWhere, peekBountyTarget } from "../game/hooks";
+import { ENEMIES } from "../game/content";
 import { hubPuzzlesOpen } from "../game/puzzles";
 
 export interface SceneDef {
@@ -73,6 +76,7 @@ export interface TalkCtx {
   step?: number;
   pick?: string;
   hero?: HeroId;
+  silver?: number;
 }
 
 export interface TalkChoice {
@@ -1425,6 +1429,8 @@ export const SCENES = {
 export const SCENE_LIST = Object.keys(SCENES) as SceneId[];
 
 export function talkBeat(id: string, ctx: TalkCtx): Voice {
+  const luo = luoyangTalkBeat(id, ctx);
+  if (luo) return luo;
   if (id === "clerk") {
     if (ctx.beaten.includes("catcher")) {
       return {
@@ -1782,13 +1788,13 @@ export function talkBeat(id: string, ctx: TalkCtx): Voice {
   if (id === "stamp") {
     if (ctx.branded) {
       if (ctx.pick === "ask") {
-        return { said: "“炉已经认你。里面那位更夫才记顺序。”", thought: "" };
+        return { said: "「客官，炉已经认你。里面那位更夫才记顺序。」", thought: "" };
       }
       if (ctx.pick === "leave") {
-        return { said: "“闸还关着。别在门口站久。”", thought: "" };
+        return { said: "「客官慢走。闸还关着，别在门口站久。」", thought: "" };
       }
       return {
-        said: "“火印烫过了。进天井找更夫，问顺序。别先踩印。”",
+        said: "「客官火印烫过了。进天井找更夫，问顺序。别先踩印。」",
         thought: "门口只认火。顺序不在门口。",
         choices: [
           { id: "ask", label: "顺序呢" },
@@ -1797,13 +1803,13 @@ export function talkBeat(id: string, ctx: TalkCtx): Voice {
       };
     }
     if (ctx.pick === "ask") {
-      return { said: "“没有火印，院里的印不认人。西仓账桌上有火印。”", thought: "" };
+      return { said: "「大人听着：没有火印，院里的印不认人。西仓账桌上有火印。」", thought: "" };
     }
     if (ctx.pick === "leave") {
-      return { said: "“别伸手。”", thought: "" };
+      return { said: "「客官别伸手。先把火印办了。」", thought: "" };
     }
     return {
-      said: "“停。这院认火印。你身上没有，别往里走。”",
+      said: "「停。客官且慢——这院认火印。你身上没有，别往里走。」",
       thought: "门口先问火。顺序要等烫过再问。",
       choices: [
         { id: "ask", label: "火印呢" },
@@ -2634,16 +2640,43 @@ export function talkBeat(id: string, ctx: TalkCtx): Voice {
     };
   }
   if (id === "bailiff") {
+    if (ctx.pick === "bountyAsk") {
+      const target = peekBountyTarget({
+        beaten: ctx.beaten ?? [],
+        falls: 0,
+        flags: ctx.flags,
+      } as never);
+      const name = ENEMIES[target]?.name ?? "歹人";
+      const where = bountyWhere(target);
+      return {
+        said: `「名册差：标的是「${name}」，常在${where.place}晃。三场名额内打倒，结银十两，或残谱，或升刃一成。听完再选——不接也成。」`,
+        thought: "先听清楚，再伸手。",
+        flags: ["bountyOffer"],
+        choices: [
+          { id: "bountySilver", label: "接·结银十两" },
+          { id: "bountyCard", label: "接·残谱" },
+          { id: "bountyWeapon", label: "接·升刃一成" },
+          { id: "bountyDecline", label: "不接" },
+        ],
+      };
+    }
+    if (ctx.pick === "bountyDecline") {
+      return {
+        said: "「不接也成。差事板先收着。名册再空几个位子，我再喊你。」",
+        thought: "捕头不逼人。帖要自愿拿。",
+        flags: ["bountyDecline"],
+      };
+    }
     if (ctx.pick === "bountySilver" || ctx.pick === "bountyCard" || ctx.pick === "bountyWeapon") {
-      if (!ctx.flags.includes("bountyDue") && !ctx.flags.includes("bountyActive")) {
-        return { said: "“差事板空着。名册上再倒几个再来。”", thought: "" };
+      if (!ctx.flags.includes("bountyDue") && !ctx.flags.includes("bountyActive") && !ctx.flags.includes("bountyOffer")) {
+        return { said: "「差事板空着。名册上再倒几个再来。」", thought: "" };
       }
       if (ctx.flags.includes("bountyActive")) {
-        return { said: "“帖还在你手里。倒了目标再来结。”", thought: "" };
+        return { said: "「帖还在你手里。倒了目标再来结。」", thought: "" };
       }
       const kind = ctx.pick === "bountySilver" ? "silver" : ctx.pick === "bountyCard" ? "card" : "weapon";
       return {
-        said: "“名册差事。三息内倒掉标的，结赏。拖过了不认。”",
+        said: "「成。帖给你。三场名额内倒掉标的，再来结赏。拖过了不认。」",
         thought: "捕头发帖。帖认刀口。",
         flags: [`bountyAccept-${kind}`],
       };
@@ -2734,7 +2767,7 @@ export function talkBeat(id: string, ctx: TalkCtx): Voice {
       };
     }
     if (ctx.pick === "leave") {
-      return { said: "“堂上还坐着。别挡光。”", thought: "" };
+      return { said: "「大人慢走。堂上还坐着，别挡光。」", thought: "" };
     }
     if (ctx.branded) {
       const choices = [
@@ -2745,22 +2778,18 @@ export function talkBeat(id: string, ctx: TalkCtx): Voice {
         { id: "leave", label: "告辞" },
       ];
       if (ctx.flags.includes("bountyDue")) {
-        choices.unshift(
-          { id: "bountySilver", label: "名册差·结银" },
-          { id: "bountyCard", label: "名册差·残谱" },
-          { id: "bountyWeapon", label: "名册差·兵刃" },
-        );
+        choices.unshift({ id: "bountyAsk", label: "听名册差（可拒）" });
       }
       return {
         said: ctx.flags.includes("bountyDue")
-          ? "“名册上又空了几个。差事板亮了。也有常差可接。”"
-          : "“火印烫过，过帖归港律。衙门有差可接。”",
+          ? "「兄弟，名册上又空了几个位子。差事板亮了——要听差，先听清楚再接。也有常差可接。」"
+          : "「大人，火印烫过，过帖归港律。衙门有差可接。」",
         thought: "官差不看烫印。他看刀口。",
         choices,
       };
     }
     return {
-      said: "“过帖不归衙门批。你要银，衙门有差；你要闹事，堂上见。还有血碑旧案，愿查的来。”",
+      said: "「客官听着：过帖不归衙门批。你要银，衙门有差；你要闹事，堂上见。还有血碑旧案，愿查的来。」",
       thought: "小衙门的差，话比刀短。冤却不短。",
       choices: [
         { id: "jobSalt", label: "缉盐差" },
@@ -2773,25 +2802,25 @@ export function talkBeat(id: string, ctx: TalkCtx): Voice {
   }
   if (id === "coach") {
     if (ctx.pick === "leave") {
-      return { said: "“砂还热着。”", thought: "" };
+      return { said: "「客官慢走。砂还热着，改日再练。」", thought: "" };
     }
     if (ctx.pick === "temper") {
       return {
-        said: "“兵刃升成。砂坑赢过一场，或交银淬火。港上的刀不白亮。”",
+        said: "「兄弟，兵刃升成：砂坑赢过一场，或交银淬火。港上的刀不白亮。」",
         thought: "馆主认砂，也认成色。",
         flags: ["temperAsk"],
       };
     }
     if (ctx.pick?.startsWith("learn:")) {
       return {
-        said: "“拳谱是拳谱。银两结清，步就留下。”",
+        said: "「客官，拳谱是拳谱。银两结清，步就留下。」",
         thought: "武馆认砂，也认银。",
       };
     }
     const forge = forgeCoachBeat({ ...ctx, hubOpen: hubPuzzlesOpen(ctx.flags) });
     if (forge) return forge;
     return {
-      said: "“坐。砂坑里练过的，才配买外功。兵刃也能淬火——炉边还有认火的口诀，错温废材。”",
+      said: "「客官坐。砂坑里练过的，才配买外功。兵刃也能淬火——炉边还有认火的口诀，错温废材。」",
       thought: "馆主不劝打。他劝人认火，也劝人掏银。",
       choices: [
         { id: "learnMenu", label: "学外功" },
@@ -3380,7 +3409,7 @@ export function talkBeat(id: string, ctx: TalkCtx): Voice {
     }
     return {
       said: "「醉翁亭外山路。北淮阴，南建康。山不高，人易迷——迷的是官匪难分。」",
-      thought: "",
+      thought: "亭僧把城叫滁州，把亭外山路留给刀客。",
       choices: [
         { id: "path", label: "怎么走" },
         { id: "bandit", label: "路上可有匪" },
@@ -3836,6 +3865,51 @@ export const TALKER_NAME: Record<string, string> = {
   innkeep: "钱塘店家",
   caseclerk: "朱文渊",
   judge: "洛司",
+  luoBailiff: "捕头姜",
+  luoClerk: "府衙师爷",
+  luoCoach: "教头朱文渊",
+  luoDoctor: "慈惠堂医",
+  luoBarkeeper: "掌柜老温",
+  luoCook: "酒楼厨子",
+  luoAsha: "名妓阿砂",
+  luoMadam: "平康鸨母",
+  luoVendor: "通远当铺",
+  luoHerb: "南市药贩",
+  luoAntique: "古董商",
+  luoRaconteur: "说书人",
+  luoTemple: "景教祠司",
+  luoPost: "驿邮署吏",
+  luoHawker: "南市摊贩",
+  luoGate: "定鼎门卒",
+  luoMusician: "平康乐师",
+  luoDisciple: "武馆弟子",
+  luoJailer: "侧牢狱卒",
+  luoJailer2: "狱卒乙",
+  luoPrisoner: "侧牢囚犯",
+  luoWaiter: "跑堂小二",
+  luoWaiter2: "跑堂丫头",
+  luoGuest: "酒楼食客",
+  luoGuest2: "女食客",
+  luoGirl: "烟波姑娘",
+  luoGirl2: "烟波姑娘乙",
+  luoTurtle: "龟奴",
+  luoDisciple2: "武馆弟子乙",
+  luoDisciple3: "女弟子",
+  luoYardHand: "武馆杂役",
+  luoHerbBoy: "药童",
+  luoHerb2: "抓药的",
+  luoShopHand: "南市伙计",
+  luoElder: "永丰老人",
+  luoElder2: "殖业老妇",
+  luoKid: "坊中孩童",
+  luoKid2: "坊中孩童乙",
+  luoWife: "坊中妇人",
+  luoBeggar: "南市乞丐",
+  luoFlower: "卖花女",
+  luoEmbroid: "绣娘",
+  luoShopWife: "铺中娘子",
+  luoTeaGirl: "茶博士",
+  luoWasher: "浣衣妇",
   messenger: "急脚",
   worksman: "工部桩手",
   eunuch: "宦门人",

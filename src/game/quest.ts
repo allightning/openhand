@@ -1,14 +1,21 @@
 import { activePuzzleSides } from "./puzzles";
 import { caseSideQuests } from "./midCases";
 import { economyLoopNote, SOFT_GRADE_CAP } from "./economy";
+import { bountyTarget, bountyWhere } from "./hooks";
+import { ENEMIES } from "./content";
 import type { HeroId, Run } from "./types";
 import { gearById } from "./weapons";
 
-/** 名字对引导：顶栏只显示 title；点开看 blurb + guide。 */
+function enemyLabel(id: string): string {
+  return ENEMIES[id as keyof typeof ENEMIES]?.name ?? id;
+}
+
+/** 名字对引导：顶栏只显示 title；点开看 blurb + guide（+ 可选 reward）。 */
 export interface QuestEntry {
   title: string;
   blurb: string;
   guide: string;
+  reward?: string;
 }
 
 export interface QuestLog {
@@ -28,8 +35,8 @@ function beaten(run: Run, id: string): boolean {
   return run.beaten.includes(id as Run["beaten"][number]);
 }
 
-function q(title: string, blurb: string, guide: string): QuestEntry {
-  return { title, blurb, guide };
+function q(title: string, blurb: string, guide: string, reward?: string): QuestEntry {
+  return reward ? { title, blurb, guide, reward } : { title, blurb, guide };
 }
 
 /** 烫印/院印：过帖手续，只作支线提示，不占主线标题。三职出村手续不同。 */
@@ -39,26 +46,44 @@ function brandSides(run: Run, shut: boolean): QuestEntry[] {
   const hero = run.hero ?? "rail";
   if (hero === "seer") {
     if (!has(run, "booksOk")) {
-      sides.push(q("过册手续", "税卡认册角。过册前西门不通港湾。", "税市补角、案上对册。齐了出税门，或走南廊上淮阴。"));
+      sides.push(
+        q(
+          "过册手续",
+          "税卡认册角。过册前西门不通港湾。",
+          "去哪：税市或税卡案房。找谁：书办/钱司。做什么：补角对册，齐了出税门或南廊上淮阴。",
+        ),
+      );
     } else if (!has(run, "hasMingzhu")) {
-      sides.push(q("案房三本", "过册之后，案上有三本。", "回税卡找书办或钱司一类，接过明注诸册。"));
+      sides.push(q("案房三本", "过册之后，案上有三本。", "回税卡找书办或钱司 → 空格接过明注诸册。"));
     }
     return sides;
   }
   if (hero === "sapper") {
     if (!run.items.includes("deed") && !has(run, "knotOk")) {
-      sides.push(q("工契手续", "缆厂认契。验契前北门不通港湾。", "工寮凳下取契，闸口验过，再出厂门或北缘官道。"));
+      sides.push(
+        q(
+          "工契手续",
+          "缆厂认契。验契前北门不通港湾。",
+          "去哪：工寮。找谁：凳下角纸/库丁。做什么：取工契 → 闸口验过 → 出厂门或北缘官道。",
+        ),
+      );
     } else if (run.items.includes("deed") && !has(run, "knotOk")) {
-      sides.push(q("验契出厂", "契要见闸。", "带工契回缆厂闸口验过。"));
+      sides.push(q("验契出厂", "契要见闸。", "带工契回缆厂闸口找验契的人，验过再出。"));
     }
     return sides;
   }
   if (!has(run, "branded") && !run.items.includes("brand")) {
-    sides.push(q("过帖手续", "税卡认火印。", "港湾西仓桌上取火印，印院炉上烫一下即可。"));
+    sides.push(
+      q(
+        "过帖手续",
+        "港湾认火印。过帖前西门不通官道。",
+        "去哪：港湾西仓。找谁：账桌火印。做什么：取火印 → 印院天井炉上烫一下。",
+      ),
+    );
   } else if (run.items.includes("brand") && !has(run, "branded")) {
-    sides.push(q("烫一下", "火印要见火才认。", "带火印进印院天井炉上烫印。"));
+    sides.push(q("烫一下", "火印要见火才认。", "带火印进印院天井 → 炉上烫印 → 再回港湾。"));
   } else if (has(run, "branded") && !has(run, "hasMingzhu")) {
-    sides.push(q("账房三本", "烫印之后，账房有三本要给你。", "回港湾找钱司，接过明注、兵籍、势录。"));
+    sides.push(q("账房三本", "烫印之后，账房有三本要给你。", "回港湾找钱司 → 空格接过明注、兵籍、势录。"));
   } else if (has(run, "branded") && !yardSeals(run) && has(run, "metMonk")) {
     sides.push(q("院印顺序", "四印围炉，可选。", "印院西→东→南→北，或问湖亭和尚。不挡进城。"));
   }
@@ -70,20 +95,26 @@ function railMain(run: Run): QuestEntry {
     return q("隐于江湖", "印玺保住了。你不收封赏——刀收回鞘，才算门还在正位。", "刀收回鞘，继续走江湖。");
   }
   if (!has(run, "mainOpen")) {
-    return q("门外有人", "茅屋外有动静。门外的人，往往比屋里的规矩先到。", "出茅屋门，到土坡上看是谁。");
+    return q(
+      "门外有人",
+      "茅屋外有动静。门外的人，往往比屋里的规矩先到。",
+      "出茅屋南门 → 土坡（岗坡）找门外人 → 贴脸空格开口，再打退他。",
+      "兵籍、势录（首胜）",
+    );
   }
   if (!beaten(run, "brute") && !beaten(run, "raider") && !has(run, "heardRebel")) {
     return q(
       "行侠港律",
       "先把眼前的坏人按倒。港律不谈替天——先谈门正不正。",
-      "港湾、岗坡一带，对上拦路、欺负人的。",
+      "进港湾码头或回岗坡 → 找拦路的人贴脸开战 → 倒下一场后，再去办过帖。",
+      "银两·凡药",
     );
   }
   if (!has(run, "heardRebel")) {
     return q(
       "刀口风声",
       "有人要举兵。举兵的人爱喊替天；替天之前，先问门还认不认你踹。",
-      "港湾或临安打听谋逆的风声。",
+      "港湾问熟脸（账房/渔寮），或南下临安茶楼打听谋逆风声。",
     );
   }
   if (!has(run, "midDoorTrue") && !has(run, "midDoorBent")) {
@@ -132,20 +163,25 @@ function seerMain(run: Run): QuestEntry {
     return q("受封将军", "律行完了。印还在朝廷。将军印很重——重到能压住谶，也能压住人。", "你留下官身，镇一方刀兵。");
   }
   if (!beaten(run, "inkhand")) {
-    return q("案下有手", "税卡案下还有一笔墨。墨未干，名已歪。", "你在税卡。对上案下那只手。");
+    return q(
+      "案下有手",
+      "税卡案下还有一笔墨。墨未干，名已歪。",
+      "你在税卡大厅 → 找案下那只手（贴脸开战）→ 打倒后再办过册。",
+      "兵籍、势录（首胜）",
+    );
   }
   if (!has(run, "booksOk") && !has(run, "caseRebel")) {
     return q(
       "册角对案",
       "册子缺一角。缺角不是撕纸，是撕半个城门的认法。",
-      "税卡对册，缺角从别处补齐。",
+      "税市补角或案上问书办 → 回税卡对册 → 齐了出税门/南廊上淮阴。",
     );
   }
   if (!has(run, "caseRebel")) {
     return q(
       "洛阳案卷",
       "秉公查案，牵出谋逆。卷比刀干净，也比刀脏——脏在批红多出来的那一点犹豫。",
-      "淮阴西去亳州→偃师→洛阳天津桥。案要问两回，才能定夺玺。",
+      "过册后西出淮阴 → 亳州→偃师→洛阳天津桥 → 案要问两回才定夺玺。",
     );
   }
   if (!has(run, "purgeReady")) {
@@ -173,16 +209,25 @@ function sapperMain(run: Run): QuestEntry {
     return q("一方小官", "略受恩惠，安定一方。小官的印泥不香，但能盖在工寮的契上。", "不做大官。做能护住这一方的官。");
   }
   if (!beaten(run, "stakeboss")) {
-    return q("厂里那根桩", "缆厂里有根不肯松的桩。桩不松，人的脚也站不稳。", "你在桩场。先过这一桩，再进缆厂。");
+    return q(
+      "厂里那根桩",
+      "缆厂里有根不肯松的桩。桩不松，人的脚也站不稳。",
+      "桩场南面那根桩后 → 贴脸开战过桩头 → 再进缆厂办工契。",
+      "兵籍、势录（首胜）",
+    );
   }
   if (!beaten(run, "knotboss")) {
-    return q("坞里死结", "船坞里有死结。结解不开，潮再大也只是白费力气。", "缆厂南厢进船坞，解开死结那一仗。");
+    return q(
+      "坞里死结",
+      "船坞里有死结。结解不开，潮再大也只是白费力气。",
+      "缆厂南厢门进船坞 → 找死结那一仗 → 解开后再验契出厂。",
+    );
   }
   if (!has(run, "graceKnown")) {
     return q(
       "皇恩未忘",
       "受过粮的人，记得圣上。皇恩两个字，工上读成米香——最好对过仓门印泥，别只听一句。",
-      "淮阴北上宿迁→宿州→汴京御街（或经扬州·高邮）。问工部桩手。",
+      "验契出厂后北上淮阴 → 宿迁→宿州→汴京御街 → 问工部桩手皇恩。",
     );
   }
   if (!has(run, "traitorSeen")) {
@@ -243,6 +288,23 @@ export function questLog(run: Run): QuestLog {
   if (!shut && has(run, "sideTaxTea") && !has(run, "caseRebel")) {
     sides.push(q("茶里西路", "茶客说洛阳要从淮阴西去。", "过册后西去亳州·偃师·洛阳，把案卷对上。"));
   }
+
+  if (!shut && has(run, "luoCanalCase") && !has(run, "luoCanalDone")) {
+    sides.push(q("漕帮案", "捕头姜要你截桥南漕帮。", "洛阳桥南找漕帮匪，倒后再回府衙。"));
+  }
+  if (!shut && has(run, "luoHeardCanal") && !has(run, "luoCanalCase") && !has(run, "luoCanalDone")) {
+    sides.push(q("桥上闲话", "说书人提过漕帮夜巡。", "河南府衙找捕头姜问案。"));
+  }
+  if (!shut && has(run, "luoPeony") && !has(run, "luoPeonyDone")) {
+    sides.push(q("牡丹谱", "阿砂要你听完一折。", "平康坊再找阿砂，听完取牡丹酿。"));
+  }
+  if (!shut && has(run, "luoJailHint") && !has(run, "luoCanalDone")) {
+    sides.push(q("侧牢风声", "鸨母说府衙侧牢有人。", "桥北侧牢找狱卒——慎闯。"));
+  }
+  if (!shut && has(run, "luoEscortJob") && !has(run, "luoEscortDone")) {
+    sides.push(q("定鼎护送", "门卒支了五两。", "出城送到坡外，再回定鼎门。"));
+  }
+
   if (!shut && has(run, "sideRopeRumor") && !has(run, "viewRopeGrace")) {
     sides.push(q("粥棚皇恩", "工丁记得皇粮那年。", "桩酒楼再问酒客：还信不信圣上。"));
   }
@@ -283,18 +345,20 @@ export function questLog(run: Run): QuestLog {
   }
 
   if (has(run, "bountyActive") && !has(run, "bountyDone")) {
-    const raw = run.flags.find((f) => f.startsWith("bountyTarget-"));
-    const who = raw ? raw.replace("bountyTarget-", "") : "标的";
+    const id = bountyTarget(run) ?? "thug";
+    const who = enemyLabel(id);
+    const where = bountyWhere(id);
     const left = Math.max(0, (run.bountyDeadline ?? run.beaten.length) - run.beaten.length);
     sides.push(
       q(
         "名册差事",
         `标的：${who}。还剩约 ${left} 场名额。`,
-        "衙门差事板领的帖。限期内打倒标的，回捕头或当场结赏。",
+        `去${where.place}找「${who}」。限期内打倒，回岗坡衙门捕头结赏，或当场结。`,
+        "银两结赏",
       ),
     );
   } else if (has(run, "bountyDue")) {
-    sides.push(q("差事板亮了", "名册又空了几个位子。", "回岗坡衙门，找捕头领名册差。"));
+    sides.push(q("差事板亮了", "名册又空了几个位子。", "回岗坡衙门，找捕头听差事，再决定接或不接。"));
   }
 
   if (has(run, "forkOpen") || has(run, "forkRail") || has(run, "forkSeer") || has(run, "forkSapper")) {
@@ -315,6 +379,8 @@ export function questLog(run: Run): QuestLog {
   }
 
   if (!shut && has(run, "sideWell")) {
+    const wellHub =
+      (run.hero ?? "rail") === "seer" ? "税市" : (run.hero ?? "rail") === "sapper" ? "缆厂" : "港湾";
     if (has(run, "wellOpen") && !run.party.includes("hermit")) {
       sides.push(q("潮窟有人", "井下通潮窟。", "灯楼下井口进潮窟，看窟里还有没有人。"));
     } else if (has(run, "askedWell") && !has(run, "wellOpen")) {
@@ -322,7 +388,7 @@ export function questLog(run: Run): QuestLog {
     } else if (has(run, "heardWell") && !has(run, "askedWell") && !has(run, "wellOpen")) {
       sides.push(q("问灯守", "有人把井的事推到灯守身上。", "去灯楼找灯守，问起井。"));
     } else if (!has(run, "wellOpen")) {
-      sides.push(q("问井", "港湾有人提起井。", "先问渔寮或挖井的人，再跟线索走。"));
+      sides.push(q("问井", `${wellHub}有人提起井。`, `先在${wellHub}问挖井的人或渔寮，再跟线索走。`));
     }
   }
   if (!shut && has(run, "sideTree")) {
@@ -335,14 +401,22 @@ export function questLog(run: Run): QuestLog {
     }
   }
   if (!shut && has(run, "sideStone")) {
+    const stonePlace =
+      (run.hero ?? "rail") === "sapper" ? "缆厂南桩" : (run.hero ?? "rail") === "seer" ? "税市外桩" : "港湾南桩";
     if (has(run, "stoneOpen") && !run.visited.includes("cellar")) {
-      sides.push(q("石下有窖", "南桩石头已开。", "港湾南桩进窖看看。"));
+      sides.push(q("石下有窖", "石头已开。", `${stonePlace}进窖看看。`));
     } else if (!has(run, "stoneOpen")) {
-      sides.push(q("南桩有石", "南桩下有石会响。", "听过人说之后，再去港湾南桩撬石。"));
+      sides.push(q("南桩有石", "南桩下有石会响。", `听过人说之后，再去${stonePlace}撬石。`));
     }
   }
   if (!shut && has(run, "heardPlaza") && !has(run, "branded") && !run.items.includes("brand")) {
-    sides.push(q("江心问印", "和尚提过印。", "港湾湖亭问坐着的和尚。"));
+    const plaza =
+      (run.hero ?? "rail") === "seer"
+        ? "税市湖亭问坐着的人"
+        : (run.hero ?? "rail") === "sapper"
+          ? "缆厂湖亭问坐着的人"
+          : "港湾湖亭问坐着的和尚";
+    sides.push(q("江心问印", "有人提过印。", plaza + "。"));
   }
   if (!shut && has(run, "escortJob") && !has(run, "escortDone")) {
     if (has(run, "escortLong")) {
@@ -365,24 +439,25 @@ export function questLog(run: Run): QuestLog {
           `长镖·${destName}`,
           eliteOk ? "劫镖已清。" : "官道有劫，绕不开。",
           eliteOk ? `押货到${destName}交货结银。` : `先打过官道劫镖，再往${destName}。`,
+          "银两·元宝",
         ),
       );
     } else {
-      sides.push(q("短镖·码头车夫", "镖局给了货箱。", "出码头，把货箱交给码头车夫结银。"));
+      sides.push(q("短镖·码头车夫", "镖局给了货箱。", "出码头，把货箱交给码头车夫结银。", "银十五两"));
     }
   }
   if (!shut && has(run, "yamenSalt") && !has(run, "yamenSaltDone")) {
     if (beaten(run, "smuggler")) {
-      sides.push(q("缉盐差", "私盐那手已倒。", "回岗坡衙门，找捕头差结银十二两。"));
+      sides.push(q("缉盐差", "私盐那手已倒。", "回岗坡衙门，找捕头差结银十二两。", "银十二两"));
     } else {
-      sides.push(q("缉盐差", "私盐要缉。", "西仓一带查私盐，对上走私的人。"));
+      sides.push(q("缉盐差", "私盐要缉。", "西仓一带查私盐，对上走私的人。", "银十二两"));
     }
   }
   if (!shut && has(run, "yamenBandit") && !has(run, "yamenBanditDone")) {
     if (beaten(run, "bandit")) {
-      sides.push(q("清匪帖", "岗花子已倒。", "回衙门结帖。"));
+      sides.push(q("清匪帖", "岗花子已倒。", "回衙门结帖。", "银两·帖"));
     } else {
-      sides.push(q("清匪帖", "岗上有匪。", "按捕头差的帖去清。"));
+      sides.push(q("清匪帖", "岗上有匪。", "按捕头差的帖去清。", "银两·帖"));
     }
   }
 

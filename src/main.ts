@@ -25,12 +25,13 @@ import {
   collectCraft,
   craftRemainSec,
   maybeTongbaoDrop,
+  packDisplayStacks,
   sellBag,
   spendTongbao,
   startCraft,
   stashAdd,
+  syncBagCurrency,
   takeBag,
-  tongbaoOf,
   tongbaoRerollAffordable,
   useBattleGood,
   useSalveMap,
@@ -38,8 +39,8 @@ import {
   type CraftRecipeId,
 } from "./game/bag";
 import { endingLead, endingSummary } from "./game/midCases";
-import { applyPillToMate, forgeNeed, softUpgradeBlockReason, softUpgradeTarget } from "./game/economy";
-import { DIFFICULTY_META, getDifficulty, setSettings, type Difficulty } from "./game/settings";
+import { applyPillToMate, matchForgeNeed, softUpgradeBlockReason, softUpgradeTarget } from "./game/economy";
+import { DIFFICULTY_META, DISPLAY_META, getDifficulty, getDisplayMode, applyDisplayMode, setSettings, type Difficulty, type DisplayMode } from "./game/settings";
 import {
   canPlay,
   canSwap,
@@ -49,8 +50,10 @@ import {
   makeBattle,
   playCard,
   previewCard,
+  seizeOpening,
   statusChips,
   swapFighter,
+  yourPace,
 } from "./game/sim";
 import { BOARD_SIZE, type Battle, type CardInst, type CompanionId, type EnemyId, type HeartId, type HeroId, type Preview, type Reward, type Run, type TechniqueId } from "./game/types";
 import { combatBg, hasStand, stand, titleBg } from "./art/portraits";
@@ -79,11 +82,14 @@ import { applyCamera, coverScale, type Cam } from "./map/camera";
 import { canTravelTo } from "./map/access";
 import { HERO_BOSSES, HERO_START } from "./game/hero";
 import { questLog } from "./game/quest";
-import { JOIN_FLAG, MATES, MATE_PASSIVE, PARTY_CAP, WEAPON_NAME, WEAPON_PACE, WEAPON_VERB, addCompanion, cardSchool, dismissCompanion, grantChapterTwo, healRun, isLead, mateJoinReady, noteFall, restHeal, reviveHp, schoolLabel, syncActiveHp, wielderOf } from "./game/party";
+import { JOIN_FLAG, MATES, MATE_PASSIVE, PARTY_CAP, WEAPON_NAME, WEAPON_PACE, WEAPON_VERB, addCompanion, cardSchool, dismissCompanion, grantChapterTwo, healRun, isLead, mateJoinReady, noteFall, restHeal, schoolLabel, stashOrTeach, syncActiveHp, wielderOf } from "./game/party";
 import {
   acceptBounty,
   applyFallFlags,
+  bountyTarget,
+  bountyWhere,
   checkBountyOnWin,
+  declineBounty,
   maybeArmBounty,
   maybeUnlockFork,
   placeTeaBet,
@@ -103,7 +109,7 @@ import {
   markVision,
   objSrc,
   plantStamp,
-  spriteSrc,
+  npcPalette,
   stampSrc,
   texMarkup,
   tileArt,
@@ -113,6 +119,9 @@ import {
   wallSeamEdge,
   cellUsesBrick,
 } from "./map/tileset";
+import { npcById } from "./map/npc";
+import { getNpcMapSrc } from "./assets/sprites";
+import { dialogueToHtml } from "./map/dialogue";
 import { SCENES, SPAR_FLAG, TALKER_NAME, itemName, tutorLesson } from "./map/scenes";
 import type { ItemId, PropKind, SceneId, Tile } from "./map/types";
 import type { Dir, World } from "./map/types";
@@ -156,7 +165,9 @@ let atlasOpen = false;
 let packOpen = false;
 let pillPick: BagGoodsId | null = null;
 let partyOpen = false;
+let partyPage = 0;
 let questSheet: "main" | "side" | null = null;
+let questPage = 0;
 let settingsOpen = false;
 let codexOpen: CodexBook | null = null;
 let saveToast = "";
@@ -167,6 +178,9 @@ let fallThought = "";
 let pileOpen: "draw" | "discard" | null = null;
 let weaponOpen: string | null = null;
 let placeToast: { name: string; kicker: string } | null = null;
+let questToast: string | null = null;
+let questToastTimer = 0;
+let lastQuestSnap = { main: "", sides: "" };
 let placeTimer = 0;
 let sparKeep: { hp: number; companionHp: Run["companionHp"] } | null = null;
 let talkSig = "";
@@ -246,6 +260,10 @@ function advanceTalkPage(): boolean {
 }
 
 function seeAround(): void {
+  if (run.flags.includes("testMode")) {
+    revealAllSeen();
+    return;
+  }
   const outdoor = isOutdoor(world.scene);
   const block = (x: number, y: number) =>
     world.tiles[y]?.[x] === "wall" ||
@@ -286,6 +304,15 @@ function seeAround(): void {
   run = { ...run, seenTiles: seen };
 }
 
+/** 测试版：当前场景全图已见，无黑雾。 */
+function revealAllSeen(): void {
+  const keys: string[] = [];
+  for (let y = 0; y < world.h; y++) {
+    for (let x = 0; x < world.w; x++) keys.push(`${x},${y}`);
+  }
+  run = { ...run, seenTiles: { ...run.seenTiles, [world.scene]: keys } };
+}
+
 function stopWalk(): void {
   walkGen += 1;
   if (walkTimer) {
@@ -323,6 +350,22 @@ function applyMapInteract(pick?: string): void {
       if (Number.isFinite(n)) run = { ...run, silver: Math.max(0, (run.silver ?? 0) + n) };
       continue;
     }
+    if (flag.startsWith("teachCard-")) {
+      const cardId = flag.slice("teachCard-".length) as import("./game/types").CardId;
+      if (CARDS[cardId]) {
+        run = stashOrTeach(run, cardId);
+        world.thought = `${world.thought || ""} 谱页入手。`.trim();
+      }
+      continue;
+    }
+    if (flag.startsWith("mapHeal")) {
+      const n = Number(flag.replace("mapHeal", ""));
+      if (Number.isFinite(n) && n > 0) {
+        run = healRun(run, n);
+        world.hp = run.hp;
+      }
+      continue;
+    }
     if (flag === "buyRoadPass" || flag === "buyRoadPass8") {
       const cost = flag === "buyRoadPass8" ? 8 : 5;
       if ((run.silver ?? 0) < cost) {
@@ -356,11 +399,20 @@ function applyMapInteract(pick?: string): void {
       world.message = world.said;
       continue;
     }
+    if (flag === "bountyDecline") {
+      run = declineBounty(run);
+      world.said = "「不接也成。差事板先收着。」";
+      world.thought = "帖要自愿拿。";
+      world.message = world.said;
+      continue;
+    }
     if (flag.startsWith("bountyAccept-")) {
       const kind = flag.replace("bountyAccept-", "") as "silver" | "card" | "weapon";
       run = acceptBounty(run, kind);
-      const who = run.flags.find((f) => f.startsWith("bountyTarget-"))?.replace("bountyTarget-", "") ?? "人";
-      world.said = `「帖给你。标的是 ${who}。三场名额内倒掉。」`;
+      const id = bountyTarget(run) ?? "thug";
+      const who = ENEMIES[id]?.name ?? "歹人";
+      const where = bountyWhere(id);
+      world.said = `「帖给你。标的是「${who}」，去${where.place}找。三场名额内倒掉。」`;
       world.thought = "差事板认刀。";
       world.message = world.said;
       continue;
@@ -563,6 +615,7 @@ function applyMapInteract(pick?: string): void {
     save = paid;
     run = addItem(run, "roadPass");
     run = addFlag(run, "roadPass");
+    run = syncBagCurrency(run, save);
     world.said = "通宝一枚入袖。文牒提前盖下。";
     world.thought = "驿路三程先开。";
     world.message = world.said;
@@ -600,6 +653,7 @@ function applyMapInteract(pick?: string): void {
       weapon: up,
       weapons: taken.weapons.includes(up) ? taken.weapons : [...taken.weapons, up],
     };
+    run = syncBagCurrency(run, save);
     world.said = `通宝锻刃。入手 ${gearById(up)?.name ?? "新刃"}。`;
     world.thought = "刃上多一成劲。精以上另吃锻材。";
     world.message = world.said;
@@ -620,7 +674,7 @@ function applyMapInteract(pick?: string): void {
       paintMap();
       return;
     }
-    const need = forgeNeed(targetGrade);
+    const need = matchForgeNeed(run, targetGrade);
     if (!need) {
       world.said = "这炉吃不下。";
       world.message = world.said;
@@ -680,14 +734,16 @@ function applyMapInteract(pick?: string): void {
     }
     save = paid;
     run = addTechnique(run, pickTech);
+    run = syncBagCurrency(run, save);
     world.said = `通宝换残页。入手「${TECHNIQUES[pickTech].name}」。`;
     world.thought = TECHNIQUES[pickTech].text;
     world.message = world.said;
     persist();
     paintMap();
-  } else if (r.action === "end") endRunWin();
+  }   else if (r.action === "end") endRunWin();
   else if (r.travel) travelTo(r.travel.to, r.travel.at);
   else paintMap();
+  cueQuestToast();
 }
 
 function faceToward(x: number, y: number): Dir | null {
@@ -809,26 +865,56 @@ function mateArt(id: string, kind: string): string {
 }
 
 function cutSprite(id: string): string {
-  return `<img class="sprite" src="${spriteSrc(id)}" alt="" draggable="false">`;
+  // 美术铁律：预生成 PNG，禁止 SVG/代码简笔画
+  const n = npcById(id);
+  const pal = n?.palette ?? npcPalette(id);
+  const cls = `sprite${pal ? ` pal-${pal}` : ""}`;
+  const src = getNpcMapSrc(id);
+  return `<img class="${cls.trim()}" src="${src}" alt="" draggable="false">`;
 }
 
-function houseLabel(world: World, p: { x: number; y: number }): string {
+function houseLabel(world: World, p: { x: number; y: number; tag?: string }): string {
+  if (p.tag && p.tag !== "shed") return p.tag;
   const labels: Record<string, string> = {
-    vendor: "货铺",
     hawker: "饼摊",
     clerk: "账房",
     fisher: "渔寮",
-    carter: "车棚",
+    carter: "脚行",
     docker: "缆寮",
     barber: "剃铺",
     butcher: "肉案",
     monk: "湖亭",
+    pavilionMonk: "醉翁亭",
     bailiff: "衙门",
     barkeep: "酒楼",
     hostess: "花舫",
     doctor: "医馆",
     coach: "武馆",
     inn: "客栈",
+    innkeep: "驿酒楼",
+    vendor: "当铺",
+    passClerk: "官署",
+    postRider: "驿馆",
+    rumorTea: "茶棚",
+    townWatch: "更铺",
+    roadCook: "食摊",
+    scribe: "案房",
+    townHawker: "商行",
+    roadHawker: "货摊",
+    judge: "河南府·正堂",
+    luoBailiff: "河南府·正堂",
+    luoBarkeeper: "太白酒楼",
+    luoAsha: "烟波楼",
+    luoMadam: "烟波楼",
+    luoCoach: "定鼎武馆",
+    luoDoctor: "回春堂",
+    luoVendor: "通远质库",
+    luoTemple: "大秦寺",
+    luoPost: "洛阳驿",
+    luoHerb: "药铺",
+    luoAntique: "绸缎庄",
+    luoRaconteur: "杂货铺",
+    luoGate: "定鼎门",
   };
   let best: string | null = null;
   let bestD = 3;
@@ -842,17 +928,17 @@ function houseLabel(world: World, p: { x: number; y: number }): string {
   return best ?? "屋";
 }
 
-function propArt(kind: PropKind, x = 0, y = 0, scene?: SceneId, tiles?: Tile[][]): string {
+function propArt(kind: PropKind, x = 0, y = 0, scene?: SceneId, tiles?: Tile[][], tag?: string): string {
   if (kind === "tree") {
     const brick = scene && tiles ? cellUsesBrick(scene, tiles, x, y) : false;
-    const stamp = brick ? courtyardTreeStamp(x, y) : treeStampAt(x, y);
+    const stamp = brick ? courtyardTreeStamp(x, y) : treeStampAt(x, y, tiles);
     const grow = stamp === "bush" ? " bush" : stamp === "tree-pot" ? " tree-pot" : stamp.startsWith("tree-") ? ` ${stamp}` : "";
     return `<img class="sprite obj${grow}" src="${stampSrc(stamp)}" alt="" draggable="false">`;
   }
   if (kind === "arch" && tiles) {
     return `<img class="sprite obj" src="${archSrc(tiles, x, y)}" alt="" draggable="false">`;
   }
-  return `<img class="sprite obj" src="${objSrc(kind)}" alt="" draggable="false">`;
+  return `<img class="sprite obj" src="${objSrc(kind, tag)}" alt="" draggable="false">`;
 }
 
 function itemSprite(id: ItemId): string {
@@ -1235,8 +1321,32 @@ function cuePlace(scene: SceneId): void {
   if (placeTimer) window.clearTimeout(placeTimer);
   placeTimer = window.setTimeout(() => {
     placeToast = null;
-    root.querySelector(".place-ink")?.remove();
-  }, 3000);
+    if (screen === "map") render();
+  }, 2200);
+}
+
+function cueQuestToast(): void {
+  const log = questLog(run);
+  const main = log.main.title;
+  const sides = log.sides.map((s) => s.title).join("|");
+  if (!lastQuestSnap.main && !lastQuestSnap.sides) {
+    lastQuestSnap = { main, sides };
+    return;
+  }
+  const msgs: string[] = [];
+  if (main !== lastQuestSnap.main) msgs.push("有新的主线任务");
+  const prevSides = new Set(lastQuestSnap.sides.split("|").filter(Boolean));
+  const newSide = log.sides.some((s) => !prevSides.has(s.title));
+  if (newSide) msgs.push("有新的支线任务");
+  lastQuestSnap = { main, sides };
+  if (!msgs.length) return;
+  questToast = msgs[0]!;
+  if (questToastTimer) window.clearTimeout(questToastTimer);
+  questToastTimer = window.setTimeout(() => {
+    questToast = null;
+    questToastTimer = 0;
+    if (screen === "map") render();
+  }, 2000);
 }
 
 function escapeTalk(s: string): string {
@@ -1252,9 +1362,12 @@ function quoteSpeech(s: string): string {
 }
 
 function markClues(s: string): string {
-  let out = escapeTalk(quoteSpeech(s));
-  for (const word of CLUE_WORDS) out = out.replaceAll(word, `<em class="clue">${word}</em>`);
-  return out;
+  let raw = quoteSpeech(s);
+  for (const word of CLUE_WORDS) {
+    if (raw.includes(`**${word}**`) || raw.includes(`{{${word}}}`)) continue;
+    raw = raw.replaceAll(word, `**${word}**`);
+  }
+  return dialogueToHtml(raw);
 }
 
 function talkFace(w: World): string {
@@ -1311,6 +1424,7 @@ function renderTitle(): string {
         <div class="roster">${heroes}</div>
         <div class="row">
           <button class="primary" id="btn-start">出门 · ${HEROES.find((h) => h.id === pendingHero)?.name ?? "轨刃"}</button>
+          <button type="button" class="ghost" id="btn-test">测试版</button>
           ${hasStashedRun(save) ? `<button type="button" class="ghost" id="btn-continue">续关</button>` : ""}
           <button type="button" class="ghost" id="btn-settings-title">设置</button>
           ${earButtons()}
@@ -1789,22 +1903,23 @@ function fillTile(el: HTMLElement, w: World, x: number, y: number): void {
 }
 
 function renderPack(): string {
+  run = syncBagCurrency(run, save);
   const keys = run.items.map((id) => `<li class="pack-key">${itemName(id as ItemId)}</li>`).join("");
-  const PILL_IDS = new Set<BagGoodsId>([
-    "pillFan",
-    "pillLiangHp",
-    "pillLiangQi",
-    "pillXuanHp",
-    "pillXuanQi",
-    "pillXuanPace",
-  ]);
+  const stacks = packDisplayStacks(run, save);
   const slots = Array.from({ length: 12 }, (_, i) => {
-    const s = (run.bag ?? [])[i];
+    const s = stacks[i];
     if (!s) return `<button type="button" class="bag-cell empty" disabled></button>`;
     const tip = BAG_TIP[s.id as BagGoodsId] ?? "";
-    const useable = s.id === "salve" || s.id === "pillFan" || PILL_IDS.has(s.id as BagGoodsId);
-    return `<button type="button" class="bag-cell bag-ico-${s.id}" data-bag="${s.id}" title="${BAG_NAME[s.id as BagGoodsId]} · ${tip}" ${useable ? "" : ""}>
-      ${bagArtMarkup(s.id)}<b>${BAG_NAME[s.id as BagGoodsId]}</b><em>×${s.n}</em>
+    const useable =
+      s.id === "salve" ||
+      s.id === "pillFan" ||
+      s.id === "pillLiangHp" ||
+      s.id === "pillXuanHp" ||
+      s.id === "pillLiangQi" ||
+      s.id === "pillXuanQi" ||
+      s.id === "pillXuanPace";
+    return `<button type="button" class="bag-cell bag-ico-${s.id}" data-bag="${s.id}" title="${BAG_NAME[s.id as BagGoodsId]} · ${tip}">
+      ${bagArtMarkup(s.id)}<b>${BAG_NAME[s.id as BagGoodsId]}</b><em>×${s.n}</em>${useable ? "<i>使用</i>" : ""}
     </button>`;
   }).join("");
   const craftSec = craftRemainSec(run);
@@ -1824,9 +1939,9 @@ function renderPack(): string {
     return `<button type="button" class="pill-mate" data-pill-mate="${id}">${m.name}<small>${bits || "未服丹"}</small></button>`;
   }).join("");
   const pillSheet =
-    pillPick && pillPick !== "pillFan" && pillPick !== "salve"
+    pillPick && (pillPick === "pillLiangQi" || pillPick === "pillXuanQi" || pillPick === "pillXuanPace")
       ? `<div class="pill-pick">
-          <p>选一人服下「${BAG_NAME[pillPick]}」。只加此人根基。</p>
+          <p>选一人服下「${BAG_NAME[pillPick]}」。</p>
           <div class="pill-mates">${mates}</div>
           <button type="button" class="ghost" id="pill-cancel">不吃了</button>
         </div>`
@@ -1838,14 +1953,11 @@ function renderPack(): string {
       <h2>身上</h2>
       <div class="pack-currency">
         <span class="silver-chip">${coinMark()}<b>${run.silver ?? 0}</b> 两</span>
-        <span class="silver-chip" title="元宝">元宝 <b>${run.yuanbao ?? 0}</b></span>
-        <span class="tongbao-chip" title="通宝 · 稀少">通宝 <b>${tongbaoOf(save)}</b></span>
-        <span class="tongbao-chip" title="通关文牒">文牒 <b>${run.passes ?? 0}</b></span>
+        <span class="tongbao-chip" title="元宝">元宝 <b>${run.yuanbao ?? 0}</b></span>
       </div>
       <div class="bag-grid">${slots}</div>
       ${pending}
       ${pillSheet}
-      <p class="pack-hint">伤药／凡药点一下回血。良药·玄药点一下选人服用。锻材拿到武馆炉上用。</p>
       <div class="kicker">腰牌 · 文书</div>
       <ul class="pack-list">${keys || "<li>没有要紧文书。</li>"}</ul>
     </div>`;
@@ -1902,58 +2014,89 @@ function renderCodexSheet(book: CodexBook): string {
 }
 
 function renderParty(): string {
-  const mates = run.party
-    .map((id) => {
-      const m = MATES[id];
-      const hp = run.companionHp[id] ?? (isLead(run, id) ? run.hp : m.hp);
-      const cap = isLead(run, id) ? run.hpMax : m.hp;
-      const extra = (run.mateDecks[id] ?? []).length;
-      const learned = extra ? ` · 新谱 ${extra}` : "";
-      const gift = !isLead(run, id) && MATE_PASSIVE[id] ? ` · ${MATE_PASSIVE[id]!.name}` : "";
-      const kick = isLead(run, id)
-        ? ""
-        : `<button type="button" class="kick-mate" data-kick="${id}">遣散</button>`;
-      return `<li>${m.name} · ${WEAPON_NAME[m.weapon]} · ${hp}/${cap}${learned}${gift}${kick}<span>${isLead(run, id) ? WEAPON_VERB[m.weapon] : (MATE_PASSIVE[id]?.text ?? WEAPON_VERB[m.weapon])}</span></li>`;
-    })
-    .join("");
+  const ids = run.party;
+  if (!ids.length) {
+    return `
+    <div class="sheet-panel">
+      ${sheetClose()}
+      <div class="kicker">同行</div>
+      <h2>在路上 · 0/${PARTY_CAP}</h2>
+      <p class="quest-blurb">还没有同路人。</p>
+    </div>`;
+  }
+  const page = Math.max(0, Math.min(partyPage, ids.length - 1));
+  partyPage = page;
+  const id = ids[page]!;
+  const m = MATES[id];
+  const hp = run.companionHp[id] ?? (isLead(run, id) ? run.hp : m.hp);
+  const cap = isLead(run, id) ? run.hpMax : m.hp;
+  const pace = WEAPON_PACE[m.weapon];
+  const extra = (run.mateDecks[id] ?? []).length;
+  const gift = !isLead(run, id) && MATE_PASSIVE[id] ? MATE_PASSIVE[id]!.name : "";
+  const bio = m.bio ?? (isLead(run, id) ? WEAPON_VERB[m.weapon] : MATE_PASSIVE[id]?.text ?? WEAPON_VERB[m.weapon]);
+  const kick = isLead(run, id)
+    ? ""
+    : `<button type="button" class="kick-mate party-kick" data-kick="${id}">遣散</button>`;
   return `
     <div class="sheet-panel">
       ${sheetClose()}
       <div class="kicker">同行</div>
-      <h2>在路上 · ${run.party.length}/${PARTY_CAP}</h2>
-      <p class="quest-blurb">同路最多七人。满员时新人上不来，需先遣散。</p>
-      <ul class="pack-list mates">${mates}</ul>
+      <h2>在路上 · ${ids.length}/${PARTY_CAP}</h2>
+      <div class="party-page">
+        <div class="party-stand">${stand(id, "stand")}</div>
+        <h2>${m.name}</h2>
+        <p class="party-meta">${m.title} · ${WEAPON_NAME[m.weapon]} · 先机 ${pace}</p>
+        <p class="party-meta">气血 ${hp}/${cap}${extra ? ` · 新谱 ${extra}` : ""}${gift ? ` · ${gift}` : ""}</p>
+        <p class="party-bio">${bio}</p>
+        ${kick}
+      </div>
+      <div class="party-flip-nav">
+        <button type="button" id="party-prev" ${page <= 0 ? "disabled" : ""}>‹</button>
+        <span>${page + 1} / ${ids.length}</span>
+        <button type="button" id="party-next" ${page >= ids.length - 1 ? "disabled" : ""}>›</button>
+      </div>
     </div>`;
 }
 
-function renderQuestCard(q: { title: string; blurb: string; guide: string }, kind: "main" | "side"): string {
+function renderQuestCard(q: { title: string; blurb: string; guide: string; reward?: string }, kind: "main" | "side"): string {
+  const reward = `<p class="quest-reward"><em>赏</em>${q.reward ?? "见机缘"}</p>`;
   return `<article class="quest-card ${kind}">
     <header><em>${kind === "main" ? "主线" : "支线"}</em><b>${q.title}</b></header>
     <p class="quest-blurb">${q.blurb}</p>
     <p class="quest-guide"><span>去向</span>${q.guide}</p>
+    ${reward}
   </article>`;
 }
 
 function renderQuests(): string {
   const log = questLog(run);
-  if (questSheet === "side") {
-    const body = log.sides.length
-      ? log.sides.map((q) => renderQuestCard(q, "side")).join("")
-      : `<p class="quest-empty">还没接旁的差，也没问起旁的事。</p>`;
-    return `
-    <div class="sheet-panel quest-sheet">
-      ${sheetClose()}
-      <div class="kicker">支线</div>
-      <h2>路上旁的事</h2>
-      <div class="quest-stack">${body}</div>
-    </div>`;
-  }
+  const sides = log.sides;
+  const perPage = 2;
+  const sidePages = Math.max(1, Math.ceil(sides.length / perPage) || 1);
+  const page = Math.max(0, Math.min(questPage, sidePages - 1));
+  questPage = page;
+  const slice = sides.slice(page * perPage, page * perPage + perPage);
+  const sideBody = sides.length
+    ? slice.map((q) => renderQuestCard(q, "side")).join("")
+    : `<p class="quest-empty">还没接旁的差，也没问起旁的事。</p>`;
+  const nav =
+    sides.length > perPage
+      ? `<div class="quest-flip-nav">
+          <button type="button" id="quest-prev" ${page <= 0 ? "disabled" : ""}>‹</button>
+          <span>旁事 ${page + 1} / ${sidePages}</span>
+          <button type="button" id="quest-next" ${page >= sidePages - 1 ? "disabled" : ""}>›</button>
+        </div>`
+      : "";
+  const focus = questSheet === "side" ? "支线" : "此行";
   return `
     <div class="sheet-panel quest-sheet">
       ${sheetClose()}
-      <div class="kicker">主线</div>
-      <h2>此行</h2>
+      <div class="kicker">${focus}</div>
+      <h2>名册</h2>
       <div class="quest-stack">${renderQuestCard(log.main, "main")}</div>
+      <div class="kicker" style="margin-top:14px">旁的事</div>
+      <div class="quest-stack">${sideBody}</div>
+      ${nav}
     </div>`;
 }
 
@@ -1994,13 +2137,14 @@ function renderMap(): string {
           ${renderCodexButtons()}
           <button id="btn-pack" class="fy-btn" type="button">行囊</button>
           <button id="btn-party" class="fy-btn" type="button">同行</button>
-          <span class="fy-btn hp">${heartMark()} ${run.hp}/${isLead(run, run.active) ? run.hpMax : MATES[run.active].hp}</span>
+          <span class="fy-btn hp" title="命数">${heartMark()} ${run.lives ?? 3}/${run.livesMax ?? 3}</span>
           <button id="btn-title" class="fy-btn" type="button">名册</button>
           <button id="btn-settings" class="fy-btn" type="button">设置</button>
         </div>
       </header>
       <div class="map-stage" id="map-stage">
         ${placeToast ? `<div class="place-ink"><em>${placeToast.kicker}</em><b>${placeToast.name}</b></div>` : ""}
+        ${questToast ? `<div class="place-ink quest-ink"><em>名册</em><b>${questToast}</b></div>` : ""}
         <div class="map" id="map" style="width:${w.w * TILE}px;height:${w.h * TILE}px">
           <div class="tiles" style="grid-template-columns:repeat(${w.w}, ${TILE}px)">${tiles.join("")}</div>
           <canvas class="fog-layer" id="fog" width="${w.w * TILE}" height="${w.h * TILE}"></canvas>
@@ -2034,19 +2178,26 @@ function paintMap(): void {
     fillTile(el, w, x, y);
   }
   const visible = (x: number, y: number) => isSeen(run.seenTiles, w.scene, x, y);
+  const bountyId = bountyTarget(run);
   const npcs = w.npcs
     .filter((n) => !n.beaten && visible(n.x, n.y))
-    .map(
-      (n) =>
-        `<div class="actor npc foe ${n.id}" data-foe="${n.id}" style="transform:translate(${n.x * TILE}px,${n.y * TILE}px)">${cutSprite(n.id)}${actorTag(ENEMIES[n.id].name)}</div>`,
-    )
+    .map((n) => {
+      const mark = bountyId && n.id === bountyId ? " bounty-mark" : "";
+      return `<div class="actor npc foe ${n.id}${mark}" data-foe="${n.id}" style="transform:translate(${n.x * TILE}px,${n.y * TILE}px)">${cutSprite(n.id)}${actorTag(ENEMIES[n.id].name)}</div>`;
+    })
     .join("");
   const talkers = w.talkers
     .filter((t) => visible(t.x, t.y))
     .map((t) => {
       let label = TALKER_NAME[t.id] ?? t.id;
       if (t.id === "carter" && w.scene === "pier" && run.items.includes("cargo")) label = "车夫·接货";
-      return `<div class="actor npc talk" style="transform:translate(${t.x * TILE}px,${t.y * TILE}px)">${cutSprite(t.id)}${actorTag(label)}</div>`;
+      const pal = npcPalette(t.id);
+      const palCls = pal ? ` pal-${pal}` : "";
+      const age = npcById(t.id)?.age;
+      const ageCls = age ? ` age-${age}` : "";
+      const gen = npcById(t.id)?.gender;
+      const genCls = gen ? ` gen-${gen}` : "";
+      return `<div class="actor npc talk${palCls}${ageCls}${genCls}" style="transform:translate(${t.x * TILE}px,${t.y * TILE}px)">${cutSprite(t.id)}${actorTag(label)}</div>`;
     })
     .join("");
   const props = w.props
@@ -2068,10 +2219,12 @@ function paintMap(): void {
                     : p.kind === "arch"
                       ? // 院名只走中央大字，牌坊上不再挂「衙门/税卡」
                         ""
-                      : "";
+                      : p.tag === "flag"
+                        ? actorTag("旗")
+                        : "";
       const seam = p.kind === "arch" ? wallSeamEdge(w.tiles, p.x, p.y) : "";
       const seamClass = seam ? ` edge-${seam}` : "";
-      return `<div class="actor prop ${p.kind}${p.tag ? " " + p.tag : ""}${seamClass}" style="transform:translate(${p.x * TILE}px,${p.y * TILE}px)">${propArt(p.kind, p.x, p.y, w.scene, w.tiles)}${name}</div>`;
+      return `<div class="actor prop ${p.kind}${p.tag ? " " + p.tag : ""}${seamClass}" style="transform:translate(${p.x * TILE}px,${p.y * TILE}px)">${propArt(p.kind, p.x, p.y, w.scene, w.tiles, p.tag)}${name}</div>`;
     })
     .join("");
   const chests = w.caches
@@ -2223,6 +2376,7 @@ function beginRun(heart: HeartId): void {
   const brought = bringStashIntoRun(run, save);
   run = brought.run;
   save = brought.save;
+  run = syncBagCurrency(run, save);
   world = loadScene(HERO_START[pendingHero], run);
   seeAround();
   if (HERO_START[pendingHero] === "hut" && !run.flags.includes("lessonWalk")) {
@@ -2247,6 +2401,41 @@ function beginRun(heart: HeartId): void {
   render();
 }
 
+/** 测试版：无雾、全图可进、行囊预装锻材药。 */
+function beginTestRun(): void {
+  stopWalk();
+  save = clearRun(save);
+  persist();
+  run = makeRun("empty", pendingHero);
+  run = addFlag(run, "testMode");
+  run = addFlag(run, "mainOpen");
+  run = addFlag(run, "branded");
+  run = addFlag(run, "booksOk");
+  run = addFlag(run, "knotOk");
+  for (const [id, n] of [
+    ["forgeJing", 2],
+    ["forgeXuan", 1],
+    ["copper", 3],
+    ["pillFan", 3],
+    ["herb", 4],
+    ["cinnabar", 2],
+  ] as const) {
+    run = addBag(run, id, n);
+  }
+  world = loadScene(HERO_START[pendingHero], run);
+  seeAround();
+  world.said = "测试版：雾已开，路已通，囊里有材。";
+  world.thought = "正式开局请点「出门」。";
+  world.message = world.said;
+  cam = { x: 0, y: 0, scene: "" };
+  settingsOpen = false;
+  screen = "map";
+  cueMusic("map");
+  cuePlace(world.scene);
+  autosave();
+  render();
+}
+
 function startFight(id: EnemyId = world.dueling ?? "catcher", spar = false): void {
   stopWalk();
   sparKeep = spar ? { hp: run.hp, companionHp: { ...run.companionHp } } : null;
@@ -2257,18 +2446,41 @@ function startFight(id: EnemyId = world.dueling ?? "catcher", spar = false): voi
   if (!run.flags.includes("lessonFight")) run = addFlag(run, "lessonFight");
   screen = "combat";
   cueMusic("combat");
+  if (yourPace(battle) < battle.foePace) {
+    battle.journal = [...battle.journal, { side: "foe", text: `${battle.enemy.name}手先到……` }];
+    battle.log = [...battle.log, `${battle.enemy.name}手先到……`];
+    render();
+    playSfx("foe");
+    window.setTimeout(() => {
+      if (screen !== "combat") return;
+      // clear tease line then real seize
+      battle.log = battle.log.filter((l) => !l.includes("手先到"));
+      battle.journal = battle.journal.filter((j) => !j.text.includes("手先到"));
+      seizeOpening(battle);
+      if (battle.phase === "lost" || battle.phase === "won") afterPlay(battle);
+      else render();
+    }, 1000);
+    return;
+  }
   render();
-  if (battle.log.some((line) => line.includes("手先到"))) playSfx("foe");
 }
 
 function renderSettings(): string {
   const ear = getEar();
   const diff = getDifficulty();
+  const display = getDisplayMode();
   const diffs = (Object.keys(DIFFICULTY_META) as Difficulty[])
     .map((id) => {
       const meta = DIFFICULTY_META[id];
       const on = diff === id ? " on" : "";
       return `<button type="button" class="diff-pick${on}" data-diff="${id}"><b>${meta.name}</b><span>${meta.blurb}</span></button>`;
+    })
+    .join("");
+  const displays = (Object.keys(DISPLAY_META) as DisplayMode[])
+    .map((id) => {
+      const meta = DISPLAY_META[id];
+      const on = display === id ? " on" : "";
+      return `<button type="button" class="diff-pick${on}" data-display="${id}"><b>${meta.name}</b><span>${meta.blurb}</span></button>`;
     })
     .join("");
   return `
@@ -2282,6 +2494,11 @@ function renderSettings(): string {
           <button type="button" class="ear-btn ${ear.sfx ? "on" : ""}" data-ear="sfx">${ear.sfx ? "声开" : "声关"}</button>
           <button type="button" class="ear-btn ${ear.music ? "on" : ""}" data-ear="music">${ear.music ? "乐开" : "乐关"}</button>
         </div>
+      </div>
+      <div class="settings-block">
+        <div class="settings-label">画面</div>
+        <p class="settings-note">当前：${DISPLAY_META[display].name}。全屏时底栏加高，不挤石台。</p>
+        <div class="diff-list">${displays}</div>
       </div>
       <div class="settings-block">
         <div class="settings-label">对战难度</div>
@@ -2443,6 +2660,17 @@ function finishWin(): void {
     run = addFlag(run, "lessonFightDone");
     world.thought = `${world.thought} 石台规矩摸着了：先看意图，再出牌；劲尽就收势。`;
   }
+  const grantNewbieBooks =
+    (firstKnife || run.flags.includes("lessonFightDone")) &&
+    !run.flags.includes("hasBingji") &&
+    !run.flags.includes("hasWeaponCodex");
+  if (grantNewbieBooks) {
+    for (const f of ["hasBingji", "hasShilu", "hasWeaponCodex", "hasSkillCodex"] as const) {
+      run = addFlag(run, f);
+    }
+    world.thought = `${world.thought} 账角送来两本新手册：兵籍、势录。顶栏可翻。`;
+    world.said = `${world.said || ""} 入手兵籍、势录。`.trim();
+  }
   if (teachTalk) {
     run = addFlag(run, "lessonTalk");
     world.thought = `${world.thought} 港上的人不会一次把话倒完。贴上去，空格开口，再选你要问的。`;
@@ -2462,7 +2690,7 @@ function finishWin(): void {
   save = markSeen(save, battle.enemyId);
   const tb = maybeTongbaoDrop(save, run, battle.enemyId);
   save = tb.save;
-  run = tb.run;
+  run = syncBagCurrency(tb.run, save);
   if (tb.dropped) world.thought = `${world.thought} 袖里多了一枚通宝。烫手。`;
   const eid = battle.enemyId;
   if (eid === "hillBandit" || eid === "riverThug" || eid === "bandit") {
@@ -2502,11 +2730,17 @@ function finishFlee(): void {
 }
 
 function finishLoss(): void {
-  run = { ...run, falls: run.falls + 1 };
+  const livesMax = run.livesMax ?? 3;
+  const lives = Math.max(0, (run.lives ?? livesMax) - 1);
+  run = {
+    ...run,
+    lives,
+    falls: (run.falls ?? 0) + 1,
+  };
   const bet = resolveTeaBet(run, false, battle.turn);
   run = bet.run;
   run = applyFallFlags(run);
-  const note = noteFall(run.falls);
+  const note = noteFall(lives, livesMax);
   if (run.flags.includes("sidesShut")) {
     note.thought = `${note.thought} 港上有些口子，倒过两次就不认了。`;
   }
@@ -2520,12 +2754,19 @@ function finishLoss(): void {
     render();
     return;
   }
-  const hp = reviveHp(battle.player.maxHp);
+  const hp = battle.player.maxHp;
   battle.player.hp = hp;
   stashFight();
   world = afterDuel(world, false, hp, 0, note);
   if (bet.line) world.thought = `${world.thought} ${bet.line}`;
-  run = syncActiveHp(run, world.hp);
+  // Full status between fights
+  run = {
+    ...syncActiveHp(run, hp),
+    hp,
+    companionHp: Object.fromEntries(
+      run.party.map((id) => [id, isLead(run, id) ? run.hpMax : MATES[id].hp]),
+    ),
+  };
   fallOpen = true;
   fallSaid = note.said;
   fallThought = note.thought;
@@ -2678,6 +2919,7 @@ function bind(): void {
       render();
     }
   });
+  root.querySelector("#btn-test")?.addEventListener("click", () => beginTestRun());
   root.querySelector("#btn-continue")?.addEventListener("click", () => resumeRun());
   root.querySelector("#btn-title")?.addEventListener("click", goTitle);
   const openSettings = () => {
@@ -2722,6 +2964,15 @@ function bind(): void {
       const id = el.dataset.diff as Difficulty;
       if (id !== "easy" && id !== "normal" && id !== "hard") return;
       setSettings({ difficulty: id });
+      render();
+    });
+  }
+  for (const el of root.querySelectorAll<HTMLButtonElement>("[data-display]")) {
+    el.addEventListener("click", () => {
+      const id = el.dataset.display as DisplayMode;
+      if (id !== "windowed" && id !== "browser" && id !== "fullscreen") return;
+      setSettings({ display: id });
+      applyDisplayMode(id);
       render();
     });
   }
@@ -2806,6 +3057,7 @@ function bind(): void {
     const paid = spendTongbao(save, TONGBAO_REROLL_COST);
     if (!paid) return;
     save = paid;
+    run = syncBagCurrency(run, save);
     rewards = rollRewards(run, save, { type: "duel", enemyId: battle.enemyId });
     persist();
     render();
@@ -2835,8 +3087,9 @@ function bind(): void {
     const got = collectCraft(run);
     if (got.gained) {
       run = got.run;
-      persist();
     }
+    if (packOpen) run = syncBagCurrency(run, save);
+    if (got.gained) persist();
     render();
   });
   root.querySelector("#pack-mask")?.addEventListener("click", (e) => {
@@ -2866,8 +3119,10 @@ function bind(): void {
         return;
       }
       if (id === "pillFan") {
-        if (run.hp >= run.hpMax) {
-          world.said = "气血已满。";
+        const max = run.livesMax ?? 3;
+        const cur = run.lives ?? max;
+        if (cur >= max) {
+          world.said = "命数已满。";
           world.message = world.said;
           render();
           return;
@@ -2879,21 +3134,42 @@ function bind(): void {
           render();
           return;
         }
-        run = { ...taken, hp: Math.min(taken.hpMax, taken.hp + 10) };
-        world.hp = run.hp;
-        world.said = "凡药敷上。气血略回。";
+        run = { ...taken, lives: Math.min(max, cur + 1) };
+        world.said = "凡药入腹。命数回了一点。";
         world.message = world.said;
         persist();
         render();
         return;
       }
-      if (
-        id === "pillLiangHp" ||
-        id === "pillLiangQi" ||
-        id === "pillXuanHp" ||
-        id === "pillXuanQi" ||
-        id === "pillXuanPace"
-      ) {
+      if (id === "pillLiangHp") {
+        const taken = takeBag(run, "pillLiangHp", 1);
+        if (!taken) return;
+        const oldMax = taken.livesMax ?? 3;
+        const cur = taken.lives ?? oldMax;
+        const livesMax = oldMax + 1;
+        const lives = cur >= oldMax ? cur : cur + 1;
+        run = { ...taken, livesMax, lives };
+        world.said = cur >= oldMax ? "良药·续命。命数上限加一（已满则不补当前命）。" : "良药·续命。命数上限加一。";
+        world.message = world.said;
+        persist();
+        render();
+        return;
+      }
+      if (id === "pillXuanHp") {
+        const taken = takeBag(run, "pillXuanHp", 1);
+        if (!taken) return;
+        const oldMax = taken.livesMax ?? 3;
+        const cur = taken.lives ?? oldMax;
+        const livesMax = oldMax + 2;
+        const lives = cur >= oldMax ? cur : Math.min(livesMax, cur + 2);
+        run = { ...taken, livesMax, lives };
+        world.said = "玄药·命源。命数上限加二。";
+        world.message = world.said;
+        persist();
+        render();
+        return;
+      }
+      if (id === "pillLiangQi" || id === "pillXuanQi" || id === "pillXuanPace") {
         pillPick = id;
         render();
         return;
@@ -2910,9 +3186,7 @@ function bind(): void {
       const mate = el.dataset.pillMate as CompanionId;
       const kind = pillPick;
       if (
-        kind !== "pillLiangHp" &&
         kind !== "pillLiangQi" &&
-        kind !== "pillXuanHp" &&
         kind !== "pillXuanQi" &&
         kind !== "pillXuanPace"
       ) {
@@ -2960,11 +3234,20 @@ function bind(): void {
   }
   root.querySelector("#btn-party")?.addEventListener("click", () => {
     partyOpen = !partyOpen;
+    if (partyOpen) partyPage = 0;
     atlasOpen = false;
     packOpen = false;
     questSheet = null;
     settingsOpen = false;
     codexOpen = null;
+    render();
+  });
+  root.querySelector("#party-prev")?.addEventListener("click", () => {
+    partyPage = Math.max(0, partyPage - 1);
+    render();
+  });
+  root.querySelector("#party-next")?.addEventListener("click", () => {
+    partyPage = Math.min(run.party.length - 1, partyPage + 1);
     render();
   });
   root.querySelector("#party-mask")?.addEventListener("click", (e) => {
@@ -2975,6 +3258,7 @@ function bind(): void {
   });
   root.querySelector("#btn-quest")?.addEventListener("click", () => {
     questSheet = questSheet === "main" ? null : "main";
+    if (questSheet) questPage = 0;
     atlasOpen = false;
     packOpen = false;
     partyOpen = false;
@@ -2983,10 +3267,19 @@ function bind(): void {
   });
   root.querySelector("#btn-side")?.addEventListener("click", () => {
     questSheet = questSheet === "side" ? null : "side";
+    if (questSheet) questPage = 0;
     atlasOpen = false;
     packOpen = false;
     partyOpen = false;
     settingsOpen = false;
+    render();
+  });
+  root.querySelector("#quest-prev")?.addEventListener("click", () => {
+    questPage = Math.max(0, questPage - 1);
+    render();
+  });
+  root.querySelector("#quest-next")?.addEventListener("click", () => {
+    questPage += 1;
     render();
   });
   root.querySelector("#quest-mask")?.addEventListener("click", (e) => {
@@ -3229,4 +3522,5 @@ window.addEventListener("resize", () => {
   if (screen === "map") paintMap();
 });
 
+applyDisplayMode();
 render();

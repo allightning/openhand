@@ -9,6 +9,7 @@ describe("quest log", () => {
     const log = questLog(makeRun("empty"));
     expect(log.main.title).toBe("门外有人");
     expect(log.main.guide.length).toBeGreaterThan(4);
+    expect(log.main.reward).toMatch(/兵籍|势录/);
   });
 
   it("opens rail侠 after the first boss, brand is only a side", () => {

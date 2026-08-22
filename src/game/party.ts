@@ -37,6 +37,8 @@ export interface MateDef {
   hp: number;
   deck: CardId[];
   talker?: string;
+  /** 同行页短评。 */
+  bio?: string;
 }
 
 const PALM_DECK: CardId[] = [...STARTER_DECK];
@@ -131,6 +133,7 @@ export const MATES: Record<CompanionId, MateDef> = {
     weapon: "palm",
     hp: 28,
     deck: PALM_DECK,
+    bio: "门要正。踹歪了，自己也站不稳。",
   },
   seer: {
     id: "seer",
@@ -139,6 +142,7 @@ export const MATES: Record<CompanionId, MateDef> = {
     weapon: "sword",
     hp: 24,
     deck: SEER_DECK,
+    bio: "气先于刀。案上的墨，比街上的血更早脏。",
   },
   sapper: {
     id: "sapper",
@@ -147,6 +151,7 @@ export const MATES: Record<CompanionId, MateDef> = {
     weapon: "staff",
     hp: 32,
     deck: SAPPER_DECK,
+    bio: "桩不松，人就还认得这一方地。",
   },
   porter: {
     id: "porter",
@@ -156,6 +161,7 @@ export const MATES: Record<CompanionId, MateDef> = {
     hp: 26,
     deck: STAFF_DECK,
     talker: "porter",
+    bio: "肩上压过货，心里压过话。码头认的是稳。",
   },
   boat: {
     id: "boat",
@@ -165,6 +171,7 @@ export const MATES: Record<CompanionId, MateDef> = {
     hp: 24,
     deck: SWORD_DECK,
     talker: "boat",
+    bio: "水步比岸步滑。她先看潮，再看人。",
   },
   watch: {
     id: "watch",
@@ -174,6 +181,7 @@ export const MATES: Record<CompanionId, MateDef> = {
     hp: 26,
     deck: SABER_DECK,
     talker: "watch",
+    bio: "夜里刀短，袖里却长。巡的是缝，不是灯。",
   },
   pilgrim: {
     id: "pilgrim",
@@ -183,6 +191,7 @@ export const MATES: Record<CompanionId, MateDef> = {
     hp: 24,
     deck: SPEAR_DECK,
     talker: "pilgrim",
+    bio: "锡响一声，息也跟着落。不抢先，也不让步。",
   },
   hooker: {
     id: "hooker",
@@ -192,6 +201,7 @@ export const MATES: Record<CompanionId, MateDef> = {
     hp: 25,
     deck: HOOK_DECK,
     talker: "roper",
+    bio: "缆要收，人要近。岸上的手比船上的嘴实。",
   },
   hermit: {
     id: "hermit",
@@ -201,6 +211,7 @@ export const MATES: Record<CompanionId, MateDef> = {
     hp: 25,
     deck: HERMIT_DECK,
     talker: "hermit",
+    bio: "井下潮冷。掌从根上来，不从话里来。",
   },
   salter: {
     id: "salter",
@@ -210,6 +221,7 @@ export const MATES: Record<CompanionId, MateDef> = {
     hp: 25,
     deck: SABER_DECK,
     talker: "saltBroker",
+    bio: "盐秤认两，刀口认人。先机领先才肯多一寸。",
   },
   scribe: {
     id: "scribe",
@@ -219,6 +231,7 @@ export const MATES: Record<CompanionId, MateDef> = {
     hp: 22,
     deck: SWORD_DECK,
     talker: "caseclerk",
+    bio: "破绽写在卷上。剑比笔尖细，也比笔尖狠。",
   },
   bard: {
     id: "bard",
@@ -228,6 +241,7 @@ export const MATES: Record<CompanionId, MateDef> = {
     hp: 23,
     deck: PALM_DECK,
     talker: "storyman",
+    bio: "话说一半，掌留一半。茶楼里的刃，藏在句读里。",
   },
   blade: {
     id: "blade",
@@ -237,6 +251,7 @@ export const MATES: Record<CompanionId, MateDef> = {
     hp: 27,
     deck: SABER_DECK,
     talker: "riverBlade",
+    bio: "朱雀航下的门，他踹过正，也踹过歪。",
   },
   weaver: {
     id: "weaver",
@@ -246,6 +261,7 @@ export const MATES: Record<CompanionId, MateDef> = {
     hp: 24,
     deck: HOOK_DECK,
     talker: "silkWife",
+    bio: "经纬在掌。钩不抢路，只把线头收回来。",
   },
   guard: {
     id: "guard",
@@ -255,6 +271,7 @@ export const MATES: Record<CompanionId, MateDef> = {
     hp: 28,
     deck: SPEAR_DECK,
     talker: "westGuard",
+    bio: "门岗先架后戳。先机慢半息，格挡厚两寸。",
   },
 };
 
@@ -425,24 +442,25 @@ export function restHeal(scene: string): number {
 export const FALL_LIMIT = 3;
 
 export function reviveHp(max: number): number {
-  return Math.max(1, Math.round(max * 0.1));
+  // Kept for tests; combat now restores full HP after a life is spent.
+  return max;
 }
 
-export function noteFall(falls: number): { over: boolean; said: string; thought: string } {
-  if (falls >= FALL_LIMIT) {
-    return { over: true, said: "三次都倒了。这趟算完了。", thought: "要重新走。港上的口，也不会再认这一回。" };
+export function noteFall(livesLeft: number, livesMax = 3): { over: boolean; said: string; thought: string } {
+  if (livesLeft <= 0) {
+    return { over: true, said: "命数尽了。这趟算完了。", thought: "要重新走。港上的口，也不会再认这一回。" };
   }
-  const left = FALL_LIMIT - falls;
-  if (left === 2) {
+  const spent = Math.max(0, livesMax - livesLeft);
+  if (spent <= 1) {
     return {
       over: false,
-      said: "倒了。只剩一成血。还能起两回。",
+      said: `倒了。命数还剩 ${livesLeft}。下场仍是满状态。`,
       thought: "港上的人看见了。有些话，会变得短。",
     };
   }
   return {
     over: false,
-    said: "倒了。只剩一成血。还能起一回。",
+    said: `倒了。命数还剩 ${livesLeft}。再倒就危险了。`,
     thought: "再倒一次，井树石那些口子，港上就不认了。",
   };
 }

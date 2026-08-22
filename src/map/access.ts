@@ -60,6 +60,8 @@ export const SCENE_TIER: Partial<Record<SceneId, number>> = {
   suzhousu: 3,
   linan: 4,
   luoyang: 4,
+  luoyang_yamen_prison: 0,
+  luoyang_yanbo_inner: 0,
   bianjing: 4,
   shaolin: 4,
   luohan: 4,
@@ -148,6 +150,7 @@ export function canTravelTo(
   run: Run,
 ): { ok: true } | { ok: false; reason: string } {
   if (from === to) return { ok: true };
+  if (run.flags.includes("testMode")) return { ok: true };
   // Always allow retreat to places already walked.
   if (run.visited.includes(to)) return { ok: true };
   // Indoor / same-hub doors stay free.

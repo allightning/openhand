@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   applyPillToMate,
   forgeNeed,
+  matchForgeNeed,
   pickEscortJob,
   PILL_TIER_NAME,
   softUpgradeBlockReason,
   softUpgradeTarget,
   stageLootWeights,
 } from "./economy";
+import { addBag } from "./bag";
 import { makeRun } from "./run";
 import { applyReward } from "./rewards";
 import { starterGear } from "./weapons";
@@ -35,6 +37,11 @@ describe("economy", () => {
   it("forges need materials from 精", () => {
     expect(forgeNeed(3)).toEqual({ forgeJing: 1, copper: 1 });
     expect(forgeNeed(2)).toBeNull();
+  });
+
+  it("accepts forge iron as copper alternative", () => {
+    let run = addBag(addBag({ ...makeRun("empty"), bag: [] }, "forgeJing", 1), "forgeIron", 1);
+    expect(matchForgeNeed(run, 3)).toEqual({ forgeJing: 1, forgeIron: 1 });
   });
 
   it("soft upgrades stop at 良", () => {

@@ -160,7 +160,7 @@ describe("tileset", () => {
     expect(doorKind("wharf")).toBe("ferry");
     expect(doorKind("cave")).toBe("hall");
     expect(doorKind("cellar")).toBe("hall");
-    expect(doorKind("chuzhou")).toBe("shrine");
+    expect(doorKind("chuzhou")).toBe("pavilion");
     expect(doorKind("bozhou")).toBe("post");
     expect(doorKind("wine")).toBe("wine");
     expect(doorKind("usurpCamp")).toBe("camp");

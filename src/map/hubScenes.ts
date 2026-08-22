@@ -673,6 +673,7 @@ export function canEnterHubScene(
   to: SceneId,
   run: { hero?: string; flags: string[]; visited: string[] },
 ): { ok: true } | { ok: false; reason: string } {
+  if (run.flags.includes("testMode")) return { ok: true };
   if (run.visited.includes(to)) return { ok: true };
   // 官道城不在新手村互锁里
   if (hubOwner(to) === null) return { ok: true };

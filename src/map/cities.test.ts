@@ -84,7 +84,10 @@ describe("expanded primary cities", () => {
     const hubs = [...PRIMARY_CITIES, ...TRANSIT_TOWNS];
     for (const id of hubs) {
       const w = loadScene(id, makeRun("empty"));
-      const travel = w.portals.filter((p) => !["wine", "wineUp", "hut", "plot"].includes(p.to));
+      const travel = w.portals.filter(
+        (p) =>
+          !["wine", "wineUp", "hut", "plot", "luoyang_yamen_prison", "luoyang_yanbo_inner"].includes(p.to),
+      );
       expect(travel.length, id).toBeGreaterThan(0);
       for (const p of travel) {
         const onRim = p.x <= 2 || p.x >= w.w - 3 || p.y <= 2 || p.y >= w.h - 3;
@@ -98,5 +101,38 @@ describe("expanded primary cities", () => {
       const title = questLog(makeRun("empty", hero)).main.title;
       expect(title).not.toMatch(/烫印|取印|院印/);
     }
+  });
+
+  it("gives every transit town a unique ascii footprint", () => {
+    const seen = new Map<string, string>();
+    for (const id of TRANSIT_TOWNS) {
+      const key = SCENES[id].ascii.join("\n");
+      const prev = seen.get(key);
+      expect(prev, `${id} duplicates ${prev}`).toBeUndefined();
+      seen.set(key, id);
+    }
+  });
+
+  it("gives every transit town a unique road skeleton (not just terrain paint)", () => {
+    const seen = new Map<string, string>();
+    for (const id of TRANSIT_TOWNS) {
+      const bone = SCENES[id].ascii
+        .map((line) =>
+          line
+            .split("")
+            .map((c) => (c === "=" ? "=" : c === "#" || c === "N" || c === "S" || c === "W" || c === "E" ? "#" : "."))
+            .join(""),
+        )
+        .join("\n");
+      const prev = seen.get(bone);
+      expect(prev, `${id} shares road bone with ${prev}`).toBeUndefined();
+      seen.set(bone, id);
+    }
+  });
+
+  it("assigns distinct metro street layouts to primary cities", async () => {
+    const { layoutOf } = await import("./metro");
+    const layouts = PRIMARY_CITIES.filter((id) => id !== "usurpCamp").map((id) => layoutOf(id));
+    expect(new Set(layouts).size).toBeGreaterThanOrEqual(7);
   });
 });

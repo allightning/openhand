@@ -166,7 +166,7 @@ export function makeBattle(
       id: "you",
       name: MATES[active].name,
       title: MATES[active].title,
-      hp: mateHp(active),
+      hp: mateMax(active),
       maxHp: mateMax(active),
       pos: STARTER.playerPos,
     },
@@ -205,7 +205,7 @@ export function makeBattle(
     frail: 0,
     combo: 0,
     attacksThisTurn: 0,
-    paceBoost: run.companionBonus?.[active]?.pace ?? 0,
+    paceBoost: (run.companionBonus?.[active]?.pace ?? 0) + (run.flags.includes("heartAttack") ? 1 : 0),
     foePace: enemyPace(enemyId),
     enemyBlock: 0,
     spar: false,
@@ -244,7 +244,6 @@ export function makeBattle(
     bagUsed: 0,
   };
   setupBattle(battle);
-  seizeOpening(battle);
   battle.spar = spar;
   return battle;
 }
@@ -261,7 +260,7 @@ export function yourPace(b: Battle): number {
   return Math.max(1, weaponPace(b.active) + b.paceBoost - b.youSlow);
 }
 
-function seizeOpening(b: Battle): void {
+export function seizeOpening(b: Battle): void {
   if (yourPace(b) >= b.foePace) return;
   note(b, "foe", `${b.enemy.name}手先到。`);
   resolveAllIntents(b);

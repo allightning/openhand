@@ -222,6 +222,43 @@ h2 {
 .tile.brazier { background: #4a2818; box-shadow: inset 0 0 0 7px #c45a28; }
 .tile.item { background: #3a2e22; box-shadow: inset 0 0 0 6px var(--gold); }
 .actor.npc.talk { color: #c4b890; z-index: 2; }
+/* 洛阳 NPC 色板：同轮廓换滤镜，不增 PNG */
+.actor.npc.pal-yamenInk img,
+img.pal-yamenInk { filter: sepia(0.35) hue-rotate(-15deg) saturate(1.35) brightness(0.82); }
+.actor.npc.pal-yanboRouge img,
+img.pal-yanboRouge { filter: sepia(0.25) hue-rotate(-40deg) saturate(1.2) brightness(1.05); }
+.actor.npc.pal-taibaiEarth img,
+img.pal-taibaiEarth { filter: sepia(0.45) hue-rotate(5deg) saturate(0.9) brightness(0.95); }
+.actor.npc.pal-martialIron img,
+img.pal-martialIron { filter: grayscale(0.45) contrast(1.15) brightness(0.9); }
+.actor.npc.pal-merchantOchre img,
+img.pal-merchantOchre { filter: sepia(0.55) hue-rotate(15deg) saturate(1.1) brightness(0.95); }
+.actor.npc.pal-postOchre img,
+img.pal-postOchre { filter: sepia(0.5) hue-rotate(25deg) saturate(1.05) brightness(0.92); }
+.actor.npc.pal-clergyOchre img,
+img.pal-clergyOchre { filter: sepia(0.4) hue-rotate(8deg) saturate(0.7) brightness(1.05); }
+.actor.npc.pal-folkInk img,
+img.pal-folkInk { filter: sepia(0.3) saturate(0.55) brightness(0.92); }
+.actor.npc.pal-foreignSand img,
+img.pal-foreignSand { filter: sepia(0.6) hue-rotate(30deg) saturate(1.15) brightness(0.98); }
+/* 年龄/性别轮廓走独立 SVG，禁止 scale 冒充 */
+.actor.npc .npc-sil-wrap {
+  display: block;
+  width: 36px;
+  height: 44px;
+  margin-top: -4px;
+  pointer-events: none;
+}
+.actor.npc .npc-sil-wrap svg.npc-sil {
+  display: block;
+  width: 36px;
+  height: 44px;
+  overflow: visible;
+}
+/* 对话富文本 */
+.dlg-bold { font-weight: 700; color: #e8dcc0; }
+.dlg-danger { color: #8b2a24; font-weight: 600; }
+.fy-lines .clue { font-style: normal; font-weight: 700; color: #e8dcc0; }
 .overworld.alley .tile.floor { background: #32281e; }
 .overworld.alley .tile.seal,
 .overworld.court .tile.seal {
@@ -331,13 +368,13 @@ h2 {
   overflow: hidden;
   border: 1px solid var(--line);
 }
-.bar i { display: block; height: 100%; background: #8b2a24; }
-.bar.danger i { background: #8b2a24; }
+.bar i { display: block; height: 100%; background: linear-gradient(180deg, #d2b896, #b89a6a 55%, #a88858); box-shadow: inset 0 -1px 0 #8a7048; }
+.bar.danger i { background: linear-gradient(180deg, #c4a882, #b89a6a 55%, #9a7850); box-shadow: inset 0 -1px 0 #7a6040; }
 .bar.qi { height: 7px; margin-top: 3px; }
-.bar.qi i { background: #efe6d2; }
-.you-side .bar i { background: #8b2a24; }
-.you-side .bar.qi i { background: #f3ead8; }
-.foe-side .bar.qi i { background: #f3ead8; }
+.bar.qi i { background: linear-gradient(180deg, #e8dcc4, #c4a882 60%, #b89a6a); box-shadow: inset 0 -1px 0 #8a7450; }
+.you-side .bar i { background: linear-gradient(180deg, #d2b896, #b89a6a 55%, #a88858); box-shadow: inset 0 -1px 0 #8a7048; }
+.you-side .bar.qi i { background: linear-gradient(180deg, #e8dcc4, #c4a882 60%, #b89a6a); }
+.foe-side .bar.qi i { background: linear-gradient(180deg, #e8dcc4, #c4a882 60%, #b89a6a); }
 .intent-big {
   display: inline-flex;
   align-items: center;
@@ -1131,6 +1168,81 @@ button.ghost { color: #5a4030; border-color: transparent; background: transparen
 .quest-card.side header em {
   color: #5a4030;
 }
+.quest-reward {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #6a4a28;
+}
+.quest-reward em {
+  font-style: normal;
+  letter-spacing: 0.1em;
+  margin-right: 6px;
+  color: #8a5a28;
+  font-size: 11px;
+  font-weight: 700;
+}
+.quest-flip-nav,
+.party-flip-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 14px;
+}
+.quest-flip-nav button,
+.party-flip-nav button {
+  min-width: 44px;
+  font: inherit;
+  cursor: pointer;
+  border: 2px solid #2a2018;
+  background: #efe4ce;
+  color: #2a2018;
+  padding: 4px 10px;
+}
+.quest-flip-nav button:disabled,
+.party-flip-nav button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.quest-flip-nav span,
+.party-flip-nav span {
+  font-size: 13px;
+  color: #5a4030;
+  letter-spacing: 0.08em;
+}
+.party-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  min-height: 280px;
+}
+.party-stand {
+  width: min(220px, 70%);
+  margin: 4px 0 8px;
+}
+.party-stand .stand {
+  width: 100%;
+  height: auto;
+  display: block;
+  image-rendering: auto;
+}
+.party-meta {
+  margin: 0;
+  color: #5a4030;
+  font-size: 14px;
+}
+.party-bio {
+  margin: 8px 0 0;
+  max-width: 28em;
+  color: #3a2a1c;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.party-kick {
+  margin-top: 10px;
+}
 .quest-blurb {
   margin: 0;
   font-family: "Noto Sans SC", sans-serif;
@@ -1465,9 +1577,9 @@ button.ghost { color: #5a4030; border-color: transparent; background: transparen
   filter: drop-shadow(0 1px 1px #0008);
 }
 .actor img.sprite.obj {
-  width: 34px;
-  height: 34px;
-  margin-top: -2px;
+  width: 40px;
+  height: 40px;
+  margin-top: 0;
   object-fit: contain;
   background: transparent;
 }
@@ -1671,6 +1783,42 @@ button.ghost { color: #5a4030; border-color: transparent; background: transparen
   border-top: 3px solid #2a2018;
   box-shadow: inset 0 1px 0 #cbb896, 0 -1px 0 #1a141033;
 }
+html[data-display="fullscreen"] .fy-talk,
+#app[data-display="fullscreen"] .fy-talk {
+  height: 140px;
+  min-height: 140px;
+  max-height: 140px;
+}
+html[data-display="windowed"] #app,
+#app[data-display="windowed"] {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.bag-cell {
+  position: relative;
+}
+.bag-cell[title]:hover::after {
+  content: attr(title);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  z-index: 5;
+  width: max-content;
+  max-width: 12em;
+  padding: 6px 8px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #1a1410;
+  background: #f4ead6;
+  border: 1px solid #8b2a24;
+  pointer-events: none;
+  animation: bag-tip 0.05s linear 0.5s both;
+}
+@keyframes bag-tip {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
 .atlas {
   width: 112px;
   height: 56px;
@@ -1873,6 +2021,23 @@ button.ghost { color: #5a4030; border-color: transparent; background: transparen
   pointer-events: none;
   text-align: center;
   animation: place-ink 3s ease forwards;
+}
+.place-ink.quest-ink {
+  right: 18px;
+  left: auto;
+  transform: none;
+  text-align: right;
+}
+.actor.npc.foe.bounty-mark {
+  outline: 2px solid #8b2a24;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.actor.prop.flag img.sprite.obj,
+.actor.prop.post.flag img.sprite.obj {
+  width: 40px;
+  height: 40px;
+  background: transparent;
 }
 .place-ink em {
   display: block;
@@ -2102,10 +2267,11 @@ button.ghost { color: #5a4030; border-color: transparent; background: transparen
 .fy-combat .bar i {
   display: block;
   height: 100%;
-  background: #8b2a24;
+  background: linear-gradient(180deg, #d2b896, #b89a6a 55%, #a88858);
+  box-shadow: inset 0 -1px 0 #8a7048;
 }
 .fy-combat .bar.qi i {
-  background: linear-gradient(90deg, #efe6d2, #f7f0e2 55%, #e8dcc4);
+  background: linear-gradient(90deg, #e8dcc4, #d2b896 55%, #c4a882);
 }
 .fy-combat .bar .bar-read {
   position: absolute;
@@ -2969,16 +3135,17 @@ button.ghost { color: #5a4030; border-color: transparent; background: transparen
 }
 .ink-combat .bar i {
   height: 100%;
-  background: linear-gradient(90deg, #7a2018, #a83228 50%, #c43a32);
+  background: linear-gradient(90deg, #a88858, #c4a882 50%, #d2b896);
+  box-shadow: inset 0 -1px 0 #7a6040;
 }
 .ink-combat .bar.danger i {
-  background: linear-gradient(90deg, #7a2018, #c43a32 50%, #e24a3a);
+  background: linear-gradient(90deg, #9a7850, #b89a6a 50%, #c4a882);
 }
 .ink-combat .bar.qi {
   height: 16px;
 }
 .ink-combat .bar.qi i {
-  background: linear-gradient(90deg, #efe6d2, #f7f0e2 55%, #e8dcc4);
+  background: linear-gradient(90deg, #e8dcc4, #d2b896 55%, #c4a882);
 }
 .ink-combat .ink-intent {
   position: relative;

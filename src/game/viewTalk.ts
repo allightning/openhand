@@ -23,29 +23,29 @@ function heroOf(ctx: Ctx): HeroId {
 /** 驿站/酒楼：三职对「路与天下」的不同听法。 */
 export function innkeepBeat(ctx: Ctx): ViewVoice {
   if (ctx.pick === "rest") {
-    return { said: "「一间屋，二两银。被褥潮，人别潮。」", thought: "歇一夜，路还在。", flags: ["restedRoadInn"] };
+    return { said: "「客官住一晚，二两银。被褥潮，人别潮。」", thought: "歇一夜，路还在。", flags: ["restedRoadInn"] };
   }
   if (ctx.pick === "leave") {
-    return { said: "「门朝官道。小心车马。」", thought: "" };
+    return { said: "「客官慢走。门朝官道，小心车马。」", thought: "" };
   }
   if (ctx.pick === "rumor") {
     const h = heroOf(ctx);
     if (h === "seer") {
       return {
-        said: "「北上的人带案卷气。南下的人带潮气。我只看谁的名还在册上——除名的人，茶都不敢大声喝。」",
+        said: "「大人听着：北上的带案卷气，南下的带潮气。小的只看谁的名还在册上——除名的人，茶都不敢大声喝。」",
         thought: "店家不判案。他判名在不在。",
         flags: ["sideRoadInn", "viewInnSeer"],
       };
     }
     if (h === "sapper") {
       return {
-        said: "「汴京刀多，钱塘潮响。可工丁嘴里只有粮——粮断的那年，官道上的粥棚比庙还挤。」",
+        said: "「兄弟，汴京刀多，钱塘潮响。可工丁嘴里只有粮——粮断那年，官道粥棚比庙还挤。」",
         thought: "他把皇恩说成米香。米香断了，人才想起刀。",
         flags: ["sideRoadInn", "viewInnSapper"],
       };
     }
     return {
-      said: "「北上的人说汴京刀多。南下的人说钱塘潮响。刀多潮响，门还是要有人踹正——踹歪了，店也不开。」",
+      said: "「客官，北上的说汴京刀多，南下的说钱塘潮响。刀多潮响，门还是要有人踹正——踹歪了，店也不开。」",
       thought: "店家认过客，也认门轴响不响。",
       flags: ["sideRoadInn", "viewInnRail"],
     };
@@ -54,26 +54,26 @@ export function innkeepBeat(ctx: Ctx): ViewVoice {
     const h = heroOf(ctx);
     if (h === "seer") {
       return {
-        said: "「你若问我乱世凭什么活：凭册。册上有你，城门认你；册上没有，江湖才认你。两头都苦。」",
+        said: "「大人若问乱世凭什么活：凭册。册上有你，城门认你；册上没有，江湖才认你。两头都苦。」",
         thought: "门律的人听得懂。刀上的人听成官话。",
         flags: ["viewInnDeep"],
       };
     }
     if (h === "sapper") {
       return {
-        said: "「乱世？桩钉稳了，人才能站。你钉官府的桩也好，钉工寮的桩也好——别钉在别人饭碗上。」",
+        said: "「兄弟问乱世？桩钉稳了，人才能站。你钉官府的桩也好，钉工寮的桩也好——别钉在别人饭碗上。」",
         thought: "工律的味从灶里出来。",
         flags: ["viewInnDeep"],
       };
     }
     return {
-      said: "「乱世里我认一件事：门被人踢开，要有人再踢回去。踢回去的人不一定是官，但一定不能是贼。」",
+      said: "「客官，乱世里小的认一件事：门被人踢开，要有人再踢回去。踢回去的人不一定是官，但一定不能是贼。」",
       thought: "港律不写在帖上。写在门槛上。",
       flags: ["viewInnDeep"],
     };
   }
   return {
-    said: "「驿站酒楼。官道上的人，都在这歇脚。要听路上的事，也要听你自己信什么。」",
+    said: "「客官里边坐。驿站酒楼，官道上的人都在这歇脚。要听路上的事，也要听你自己信什么。」",
     thought: "烟火气从灶里出来。三观从闲话里出来。",
     choices: [
       { id: "rest", label: "住一晚" },

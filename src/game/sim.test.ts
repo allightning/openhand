@@ -9,6 +9,7 @@ import {
   makeTutorialBattle,
   playCard,
   previewCard,
+  seizeOpening,
   statusChips,
   swapFighter,
   yourPace,
@@ -192,10 +193,10 @@ describe("new verbs and techniques", () => {
   });
 
   it("mend restores life without exceeding the cap", () => {
-    const run = makeRun("empty");
-    run.hp = 20;
+    const run = makeRun("iron");
     run.deck = ["mend", "defend", "defend", "defend", "defend"];
     let b = makeBattle("catcher", run);
+    b = { ...b, player: { ...b.player, hp: 20 } };
     b = playNamed(b, "mend");
     expect(b.player.hp).toBe(25);
   });
@@ -345,6 +346,7 @@ describe("先机", () => {
   it("lets a faster foe plant a trap before you move", () => {
     const b = makeBattle("trapper");
     expect(b.foePace).toBeGreaterThan(yourPace(b));
+    seizeOpening(b);
     expect(b.log.some((line) => line.includes("手先到"))).toBe(true);
     expect(b.traps.length).toBe(1);
   });

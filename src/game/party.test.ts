@@ -9,19 +9,20 @@ describe("party and weapons", () => {
     expect(new Set(Object.values(MATES).map((m) => m.weapon)).size).toBe(6);
     expect(WEAPON_PACE.sword).toBeGreaterThan(WEAPON_PACE.spear);
     expect(WEAPON_PACE.saber).toBeGreaterThan(WEAPON_PACE.staff);
+    expect(MATES.porter.bio?.length).toBeGreaterThan(4);
+    expect(MATES.rail.bio?.length).toBeGreaterThan(4);
   });
 
-  it("revives at about a tenth of life", () => {
-    expect(reviveHp(28)).toBe(3);
-    expect(reviveHp(32)).toBe(3);
+  it("revives at full after spending a life", () => {
+    expect(reviveHp(28)).toBe(28);
+    expect(reviveHp(32)).toBe(32);
   });
 
-  it("ends the petition after three falls", () => {
-    expect(noteFall(1).over).toBe(false);
-    expect(noteFall(1).said).toMatch(/两回/);
-    expect(noteFall(2).said).toMatch(/一回/);
-    expect(noteFall(3).over).toBe(true);
-    expect(noteFall(3).said).toMatch(/三次/);
+  it("ends the petition when lives hit zero", () => {
+    expect(noteFall(2, 3).over).toBe(false);
+    expect(noteFall(2, 3).said).toMatch(/还剩/);
+    expect(noteFall(0, 3).over).toBe(true);
+    expect(noteFall(0, 3).said).toMatch(/命数尽/);
   });
 
   it("recruits without duplicating", () => {

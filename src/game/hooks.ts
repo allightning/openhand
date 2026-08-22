@@ -95,8 +95,11 @@ export function applyFallFlags(run: Run): Run {
   const add = (f: string) => {
     if (!flags.includes(f)) flags.push(f);
   };
-  if (run.falls >= 1) add("fallenOnce");
-  if (run.falls >= 2) {
+  const max = run.livesMax ?? 3;
+  const left = run.lives ?? max;
+  const spent = max - left;
+  if (spent >= 1) add("fallenOnce");
+  if (spent >= 2) {
     add("fallenTwice");
     add("sidesShut");
   }
@@ -110,10 +113,11 @@ export function maybeArmBounty(run: Run): Run {
   if (n < 3 || n % 3 !== 0) return run;
   if (run.flags.includes("bountyActive") || run.flags.includes("bountyDue")) return run;
   if ((run.bountyAt ?? 0) >= n) return run;
+  const flags = run.flags.filter((f) => f !== "bountyDeclined");
   return {
     ...run,
     bountyAt: n,
-    flags: [...run.flags, "bountyDue"],
+    flags: [...flags, "bountyDue"],
   };
 }
 
@@ -127,6 +131,21 @@ const BOUNTY_POOL: EnemyId[] = [
   "bandit",
 ];
 
+/** Where the bounty target usually hangs out (player-facing). */
+export const BOUNTY_WHERE: Record<string, { scene: string; place: string }> = {
+  thug: { scene: "martial", place: "武馆砂坑外" },
+  smuggler: { scene: "salt", place: "盐仓西厢" },
+  alley: { scene: "drums", place: "更院北岗" },
+  trapper: { scene: "drums", place: "更院簧门" },
+  hauler: { scene: "lane", place: "垂街纤道" },
+  robber: { scene: "ropes", place: "缆厂码头" },
+  bandit: { scene: "yard", place: "印院外岗" },
+};
+
+export function bountyWhere(id: EnemyId | string): { scene: string; place: string } {
+  return BOUNTY_WHERE[id] ?? { scene: "yamen", place: "港湾一带" };
+}
+
 export function pickBountyTarget(run: Run): EnemyId {
   const left = BOUNTY_POOL.filter((id) => !run.beaten.includes(id));
   const pool = left.length ? left : BOUNTY_POOL;
@@ -134,11 +153,23 @@ export function pickBountyTarget(run: Run): EnemyId {
   return pool[i] ?? "thug";
 }
 
+/** Peek next target without accepting (for bailiff briefing). */
+export function peekBountyTarget(run: Run): EnemyId {
+  return pickBountyTarget(run);
+}
+
 export function acceptBounty(run: Run, kind: "silver" | "card" | "weapon"): Run {
   const target = pickBountyTarget(run);
-  const flags = run.flags.filter((f) => f !== "bountyDue");
+  const flags = run.flags.filter((f) => f !== "bountyDue" && f !== "bountyOffer");
   flags.push("bountyActive", `bountyKind-${kind}`, `bountyTarget-${target}`);
   return { ...run, flags, bountyDeadline: run.beaten.length + 3 };
+}
+
+/** Soft decline: clear due, remember so maybeArm does not re-fire until next boss milestone. */
+export function declineBounty(run: Run): Run {
+  const flags = run.flags.filter((f) => f !== "bountyDue" && f !== "bountyOffer");
+  flags.push("bountyDeclined");
+  return { ...run, flags };
 }
 
 export function bountyTarget(run: Run): EnemyId | null {
@@ -163,6 +194,7 @@ export function clearBountyFlags(run: Run): Run {
         f !== "bountyActive" &&
         f !== "bountyDue" &&
         f !== "bountyDone" &&
+        f !== "bountyOffer" &&
         !f.startsWith("bountyKind-") &&
         !f.startsWith("bountyTarget-"),
     ),

@@ -36,7 +36,7 @@ describe("hooks", () => {
 
   it("fall twice shuts sides", () => {
     let run = makeRun("empty");
-    run = { ...run, falls: 2 };
+    run = { ...run, lives: 1, livesMax: 3 };
     run = applyFallFlags(run);
     expect(run.flags).toContain("sidesShut");
     expect(run.flags).toContain("fallenTwice");

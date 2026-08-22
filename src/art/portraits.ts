@@ -91,6 +91,58 @@ const FILE: Record<string, string> = {
   knotboss: "hauler",
   stakeboss: "piler",
   usurper: "lord",
+
+  // —— 洛阳具名（禁止回落 alley；按职/龄/性分散到既有 stand PNG）——
+  judge: "lord",
+  caseclerk: "scribe",
+  luoBailiff: "escort",
+  luoClerk: "clerk",
+  luoJailer: "usher",
+  luoJailer2: "watch",
+  luoPrisoner: "trapper",
+  luoBarkeeper: "stamp",
+  luoCook: "hauler",
+  luoWaiter: "piler",
+  luoWaiter2: "twin",
+  luoGuest: "guest",
+  luoGuest2: "inn",
+  luoRaconteur: "lamper",
+  luoFlower: "maid",
+  luoAsha: "inn",
+  luoMadam: "maid",
+  luoGirl: "twin",
+  luoGirl2: "maid",
+  luoMusician: "roper",
+  luoTurtle: "coolie",
+  luoEmbroid: "maid",
+  luoCoach: "escort",
+  luoDisciple: "wright",
+  luoDisciple2: "catcher",
+  luoDisciple3: "usher",
+  luoYardHand: "coolie",
+  luoDoctor: "clerk",
+  luoHerbBoy: "piler",
+  luoHerb: "salt",
+  luoHerb2: "inn",
+  luoVendor: "salt",
+  luoTemple: "pilgrim",
+  luoPost: "porter",
+  messenger: "boat",
+  luoAntique: "stamp",
+  luoHawker: "inn",
+  luoShopHand: "twin",
+  luoShopWife: "maid",
+  luoBeggar: "guest",
+  luoTeaGirl: "inn",
+  luoElder: "lamper",
+  luoElder2: "sluicer",
+  luoKid: "piler",
+  luoKid2: "twin",
+  luoWife: "maid",
+  passClerk: "scribe",
+  luoGate: "watch",
+  luoWasher: "sluicer",
+  townWatch: "watch",
 };
 
 const SCENE_BG: Partial<Record<SceneId, string>> = {
@@ -189,11 +241,22 @@ const SCENE_BG: Partial<Record<SceneId, string>> = {
 };
 
 export function standFile(id: string): string {
-  return FILE[id] ?? "rail";
+  return resolveStandKey(id) ?? "alley";
 }
 
 export function hasStand(id: string): boolean {
-  return Boolean(FILE[id]);
+  return resolveStandKey(id) !== null;
+}
+
+/** Map generated mobs / luohan onto existing stand plates — never fall back to rail. */
+function resolveStandKey(id: string): string | null {
+  if (FILE[id]) return FILE[id];
+  if (id.startsWith("mob_road") || id.startsWith("mob_escort") || id.startsWith("mob_side")) return "alley";
+  if (id.startsWith("mob_canal") || id.startsWith("mob_yamen")) return "escort";
+  if (id.startsWith("mob_monk") || id.startsWith("luohan")) return "pilgrim";
+  if (id.startsWith("mob_court") || id.startsWith("mob_rebel")) return "lord";
+  if (id.startsWith("mob_")) return "hauler";
+  return null;
 }
 
 export function standSrc(id: string, cut = true): string {

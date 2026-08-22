@@ -17,6 +17,17 @@ export function makeRun(heart: HeartId, hero: HeroId = "rail"): Run {
   const scene = HERO_START[hero];
   const school = hero === "seer" ? "sword" : hero === "sapper" ? "staff" : "palm";
   const weapon = starterGear(school);
+  const livesMax = heart === "breath" ? 4 : 3;
+  const silver = heart === "empty" ? 28 : 12;
+  const bag =
+    heart === "empty"
+      ? [
+          { id: "pillFan", n: 2 },
+          { id: "copper", n: 1 },
+          { id: "salve", n: 1 },
+        ]
+      : [];
+  const flags = heart === "iron" ? ["heartAttack"] : [];
   return {
     hp,
     hpMax: hp,
@@ -27,7 +38,7 @@ export function makeRun(heart: HeartId, hero: HeroId = "rail"): Run {
     scene,
     beaten: [],
     chests: [],
-    flags: [],
+    flags,
     items: [],
     visited: [scene],
     seenTiles: {},
@@ -39,9 +50,11 @@ export function makeRun(heart: HeartId, hero: HeroId = "rail"): Run {
     talks: {},
     mateDecks: {},
     falls: 0,
+    lives: livesMax,
+    livesMax,
     hero,
-    silver: 12,
-    bag: [],
+    silver,
+    bag,
     craftUntil: 0,
     craftPending: null,
     weapon,

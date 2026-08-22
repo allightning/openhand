@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
   addBag,
+  BAG_NAME,
   bagCount,
   bringStashIntoRun,
   buyClinic,
   canCraft,
   collectCraft,
+  packDisplayStacks,
+  PAWN_PRICE,
   sellBag,
   startCraft,
+  syncBagCurrency,
   takeBag,
   useBattleGood,
   useSalveMap,
@@ -29,7 +33,7 @@ describe("bag economy", () => {
   });
 
   it("crafts salve after the short oven wait", () => {
-    let run = addBag(addBag(makeRun("empty"), "herb", 2), "hide", 0);
+    let run = addBag(addBag(makeRun("iron"), "herb", 2), "hide", 0);
     expect(canCraft(run, "salve")).toBeNull();
     const started = startCraft(run, "salve", 1_000);
     expect(started.ok).toBe(true);
@@ -56,7 +60,27 @@ describe("bag economy", () => {
     let run = { ...addBag(makeRun("empty"), "salve", 1), hp: 10 };
     const used = useSalveMap(run);
     expect(used.ok).toBe(true);
-    if (used.ok) expect(used.run.hp).toBe(18);
+    if (used.ok) expect(used.run.hp).toBe(14);
+  });
+
+  it("names forge mats and currency goods", () => {
+    expect(BAG_NAME.forgeIron).toBe("生铁");
+    expect(BAG_NAME.forgeCoal).toBe("焦炭");
+    expect(BAG_NAME.forgeOil).toBe("淬油");
+    expect(BAG_NAME.tongbaoCoin).toBe("通宝");
+    expect(BAG_NAME.roadPassToken).toBe("文牒");
+    expect(PAWN_PRICE.forgeIron).toBeGreaterThan(0);
+  });
+
+  it("syncs tongbao and passes into bag stacks", () => {
+    let save = emptySave();
+    save = { ...save, tongbao: 2 };
+    let run = syncBagCurrency({ ...makeRun("empty"), passes: 3 }, save);
+    expect(bagCount(run, "tongbaoCoin")).toBe(2);
+    expect(bagCount(run, "roadPassToken")).toBe(3);
+    const shown = packDisplayStacks(run, save);
+    expect(shown.some((s) => s.id === "tongbaoCoin" && s.n === 2)).toBe(true);
+    expect(shown.some((s) => s.id === "roadPassToken" && s.n === 3)).toBe(true);
   });
 
   it("buys clinic goods and brings stash into a new run", () => {

@@ -25,7 +25,15 @@ export type BagGoodsId =
   | "cinnabar"
   | "forgeJing"
   | "forgeXuan"
-  | "forgeShen";
+  | "forgeShen"
+  | "forgeIron"
+  | "forgeCoal"
+  | "forgeOil"
+  | "tongbaoCoin"
+  | "roadPassToken";
+
+/** 通宝 / 文牒：与 save.tongbao、run.passes 同步，不占养成格位。 */
+export const BAG_CURRENCY_IDS: BagGoodsId[] = ["tongbaoCoin", "roadPassToken"];
 
 export interface BagStack {
   id: BagGoodsId;
@@ -61,6 +69,11 @@ export const BAG_NAME: Record<BagGoodsId, string> = {
   forgeJing: "精材",
   forgeXuan: "玄铁",
   forgeShen: "神髓",
+  forgeIron: "生铁",
+  forgeCoal: "焦炭",
+  forgeOil: "淬油",
+  tongbaoCoin: "通宝",
+  roadPassToken: "文牒",
 };
 
 export const BAG_TIP: Record<BagGoodsId, string> = {
@@ -77,10 +90,10 @@ export const BAG_TIP: Record<BagGoodsId, string> = {
   dish: "当铺爱收热菜。",
   copper: "锻刃材料。遇通宝才开得动。",
   silk: "细货，当价尚可。",
-  pillFan: "凡药：只回血，不改根基。",
-  pillLiangHp: "良药：选一人服，气血上限 +2。",
+  pillFan: "凡药：回复 1 点命数。",
+  pillLiangHp: "良药·续命：永久提升命数上限 1。",
   pillLiangQi: "良药：选一人服，劲力上限 +1。",
-  pillXuanHp: "玄药：选一人服，气血上限 +6。须炼成。",
+  pillXuanHp: "玄药·命源：永久提升命数上限 2。",
   pillXuanQi: "玄药：选一人服，劲力上限 +2。须炼成。",
   pillXuanPace: "玄药：选一人服，先机 +1。须炼成。",
   herbXuan: "炼玄药的草。中后期多见。",
@@ -88,6 +101,11 @@ export const BAG_TIP: Record<BagGoodsId, string> = {
   forgeJing: "锻精级兵器。",
   forgeXuan: "锻玄级兵器。",
   forgeShen: "锻神兵。极稀。",
+  forgeIron: "粗锻辅材。可顶赤铜屑入精级炉。",
+  forgeCoal: "炉口加温。锻精时可替赤铜。",
+  forgeOil: "淬刃用油。锻玄时可替一截精材。",
+  tongbaoCoin: "局外通宝。稀少，认帖不认银。",
+  roadPassToken: "驿路文牒。过闸认帖。",
 };
 
 /** 当铺卖价（银两 / 件）。 */
@@ -116,6 +134,11 @@ export const PAWN_PRICE: Record<BagGoodsId, number> = {
   forgeJing: 12,
   forgeXuan: 22,
   forgeShen: 48,
+  forgeIron: 5,
+  forgeCoal: 3,
+  forgeOil: 9,
+  tongbaoCoin: 0,
+  roadPassToken: 0,
 };
 
 /** 药铺买价。 */
@@ -208,23 +231,53 @@ export function bagCount(run: Run, id: BagGoodsId): number {
 }
 
 export function bagUsedSlots(run: Run): number {
-  return (run.bag ?? []).filter((s) => s.n > 0).length;
+  return (run.bag ?? []).filter((s) => s.n > 0 && !BAG_CURRENCY_IDS.includes(s.id as BagGoodsId)).length;
+}
+
+function setBagStack(run: Run, id: BagGoodsId, n: number): Run {
+  const bag = (run.bag ?? []).filter((s) => s.id !== id);
+  if (n > 0) bag.unshift({ id, n });
+  return { ...run, bag };
+}
+
+/** 把通宝 / 文牒同步进行囊格（展示用；不占 BAG_SLOTS）。 */
+export function syncBagCurrency(run: Run, save: SaveFile): Run {
+  let next = setBagStack(run, "tongbaoCoin", tongbaoOf(save));
+  next = setBagStack(next, "roadPassToken", Math.max(0, next.passes ?? 0));
+  return next;
+}
+
+/** 行囊网格：通货叠在前，其余货色随后，合计至多 BAG_SLOTS 格（通货可挤占展示）。 */
+export function packDisplayStacks(run: Run, save: SaveFile): BagStack[] {
+  const synced = syncBagCurrency(run, save);
+  const currency = (synced.bag ?? [])
+    .filter((s) => BAG_CURRENCY_IDS.includes(s.id as BagGoodsId) && s.n > 0)
+    .map((s) => ({ id: s.id as BagGoodsId, n: s.n }));
+  const goods = (synced.bag ?? [])
+    .filter((s) => !BAG_CURRENCY_IDS.includes(s.id as BagGoodsId) && s.n > 0)
+    .map((s) => ({ id: s.id as BagGoodsId, n: s.n }));
+  const room = Math.max(0, BAG_SLOTS - currency.length);
+  return [...currency, ...goods.slice(0, room)];
 }
 
 export function addBag(run: Run, id: BagGoodsId, n = 1): Run {
   if (n <= 0) return run;
+  if (BAG_CURRENCY_IDS.includes(id)) {
+    return setBagStack(run, id, bagCount(run, id) + n);
+  }
   const bag = [...(run.bag ?? [])];
   const i = bag.findIndex((s) => s.id === id);
   if (i >= 0) {
     bag[i] = { id, n: bag[i].n + n };
     return { ...run, bag };
   }
-  if (bag.length >= BAG_SLOTS) return run;
+  if (bagUsedSlots(run) >= BAG_SLOTS) return run;
   bag.push({ id, n });
   return { ...run, bag };
 }
 
 export function takeBag(run: Run, id: BagGoodsId, n = 1): Run | null {
+  if (BAG_CURRENCY_IDS.includes(id)) return null;
   const have = bagCount(run, id);
   if (have < n) return null;
   const bag = (run.bag ?? [])
@@ -276,6 +329,9 @@ export function collectCraft(run: Run, now = Date.now()): { run: Run; gained: st
 }
 
 export function sellBag(run: Run, id: BagGoodsId, n = 1): { ok: true; run: Run; silver: number } | { ok: false; reason: string } {
+  if (BAG_CURRENCY_IDS.includes(id) || (PAWN_PRICE[id] ?? 0) <= 0) {
+    return { ok: false, reason: `${BAG_NAME[id]}不当。` };
+  }
   const taken = takeBag(run, id, n);
   if (!taken) return { ok: false, reason: `没有 ${BAG_NAME[id]}。` };
   const pay = (PAWN_PRICE[id] ?? 1) * n;
@@ -309,7 +365,7 @@ export function useBattleGood(
   let log = "";
 
   if (id === "salve") {
-    const heal = 4;
+    const heal = 3;
     const hp = Math.min(battle.player.maxHp, battle.player.hp + heal);
     battle = {
       ...battle,
@@ -359,7 +415,7 @@ export function useSalveMap(run: Run): { ok: true; run: Run } | { ok: false; rea
   if (run.hp >= run.hpMax) return { ok: false, reason: "气血已满。" };
   const taken = takeBag(run, "salve", 1);
   if (!taken) return { ok: false, reason: "没有伤药。" };
-  return { ok: true, run: { ...taken, hp: Math.min(taken.hpMax, taken.hp + 8) } };
+  return { ok: true, run: { ...taken, hp: Math.min(taken.hpMax, taken.hp + 4) } };
 }
 
 export function tongbaoOf(save: SaveFile): number {
