@@ -4,7 +4,7 @@ import type { SceneId } from "../map/types";
 export const HERO_START: Record<HeroId, SceneId> = {
   rail: "hut",
   seer: "customs",
-  sapper: "ropes",
+  sapper: "pit",
 };
 
 export const HERO_BOSSES: Record<HeroId, EnemyId[]> = {
@@ -26,6 +26,7 @@ export const HERO_BOSSES: Record<HeroId, EnemyId[]> = {
     "delay",
     "twin",
     "lord",
+    "usurper",
     "cavehand",
   ],
   seer: [
@@ -36,6 +37,7 @@ export const HERO_BOSSES: Record<HeroId, EnemyId[]> = {
     "delay",
     "twin",
     "lord",
+    "usurper",
     "catcher",
     "bandit",
     "thug",
@@ -61,6 +63,7 @@ export const HERO_BOSSES: Record<HeroId, EnemyId[]> = {
     "alley",
     "delay",
     "lord",
+    "usurper",
   ],
 };
 
@@ -99,17 +102,19 @@ export const SEER_DECK: CardId[] = [
   "pierce",
   "mend",
   "setup",
-  "rift",
-  "follow",
-  "echo",
-];
+    "rift",
+    "echo",
+    "buryBleed",
+    "unbind",
+    "cauterize",
+  ];
 
 export const SAPPER_DECK: CardId[] = [
   "plant",
   "plant",
   "thorns",
-  "strike",
-  "strike",
+  "brace",
+  "brace",
   "defend",
   "ironform",
   "sweep",
@@ -118,6 +123,8 @@ export const SAPPER_DECK: CardId[] = [
   "advance",
   "bleedcut",
   "setup",
-  "layer",
-  "follow",
-];
+    "layer",
+    "buryWard",
+    "salve",
+    "suture",
+  ];

@@ -90,6 +90,16 @@ const FX: Record<string, FxKind> = {
   mirror: "ward",
   layer: "palm",
   tide: "qi",
+  burySlash: "saber",
+  buryBleed: "bleed",
+  buryKnock: "wind",
+  buryWard: "ward",
+  salve: "mend",
+  unbind: "qi",
+  sidestep: "step",
+  suture: "mend",
+  cauterize: "bleed",
+  bindwound: "mend",
 };
 
 export function fxKind(cardId: string): FxKind {
@@ -177,7 +187,9 @@ export function playIntentFx(kind: string): void {
   if (kind === "charge" || kind === "lunge" || kind === "barrage") shoveWind(foe, you, 2);
   else if (kind === "pull") hookPull(you, foe);
   else if (kind === "trap" || kind === "stake") plantStamp(foe);
-  else if (kind === "windup" || kind === "guard") gatherQi(foe, "#c43a32");
+  else if (kind === "windup" || kind === "guard" || kind === "counter" || kind === "seal") gatherQi(foe, "#c43a32");
+  else if (kind === "bleedcut") saberCut(foe, you, 2);
+  else if (kind === "mend") healGreen(foe, 6);
   else saberCut(foe, you, 2);
   kick();
 }

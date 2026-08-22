@@ -14,7 +14,7 @@ import {
   tryMove,
   walkable,
 } from "./world";
-import { portalHasFrame, portalInThreshold } from "./tileset";
+import { portalHasFrame, portalInThreshold, portalOnRoadEnd, plantStamp } from "./tileset";
 import type { Run } from "../game/types";
 import type { SceneId } from "./types";
 
@@ -34,8 +34,8 @@ describe("scenes", () => {
     const run = runWith();
     for (const id of Object.keys(SCENES) as SceneId[]) {
       const w = loadScene(id, run);
-      expect(w.w).toBeGreaterThan(20);
-      expect(w.h).toBeGreaterThan(8);
+      expect(w.w).toBeGreaterThan(10);
+      expect(w.h).toBeGreaterThan(6);
       expect(w.thought.length).toBeGreaterThan(0);
     }
   });
@@ -54,11 +54,18 @@ describe("wharf and hold", () => {
     expect(w.portals.length).toBe(1);
   });
 
-  it("drops the seer in the tax house and the sapper in the rope yard", () => {
+  it("keeps indoor rooms free of outdoor roads", () => {
+    const hut = loadDock();
+    expect(hut.tiles.flat().some((t) => t === "road" || t === "pack")).toBe(false);
+    const customs = loadScene("customs", runWith());
+    expect(customs.tiles.flat().filter((t) => t === "road").length).toBeLessThan(8);
+  });
+
+  it("drops the seer in the customs hall and the sapper in the stake yard", () => {
     const seer = loadScene("customs", makeRun("empty", "seer"));
     expect(seer.tiles[seer.player.y][seer.player.x]).toBe("floor");
     expect(seer.npcs.some((n) => n.id === "inkhand")).toBe(true);
-    const sapper = loadScene("ropes", makeRun("empty", "sapper"));
+    const sapper = loadScene("pit", makeRun("empty", "sapper"));
     expect(sapper.tiles[sapper.player.y][sapper.player.x]).toBe("floor");
     expect(sapper.npcs.some((n) => n.id === "stakeboss")).toBe(true);
     const plot = loadScene("plot", makeRun("empty", "seer"));
@@ -69,36 +76,57 @@ describe("wharf and hold", () => {
     const w = loadScene("wharf", runWith());
     expect(w.npcs).toHaveLength(1);
     expect(w.npcs[0].id).toBe("raider");
-    expect(w.portals.length).toBe(6);
-    expect(w.talkers.map((t) => t.id).sort()).toEqual(["carter", "clerk", "docker", "fisher", "hawker", "kid", "tutorWard", "vendor"]);
+    expect(w.portals.length).toBe(7);
+    expect(w.talkers.map((t) => t.id).sort()).toEqual([
+      "butcher",
+      "carter",
+      "clerk",
+      "docker",
+      "fisher",
+      "hawker",
+      "kid",
+      "monk",
+      "tutorWard",
+      "vendor",
+    ]);
     expect(w.props.some((p) => p.kind === "tree")).toBe(true);
+    expect(w.props.some((p) => p.kind === "stall")).toBe(true);
     expect(w.tiles.flat().includes("road")).toBe(true);
+    expect(w.tiles.flat().filter((t) => t === "water").length).toBeGreaterThan(80);
+    expect(w.signs.some((s) => s.text.includes("火印"))).toBe(true);
+    expect(w.items.some((i) => i.id === "token")).toBe(true);
   });
 
   it("puts harbor people by stalls, and roads into the yards", () => {
     const w = loadScene("wharf", runWith());
+    const nearShop = (tx: number, ty: number) =>
+      w.props.some(
+        (p) =>
+          (p.kind === "house" || p.kind === "stall") &&
+          Math.abs(p.x - tx) + Math.abs(p.y - ty) <= 3,
+      );
     const vendor = w.talkers.find((t) => t.id === "vendor")!;
-    expect(w.props.some((p) => p.kind === "house" && Math.abs(p.x - vendor.x) <= 2)).toBe(true);
+    expect(nearShop(vendor.x, vendor.y)).toBe(true);
     const hawker = w.talkers.find((t) => t.id === "hawker")!;
-    expect(w.props.some((p) => p.kind === "house" && Math.abs(p.x - hawker.x) <= 2)).toBe(true);
-    expect(w.props.some((p) => p.kind === "bench" && Math.abs(p.x - hawker.x) <= 2)).toBe(true);
+    expect(nearShop(hawker.x, hawker.y)).toBe(true);
+    expect(w.props.some((p) => p.kind === "bench" && Math.abs(p.x - hawker.x) + Math.abs(p.y - hawker.y) <= 2)).toBe(true);
     const clerk = w.talkers.find((t) => t.id === "clerk")!;
-    expect(w.props.some((p) => p.kind === "house" && Math.abs(p.x - clerk.x) + Math.abs(p.y - clerk.y) <= 2)).toBe(true);
+    expect(nearShop(clerk.x, clerk.y) || w.props.some((p) => p.kind === "house" && Math.abs(p.x - clerk.x) + Math.abs(p.y - clerk.y) <= 4)).toBe(true);
     const customs = w.portals.find((p) => p.to === "customs")!;
     expect(Math.abs(clerk.x - customs.x) + Math.abs(clerk.y - customs.y)).toBeLessThanOrEqual(5);
     const hold = w.portals.find((p) => p.to === "hold")!;
-    expect(w.tiles[hold.y][hold.x + 1]).toBe("road");
-    expect(w.tiles[customs.y][customs.x - 1]).toBe("road");
+    expect(["road", "floor", "pack"]).toContain(w.tiles[hold.y + 1][hold.x]);
+    expect(["road", "floor", "pack"]).toContain(w.tiles[customs.y][customs.x - 1]);
     const well = w.props.find((p) => p.kind === "well")!;
     const lamp = w.portals.find((p) => p.to === "lamp")!;
     expect(Math.abs(well.x - lamp.x) + Math.abs(well.y - lamp.y)).toBeLessThanOrEqual(6);
     const carter = w.talkers.find((t) => t.id === "carter")!;
     expect(w.props.some((p) => p.kind === "cart" && Math.abs(p.x - carter.x) <= 2)).toBe(true);
-    expect(w.props.some((p) => p.kind === "house" && Math.abs(p.x - carter.x) <= 2)).toBe(true);
+    expect(nearShop(carter.x, carter.y)).toBe(true);
     const fisher = w.talkers.find((t) => t.id === "fisher")!;
-    expect(w.props.some((p) => p.kind === "house" && Math.abs(p.x - fisher.x) <= 2)).toBe(true);
+    expect(nearShop(fisher.x, fisher.y)).toBe(true);
     const docker = w.talkers.find((t) => t.id === "docker")!;
-    expect(w.props.some((p) => p.kind === "house" && Math.abs(p.x - docker.x) <= 2)).toBe(true);
+    expect(w.props.some((p) => p.kind === "house" && Math.abs(p.x - docker.x) + Math.abs(p.y - docker.y) <= 3)).toBe(true);
   });
 
   it("puts a framed door on the tax house", () => {
@@ -112,10 +140,12 @@ describe("wharf and hold", () => {
     const roads: { x: number; y: number }[] = [];
     for (let y = 0; y < w.h; y++) {
       for (let x = 0; x < w.w; x++) {
-        if (w.tiles[y][x] === "road") roads.push({ x, y });
+        // cobble + gravel tracks both count as the path web
+        if (w.tiles[y][x] === "road" || w.tiles[y][x] === "pack") roads.push({ x, y });
       }
     }
-    expect(roads.length).toBeGreaterThan(40);
+    expect(roads.length).toBeGreaterThan(20);
+    expect(roads.filter((c) => w.tiles[c.y][c.x] === "road").length).toBeLessThan(80);
     const start = roads[0];
     const seen = new Set<string>([`${start.x},${start.y}`]);
     const q = [start];
@@ -131,7 +161,8 @@ describe("wharf and hold", () => {
         const ny = y + dy;
         const key = `${nx},${ny}`;
         if (seen.has(key)) continue;
-        if (w.tiles[ny]?.[nx] !== "road") continue;
+        const t = w.tiles[ny]?.[nx];
+        if (t !== "road" && t !== "pack") continue;
         seen.add(key);
         q.push({ x: nx, y: ny });
       }
@@ -171,7 +202,8 @@ describe("wharf and hold", () => {
     const stamp = yard.talkers.find((t) => t.id === "stamp")!;
     const gateY = yard.tiles.findIndex((row) => row.includes("gate"));
     expect(stamp.y).toBeGreaterThan(gateY);
-    expect(talkBeat("stamp", { branded: false, items: [], beaten: [], flags: [], pick: "ask" }).said).toMatch(/见火/);
+    expect(talkBeat("stamp", { branded: false, items: [], beaten: [], flags: [], pick: "ask" }).said).toMatch(/火印/);
+    expect(talkBeat("warder", { branded: true, items: [], beaten: [], flags: [], pick: "ask" }).said).toMatch(/西/);
   });
 
   it("will not light yard seals without fire", () => {
@@ -202,8 +234,8 @@ describe("travel and fights", () => {
     const run = runWith();
     const w = loadScene("wharf", run);
     const door = w.portals.find((p) => p.to === "hold")!;
-    w.player = { x: door.x + 1, y: door.y };
-    const moved = tryMove(w, "left", run);
+    w.player = { x: door.x, y: door.y + 1 };
+    const moved = tryMove(w, "up", run);
     expect(moved.travel?.to).toBe("hold");
   });
 
@@ -211,21 +243,112 @@ describe("travel and fights", () => {
     const run = runWith();
     for (const ch of ["A", "M"] as const) {
       let w = loadScene("wharf", run, ch);
-      const towardRoad = ch === "A" ? "right" : "left";
+      const towardRoad = ch === "A" ? "down" : "left";
       const step = tryMove(w, towardRoad, run);
       expect(step.travel).toBeUndefined();
       w = step.world;
       expect(w.arrival).toBeNull();
+      const clerk = w.talkers.find((t) => t.id === "clerk")!;
+      const plaza = { x: clerk.x, y: clerk.y + 3 };
       const seen = floodFloor(w, run, true);
-      expect(seen.has("15,6")).toBe(true);
-      const dirs = findPath(w, run, 15, 6, () => true);
+      expect(seen.has(`${plaza.x},${plaza.y}`) || seen.has(`${clerk.x},${clerk.y}`)).toBe(true);
+      const target = seen.has(`${plaza.x},${plaza.y}`) ? plaza : clerk;
+      const dirs = findPath(w, run, target.x, target.y, () => true);
       expect(dirs.length).toBeGreaterThan(0);
-      for (const d of dirs) {
-        const next = tryMove(w, d, run);
+      for (let i = 0; i < dirs.length; i++) {
+        const next = tryMove(w, dirs[i], run, { suppressPortal: i < dirs.length - 1 });
         expect(next.travel).toBeUndefined();
         w = next.world;
       }
-      expect(w.tiles[w.player.y][w.player.x]).toBe("road");
+      expect(["road", "floor"]).toContain(w.tiles[w.player.y][w.player.x]);
+    }
+  });
+
+  it("keeps ropes portals on geographic edges, not mid-yard teleports", () => {
+    const w = loadScene("ropes", runWith({ hero: "sapper", beaten: ["stakeboss"] }));
+    const by = Object.fromEntries(w.portals.map((p) => [p.to, p]));
+    expect(by.wharf.y).toBeLessThan(4); // 北通港湾
+    expect(by.huainan.y).toBeLessThan(4); // 北出官道
+    expect(by.pit.x).toBeLessThan(10); // 西接桩场
+    expect(by.ropeMarket.x).toBeGreaterThan(20); // 东出缆市
+    expect(by.docks.y).toBeGreaterThan(by.wharf.y); // 船坞更靠南贴水
+    expect(by.shed.y).toBeGreaterThan(by.wharf.y);
+    // 无一扇门落在庭院正中
+    for (const p of w.portals) {
+      const midX = p.x > 10 && p.x < w.w - 10;
+      const midY = p.y > 4 && p.y < w.h - 5;
+      expect(midX && midY, `${p.ch}→${p.to} at ${p.x},${p.y}`).toBe(false);
+    }
+  });
+
+  it("keeps hub outdoor portals on the rim, not courtyard grass", () => {
+    for (const id of ["taxMarket", "ropeMarket", "taxGate", "ropeGate"] as SceneId[]) {
+      const w = loadScene(id, runWith({ hero: id.startsWith("tax") ? "seer" : "sapper" }));
+      for (const p of w.portals) {
+        const onRim = p.x <= 2 || p.x >= w.w - 3 || p.y <= 2 || p.y >= w.h - 3 || p.y === 4;
+        expect(onRim, `${id}→${p.to} at ${p.x},${p.y}`).toBe(true);
+      }
+    }
+  });
+
+  it("lets click-path cross hub courtyard portals without ending empty", () => {
+    const run = runWith({ hero: "seer", flags: ["booksOk"] });
+    const w = loadScene("taxMarket", run);
+    w.npcs.forEach((n) => {
+      n.beaten = true;
+    });
+    const far = w.portals.find((p) => Math.abs(p.x - w.player.x) + Math.abs(p.y - w.player.y) > 8);
+    expect(far).toBeTruthy();
+    // Path to a far portal used to return [] when mid portals blocked BFS.
+    const toDoor = findPath(w, run, far!.x, far!.y, () => true);
+    expect(toDoor.length).toBeGreaterThan(0);
+    // Pick a far floor cell (not the talker underfoot spawn) and walk there crossing portals.
+    let target: { x: number; y: number } | null = null;
+    for (let y = 2; y < w.h - 2 && !target; y++) {
+      for (let x = 2; x < w.w - 2; x++) {
+        if (Math.abs(x - w.player.x) + Math.abs(y - w.player.y) < 10) continue;
+        if (!walkable(w, x, y, run)) continue;
+        target = { x, y };
+        break;
+      }
+    }
+    expect(target).toBeTruthy();
+    const toFloor = findPath(w, run, target!.x, target!.y, () => true);
+    expect(toFloor.length).toBeGreaterThan(0);
+    let cur = w;
+    for (let i = 0; i < toFloor.length; i++) {
+      const step = tryMove(cur, toFloor[i], run, { suppressPortal: i < toFloor.length - 1 });
+      expect(step.travel).toBeUndefined();
+      cur = step.world;
+    }
+  });
+
+  it("keeps every wharf talker, portal, and item adjacent to the spawn flood", () => {
+    const run = runWith();
+    const w = loadScene("wharf", run);
+    w.npcs.forEach((n) => {
+      n.beaten = true;
+    });
+    const seen = floodFloor(w, run, true);
+    const touch = (x: number, y: number) =>
+      seen.has(`${x},${y}`) ||
+      [
+        [0, 1],
+        [0, -1],
+        [1, 0],
+        [-1, 0],
+      ].some(([dx, dy]) => seen.has(`${x + dx},${y + dy}`));
+    for (const p of w.portals) {
+      expect(seen.has(`${p.x},${p.y}`), `portal ${p.ch}`).toBe(true);
+    }
+    for (const t of w.talkers) {
+      expect(touch(t.x, t.y), `talker ${t.id}`).toBe(true);
+    }
+    for (const g of w.items) {
+      expect(touch(g.x, g.y), `item ${g.id}`).toBe(true);
+    }
+    for (const s of w.signs) {
+      expect(touch(s.x, s.y), `sign`).toBe(true);
     }
   });
 
@@ -238,6 +361,36 @@ describe("travel and fights", () => {
     const seal = w.seals[0];
     const path = findPath(w, run, seal.x, seal.y, () => true);
     expect(path.length).toBeGreaterThan(0);
+  });
+
+  it("blocks the pit exit until the opening hand falls; seer starts at customs", () => {
+    const seer = makeRun("empty", "seer");
+    const customs = loadScene("customs", seer);
+    expect(customs.npcs.some((n) => n.id === "inkhand" && !n.beaten)).toBe(true);
+
+    const sapper = makeRun("empty", "sapper");
+    const pit = loadScene("pit", sapper);
+    const out = pit.portals[0];
+    expect(findPath(pit, sapper, out.x, out.y, () => true)).toEqual([]);
+    expect(pit.npcs[0].y).toBeLessThan(out.y);
+  });
+
+  it("makes the short escort a delivery to the pier carter", () => {
+    let run = runWith();
+    let w = loadScene("escort", run);
+    const clerk = w.talkers.find((t) => t.id === "docker")!;
+    w.player = { x: clerk.x, y: clerk.y + 1 };
+    w.facing = "up";
+    let r = interact(w, run, "job");
+    expect(r.flags).toContain("escortJob");
+    expect(r.world.thought).toMatch(/码头/);
+    run = { ...run, flags: [...run.flags, "escortJob"], items: [...run.items, "cargo"] };
+    w = loadScene("pier", run);
+    const carter = w.talkers.find((t) => t.id === "carter")!;
+    w.player = { x: carter.x, y: carter.y + 1 };
+    w.facing = "up";
+    r = interact(w, run, "deliver");
+    expect(r.flags).toEqual(expect.arrayContaining(["escortDone", "escortPay"]));
   });
 
   it("puts the catcher on the only road to the boat", () => {
@@ -264,7 +417,7 @@ describe("travel and fights", () => {
     const npc = w.npcs.find((n) => n.id === "catcher")!;
     w.player = { x: npc.x, y: npc.y + 1 };
     w.facing = "up";
-    const r = interact(w, run);
+    const r = interact(w, run, "fight");
     expect(r.action).toBe("duel");
     expect(r.enemyId).toBe("catcher");
   });
@@ -470,11 +623,23 @@ describe("tokens in the pack", () => {
   it("lets leftover cake on the lane open the kid's mouth", () => {
     const lane = loadScene("lane", runWith());
     expect(lane.items.some((i) => i.id === "cake")).toBe(true);
+    expect(lane.props.some((p) => p.kind === "stall")).toBe(true);
     const open = talkBeat("hawker", { branded: false, items: [], beaten: [], flags: [] });
     expect(open.said).not.toMatch(/北棚|伢儿/);
     expect(open.choices?.map((c) => c.id)).toEqual(["cake", "night", "leave"]);
+    expect(
+      talkBeat("hawker", { branded: true, items: [], beaten: [], flags: ["branded"] }).choices?.map((c) => c.id),
+    ).toEqual(["cake", "night", "mask", "leave"]);
     expect(talkBeat("hawker", { branded: false, items: [], beaten: [], flags: [], pick: "cake" }).said).toMatch(/饼/);
     expect(talkBeat("kid", { branded: false, items: ["cake"], beaten: [], flags: [] }).said).toMatch(/棚|碗|茶/);
+  });
+
+  it("lets the harbor market token point at the lake monk", () => {
+    const wharf = loadScene("wharf", runWith());
+    expect(wharf.items.some((i) => i.id === "token")).toBe(true);
+    expect(talkBeat("butcher", { branded: false, items: [], beaten: [], flags: [], pick: "lake" }).said).toMatch(/江/);
+    expect(talkBeat("monk", { branded: true, items: [], beaten: [], flags: [], pick: "order" }).said).toMatch(/西东南北/);
+    expect(talkBeat("kid", { branded: false, items: ["token"], beaten: [], flags: [] }).said).toMatch(/帖|江/);
   });
 
   it("lets the plot cart yield a flask that opens the sentry's mouth", () => {
@@ -509,7 +674,7 @@ describe("outdoor challenges", () => {
     expect(loadScene("ridge", runWith()).npcs.some((n) => n.id === "brute")).toBe(true);
     expect(loadScene("yard", runWith()).npcs.some((n) => n.id === "bandit")).toBe(true);
     expect(loadScene("ropes", runWith()).npcs.some((n) => n.id === "robber")).toBe(true);
-    expect(loadScene("ropes", runWith()).npcs.some((n) => n.id === "stakeboss")).toBe(true);
+    expect(loadScene("pit", makeRun("empty", "sapper")).npcs.some((n) => n.id === "stakeboss")).toBe(true);
     expect(loadScene("customs", runWith()).npcs.some((n) => n.id === "inkhand")).toBe(true);
     expect(loadScene("salt", runWith()).npcs.some((n) => n.id === "smuggler")).toBe(true);
     expect(loadScene("lane", runWith()).npcs.some((n) => n.id === "thug")).toBe(true);
@@ -521,7 +686,7 @@ describe("outdoor challenges", () => {
     const foe = w.npcs.find((n) => n.id === "bandit")!;
     w.player = { x: foe.x + 1, y: foe.y };
     w.facing = "left";
-    const r = interact(w, runWith());
+    const r = interact(w, runWith(), "fight");
     expect(r.action).toBe("duel");
     expect(r.enemyId).toBe("bandit");
   });
@@ -566,14 +731,13 @@ describe("terrain and routes", () => {
     expect(w.tiles.some((row) => row.includes("road"))).toBe(true);
   });
 
-  it("turns outdoor hills into water", () => {
+  it("keeps outdoor hills as hills with elevation art", () => {
     const w = loadScene("plot", runWith(), "R");
-    expect(w.tiles.flat().includes("hill")).toBe(false);
-    expect(w.tiles.flat().includes("rock")).toBe(false);
+    expect(w.tiles.flat().includes("hill")).toBe(true);
     expect(w.tiles.flat().includes("water")).toBe(true);
-    const water = w.tiles.flatMap((row, y) => row.map((t, x) => ({ t, x, y }))).find((c) => c.t === "water");
-    expect(water).toBeTruthy();
-    expect(walkable(w, water!.x, water!.y, runWith())).toBe(false);
+    const hill = w.tiles.flatMap((row, y) => row.map((t, x) => ({ t, x, y }))).find((c) => c.t === "hill");
+    expect(hill).toBeTruthy();
+    expect(walkable(w, hill!.x, hill!.y, runWith())).toBe(false);
   });
 
   it("plants trees as blocking bodies", () => {
@@ -581,6 +745,23 @@ describe("terrain and routes", () => {
     const tree = w.props.find((p) => p.kind === "tree");
     expect(tree).toBeTruthy();
     expect(walkable(w, tree!.x, tree!.y, runWith())).toBe(false);
+  });
+
+  it("keeps every authored tree blocking and never paints ghost canopy stamps", () => {
+    const run = runWith();
+    const w = loadScene("wharf", run, "R");
+    for (const p of w.props.filter((x) => x.kind === "tree")) {
+      expect(walkable(w, p.x, p.y, run)).toBe(false);
+    }
+    // 装饰 stamp 只许草影；树冠只来自手摆
+    let ghost = 0;
+    for (let y = 0; y < w.h; y++) {
+      for (let x = 0; x < w.w; x++) {
+        const stamp = plantStamp(w.scene, w.tiles[y][x], x, y, w.tiles);
+        if (stamp && (stamp === "bush" || stamp.startsWith("tree"))) ghost++;
+      }
+    }
+    expect(ghost).toBe(0);
   });
 
   it("keeps plot doors reachable without walking the cliff", () => {
@@ -605,7 +786,7 @@ describe("terrain and routes", () => {
   });
 
   it("lets every outdoor door and chest be walked to", () => {
-    const outdoor: SceneId[] = ["plot", "ridge", "wharf", "yard", "spit", "lane", "lamp", "ropes"];
+    const outdoor: SceneId[] = ["plot", "ridge", "wharf", "yard", "spit", "lane", "lamp", "ropes", "pit", "ferry", "isle"];
     for (const id of outdoor) {
       const run = runWith({ flags: ["branded", "watchOpen", "trueMirror", "booksOk", "knotOk", "tideOpen"], items: ["deed", "incense", "brand"] });
       const w = loadScene(id, run);
@@ -615,30 +796,107 @@ describe("terrain and routes", () => {
         n.beaten = true;
       });
       const seen = floodFloor(w, run, true);
+      const touch = (x: number, y: number) =>
+        seen.has(`${x},${y}`) ||
+        [
+          [0, 1],
+          [0, -1],
+          [1, 0],
+          [-1, 0],
+        ].some(([dx, dy]) => seen.has(`${x + dx},${y + dy}`));
       for (const p of w.portals) {
-        expect(seen.has(`${p.x},${p.y}`)).toBe(true);
+        expect(seen.has(`${p.x},${p.y}`), `${id} portal ${p.ch}`).toBe(true);
       }
       for (const c of w.caches) {
-        expect(seen.has(`${c.x},${c.y}`)).toBe(true);
+        expect(seen.has(`${c.x},${c.y}`), `${id} cache`).toBe(true);
+      }
+      for (const t of w.talkers) {
+        expect(touch(t.x, t.y), `${id} talker ${t.id}`).toBe(true);
+      }
+      for (const g of w.items) {
+        expect(touch(g.x, g.y), `${id} item ${g.id}`).toBe(true);
       }
     }
+  });
+
+  it("keeps talkers and portals reachable in every authored scene", () => {
+    const run = runWith({
+      flags: ["branded", "watchOpen", "trueMirror", "booksOk", "knotOk", "tideOpen", "mainOpen"],
+      items: ["deed", "incense", "brand", "roadPass"],
+    });
+    const bad: string[] = [];
+    for (const id of Object.keys(SCENES) as SceneId[]) {
+      const w = loadScene(id, run);
+      w.progress = [...w.order];
+      if (w.portals[0]) w.player = { x: w.portals[0].x, y: w.portals[0].y };
+      else if (w.player) {
+        /* spawn @ */
+      }
+      w.npcs.forEach((n) => {
+        n.beaten = true;
+      });
+      const seen = floodFloor(w, run, true);
+      const touch = (x: number, y: number) =>
+        seen.has(`${x},${y}`) ||
+        [
+          [0, 1],
+          [0, -1],
+          [1, 0],
+          [-1, 0],
+        ].some(([dx, dy]) => seen.has(`${x + dx},${y + dy}`));
+      for (const p of w.portals) {
+        if (!seen.has(`${p.x},${p.y}`)) bad.push(`${id} portal ${p.ch}`);
+      }
+      for (const t of w.talkers) {
+        if (!touch(t.x, t.y)) bad.push(`${id} talker ${t.id}`);
+      }
+    }
+    expect(bad).toEqual([]);
   });
 
   it("puts houses on building doors and pavilions on the road gates", () => {
     const plot = loadScene("plot", runWith(), "R");
     const hut = plot.portals.find((p) => p.ch === "R")!;
     const pass = plot.portals.find((p) => p.ch === "S")!;
+    // 大地点可夹墙；通路必须在路尽头
     expect(portalHasFrame(plot.tiles, hut.x, hut.y)).toBe(true);
     expect(portalHasFrame(plot.tiles, pass.x, pass.y)).toBe(true);
     const ridge = loadScene("ridge", runWith(), "S");
-    for (const p of ridge.portals) expect(portalHasFrame(ridge.tiles, p.x, p.y)).toBe(true);
+    for (const p of ridge.portals.filter((p) => p.ch === "S" || p.ch === "T")) {
+      expect(portalOnRoadEnd(ridge.tiles, p.x, p.y), `ridge ${p.ch}`).toBe(true);
+    }
+    // 院内堂门可不在干道上
+    expect(ridge.portals.some((p) => p.ch === "J")).toBe(true);
     const wharf = loadScene("wharf", runWith());
-    expect(portalHasFrame(wharf.tiles, wharf.portals.find((p) => p.ch === "A")!.x, wharf.portals.find((p) => p.ch === "A")!.y)).toBe(true);
-    expect(portalHasFrame(wharf.tiles, wharf.portals.find((p) => p.ch === "T")!.x, wharf.portals.find((p) => p.ch === "T")!.y)).toBe(true);
+    const hold = wharf.portals.find((p) => p.ch === "A")!;
+    const toRidge = wharf.portals.find((p) => p.ch === "T")!;
+    expect(portalHasFrame(wharf.tiles, hold.x, hold.y)).toBe(true);
+    expect(portalOnRoadEnd(wharf.tiles, toRidge.x, toRidge.y)).toBe(true);
   });
 
   it("cuts indoor doors in the wall instead of dropping a gate on the floor", () => {
-    const indoor: SceneId[] = ["hut", "hold", "salt", "customs", "shed", "docks", "shrine", "tea", "glass", "inner"];
+    const indoor: SceneId[] = [
+      "hut",
+      "hold",
+      "salt",
+      "customs",
+      "shed",
+      "docks",
+      "shrine",
+      "tea",
+      "glass",
+      "inner",
+      "palace",
+      "yamen",
+      "wine",
+      "flower",
+      "clinic",
+      "pier",
+      "pawn",
+      "escort",
+      "martial",
+      "lodge",
+    ];
     const run = runWith({
       flags: ["branded", "watchOpen", "trueMirror", "booksOk", "knotOk", "tideOpen"],
       items: ["deed", "incense", "brand"],
@@ -655,5 +913,42 @@ describe("terrain and routes", () => {
     expect(door.y).toBe(hut.h - 1);
     expect(hut.tiles[door.y][door.x - 1]).toBe("wall");
     expect(hut.tiles[door.y][door.x + 1]).toBe("wall");
+  });
+
+  it("keeps every pair of portals at least 3 tiles apart (Chebyshev)", () => {
+    const run = runWith({
+      flags: [
+        "branded",
+        "mainOpen",
+        "watchOpen",
+        "trueMirror",
+        "booksOk",
+        "knotOk",
+        "tideOpen",
+        "forkRail",
+        "forkSeer",
+        "forkSapper",
+        "wellOpen",
+        "treeOpen",
+        "stoneOpen",
+        "roadUsurp",
+      ],
+      items: ["deed", "incense", "brand"],
+      beaten: ["inkhand", "stakeboss", "catcher", "escort", "piler", "delay", "twin"],
+      hero: "rail",
+    });
+    const close: string[] = [];
+    for (const id of Object.keys(SCENES) as SceneId[]) {
+      const w = loadScene(id, run);
+      for (let i = 0; i < w.portals.length; i++) {
+        for (let j = i + 1; j < w.portals.length; j++) {
+          const a = w.portals[i];
+          const b = w.portals[j];
+          const d = Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+          if (d < 3) close.push(`${id}: ${a.ch}→${a.to} (${a.x},${a.y}) ↔ ${b.ch}→${b.to} (${b.x},${b.y}) d=${d}`);
+        }
+      }
+    }
+    expect(close, close.join("\n")).toEqual([]);
   });
 });

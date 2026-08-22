@@ -1,6 +1,7 @@
 import { CHAPTERS, HEARTS, STARTER_DECK, heartHp } from "./content";
 import { HERO_START, SAPPER_DECK, SEER_DECK } from "./hero";
 import type { CardId, ChapterId, HeartId, HeroId, Run, SaveFile, TechniqueId } from "./types";
+import { starterGear } from "./weapons";
 
 const SAVE_KEY = "openhand-mingshou";
 
@@ -14,6 +15,8 @@ export function makeRun(heart: HeartId, hero: HeroId = "rail"): Run {
   const hp =
     hero === "sapper" ? heartHp(heart) + 4 : hero === "seer" ? Math.max(22, heartHp(heart) - 4) : heartHp(heart);
   const scene = HERO_START[hero];
+  const school = hero === "seer" ? "sword" : hero === "sapper" ? "staff" : "palm";
+  const weapon = starterGear(school);
   return {
     hp,
     hpMax: hp,
@@ -37,6 +40,14 @@ export function makeRun(heart: HeartId, hero: HeroId = "rail"): Run {
     mateDecks: {},
     falls: 0,
     hero,
+    silver: 12,
+    bag: [],
+    craftUntil: 0,
+    craftPending: null,
+    weapon,
+    weapons: [weapon],
+    teaBet: null,
+    bountyAt: 0,
   };
 }
 
@@ -52,7 +63,7 @@ export function addCard(deck: CardId[], id: CardId): CardId[] {
 }
 
 export function emptySave(): SaveFile {
-  return { seen: [], cleared: 0 };
+  return { seen: [], cleared: 0, run: null, scene: null, at: null, tongbao: 0, stash: [] };
 }
 
 export function loadSave(): SaveFile {
@@ -60,9 +71,18 @@ export function loadSave(): SaveFile {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return emptySave();
     const parsed = JSON.parse(raw) as SaveFile;
+    const at =
+      parsed.at && typeof parsed.at.x === "number" && typeof parsed.at.y === "number"
+        ? { x: parsed.at.x, y: parsed.at.y }
+        : null;
     return {
       seen: Array.isArray(parsed.seen) ? parsed.seen : [],
       cleared: typeof parsed.cleared === "number" ? parsed.cleared : 0,
+      run: parsed.run && typeof parsed.run === "object" ? (parsed.run as Run) : null,
+      scene: typeof parsed.scene === "string" ? parsed.scene : null,
+      at,
+      tongbao: typeof parsed.tongbao === "number" ? parsed.tongbao : 0,
+      stash: Array.isArray(parsed.stash) ? parsed.stash : [],
     };
   } catch {
     return emptySave();
@@ -71,6 +91,28 @@ export function loadSave(): SaveFile {
 
 export function writeSave(save: SaveFile): void {
   localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+}
+
+export function stashRun(
+  save: SaveFile,
+  run: Run,
+  scene: string,
+  at?: { x: number; y: number } | null,
+): SaveFile {
+  return {
+    ...save,
+    run: JSON.parse(JSON.stringify(run)) as Run,
+    scene,
+    at: at ? { x: at.x, y: at.y } : save.at ?? null,
+  };
+}
+
+export function clearRun(save: SaveFile): SaveFile {
+  return { ...save, run: null, scene: null, at: null };
+}
+
+export function hasStashedRun(save: SaveFile): boolean {
+  return Boolean(save.run && save.run.hero && save.scene);
 }
 
 export function markSeen(save: SaveFile, id: Run["beaten"][number]): SaveFile {
@@ -100,6 +142,11 @@ export function takeChest(run: Run, scene: string): Run {
 export function addItem(run: Run, id: string): Run {
   if (run.items.includes(id)) return run;
   return { ...run, items: [...run.items, id] };
+}
+
+export function removeItem(run: Run, id: string): Run {
+  if (!run.items.includes(id)) return run;
+  return { ...run, items: run.items.filter((x) => x !== id) };
 }
 
 export function addFlag(run: Run, id: string): Run {

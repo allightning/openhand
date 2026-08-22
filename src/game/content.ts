@@ -10,8 +10,10 @@ import type {
   Intent,
   TechniqueDef,
   TechniqueId,
+  WeaponId,
 } from "./types";
 import { BASE_HP } from "./types";
+import { GENERATED_ELITE_ENERGY, GENERATED_ENEMIES, GENERATED_ENEMY_WEAPON } from "./foeCatalog";
 
 export const CARDS: Record<CardId, CardDef> = {
   strike: {
@@ -35,7 +37,7 @@ export const CARDS: Record<CardId, CardDef> = {
   push: {
     id: "push",
     name: "推宫",
-    cost: 1,
+    cost: 2,
     type: "attack",
     text: "击退 2 格。撞壁再受 8 点伤害。",
     flavor: "破门不问门闩。",
@@ -54,7 +56,7 @@ export const CARDS: Record<CardId, CardDef> = {
   advance: {
     id: "advance",
     name: "进步",
-    cost: 0,
+    cost: 1,
     type: "skill",
     text: "身前一格为空则前进，抽 1 张牌。",
     flavor: "七步之内。",
@@ -63,7 +65,7 @@ export const CARDS: Record<CardId, CardDef> = {
   strike2: {
     id: "strike2",
     name: "开山掌",
-    cost: 1,
+    cost: 2,
     type: "attack",
     text: "造成 9 点伤害。",
     flavor: "掌风比刀快半寸。",
@@ -81,7 +83,7 @@ export const CARDS: Record<CardId, CardDef> = {
   push2: {
     id: "push2",
     name: "破门",
-    cost: 1,
+    cost: 3,
     type: "attack",
     text: "击退 3 格。撞壁再受 10 点伤害。",
     flavor: "门闩先走。",
@@ -91,7 +93,7 @@ export const CARDS: Record<CardId, CardDef> = {
   charge2: {
     id: "charge2",
     name: "沉劲",
-    cost: 1,
+    cost: 3,
     type: "skill",
     text: "下一张攻击伤害 +7。",
     flavor: "气沉到脚底板。",
@@ -100,7 +102,7 @@ export const CARDS: Record<CardId, CardDef> = {
   advance2: {
     id: "advance2",
     name: "纵步",
-    cost: 0,
+    cost: 1,
     type: "skill",
     text: "身前最多前进 2 格。抽 1 张牌。",
     flavor: "两步并作一步。",
@@ -111,7 +113,7 @@ export const CARDS: Record<CardId, CardDef> = {
     name: "抽刀",
     cost: 1,
     type: "attack",
-    text: "相邻则造成 9 点伤害，否则 4 点。",
+    text: "相邻打 9 并叠 1 裂创，否则 4。",
     flavor: "刀还在鞘里时，人已经到了。",
     damage: 4,
   },
@@ -182,10 +184,11 @@ export const CARDS: Record<CardId, CardDef> = {
     name: "斩",
     cost: 1,
     type: "attack",
-    text: "造成 6 点。相邻再加 3 点。",
+    text: "造成 6。相邻再 +3，并叠 1 裂创。",
     flavor: "刀认的是胸口，不是风。",
     damage: 6,
     nearBonus: 3,
+    bleed: 1,
   },
   thrust: {
     id: "thrust",
@@ -242,7 +245,7 @@ export const CARDS: Record<CardId, CardDef> = {
     name: "破绽",
     cost: 1,
     type: "skill",
-    text: "敌人下两下挨打 +4。对方出手 -3，两回合。抽 1。",
+    text: "敌人下两下 +4。他出手 -3，两回。抽 1。",
     flavor: "气先乱，招才乱。",
     expose: 2,
     frail: 2,
@@ -270,7 +273,9 @@ export const CARDS: Record<CardId, CardDef> = {
   combo: {
     id: "combo",
     name: "连手",
-    cost: 0,
+    cost: 1,
+    stackTaxQi: 1,
+    stackTaxHp: 1,
     type: "skill",
     text: "连势 +1。下一张攻击按连势各加 2 伤。",
     flavor: "第二掌认第一掌。",
@@ -297,7 +302,7 @@ export const CARDS: Record<CardId, CardDef> = {
   follow: {
     id: "follow",
     name: "追掌",
-    cost: 0,
+    cost: 1,
     type: "attack",
     text: "本回合已出过攻击则打 6，否则 3。",
     flavor: "第二掌接第一掌的空。",
@@ -306,7 +311,7 @@ export const CARDS: Record<CardId, CardDef> = {
   follow2: {
     id: "follow2",
     name: "追魂掌",
-    cost: 0,
+    cost: 2,
     type: "attack",
     text: "本回合已出过攻击则打 8，否则 4。",
     flavor: "空门开了，掌就进去。",
@@ -315,7 +320,7 @@ export const CARDS: Record<CardId, CardDef> = {
   twinpalm: {
     id: "twinpalm",
     name: "双掌",
-    cost: 1,
+    cost: 2,
     type: "attack",
     text: "连打两掌，各 4 点。蓄劲只吃第一掌。",
     flavor: "左右开弓，门才认。",
@@ -333,7 +338,7 @@ export const CARDS: Record<CardId, CardDef> = {
   chain: {
     id: "chain",
     name: "连环",
-    cost: 1,
+    cost: 2,
     type: "attack",
     text: "打 5。若有连势则打 9 并抽 1。",
     flavor: "一掌未收，二掌已到。",
@@ -342,7 +347,7 @@ export const CARDS: Record<CardId, CardDef> = {
   chain2: {
     id: "chain2",
     name: "连环开山",
-    cost: 1,
+    cost: 3,
     type: "attack",
     text: "打 7。若有连势则打 11 并抽 1。",
     flavor: "连势叠到骨缝里。",
@@ -353,14 +358,14 @@ export const CARDS: Record<CardId, CardDef> = {
     name: "聚气",
     cost: 1,
     type: "skill",
-    text: "本场气脉 +1（最多 3）。抽 1。攻击各加气脉点。",
+    text: "气脉 +1（最多 3）。抽 1。攻击加气脉。",
     flavor: "一口气压进小臂，这一场都认。",
     flow: 1,
   },
   gather2: {
     id: "gather2",
     name: "聚气入骨",
-    cost: 1,
+    cost: 2,
     type: "skill",
     text: "本场气脉 +2（最多 3）。抽 1。",
     flavor: "气沉到脚底板，掌才有根。",
@@ -369,7 +374,7 @@ export const CARDS: Record<CardId, CardDef> = {
   setup: {
     id: "setup",
     name: "铺势",
-    cost: 0,
+    cost: 1,
     type: "skill",
     text: "铺势 +1。抽 1。收势掌认这层。",
     flavor: "先把门打开，掌再进去。",
@@ -378,9 +383,10 @@ export const CARDS: Record<CardId, CardDef> = {
   finisher: {
     id: "finisher",
     name: "收势掌",
-    cost: 1,
+    cost: 2,
+    setupCost: 1,
     type: "attack",
-    text: "打 4。每层铺势再 +5，并清掉铺势。",
+    text: "需铺势≥1。打 4，每层铺势再 +5，然后清掉铺势。",
     flavor: "铺完了，这一掌才叫收。",
     damage: 4,
     finisher: true,
@@ -388,7 +394,7 @@ export const CARDS: Record<CardId, CardDef> = {
   finisher2: {
     id: "finisher2",
     name: "收势开山",
-    cost: 1,
+    cost: 4,
     type: "attack",
     text: "打 6。每层铺势再 +6，并清掉铺势。",
     flavor: "铺势叠满，门就认这一掌。",
@@ -400,19 +406,20 @@ export const CARDS: Record<CardId, CardDef> = {
     name: "搓手",
     cost: 1,
     type: "skill",
-    text: "上一招是攻击则格挡 8 并连势 +1；否则蓄劲 +3。",
+    text: "上一招是攻则挡 8 并连势 +1；否则蓄劲 +3。",
     flavor: "攻守一搓，才叫会走。",
     weave: true,
   },
   echo: {
     id: "echo",
     name: "尾劲",
-    cost: 1,
+    cost: 2,
     type: "skill",
     text: "下回第一掌伤害 +6。",
     flavor: "这一息没打完，劲还在腕子里。",
     echo: 6,
-  },  ironform: {
+  },
+  ironform: {
     id: "ironform",
     name: "铁布",
     cost: 2,
@@ -422,7 +429,8 @@ export const CARDS: Record<CardId, CardDef> = {
     block: 10,
     retainTurns: 2,
     retainAmt: 6,
-  },  marking: {
+  },
+  marking: {
     id: "marking",
     name: "点穴",
     cost: 1,
@@ -453,9 +461,9 @@ export const CARDS: Record<CardId, CardDef> = {
   layer: {
     id: "layer",
     name: "叠掌",
-    cost: 1,
+    cost: 2,
     type: "attack",
-    text: "打 3。本回合已出过攻则再叠裂创 2、连势 +1。",
+    text: "打 3。本息已出攻则叠裂创 2、连势 +1。",
     flavor: "第一掌开门，第二掌才叠。",
     damage: 3,
     layer: true,
@@ -463,13 +471,439 @@ export const CARDS: Record<CardId, CardDef> = {
   tide: {
     id: "tide",
     name: "潮劲",
-    cost: 0,
+    cost: 3,
     type: "skill",
     text: "下回劲力 +1。有气脉则抽 1。",
     flavor: "潮退了，下一拍还会回来。",
     tide: true,
     energyNext: 1,
   },
+  burySlash: {
+    id: "burySlash",
+    name: "埋刀",
+    cost: 1,
+    type: "skill",
+    text: "埋反击（按气血撑数回）。挨打时回敬 7。",
+    flavor: "刀先搁在袖里。他动手，才抽。",
+    riposte: "slash",
+  },
+  buryBleed: {
+    id: "buryBleed",
+    name: "埋创",
+    cost: 1,
+    type: "skill",
+    text: "埋反击（按气血撑数回）。挨打时叠 3 裂创。",
+    flavor: "创口不是这一掌开的，是他撞上来的。",
+    riposte: "bleed",
+  },
+  buryKnock: {
+    id: "buryKnock",
+    name: "埋步",
+    cost: 1,
+    type: "skill",
+    text: "埋反击（按气血撑数回）。挨打时击退 1。",
+    flavor: "脚先站死。他来了，路就让给他。",
+    riposte: "knock",
+  },
+  buryWard: {
+    id: "buryWard",
+    name: "埋架",
+    cost: 1,
+    type: "skill",
+    text: "埋反击（按气血撑数回）。挨打时挡 8 并回敬 4。",
+    flavor: "架不是卸，是等他送手。",
+    riposte: "ward",
+  },
+  salve: {
+    id: "salve",
+    name: "金创",
+    cost: 1,
+    type: "skill",
+    text: "回 6。清掉你身上的裂创。",
+    flavor: "布一裹，血先止。",
+    heal: 6,
+    clearBleed: true,
+  },
+  unbind: {
+    id: "unbind",
+    name: "通脉",
+    cost: 1,
+    type: "skill",
+    text: "清掉封脉和滞步。抽 1。",
+    flavor: "气走错了路，把它拽回来。",
+    clearSeal: true,
+  },
+  sidestep: {
+    id: "sidestep",
+    name: "换位",
+    cost: 1,
+    type: "skill",
+    text: "相邻对调。先机够则抽 1，否则乱步 1。",
+    flavor: "你站的是他的步。墙也就换了边。",
+    swap: true,
+  },
+  suture: {
+    id: "suture",
+    name: "缝创",
+    cost: 1,
+    type: "skill",
+    text: "4 回每回回 2。每两回裂创 -1。",
+    flavor: "线比刀慢，可它不松开。",
+    regen: 2,
+    regenTurns: 4,
+  },
+  cauterize: {
+    id: "cauterize",
+    name: "烙口",
+    cost: 0,
+    type: "skill",
+    text: "自损 4（留 1）。清裂创与封脉。",
+    flavor: "肉是自己的。口子也是。",
+    payHp: 4,
+    clearBleed: true,
+    clearSeal: true,
+  },
+  bindwound: {
+    id: "bindwound",
+    name: "收创",
+    cost: 1,
+    type: "skill",
+    text: "有铺势吃 1 层：回 7 清裂创；否则回 2。",
+    flavor: "铺完了不收掌，先收血。",
+    heal: 2,
+  },
+  qiPulse: {
+    id: "qiPulse",
+    name: "脉息",
+    cost: 1,
+    type: "skill",
+    text: "本场回劲 +1。抽 1。",
+    flavor: "气走得匀，下一息才够用。",
+    qiRegenSelf: 1,
+    school: "any",
+  },
+  qiFlood: {
+    id: "qiFlood",
+    name: "灌劲",
+    cost: 2,
+    type: "skill",
+    text: "立刻回 4 劲（不超过上限）。",
+    flavor: "一口气灌满丹田。",
+    energyNext: 4,
+    school: "any",
+  },
+  palmSeal: {
+    id: "palmSeal",
+    name: "封门掌印",
+    cost: 2,
+    type: "attack",
+    text: "伤 5。给敌禁技 1 息。",
+    flavor: "掌印盖在脉口上。",
+    damage: 5,
+    foeMute: 1,
+    school: "palm",
+  },
+  saberBleed: {
+    id: "saberBleed",
+    name: "拖刀创",
+    cost: 2,
+    type: "attack",
+    text: "伤 6。裂创 +2。",
+    flavor: "刀口不求一刀断，求他滴下去。",
+    damage: 6,
+    bleed: 2,
+    school: "saber",
+  },
+  spearLock: {
+    id: "spearLock",
+    name: "锁步点",
+    cost: 2,
+    type: "attack",
+    text: "伤 5。破绽 +2。滞手 1。",
+    flavor: "枪尖点在他脚腕筋上。",
+    damage: 5,
+    expose: 2,
+    frail: 1,
+    school: "spear",
+  },
+  swordMute: {
+    id: "swordMute",
+    name: "封喉刺",
+    cost: 2,
+    type: "attack",
+    text: "伤 4。禁敌技 2 息。",
+    flavor: "剑气压着他嗓子眼。",
+    damage: 4,
+    foeMute: 2,
+    school: "sword",
+  },
+  staffBind: {
+    id: "staffBind",
+    name: "缠棍",
+    cost: 2,
+    type: "skill",
+    text: "格挡 8。敌手牌上限 -1（1 息）。",
+    flavor: "棍影一圈，他袖里少一张。",
+    block: 8,
+    foeHandTax: 1,
+    school: "staff",
+  },
+  hookDisarm: {
+    id: "hookDisarm",
+    name: "摘兵钩",
+    cost: 2,
+    type: "attack",
+    text: "拉近 1。伤 4。敌禁药 2 息。",
+    flavor: "钩子先摘他腰间那只袋。",
+    pullEnemy: 1,
+    damage: 4,
+    foeNoBag: 2,
+    school: "hook",
+  },
+  venomFog: {
+    id: "venomFog",
+    name: "毒雾",
+    cost: 2,
+    type: "skill",
+    text: "敌裂创 +3。你也裂创 +1。",
+    flavor: "风往两边吹。",
+    bleed: 3,
+    school: "any",
+  },
+  skillLock: {
+    id: "skillLock",
+    name: "禁招符",
+    cost: 2,
+    type: "skill",
+    text: "敌禁技 2 息。",
+    flavor: "符纸贴在他招式名上。",
+    foeMute: 2,
+    school: "any",
+  },
+  pouchSeal: {
+    id: "pouchSeal",
+    name: "封囊",
+    cost: 1,
+    type: "skill",
+    text: "敌禁药/暗器 2 息。",
+    flavor: "绳结一勒，腰袋打不开。",
+    foeNoBag: 2,
+    school: "any",
+  },
+  handCut: {
+    id: "handCut",
+    name: "削谱",
+    cost: 2,
+    type: "skill",
+    text: "敌手牌上限 -1，持续 2 息。",
+    flavor: "他袖里少一张能亮的。",
+    foeHandTax: 2,
+    school: "any",
+  },
+  qiLeech: {
+    id: "qiLeech",
+    name: "吸劲",
+    cost: 2,
+    type: "skill",
+    text: "敌每回少回 1 劲，持续 2 息。你回劲 +1（本场）。",
+    flavor: "他的气，借你一用。",
+    foeQiBurn: 2,
+    qiRegenSelf: 1,
+    school: "any",
+  },
+  ironPulse: {
+    id: "ironPulse",
+    name: "铁脉",
+    cost: 2,
+    type: "skill",
+    text: "格挡 6。本场回劲 +1。",
+    flavor: "脉里走的是铁，不是慌。",
+    block: 6,
+    qiRegenSelf: 1,
+    school: "any",
+  },
+  comboTax: {
+    id: "comboTax",
+    name: "忍手",
+    cost: 1,
+    type: "skill",
+    text: "付 2 血叠 1 连势。抽 1。",
+    flavor: "连势不是白来的。",
+    stackTaxHp: 2,
+    school: "any",
+  },
+  comboPay: {
+    id: "comboPay",
+    name: "兑现连势",
+    cost: 2,
+    type: "attack",
+    text: "消耗 1 连势：伤 10。",
+    flavor: "攒够了才敢拍出去。",
+    damage: 10,
+    comboCost: 1,
+    school: "any",
+  },
+  setupTax: {
+    id: "setupTax",
+    name: "稳铺",
+    cost: 2,
+    stackTaxQi: 1,
+    type: "skill",
+    text: "铺势 +1。抽 1。额外耗 1 劲。",
+    flavor: "铺得稳，收得响。",
+    setupGain: 1,
+    school: "any",
+  },
+  flowTax: {
+    id: "flowTax",
+    name: "沉脉",
+    cost: 2,
+    stackTaxQi: 1,
+    type: "skill",
+    text: "气脉 +1（上限 3）。额外耗 1 劲。",
+    flavor: "气沉下去才算你的。",
+    flow: 1,
+    school: "any",
+  },
+  midStrike: {
+    id: "midStrike",
+    name: "中盘贯手",
+    cost: 2,
+    type: "attack",
+    text: "伤 8。",
+    flavor: "驿路上练出来的。",
+    damage: 8,
+    school: "any",
+  },
+  midGuard: {
+    id: "midGuard",
+    name: "中盘卸",
+    cost: 2,
+    type: "skill",
+    text: "格挡 11。",
+    flavor: "城门洞里的卸法。",
+    block: 11,
+    school: "any",
+  },
+  midPush: {
+    id: "midPush",
+    name: "中盘推",
+    cost: 2,
+    type: "attack",
+    text: "击退 2。撞壁 9。",
+    flavor: "官道上不讲情面。",
+    knock: 2,
+    wall: 9,
+    school: "any",
+  },
+  lateAnvil: {
+    id: "lateAnvil",
+    name: "镇殿锤",
+    cost: 4,
+    type: "attack",
+    text: "伤 14。",
+    flavor: "大殿石砖都要让一让。",
+    damage: 14,
+    school: "any",
+  },
+  lateTide: {
+    id: "lateTide",
+    name: "潮涌",
+    cost: 3,
+    type: "skill",
+    text: "气脉拉满。抽 2。",
+    flavor: "后期的气，像江。",
+    flow: 3,
+    school: "any",
+  },
+  lateMirror: {
+    id: "lateMirror",
+    name: "镜反",
+    cost: 3,
+    type: "skill",
+    text: "格挡 10。反震 +4。",
+    flavor: "宫墙照人，也照刀。",
+    block: 10,
+    thorns: 4,
+    school: "any",
+  },
+  lateChain: {
+    id: "lateChain",
+    name: "九连环",
+    cost: 3,
+    comboCost: 2,
+    type: "attack",
+    text: "耗 2 连势：伤 16 并抽 1。",
+    flavor: "连势兑成雷。",
+    damage: 16,
+    school: "any",
+  },
+  lateWard: {
+    id: "lateWard",
+    name: "金汤",
+    cost: 3,
+    type: "skill",
+    text: "格挡 16。铁布 4/1。",
+    flavor: "城再大，也先护住胸口。",
+    block: 16,
+    retainAmt: 4,
+    retainTurns: 1,
+    school: "any",
+  },
+  lateBleed: {
+    id: "lateBleed",
+    name: "血河",
+    cost: 3,
+    type: "attack",
+    text: "伤 7。裂创 +4。",
+    flavor: "一刀开河。",
+    damage: 7,
+    bleed: 4,
+    school: "any",
+  },
+  lateMute: {
+    id: "lateMute",
+    name: "哑阵",
+    cost: 3,
+    type: "skill",
+    text: "敌禁技 3 息。",
+    flavor: "阵起，声息都难出。",
+    foeMute: 3,
+    school: "any",
+  },
+  lateLeech: {
+    id: "lateLeech",
+    name: "抽龙",
+    cost: 3,
+    type: "skill",
+    text: "敌扣劲 2 息。你立刻回 3 劲。",
+    flavor: "龙气也能抽。",
+    foeQiBurn: 2,
+    energyNext: 3,
+    school: "any",
+  },
+  lateHand: {
+    id: "lateHand",
+    name: "削册",
+    cost: 2,
+    type: "skill",
+    text: "敌手牌上限 -2，持续 2 息。",
+    flavor: "册页少了，招也少了。",
+    foeHandTax: 2,
+    school: "any",
+  },
+  latePouch: {
+    id: "latePouch",
+    name: "封库",
+    cost: 2,
+    type: "skill",
+    text: "敌禁药 3 息。你禁药 1 息。",
+    flavor: "库门一封，两边都摸不着。",
+    foeNoBag: 3,
+    noBag: 1,
+    school: "any",
+  },
+
 };
 
 export const UPGRADES: Partial<Record<CardId, CardId>> = {
@@ -531,6 +965,33 @@ export const VERBS: CardId[] = [
   "mirror",
   "layer",
   "tide",
+  "burySlash",
+  "buryBleed",
+  "buryKnock",
+  "buryWard",
+  "salve",
+  "unbind",
+  "sidestep",
+  "suture",
+  "cauterize",
+  "bindwound",
+  "qiPulse",
+  "palmSeal",
+  "saberBleed",
+  "spearLock",
+  "swordMute",
+  "staffBind",
+  "hookDisarm",
+  "skillLock",
+  "pouchSeal",
+  "handCut",
+  "qiLeech",
+  "comboPay",
+  "midStrike",
+  "midGuard",
+  "lateAnvil",
+  "lateChain",
+  "lateMute",
 ];
 
 export const STARTER_DECK: CardId[] = [
@@ -550,6 +1011,9 @@ export const STARTER_DECK: CardId[] = [
   "finisher",
   "follow",
   "weave",
+  "burySlash",
+  "salve",
+  "sidestep",
 ];
 
 export const STARTER = {
@@ -558,7 +1022,12 @@ export const STARTER = {
   enemyDamage: 18,
   playerPos: 0,
   enemyPos: 5,
-  energy: 3,
+  /** 劲力上限（蓝条） */
+  energy: 10,
+  /** 开局当前劲力 */
+  energyStart: 8,
+  /** 每回基础回劲 */
+  energyRegen: 4,
   gold: 49,
   floor: 1,
 };
@@ -571,8 +1040,8 @@ export const HEROES: HeroDef[] = [
     sect: "推宫一门",
     verb: "推、撞、占步",
     hp: "28",
-    crime: "比武已判「推开」，你还是拔了真刀。江湖叫这作法外刃。",
-    pitch: "码头上替人踹过不少门。比武已经判了推开，你还是把刀拔了。名册上那一笔墨，是从港律开始追的。",
+    crime: "比武已经判了推开，你还是拔了真刀。",
+    pitch: "码头上替人踹过不少门。港律要找你算这一笔。",
     locked: false,
   },
   {
@@ -582,19 +1051,19 @@ export const HEROES: HeroDef[] = [
     sect: "镜廷残谱",
     verb: "观气、破绽、连手",
     hp: "24",
-    crime: "改过对方已经亮出的招。石台按旧招挨打，你按新招活下来。",
-    pitch: "镜廷的人。观气，不观这一掌。名册上缺的那一笔，要从税卡对着镜子找回来。",
+    crime: "改过对方已经亮出的招。",
+    pitch: "镜廷的人，观气不观这一掌。税卡缺的那一笔，要从案上找回来。",
     locked: false,
   },
   {
     id: "sapper",
-    name: "工兵",
+    name: "沈夯",
     title: "桩师",
     sect: "垂街机关",
     verb: "落桩、占格、反震",
     hp: "32",
-    crime: "在未亮的位置落下一根桩，挡掉一次合法冲锋。",
-    pitch: "缆厂的桩还认你。巷里的步不认。你要把桩重新钉进这条官道。",
+    crime: "不该下桩的地方，你落了一根。",
+    pitch: "缆厂出身。桩还认你，官道还不认。",
     locked: false,
   },
 ];
@@ -758,7 +1227,7 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     skill: "亮刀",
     pitch: "「刀在这儿。名册上没有你。」",
     remnant: "brightBlade",
-    pattern: [{ kind: "strike", damage: 18 }],
+    pattern: [{ kind: "strike", damage: 18 }, { kind: "guard", block: 8 }, { kind: "breathe", amount: 3 }],
   },
   escort: {
     id: "escort",
@@ -769,7 +1238,7 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     skill: "冲锋",
     pitch: "「让开。这箱不是给你看的。」",
     remnant: "bodyCheck",
-    pattern: [{ kind: "charge", damage: 18, steps: 3 }],
+    pattern: [{ kind: "charge", damage: 18, steps: 3 }, { kind: "guard", block: 8 }, { kind: "strike", damage: 14 }],
   },
   piler: {
     id: "piler",
@@ -780,7 +1249,7 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     skill: "落桩",
     pitch: "「先下桩。船今晚不接除名。」",
     remnant: "heelStake",
-    pattern: [{ kind: "stake" }, { kind: "strike", damage: 19 }],
+    pattern: [{ kind: "stake" }, { kind: "guard", block: 8 }, { kind: "strike", damage: 19 }],
   },
   hauler: {
     id: "hauler",
@@ -791,7 +1260,7 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     skill: "拉",
     pitch: "「缆在我手里。巷里的人叫我拦住往北的。」",
     remnant: "tether",
-    pattern: [{ kind: "pull", steps: 2 }, { kind: "strike", damage: 18 }],
+    pattern: [{ kind: "pull", steps: 2 }, { kind: "guard", block: 6 }, { kind: "strike", damage: 18 }],
   },
   alley: {
     id: "alley",
@@ -802,7 +1271,7 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     skill: "抢步",
     pitch: "「问半页纸的人，巷里只有一步。」",
     remnant: "closeCut",
-    pattern: [{ kind: "lunge", damage: 18 }],
+    pattern: [{ kind: "lunge", damage: 18 }, { kind: "guard", block: 6 }, { kind: "breathe", amount: 3 }],
   },
   trapper: {
     id: "trapper",
@@ -813,7 +1282,7 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     skill: "下机",
     pitch: "「北栅是镜廷的。脚底下。」",
     remnant: "trapWard",
-    pattern: [{ kind: "trap" }, { kind: "strike", damage: 18 }],
+    pattern: [{ kind: "trap" }, { kind: "guard", block: 6 }, { kind: "strike", damage: 18 }],
   },
   delay: {
     id: "delay",
@@ -824,7 +1293,7 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     skill: "蓄势",
     pitch: "「这一拍让给你。名册要写得干净。」",
     remnant: "delayGuard",
-    pattern: [{ kind: "windup" }, { kind: "strike", damage: 26 }],
+    pattern: [{ kind: "windup" }, { kind: "strike", damage: 26 }, { kind: "guard", block: 10 }],
   },
   twin: {
     id: "twin",
@@ -835,7 +1304,7 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     skill: "换位",
     pitch: "「你站的是我的位置。名册盖住你的时候，留下了我。」",
     remnant: "ghostStep",
-    pattern: [{ kind: "swap" }, { kind: "strike", damage: 19 }],
+    pattern: [{ kind: "swap" }, { kind: "guard", block: 6 }, { kind: "strike", damage: 19 }],
   },
   lord: {
     id: "lord",
@@ -846,22 +1315,67 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     skill: "冲、桩、劈",
     pitch: "「名册在门里。墨还没干。」",
     remnant: "throne",
+    pattern: [{ kind: "charge", damage: 16, steps: 2 }, { kind: "guard", block: 10 }, { kind: "stake" }, { kind: "strike", damage: 20 }],
+  },
+  usurper: {
+    id: "usurper",
+    name: "夺玺者",
+    title: "谋逆主脑",
+    hp: 120,
+    pos: 4,
+    skill: "冲、连打、架",
+    pitch: "「印玺该换手了。你们三个，来得正好。」",
+    remnant: "throne",
     pattern: [
-      { kind: "charge", damage: 17, steps: 2 },
-      { kind: "stake" },
-      { kind: "strike", damage: 22 },
+      { kind: "guard", block: 12 },
+      { kind: "charge", damage: 18, steps: 2 },
+      { kind: "barrage", damage: 12, hits: 3 },
+      { kind: "strike", damage: 24 },
     ],
   },
   bandit: {
     id: "bandit",
     name: "岗花子",
     title: "院外蹲手",
-    hp: 74,
+    hp: 110,
     pos: 4,
-    skill: "冲劈",
-    pitch: "「过帖的人身上有油水。」",
+    skill: "恶手",
+    pitch: "「过帖的人身上有油水。岗上不讲让。」",
     remnant: "hardWall",
-    pattern: [{ kind: "charge", damage: 17, steps: 2 }, { kind: "strike", damage: 19 }],
+    pattern: [{ kind: "shatter", amount: 8 }, { kind: "guard", block: 8 }, { kind: "bleedcut", damage: 10, bleed: 3 }, { kind: "charge", damage: 14, steps: 2 }, { kind: "barrage", damage: 6, hits: 2 }],
+  },
+  thief: {
+    id: "thief",
+    name: "剪绺",
+    title: "驿路窃贼",
+    hp: 58,
+    pos: 3,
+    skill: "摸袋",
+    pitch: "「你看别处。我看你腰。」",
+    remnant: "ghostStep",
+    pattern: [{ kind: "lunge", damage: 14 }, { kind: "guard", block: 5 }, { kind: "strike", damage: 12 }],
+  },
+  hillBandit: {
+    id: "hillBandit",
+    name: "岗匪",
+    title: "山路拦客",
+    hp: 88,
+    pos: 4,
+    skill: "拦路",
+    pitch: "「过山要钱。过刀也行。」",
+    remnant: "bodyCheck",
+    pattern: [{ kind: "shatter", amount: 8 }, { kind: "guard", block: 6 }, { kind: "charge", damage: 16, steps: 2 }, { kind: "strike", damage: 19 }],
+  },
+  riverThug: {
+    id: "riverThug",
+    name: "水匪",
+    title: "渡口闲刀",
+    hp: 72,
+    pos: 4,
+    skill: "扳船",
+    pitch: "「岸上的货，水里也认价。」",
+    remnant: "longPush",
+    pattern: [{ kind: "pull", steps: 2 }, { kind: "guard", block: 6 }, { kind: "strike", damage: 17 }, { kind: "shatter", amount: 6 }],
   },
   raider: {
     id: "raider",
@@ -872,7 +1386,7 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     skill: "拉缆",
     pitch: "「岸上的货，潮里也认。」",
     remnant: "longPush",
-    pattern: [{ kind: "pull", steps: 2 }, { kind: "strike", damage: 19 }],
+    pattern: [{ kind: "shatter", amount: 8 }, { kind: "pull", steps: 2 }, { kind: "breathe", amount: 3 }, { kind: "strike", damage: 19 }],
   },
   robber: {
     id: "robber",
@@ -883,7 +1397,7 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     skill: "抢步",
     pitch: "「契不在身上，刀也认。」",
     remnant: "shortCharge",
-    pattern: [{ kind: "lunge", damage: 18 }],
+    pattern: [{ kind: "lunge", damage: 18 }, { kind: "breathe", amount: 3 }, { kind: "guard", block: 6 }],
   },
   smuggler: {
     id: "smuggler",
@@ -905,7 +1419,7 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     skill: "回身",
     pitch: "「往北的人，把口袋留下。」",
     remnant: "backstep",
-    pattern: [{ kind: "strike", damage: 17 }, { kind: "charge", damage: 16, steps: 2 }],
+    pattern: [{ kind: "shatter", amount: 8 }, { kind: "guard", block: 7 }, { kind: "strike", damage: 17 }, { kind: "charge", damage: 16, steps: 2 }],
   },
   intruder: {
     id: "intruder",
@@ -916,7 +1430,7 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     skill: "劈",
     pitch: "「屋里那人，帖还没递。」",
     remnant: "backstep",
-    pattern: [{ kind: "strike", damage: 13 }],
+    pattern: [{ kind: "strike", damage: 13 }, { kind: "guard", block: 6 }, { kind: "breathe", amount: 3 }, { kind: "lunge", damage: 12 }],
   },
   brute: {
     id: "brute",
@@ -927,7 +1441,7 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     skill: "撞岗",
     pitch: "「岗是我的。人留下。」",
     remnant: "bodyCheck",
-    pattern: [{ kind: "charge", damage: 17, steps: 2 }, { kind: "strike", damage: 19 }],
+    pattern: [{ kind: "charge", damage: 17, steps: 2 }, { kind: "guard", block: 8 }, { kind: "strike", damage: 19 }],
   },
   cavehand: {
     id: "cavehand",
@@ -938,7 +1452,7 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     skill: "拖",
     pitch: "「缝里的人，不认名册。」",
     remnant: "tether",
-    pattern: [{ kind: "pull", steps: 2 }, { kind: "lunge", damage: 18 }],
+    pattern: [{ kind: "pull", steps: 2 }, { kind: "breathe", amount: 3 }, { kind: "lunge", damage: 18 }],
   },
   warden: {
     id: "warden",
@@ -949,7 +1463,7 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     skill: "蓄势",
     pitch: "「过岗要留下一刀。」",
     remnant: "delayGuard",
-    pattern: [{ kind: "windup" }, { kind: "strike", damage: 26 }],
+    pattern: [{ kind: "windup" }, { kind: "strike", damage: 26 }, { kind: "guard", block: 10 }],
   },
   inkhand: {
     id: "inkhand",
@@ -960,7 +1474,7 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     skill: "点墨",
     pitch: "「案下那一笔，还没干。」",
     remnant: "leftover",
-    pattern: [{ kind: "strike", damage: 13 }],
+    pattern: [{ kind: "strike", damage: 13 }, { kind: "breathe", amount: 4 }, { kind: "guard", block: 7 }],
   },
   bookcut: {
     id: "bookcut",
@@ -971,7 +1485,7 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     skill: "抽刀",
     pitch: "「页裁过。名就短一截。」",
     remnant: "stackHand",
-    pattern: [{ kind: "lunge", damage: 17 }, { kind: "strike", damage: 16 }],
+    pattern: [{ kind: "lunge", damage: 17 }, { kind: "guard", block: 6 }, { kind: "strike", damage: 16 }],
   },
   nametaker: {
     id: "nametaker",
@@ -982,7 +1496,7 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     skill: "蓄势",
     pitch: "「名留下。人可以走。」",
     remnant: "leftover",
-    pattern: [{ kind: "windup" }, { kind: "strike", damage: 26 }],
+    pattern: [{ kind: "windup" }, { kind: "strike", damage: 26 }, { kind: "breathe", amount: 3 }],
   },
   glasspin: {
     id: "glasspin",
@@ -993,7 +1507,7 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     skill: "拉",
     pitch: "「镜子里的钉子，要拔出来。」",
     remnant: "rebound",
-    pattern: [{ kind: "pull", steps: 2 }, { kind: "strike", damage: 18 }],
+    pattern: [{ kind: "pull", steps: 2 }, { kind: "guard", block: 6 }, { kind: "strike", damage: 18 }],
   },
   knotboss: {
     id: "knotboss",
@@ -1004,7 +1518,7 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     skill: "拉缆",
     pitch: "「结是死的。人不是。」",
     remnant: "leftover",
-    pattern: [{ kind: "pull", steps: 2 }, { kind: "lunge", damage: 17 }],
+    pattern: [{ kind: "pull", steps: 2 }, { kind: "guard", block: 8 }, { kind: "lunge", damage: 17 }],
   },
   stakeboss: {
     id: "stakeboss",
@@ -1015,7 +1529,7 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     skill: "落桩",
     pitch: "「这根桩是我钉的。你把它拔了。」",
     remnant: "rebound",
-    pattern: [{ kind: "stake" }, { kind: "strike", damage: 14 }],
+    pattern: [{ kind: "stake" }, { kind: "guard", block: 8 }, { kind: "strike", damage: 14 }],
   },
   tutorPace: {
     id: "tutorPace",
@@ -1052,11 +1566,49 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
   },
 };
 
+Object.assign(ENEMIES, GENERATED_ENEMIES);
+
 export const SPAR_ENEMIES: EnemyId[] = ["tutorPace", "tutorWard", "tutorEdge"];
 
 export function isSparEnemy(id: EnemyId): boolean {
   return SPAR_ENEMIES.includes(id);
 }
+
+export const ENEMY_WEAPON: Record<EnemyId, WeaponId> = {
+  catcher: "saber",
+  escort: "saber",
+  piler: "staff",
+  hauler: "hook",
+  alley: "saber",
+  trapper: "staff",
+  delay: "sword",
+  twin: "sword",
+  lord: "palm",
+  usurper: "saber",
+  bandit: "saber",
+  raider: "hook",
+  robber: "saber",
+  smuggler: "sword",
+  thug: "palm",
+  thief: "palm",
+  hillBandit: "saber",
+  riverThug: "hook",
+  intruder: "palm",
+  brute: "palm",
+  cavehand: "hook",
+  warden: "staff",
+  inkhand: "sword",
+  bookcut: "saber",
+  nametaker: "sword",
+  glasspin: "hook",
+  knotboss: "hook",
+  stakeboss: "staff",
+  tutorPace: "palm",
+  tutorWard: "palm",
+  tutorEdge: "saber",
+};
+
+Object.assign(ENEMY_WEAPON, GENERATED_ENEMY_WEAPON);
 
 export const ENEMY_PACE: Partial<Record<EnemyId, number>> = {
   catcher: 4,
@@ -1071,13 +1623,17 @@ export const ENEMY_PACE: Partial<Record<EnemyId, number>> = {
   thug: 6,
   stakeboss: 4,
   hauler: 5,
-  bandit: 5,
+  bandit: 8,
+  thief: 7,
+  hillBandit: 6,
+  riverThug: 5,
   raider: 5,
   brute: 5,
   cavehand: 6,
   bookcut: 6,
   knotboss: 5,
   lord: 4,
+  usurper: 6,
   smuggler: 4,
   warden: 3,
   nametaker: 3,
@@ -1089,10 +1645,54 @@ export function enemyPace(id: EnemyId): number {
   return ENEMY_PACE[id] ?? 5;
 }
 
+/** Foe energy budget per round — weak hands 1, elites 3–4. */
+export const ENEMY_ENERGY: Partial<Record<EnemyId, number>> = {
+  catcher: 1,
+  escort: 2,
+  hauler: 2,
+  alley: 2,
+  trapper: 2,
+  cavehand: 2,
+  bookcut: 2,
+  glasspin: 2,
+  raider: 2,
+  robber: 2,
+  thug: 2,
+  smuggler: 2,
+  inkhand: 1,
+  intruder: 1,
+  stakeboss: 1,
+  tutorPace: 1,
+  tutorWard: 1,
+  tutorEdge: 1,
+  bandit: 3,
+  thief: 2,
+  hillBandit: 2,
+  riverThug: 2,
+  brute: 3,
+  piler: 2,
+  delay: 1,
+  twin: 3,
+  warden: 3,
+  knotboss: 3,
+  nametaker: 4,
+  lord: 4,
+  usurper: 4,
+};
+
+Object.assign(ENEMY_ENERGY, GENERATED_ELITE_ENERGY);
+
+export function enemyEnergyMax(id: EnemyId): number {
+  const base = ENEMY_ENERGY[id] ?? 2;
+  // 劲力蓝条化后敌上限抬到约 6–10
+  return Math.min(10, 4 + base * 2);
+}
+
 export const CHAPTER_TECH: Record<ChapterId, TechniqueId[]> = {
   dock: ["longPush", "backstep", "keepGuard", "hardWall", "leftover", "rebound", "stackHand"],
   alley: ["shortCharge", "ghostStep", "trapWard"],
   court: ["delayGuard", "throne"],
+  isle: ["brightBlade", "bodyCheck"],
 };
 
 export const CHALLENGE: EnemyId[] = [
@@ -1101,6 +1701,9 @@ export const CHALLENGE: EnemyId[] = [
   "robber",
   "smuggler",
   "thug",
+  "thief",
+  "hillBandit",
+  "riverThug",
   "brute",
   "cavehand",
   "warden",
@@ -1110,26 +1713,65 @@ export const CHAPTERS: Record<
   ChapterId,
   { name: string; kicker: string; next: ChapterId | null; index: number }
 > = {
-  dock: { name: "码头", kicker: "港律", next: "alley", index: 1 },
-  alley: { name: "垂街", kicker: "巷律", next: "court", index: 2 },
-  court: { name: "镜廷", kicker: "门律", next: null, index: 3 },
+  dock: { name: "港律", kicker: "码头", next: "alley", index: 1 },
+  alley: { name: "巷律", kicker: "垂街", next: "court", index: 2 },
+  court: { name: "门律", kicker: "宫阙", next: "isle", index: 3 },
+  isle: { name: "潮屿", kicker: "潮门", next: null, index: 4 },
 };
 
 export function intentLabel(intent: Intent): string {
-  if (intent.kind === "strike") return `攻击 ${intent.damage}`;
-  if (intent.kind === "charge") return `冲锋 ${intent.steps} 步 · ${intent.damage}`;
+  if (intent.kind === "strike") return `打击 ${intent.damage}`;
+  if (intent.kind === "charge") return `冲锋 ${intent.steps} · ${intent.damage}`;
   if (intent.kind === "stake") return "落桩";
-  if (intent.kind === "pull") return `拉 ${intent.steps} 步`;
+  if (intent.kind === "pull") return `拉 ${intent.steps}`;
   if (intent.kind === "trap") return "下机";
   if (intent.kind === "windup") return "蓄势";
   if (intent.kind === "lunge") return `抢步 ${intent.damage}`;
+  if (intent.kind === "swap") return "换位";
+  if (intent.kind === "barrage") return `连打 ${intent.hits} · ${intent.damage}`;
+  if (intent.kind === "guard") return `卸力 ${intent.block}`;
+  if (intent.kind === "bleedcut") return `刀创 ${intent.damage}`;
+  if (intent.kind === "counter") return "埋招";
+  if (intent.kind === "mend") return `金创 ${intent.heal}`;
+  if (intent.kind === "seal") return "封脉";
+  if (intent.kind === "shatter") return `裂盾 ${intent.amount}`;
+  if (intent.kind === "breathe") return `吐纳 +${intent.amount}`;
   return "换位";
+}
+
+/** 意图悬浮说明（对战条用） */
+export function intentTip(intent: Intent): string {
+  if (intent.kind === "strike") return `对你造成 ${intent.damage} 点伤害（先吃格挡）。`;
+  if (intent.kind === "charge") return `冲 ${intent.steps} 步；撞上则打 ${intent.damage}。`;
+  if (intent.kind === "stake") return "在身前落桩，挡你退路与击退。";
+  if (intent.kind === "pull") return `把你往他身边拉 ${intent.steps} 步。`;
+  if (intent.kind === "trap") return "在你脚下埋机关，踩中受伤。";
+  if (intent.kind === "windup") return "这一息蓄势，下一息往往更重。";
+  if (intent.kind === "lunge") return `抢步贴近并打 ${intent.damage}。`;
+  if (intent.kind === "swap") return "与你换位，改写站位与撞墙方向。";
+  if (intent.kind === "barrage") return `连打 ${intent.hits} 下，每下 ${intent.damage}。`;
+  if (intent.kind === "guard") return `获得 ${intent.block} 点架势，打在他身上先被卸掉。`;
+  if (intent.kind === "bleedcut") return `打 ${intent.damage}，并给你叠裂创。`;
+  if (intent.kind === "counter") return "埋下反击。你打他时会触发回手。";
+  if (intent.kind === "mend") return `回 ${intent.heal} 血，并清掉他身上的裂创。`;
+  if (intent.kind === "seal") return "封你的脉：下回少劲，并滞步。";
+  if (intent.kind === "shatter") return `震掉你约 ${intent.amount} 点格挡。`;
+  if (intent.kind === "breathe") return `吐纳回 ${intent.amount} 点敌劲，下息更好出手。`;
+  return "改变站位。";
 }
 
 export function intentMark(intent: Intent): string {
   if (intent.kind === "strike") return String(intent.damage);
   if (intent.kind === "charge") return String(intent.damage);
   if (intent.kind === "lunge") return String(intent.damage);
+  if (intent.kind === "barrage") return `${intent.hits}`;
+  if (intent.kind === "guard") return "卸";
+  if (intent.kind === "bleedcut") return "创";
+  if (intent.kind === "counter") return "埋";
+  if (intent.kind === "mend") return "药";
+  if (intent.kind === "seal") return "封";
+  if (intent.kind === "shatter") return "裂";
+  if (intent.kind === "breathe") return "纳";
   if (intent.kind === "pull") return "拉";
   if (intent.kind === "trap") return "机";
   if (intent.kind === "windup") return "蓄";
@@ -1139,9 +1781,9 @@ export function intentMark(intent: Intent): string {
 
 export const WORLD = {
   title: "明手",
-  kicker: "港律 · 垂街 · 镜廷",
-  lead: "江湖不许暗手。官道上的城把比武收成一条死规矩：出招必先亮招。偷袭的人，名册上除名。",
-  you: "三人共用一张港图。出生不同，名册上的墨就不同。刀、镜、桩，各追各的那一笔。",
+  kicker: "港律 · 宫阙 · 缆域 · 潮屿",
+  lead: "比武要先亮招。偷袭的人，名册上除名。",
+  you: "码头、宫城、街巷、潮屿。人不同，进门处也不同。",
 };
 
 export function heartHp(id: HeartId): number {

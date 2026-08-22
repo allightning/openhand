@@ -7,19 +7,86 @@ export const OUTDOOR = new Set<SceneId>([
   "lamp",
   "sluice",
   "ropes",
+  "pit",
   "lane",
   "drums",
   "outer",
   "plot",
   "ridge",
+  "ferry",
+  "isle",
+  "pier",
+  "huainan",
+  "yangzhou",
+  "jiankang",
+  "suzhou",
+  "linan",
+  "changan",
+  "luoyang",
+  "bianjing",
+  "usurpCamp",
+  "jiaxing",
+  "wuxi",
+  "changzhou",
+  "chuzhou",
+  "suqian",
+  "suzhousu",
+  "bozhou",
+  "yanshi",
+  "shanzhou",
+  "tongguan",
+  "gaoyou",
+  "taxMarket",
+  "taxGate",
+  "taxStable",
+  "taxWell",
+  "taxAlley",
+  "taxWine",
+  "taxClinic",
+  "taxLodge",
+  "taxArchive",
+  "taxTea",
+  "taxClerk",
+  "taxJail",
+  "taxMartial",
+  "taxEscort",
+  "taxPawn",
+  "ropeMarket",
+  "ropeGate",
+  "ropeQuay",
+  "ropeWell",
+  "ropeAlley",
+  "ropeYard",
+  "ropeWine",
+  "ropeClinic",
+  "ropeStore",
+  "ropeLodge",
+  "ropeMess",
+  "ropeWatch",
+  "ropeForge",
+  "ropeMartial",
+  "ropeEscort",
 ]);
 
 export function isOutdoor(scene: SceneId): boolean {
   return OUTDOOR.has(scene);
 }
 
-const GREEN = new Set<SceneId>(["yard", "lane", "outer", "drums", "plot", "ridge", "wharf"]);
-const CITY = new Set<SceneId>(["lane", "outer"]);
+const GREEN = new Set<SceneId>([
+  "yard",
+  "lane",
+  "outer",
+  "drums",
+  "plot",
+  "ridge",
+  "wharf",
+  "pit",
+  "isle",
+  "huainan",
+  "yangzhou",
+  "jiankang",
+  "suzhou",
+]);
 const CAVE = new Set<SceneId>(["cave", "cellar"]);
 
 function frac(n: number): number {
@@ -30,14 +97,144 @@ function hash(x: number, y: number, k: number): number {
   return frac(Math.sin(x * 127.1 + y * 311.7 + k * 74.7) * 43758.5453);
 }
 
-export function roadTex(scene: SceneId): string {
-  // Rural tracks stay dirt; harbor towns use cobble; dense streets use brick.
-  if (CITY.has(scene)) return "brick";
-  if (scene === "plot" || scene === "ridge") return "dirt";
-  if (scene === "wharf" || scene === "yard" || scene === "spit" || scene === "ropes" || scene === "lamp" || scene === "sluice") {
-    return "cobble";
+/** 野外泥土碎石 / 小城草坪碎石 / 大城石砖碎石 */
+export type RoadKind = "gravel-dirt" | "gravel-grass" | "gravel-brick";
+
+export function roadTex(scene: SceneId): RoadKind {
+  if (BRICK_CITY.has(scene)) return "gravel-brick";
+  // 正式院外场默认草底碎石；院内路由 cell 邻砖判定
+  const onGrass = new Set<SceneId>([
+    "plot",
+    "ridge",
+    "isle",
+    "pit",
+    "ferry",
+    "usurpCamp",
+    "jiaxing",
+    "chuzhou",
+    "suqian",
+    "bozhou",
+    "yanshi",
+    "shanzhou",
+    "tongguan",
+    "wuxi",
+    "changzhou",
+    "suzhousu",
+    "gaoyou",
+    "lane",
+    "yard",
+    "wharf",
+    "spit",
+  ]);
+  if (COURTYARD.has(scene) || onGrass.has(scene)) return "gravel-grass";
+  return "gravel-dirt";
+}
+
+/** 石砖仅限正式院落建筑（衙门、镖局等），不含岗坡等过渡区。 */
+const COURTYARD = new Set<SceneId>([
+  "yard",
+  "drums",
+  "outer",
+  "palace",
+  "yamen",
+  "martial",
+  "escort",
+  "customs",
+  "flower",
+  "wine",
+  "wineUp",
+  "clinic",
+  "lodge",
+  "pawn",
+  "taxWine",
+  "taxClinic",
+  "taxLodge",
+  "taxArchive",
+  "taxTea",
+  "taxClerk",
+  "taxJail",
+  "taxMartial",
+  "taxEscort",
+  "taxPawn",
+  "ropeWine",
+  "ropeClinic",
+  "ropeLodge",
+  "ropeMess",
+  "ropeWatch",
+  "ropeForge",
+  "ropeMartial",
+  "ropeEscort",
+  "ropeStore",
+]);
+
+/** 大城市：围墙内地坪石砖。小城/过渡区用草坪。 */
+const BRICK_CITY = new Set<SceneId>([
+  "linan",
+  "luoyang",
+  "bianjing",
+  "changan",
+  "yangzhou",
+  "jiankang",
+  "suzhou",
+  "huainan",
+]);
+
+export function isCourtyard(scene: SceneId): boolean {
+  return COURTYARD.has(scene);
+}
+
+export function isBrickCity(scene: SceneId): boolean {
+  return BRICK_CITY.has(scene);
+}
+
+export function usesBrickFloor(scene: SceneId): boolean {
+  return COURTYARD.has(scene) || BRICK_CITY.has(scene);
+}
+
+/** 这一格要不要铺石砖：大城整图；室内正式院整层；室外正式院用墙环/围合判定。 */
+export function cellUsesBrick(scene: SceneId, tiles: Tile[][], x: number, y: number): boolean {
+  if (BRICK_CITY.has(scene)) return true;
+  if (COURTYARD.has(scene) && !isOutdoor(scene)) return true;
+  if (!(COURTYARD.has(scene) || OUTDOOR.has(scene))) return false;
+  const t = tiles[y]?.[x];
+  if (t !== "floor" && t !== "road" && t !== "pack" && t !== "brazier" && t !== "seal" && t !== "sign" && t !== "item" && t !== "cache") {
+    return false;
   }
-  return "cobble";
+  // 贴山崖的外场一律草地
+  for (const [dx, dy] of [
+    [0, -1],
+    [0, 1],
+    [-1, 0],
+    [1, 0],
+    [-1, -1],
+    [1, -1],
+    [-1, 1],
+    [1, 1],
+  ] as const) {
+    const n = tiles[y + dy]?.[x + dx];
+    if (n === "hill" || n === "rock") return false;
+  }
+  if (enclosedCourt(tiles, x, y)) return true;
+  if (!COURTYARD.has(scene)) return false;
+  return insideWallRing(tiles, x, y);
+}
+
+/** 四向射线都能在短距内撞到墙/门 → 认作院内。 */
+function insideWallRing(tiles: Tile[][], x: number, y: number): boolean {
+  const h = tiles.length;
+  const w = tiles[0]?.length ?? 0;
+  const hit = (dx: number, dy: number): boolean => {
+    for (let i = 1; i <= 10; i++) {
+      const nx = x + dx * i;
+      const ny = y + dy * i;
+      if (nx < 0 || ny < 0 || nx >= w || ny >= h) return false;
+      const t = tiles[ny][nx];
+      if (t === "wall" || t === "gate") return true;
+      if (t === "hill" || t === "rock" || t === "water") return false;
+    }
+    return false;
+  };
+  return hit(0, -1) && hit(0, 1) && hit(-1, 0) && hit(1, 0);
 }
 
 export function groundTex(scene: SceneId, tile: Tile): string {
@@ -47,9 +244,10 @@ export function groundTex(scene: SceneId, tile: Tile): string {
   if (tile === "rock") return CAVE.has(scene) ? "stone" : "rock";
   if (tile === "road" || tile === "gate") return roadTex(scene);
   if (tile === "pack") return "dirt";
+  if (tile === "floor" && BRICK_CITY.has(scene)) return "brick";
   if (CAVE.has(scene)) return "stone";
   if (GREEN.has(scene)) return "grass";
-  if (isOutdoor(scene)) return "path";
+  if (isOutdoor(scene)) return "grass";
   if (scene === "glass" || scene === "inner") return "stone";
   return "wood";
 }
@@ -59,7 +257,59 @@ export function texSrc(name: string): string {
 }
 
 function paintedSrc(name: string): string {
+  if (name === "gravel-dirt") return `/art/tiles/tile-gravel-dirt.png`;
+  if (name === "gravel-dirt-h") return `/art/tiles/tile-gravel-dirt-h.png`;
+  if (name === "gravel-dirt-x") return `/art/tiles/tile-gravel-dirt-x.png`;
+  if (name === "gravel-grass") return `/art/tiles/tile-gravel-grass.png`;
+  if (name === "gravel-grass-h") return `/art/tiles/tile-gravel-grass-h.png`;
+  if (name === "gravel-grass-x") return `/art/tiles/tile-gravel-grass-x.png`;
+  if (name === "gravel-brick") return `/art/tiles/tile-gravel-brick.png`;
+  if (name === "gravel-brick-h") return `/art/tiles/tile-gravel-brick-h.png`;
+  if (name === "gravel-brick-x") return `/art/tiles/tile-gravel-brick-x.png`;
+  if (name === "gravel") return `/art/tiles/tile-gravel.png`;
+  if (name === "cobble" || name === "brick") return `/art/tiles/tile-brick.png`;
+  if (name === "dirt") return `/art/tiles/tile-dirt.png`;
+  if (name === "dirt-h") return `/art/tiles/tile-dirt-h.png`;
+  if (name === "path") return `/art/tiles/tile-path.png`;
+  if (name === "grass") return `/art/tiles/tile-grass.png`;
   return `/art/tiles/tile-${name}.png`;
+}
+
+/** 路过水 → 桥：左右皆水用竖桥（南北通行），上下皆水用横桥。 */
+export function bridgeAxis(tiles: Tile[][], x: number, y: number): "h" | "v" | null {
+  const water = (t?: Tile) => t === "water";
+  const n = water(tiles[y - 1]?.[x]);
+  const s = water(tiles[y + 1]?.[x]);
+  const e = water(tiles[y]?.[x + 1]);
+  const w = water(tiles[y]?.[x - 1]);
+  if (e && w) return "v";
+  if (n && s) return "h";
+  return null;
+}
+
+export function bridgeSrc(axis: "h" | "v"): string {
+  return axis === "h" ? "/art/objs/obj-bridge-h.png" : "/art/objs/obj-bridge.png";
+}
+
+function cliffLayers(_scene: SceneId, tiles: Tile[][], x: number, y: number): TileLayer[] {
+  const idx = coreIndex(x, y, 8);
+  const layers: TileLayer[] = [
+    { src: "/art/tiles/tile-hill-bed.png", role: "under" },
+    { src: `/art/tiles/hill-core-${idx}.png`, role: "hill-core" },
+  ];
+  const n = tiles[y - 1]?.[x];
+  const s = tiles[y + 1]?.[x];
+  const e = tiles[y]?.[x + 1];
+  const w = tiles[y]?.[x - 1];
+  const open = (t?: Tile) => t === "floor" || t === "road" || t === "pack" || t === "gate";
+  if (open(s) || open(e) || open(w) || open(n)) {
+    const corner = [open(n), open(e), open(s), open(w)].filter(Boolean).length >= 2;
+    layers.push({
+      src: corner ? "/art/tiles/overlay-cliff-corner-fy.png" : "/art/tiles/overlay-cliff-fy.png",
+      role: "post",
+    });
+  }
+  return layers;
 }
 
 export const SHEET = 640;
@@ -122,7 +372,7 @@ export type TileLayer = {
   oy?: number;
   mask?: number;
   blend?: boolean;
-  role?: "under" | "wall" | "post" | "bar-h" | "bar-v" | "arm-n" | "arm-e" | "arm-s" | "arm-w";
+  role?: "under" | "wall" | "post" | "bar-h" | "bar-v" | "arm-n" | "arm-e" | "arm-s" | "arm-w" | "hill-core";
 };
 
 function flat(name: string): TileLayer {
@@ -140,7 +390,11 @@ function paintedName(kind: string): string {
     kind === "path" ||
     kind === "cobble" ||
     kind === "brick" ||
-    kind === "dirt"
+    kind === "dirt" ||
+    kind === "gravel" ||
+    kind === "gravel-dirt" ||
+    kind === "gravel-grass" ||
+    kind === "gravel-brick"
   ) {
     return kind;
   }
@@ -163,7 +417,11 @@ function finish(layers: TileLayer[]): TileArt {
   return { key, src: layers[0]?.src ?? "", mask: layers.find((l) => l.mask !== undefined && !l.blend)?.mask, layers };
 }
 
+/** 墙下只铺与环境一致的地皮：室内木/石，室外草或石砖；绝不铺路。 */
 function wallBed(scene: SceneId, tiles: Tile[][], x: number, y: number): string {
+  if (!isOutdoor(scene)) {
+    return paintedName(groundTex(scene, "floor"));
+  }
   for (const [dx, dy] of [
     [0, -1],
     [0, 1],
@@ -171,9 +429,12 @@ function wallBed(scene: SceneId, tiles: Tile[][], x: number, y: number): string 
     [1, 0],
   ] as const) {
     const t = tiles[y + dy]?.[x + dx];
-    if (t === "road" || t === "gate") return paintedName(roadTex(scene));
+    if (t === "floor" && cellUsesBrick(scene, tiles, x + dx, y + dy)) return "brick";
+    if (t === "floor") return "grass";
+    if (t === "hill" || t === "rock") return "hill-bed";
   }
-  return paintedName(groundTex(scene, "floor"));
+  if (BRICK_CITY.has(scene)) return "brick";
+  return "grass";
 }
 
 function wallTone(scene: SceneId, tiles: Tile[][], x: number, y: number): "" | "-warm" | "-moss" {
@@ -189,11 +450,10 @@ function wallTone(scene: SceneId, tiles: Tile[][], x: number, y: number): "" | "
   ] as const) {
     if (tiles[y + dy]?.[x + dx] === "water") return "-moss";
   }
-  if (OUTDOOR.has(scene)) {
-    const h = tiles.length;
-    const w = tiles[0]?.length ?? 0;
-    if (x > 1 && y > 1 && x < w - 2 && y < h - 2) return "-warm";
-  }
+  // Keep outdoor walls on the solid default plate — warm variants read as faded.
+  void scene;
+  void x;
+  void y;
   return "";
 }
 
@@ -216,6 +476,16 @@ function wallLayers(scene: SceneId, tiles: Tile[][], x: number, y: number): Tile
   const layers: TileLayer[] = [{ ...flat(wallBed(scene, tiles, x, y)), role: "under" }];
   const throughH = e && w;
   const throughV = n && s;
+  const count = [n, e, s, w].filter(Boolean).length;
+  // Straight runs: continuous bar only — joint posts only at corners / ends / T
+  if (throughH && !n && !s) {
+    layers.push({ src: wallSrc("bar-h", tone), role: "bar-h" });
+    return layers;
+  }
+  if (throughV && !e && !w) {
+    layers.push({ src: wallSrc("bar-v", tone), role: "bar-v" });
+    return layers;
+  }
   if (throughH) layers.push({ src: wallSrc("bar-h", tone), role: "bar-h" });
   else {
     if (w) layers.push({ src: wallSrc("bar-h", tone), role: "arm-w" });
@@ -226,18 +496,166 @@ function wallLayers(scene: SceneId, tiles: Tile[][], x: number, y: number): Tile
     if (n) layers.push({ src: wallSrc("bar-v", tone), role: "arm-n" });
     if (s) layers.push({ src: wallSrc("bar-v", tone), role: "arm-s" });
   }
-  if (!(throughH && !n && !s) && !(throughV && !e && !w)) {
-    layers.push({ src: wallSrc("post", tone), role: "post" });
-  }
+  const cornerOrJoint = count !== 2 || (n && e) || (e && s) || (s && w) || (w && n) || count >= 3;
+  if (cornerOrJoint) layers.push({ src: wallSrc("post", tone), role: "post" });
   return layers;
+}
+
+function roadish(t?: Tile): boolean {
+  return t === "road" || t === "gate" || t === "pack";
+}
+
+/** 墙内小院：从该格洪水填，碰不到地图外沿 → 石砖地。 */
+const encloseMemo = new WeakMap<Tile[][], (boolean | null)[][]>();
+
+export function enclosedCourt(tiles: Tile[][], x: number, y: number): boolean {
+  const h = tiles.length;
+  const w = tiles[0]?.length ?? 0;
+  if (y < 0 || x < 0 || y >= h || x >= w) return false;
+  if (tiles[y][x] !== "floor") return false;
+  let memo = encloseMemo.get(tiles);
+  if (!memo) {
+    memo = Array.from({ length: h }, () => Array.from({ length: w }, () => null as boolean | null));
+    encloseMemo.set(tiles, memo);
+  }
+  if (memo[y][x] !== null) return memo[y][x]!;
+
+  const pass = (t?: Tile) =>
+    t === "floor" || t === "road" || t === "pack" || t === "sign" || t === "item" || t === "cache" || t === "brazier" || t === "seal";
+  // gate 算封口，不把院内泄到外场
+  const seen = new Set<string>();
+  const q: { x: number; y: number }[] = [{ x, y }];
+  seen.add(`${x},${y}`);
+  let hitEdge = false;
+  let area = 0;
+  for (let i = 0; i < q.length; i++) {
+    const c = q[i];
+    area += 1;
+    if (area > 200) {
+      hitEdge = true;
+      break;
+    }
+    if (c.x <= 0 || c.y <= 0 || c.x >= w - 1 || c.y >= h - 1) hitEdge = true;
+    for (const [dx, dy] of [
+      [0, 1],
+      [0, -1],
+      [1, 0],
+      [-1, 0],
+    ] as const) {
+      const nx = c.x + dx;
+      const ny = c.y + dy;
+      const key = `${nx},${ny}`;
+      if (seen.has(key)) continue;
+      if (nx < 0 || ny < 0 || nx >= w || ny >= h) {
+        hitEdge = true;
+        continue;
+      }
+      const t = tiles[ny][nx];
+      if (t === "wall" || t === "gate") continue;
+      if (!pass(t)) continue;
+      seen.add(key);
+      q.push({ x: nx, y: ny });
+    }
+  }
+  // 小围合且碰不到外沿 → 院落石砖
+  const court = !hitEdge && area >= 4 && area <= 160;
+  for (const key of seen) {
+    const [sx, sy] = key.split(",").map(Number);
+    if (tiles[sy]?.[sx] === "floor") memo[sy][sx] = court;
+  }
+  return court;
+}
+
+/** Horizontal / vertical / cross (no direction) for road paint. */
+export function roadAxis(tiles: Tile[][], x: number, y: number): "h" | "v" | "x" {
+  const n = roadish(tiles[y - 1]?.[x]);
+  const s = roadish(tiles[y + 1]?.[x]);
+  const e = roadish(tiles[y]?.[x + 1]);
+  const w = roadish(tiles[y]?.[x - 1]);
+  const hv = (e ? 1 : 0) + (w ? 1 : 0);
+  const vv = (n ? 1 : 0) + (s ? 1 : 0);
+  // 十字路口：无导向碎石
+  if (hv > 0 && vv > 0) return "x";
+  if (hv > vv) return "h";
+  if (vv > hv) return "v";
+  return "v";
 }
 
 export function tileArt(scene: SceneId, tiles: Tile[][], x: number, y: number): TileArt {
   const tile = tiles[y][x];
-  if (tile === "water" || (isOutdoor(scene) && isCliffTile(tile))) {
-    return finish([flat("water")]);
+  if (tile === "water") {
+    // 取消水岸：纯水面
+    return finish([{ src: paintedSrc("water"), role: "under" }]);
+  }
+  if (tile === "hill") {
+    return finish(cliffLayers(scene, tiles, x, y));
+  }
+  if (tile === "rock") {
+    const idx = coreIndex(x, y, 8);
+    return finish([
+      { src: paintedSrc(CAVE.has(scene) ? "stone" : "grass"), role: "under" },
+      { src: `/art/tiles/rock-core-${idx}.png`, role: "hill-core" },
+    ]);
   }
   if (tile === "wall") return finish(wallLayers(scene, tiles, x, y));
+  // 一格宽的路：横/竖分贴；过水变桥；石砖区铺在砖上
+  if (tile === "road" || tile === "gate") {
+    const bridge = bridgeAxis(tiles, x, y);
+    if (bridge) {
+      return finish([
+        { src: paintedSrc("water"), role: "under" },
+        { src: bridgeSrc(bridge), role: "under" },
+      ]);
+    }
+    const brickBed =
+      BRICK_CITY.has(scene) ||
+      cellUsesBrick(scene, tiles, x, y) ||
+      cellUsesBrick(scene, tiles, x - 1, y) ||
+      cellUsesBrick(scene, tiles, x + 1, y) ||
+      cellUsesBrick(scene, tiles, x, y - 1) ||
+      cellUsesBrick(scene, tiles, x, y + 1);
+    // 石砖区铺青石板，不用泥土碎石心
+    if (brickBed) {
+      return finish([
+        { src: paintedSrc("brick"), role: "under" },
+        { src: "/art/tiles/tile-cobble.png", role: "under" },
+      ]);
+    }
+    const kind = roadTex(scene) === "gravel-brick" ? "gravel-grass" : roadTex(scene);
+    const axis = roadAxis(tiles, x, y);
+    const suffix = axis === "h" ? "-h" : axis === "x" ? "-x" : "";
+    const roadSrc = paintedSrc(`${kind}${suffix}`);
+    if (kind === "gravel-grass") {
+      return finish([
+        { src: paintedSrc("grass"), role: "under" },
+        { src: roadSrc, role: "under" },
+      ]);
+    }
+    return finish([{ src: roadSrc, role: "under" }]);
+  }
+  if (tile === "pack") {
+    return finish([
+      { src: paintedSrc("grass"), role: "under" },
+      { src: paintedSrc("dirt"), role: "under" },
+    ]);
+  }
+  // 炉/印/箱等占格：石砖院与大城用砖底，勿露草皮
+  if (tile === "seal" || tile === "brazier" || tile === "sign" || tile === "item" || tile === "cache") {
+    if (BRICK_CITY.has(scene) || COURTYARD.has(scene) || cellUsesBrick(scene, tiles, x, y)) {
+      return finish([{ src: paintedSrc("brick"), role: "under" }]);
+    }
+    if (OUTDOOR.has(scene)) {
+      return finish([{ src: paintedSrc("grass"), role: "under" }]);
+    }
+  }
+  if (tile === "floor") {
+    if (cellUsesBrick(scene, tiles, x, y)) {
+      return finish([{ src: paintedSrc("brick"), role: "under" }]);
+    }
+    if (OUTDOOR.has(scene)) {
+      return finish([{ src: paintedSrc("grass"), role: "under" }]);
+    }
+  }
   return finish([flat(paintedName(groundTex(scene, tile)))]);
 }
 
@@ -261,15 +679,27 @@ export function texMarkup(art: TileArt): string {
     .join("");
 }
 
-export type StampName = "tree" | "bush" | `tree-${"pine" | "gold" | "olive"}` | `crag-${number}` | `tuft-${number}`;
+export type StampName =
+  | "tree"
+  | "bush"
+  | `tree-${"pine" | "gold" | "olive"}`
+  | `crag-${number}`
+  | `tuft-${number}`
+  | "tuft-fy"
+  | "tree-pot";
 
-export function plantStamp(scene: SceneId, tile: Tile, x: number, y: number): StampName | null {
+export function plantStamp(scene: SceneId, tile: Tile, x: number, y: number, tiles?: Tile[][]): StampName | null {
   if (!OUTDOOR.has(scene)) return null;
-  if (tile === "hill" || tile === "rock") {
-    const n = hash(x, y, 3);
-    if (n < 0.12) return treeStampAt(x, y);
-    if (n < 0.28) return "bush";
-    return null;
+  // 山崖只靠崖面贴图，不嵌树丛/草影
+  if (tile === "hill" || tile === "rock") return null;
+  // 装饰只铺草影，不挡路；完整树/灌木一律手摆 `&`（实体）
+  if (tile === "floor" || tile === "pack" || tile === "road") {
+    const onBrick =
+      tile === "floor" &&
+      (tiles ? cellUsesBrick(scene, tiles, x, y) : usesBrickFloor(scene));
+    if (onBrick) return null;
+    const n = hash(x, y, 5);
+    if (n < 0.08) return "tuft-fy";
   }
   return null;
 }
@@ -277,14 +707,26 @@ export function plantStamp(scene: SceneId, tile: Tile, x: number, y: number): St
 /** Authored trees pick a nearby canopy so a yard is not one clone stamped over. */
 export function treeStampAt(x: number, y: number): StampName {
   const n = hash(x, y, 7);
-  if (n < 0.2) return "bush";
+  if (n < 0.18) return "bush";
   if (n < 0.4) return "tree-pine";
-  if (n < 0.6) return "tree-gold";
-  if (n < 0.78) return "tree-olive";
+  if (n < 0.58) return "tree-gold";
+  if (n < 0.76) return "tree-olive";
   return "tree";
 }
 
+/** 院内 / 石砖：镂空树冠，禁止 stamp-tree-pot（烘焙草地会糊成绿块）。 */
+export function courtyardTreeStamp(x: number, y: number): StampName {
+  const n = hash(x, y, 7);
+  if (n < 0.28) return "bush";
+  if (n < 0.5) return "tree-pine";
+  if (n < 0.7) return "tree";
+  if (n < 0.86) return "tree-olive";
+  return "tree-gold";
+}
+
 export function stampSrc(name: StampName): string {
+  if (name === "tuft-fy") return `/art/sprites/stamp-tuft-fy.png`;
+  if (name === "tree-pot") return `/art/sprites/stamp-tree-pot.png`;
   return `/art/sprites/stamp-${name}.png`;
 }
 
@@ -339,14 +781,23 @@ const SPRITE: Record<string, string> = {
   stakeboss: "foe",
   hawker: "woman",
   vendor: "worker",
-  kid: "worker",
+  kid: "rail",
   aunt: "woman",
   farmer: "woman",
   sentry: "clerk",
   woodcut: "worker",
-  docker: "worker",
-  carter: "worker",
+  docker: "sapper",
+  carter: "seer",
   barber: "clerk",
+  butcher: "foe",
+  monk: "woman",
+  bailiff: "foe",
+  barkeep: "clerk",
+  drinker: "worker",
+  hostess: "woman",
+  lute: "woman",
+  doctor: "clerk",
+  coach: "worker",
   warder: "clerk",
   tutorPace: "worker",
   tutorWard: "worker",
@@ -365,32 +816,221 @@ const OBJ: Record<string, string> = {
   cart: "cart",
   lantern: "lantern",
   coil: "coil",
-  post: "lantern",
-  bench: "chest",
+  post: "pile",
+  bench: "bench",
   jar: "jar",
   well: "well",
   stone: "barrel",
-  house: "hall",
+  house: "hut",
+  stall: "stall",
+  arch: "paifang",
+  dummy: "dummy",
+  table: "table",
+  stool: "stool",
+  rack: "rack",
+  sandbag: "sandbag",
+  cabinet: "cabinet",
+  shelf: "shelf",
+  bed: "bed",
+  counter: "counter",
+  screen: "screen",
+  censer: "censer",
+  basin: "basin",
+  drum: "drum",
+  mat: "mat",
+  banner: "banner",
+  board: "board",
+  pot: "pot",
+  desk: "desk",
 };
 
 export function objSrc(kind: string): string {
   return `/art/objs/obj-${OBJ[kind] ?? "barrel"}.png`;
 }
 
-export type DoorKind = "paifang" | "pavilion" | "hall";
+export type DoorKind = "paifang" | "pavilion" | "hall" | "ferry" | "post" | "wine" | "camp" | "shrine" | "hut";
 
-const TEMPLE = new Set<SceneId>(["yard", "customs", "shrine", "drums", "outer", "glass", "inner"]);
-const STORE = new Set<SceneId>(["hold", "salt", "shed", "ropes", "cellar"]);
+const TEMPLE = new Set<SceneId>([
+  "yard",
+  "drums",
+  "outer",
+  "glass",
+  "inner",
+  "palace",
+  "yamen",
+  "martial",
+  "escort",
+  "seerGaze",
+  "luoyang",
+  "bianjing",
+  "changan",
+  "tongguan",
+]);
+const STORE = new Set<SceneId>([
+  "hold",
+  "salt",
+  "shed",
+  "ropes",
+  "cellar",
+  "pit",
+  "clinic",
+  "pawn",
+  "lodge",
+  "customs",
+  "railNight",
+  "sapperPile",
+  "linan",
+  "suzhou",
+  "jiankang",
+  "taxClinic",
+  "taxLodge",
+  "taxArchive",
+  "taxClerk",
+  "taxJail",
+  "taxPawn",
+  "taxMartial",
+  "taxEscort",
+  "ropeClinic",
+  "ropeLodge",
+  "ropeMess",
+  "ropeStore",
+  "ropeWatch",
+  "ropeForge",
+  "ropeMartial",
+  "ropeEscort",
+  "taxMarket",
+  "ropeMarket",
+  "taxGate",
+  "ropeGate",
+]);
+const FERRY = new Set<SceneId>([
+  "wharf",
+  "pier",
+  "spit",
+  "ferry",
+  "isle",
+  "suqian",
+  "gaoyou",
+  "jiaxing",
+  "yangzhou",
+]);
+const POST = new Set<SceneId>([
+  "bozhou",
+  "yanshi",
+  "shanzhou",
+  "changzhou",
+  "wuxi",
+  "suzhousu",
+  "huainan",
+]);
+const SHRINE = new Set<SceneId>(["shrine", "tea", "chuzhou"]);
+const WINE = new Set<SceneId>(["wine", "wineUp", "flower", "taxWine", "ropeWine", "taxTea"]);
+const CAMP = new Set<SceneId>(["usurpCamp"]);
 
 export function doorKind(to: SceneId): DoorKind {
+  if (CAMP.has(to)) return "camp";
+  if (WINE.has(to)) return "wine";
+  if (SHRINE.has(to)) return "shrine";
+  if (FERRY.has(to)) return "ferry";
+  if (POST.has(to)) return "post";
   if (TEMPLE.has(to)) return "paifang";
   if (STORE.has(to)) return "hall";
   if (to === "cave" || to === "cellar") return "hall";
-  return "pavilion";
+  if (to === "hut" || to === "plot") return "hut";
+  if (to === "ridge") return "post";
+  return "hall";
 }
 
-export function doorSrc(kind: DoorKind): string {
-  return `/art/objs/obj-${kind}.png`;
+export function doorSrc(kind: DoorKind, _edge: "h" | "v" | "" = "h"): string {
+  // 一律横向正脸贴图，不再分竖向/旋转
+  return `/art/objs/obj-${kind}-h.png`;
+}
+
+/**
+ * 门朝向提示（仅布局用）：左右边横路尽头、上下边正门通路。
+ * 贴图一律横向，此函数不再驱动精灵旋转。
+ */
+export function portalEdge(tiles: Tile[][], x: number, y: number): "h" | "v" | "" {
+  const h = tiles.length;
+  const w = tiles[0]?.length ?? 0;
+  if (x <= 1 || x >= w - 2) return "h"; // 左右边也横着放
+  if (y <= 1 || y >= h - 2) return "h";
+  const solid = (nx: number, ny: number): boolean => {
+    if (nx < 0 || ny < 0 || nx >= w || ny >= h) return true;
+    const t = tiles[ny]?.[nx];
+    return t === "wall" || t === "rock" || t === "hill" || t === "water";
+  };
+  if (solid(x - 1, y) && solid(x + 1, y)) return "h";
+  if (solid(x, y - 1) && solid(x, y + 1)) return "h";
+  return "h";
+}
+
+/** 大城/要地门口可夹墙；小地点不必。 */
+export function wantsPortalFrame(to: SceneId): boolean {
+  return (
+    TEMPLE.has(to) ||
+    STORE.has(to) ||
+    FERRY.has(to) ||
+    to === "ridge" ||
+    to === "plot" ||
+    to === "hut" ||
+    to === "yamen" ||
+    to === "customs" ||
+    to === "hold" ||
+    to === "huainan" ||
+    to === "bianjing" ||
+    to === "changan" ||
+    to === "luoyang" ||
+    to === "jiankang" ||
+    to === "linan" ||
+    to === "suzhou" ||
+    to === "yangzhou"
+  );
+}
+
+/** 墙缝门朝向：上下夹墙 → 竖门；左右夹墙 → 横门。 */
+export function wallSeamEdge(tiles: Tile[][], x: number, y: number): "h" | "v" {
+  const h = tiles.length;
+  const w = tiles[0]?.length ?? 0;
+  const solid = (nx: number, ny: number): boolean => {
+    if (nx < 0 || ny < 0 || nx >= w || ny >= h) return true;
+    const t = tiles[ny]?.[nx];
+    return t === "wall" || t === "rock" || t === "hill" || t === "water";
+  };
+  const n = solid(x, y - 1);
+  const s = solid(x, y + 1);
+  const e = solid(x + 1, y);
+  const west = solid(x - 1, y);
+  if (n && s) return "v";
+  if (e && west) return "h";
+  return "h";
+}
+
+export function archSrc(tiles: Tile[][], x: number, y: number): string {
+  return `/art/objs/obj-paifang-${wallSeamEdge(tiles, x, y)}.png`;
+}
+
+/** 传送点是否在路尽头（本格是路，且通向内侧的一格也是路/包地）。 */
+export function portalOnRoadEnd(tiles: Tile[][], x: number, y: number): boolean {
+  const h = tiles.length;
+  const w = tiles[0]?.length ?? 0;
+  const roadish = (t?: Tile) => t === "road" || t === "gate" || t === "pack";
+  if (!roadish(tiles[y]?.[x])) return false;
+  const onLeft = x <= 1;
+  const onRight = x >= w - 2;
+  const onTop = y <= 1;
+  const onBot = y >= h - 2;
+  if (onLeft) return roadish(tiles[y]?.[x + 1]);
+  if (onRight) return roadish(tiles[y]?.[x - 1]);
+  if (onTop) return roadish(tiles[y + 1]?.[x]);
+  if (onBot) return roadish(tiles[y - 1]?.[x]);
+  // 内部门：至少一邻格是路
+  return (
+    roadish(tiles[y - 1]?.[x]) ||
+    roadish(tiles[y + 1]?.[x]) ||
+    roadish(tiles[y]?.[x - 1]) ||
+    roadish(tiles[y]?.[x + 1])
+  );
 }
 
 export function portalHasFrame(tiles: Tile[][], x: number, y: number): boolean {
@@ -451,10 +1091,15 @@ export function visionCells(
   w: number,
   h: number,
   blocked?: (x: number, y: number) => boolean,
+  outdoor = true,
 ): { x: number; y: number }[] {
   const cells: { x: number; y: number }[] = [];
   const have = new Set<string>();
   const fwd = faceDelta(facing);
+  const side = sideDelta(facing);
+  // 室外宽：大地图要认路；室内窄：房间已有墙隔断，留一点灯火感
+  const near = outdoor ? 3 : 2;
+  const cone = outdoor ? 5 : 3;
   const add = (x: number, y: number) => {
     if (!inBounds(x, y, w, h)) return;
     const k = `${x},${y}`;
@@ -462,13 +1107,21 @@ export function visionCells(
     have.add(k);
     cells.push({ x, y });
   };
-  for (let dy = -1; dy <= 1; dy++) {
-    for (let dx = -1; dx <= 1; dx++) add(px + dx, py + dy);
+  for (let dy = -near; dy <= near; dy++) {
+    for (let dx = -near; dx <= near; dx++) add(px + dx, py + dy);
   }
-  const f1x = px + fwd.x;
-  const f1y = py + fwd.y;
-  const wallAhead = inBounds(f1x, f1y, w, h) && (blocked?.(f1x, f1y) ?? false);
-  if (!wallAhead) add(px + fwd.x * 2, py + fwd.y * 2);
+  for (let dist = 1; dist <= cone; dist++) {
+    const cx = px + fwd.x * dist;
+    const cy = py + fwd.y * dist;
+    if (!inBounds(cx, cy, w, h)) break;
+    if (blocked?.(cx, cy)) {
+      add(cx, cy);
+      break;
+    }
+    add(cx, cy);
+    add(cx + side.left.x, cy + side.left.y);
+    add(cx + side.right.x, cy + side.right.y);
+  }
   return cells;
 }
 
@@ -481,9 +1134,10 @@ export function markVision(
   w: number,
   h: number,
   blocked?: (x: number, y: number) => boolean,
+  outdoor = true,
 ): Record<string, string[]> {
   const have = new Set(seen[scene] ?? []);
-  for (const cell of visionCells(px, py, facing, w, h, blocked)) {
+  for (const cell of visionCells(px, py, facing, w, h, blocked, outdoor)) {
     have.add(tileKey(cell.x, cell.y));
   }
   return { ...seen, [scene]: [...have] };

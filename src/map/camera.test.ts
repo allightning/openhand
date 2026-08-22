@@ -35,9 +35,8 @@ describe("edge camera", () => {
     expect(second.x).not.toBe(first.x);
   });
 
-  it("covers the stage so the map does not sit in a side gutter", () => {
-    const scale = coverScale(1440, 720, 1920, 800);
-    expect(1440 * scale).toBeGreaterThanOrEqual(1920);
-    expect(720 * scale).toBeGreaterThanOrEqual(800);
+  it("uses a lower indoor camera and a higher outdoor camera", () => {
+    expect(coverScale(true)).toBe(1);
+    expect(coverScale(false)).toBeGreaterThan(1);
   });
 });

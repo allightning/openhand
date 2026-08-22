@@ -63,6 +63,16 @@ const ART: Record<string, () => string> = {
   mirror: defendArt,
   layer: strikeArt,
   tide: breathArt,
+  burySlash: cutArt,
+  buryBleed: bleedArt,
+  buryKnock: pushArt,
+  buryWard: defendArt,
+  salve: mendArt,
+  unbind: breathArt,
+  sidestep: advanceArt,
+  suture: mendArt,
+  cauterize: cutArt,
+  bindwound: mendArt,
 };
 
 export function cardArt(id: string): string {

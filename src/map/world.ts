@@ -1,6 +1,12 @@
-import type { EnemyId, Run } from "../game/types";
+import type { EnemyId, Run, TechniqueId } from "../game/types";
+import { ENEMIES, TECHNIQUES } from "../game/content";
+import { ESCORT_DESTS, pickEscortJob } from "../game/economy";
+import { gateScarOpen } from "../game/hooks";
+import { lessonByPick, martialOffers } from "../game/lessons";
 import { remapEnemy } from "../game/hero";
 import { makeRun } from "../game/run";
+import { canTravelTo } from "./access";
+import { canEnterHubScene } from "./hubScenes";
 import {
   bumpVoice,
   itemVoice,
@@ -27,6 +33,10 @@ import type {
 } from "./types";
 import { isOutdoor } from "./tileset";
 
+const ENEMY_PITCH: Partial<Record<EnemyId, string>> = Object.fromEntries(
+  Object.values(ENEMIES).map((e) => [e.id, e.pitch]),
+) as Partial<Record<EnemyId, string>>;
+
 const SEAL_LETTER: Record<string, SealId> = {
   n: "n",
   e: "e",
@@ -47,14 +57,59 @@ const PROP_LETTER: Record<string, PropKind> = {
   j: "jar",
   a: "jar",
   "&": "tree",
+  d: "dummy",
+  o: "stool",
+  y: "table",
+  z: "rack",
+  c: "sandbag",
+  k: "cabinet",
+  i: "shelf",
+  u: "bed",
+  q: "counter",
+  h: "screen",
+  f: "pot",
+  m: "desk",
+  g: "censer",
 };
 
-const BLOCKING: PropKind[] = ["barrel", "crate", "cart", "post", "bench", "jar", "well", "stone", "tree", "house"];
+const BLOCKING: PropKind[] = [
+  "barrel",
+  "crate",
+  "cart",
+  "post",
+  "bench",
+  "jar",
+  "well",
+  "stone",
+  "tree",
+  "house",
+  "stall",
+  "dummy",
+  "table",
+  "stool",
+  "rack",
+  "sandbag",
+  "cabinet",
+  "shelf",
+  "bed",
+  "counter",
+  "screen",
+  "censer",
+  "basin",
+  "drum",
+  "mat",
+  "banner",
+  "board",
+  "pot",
+  "desk",
+];
 
 function tileOf(ch: string, scene: SceneId): Tile {
   if (ch === "#") return "wall";
   if (ch === "~") return "water";
-  if (ch === "^" || ch === "%") return isOutdoor(scene) ? "water" : "rock";
+  // % = 水岸/泽；^ = 山丘（户外恢复高度感，不再整片压成水）
+  if (ch === "%") return isOutdoor(scene) ? "water" : "rock";
+  if (ch === "^") return isOutdoor(scene) ? "hill" : "rock";
   if (ch === "=") return "road";
   if (ch === ",") return "pack";
   if (ch === "G") return "gate";
@@ -64,6 +119,27 @@ function tileOf(ch: string, scene: SceneId): Tile {
   if (ch === "I" || ch === "$") return "item";
   if (SEAL_LETTER[ch]) return "seal";
   return "floor";
+}
+
+/** 人站路上时 ASCII 字母会盖掉 `=`；把走廊缺口补回路面，避免路被掐断。 */
+function healRoadGaps(tiles: Tile[][]): void {
+  const h = tiles.length;
+  const w = tiles[0]?.length ?? 0;
+  const roadish = (t?: Tile) => t === "road" || t === "gate" || t === "pack";
+  const fixes: { x: number; y: number }[] = [];
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (tiles[y][x] !== "floor") continue;
+      const n = roadish(tiles[y - 1]?.[x]);
+      const s = roadish(tiles[y + 1]?.[x]);
+      const e = roadish(tiles[y]?.[x + 1]);
+      const w_ = roadish(tiles[y]?.[x - 1]);
+      if ((n && s) || (e && w_) || (n && e && s) || (n && w_ && s) || (e && n && w_) || (e && s && w_)) {
+        fixes.push({ x, y });
+      }
+    }
+  }
+  for (const { x, y } of fixes) tiles[y][x] = "road";
 }
 
 export function hasFlag(run: Run, id: string): boolean {
@@ -84,6 +160,7 @@ export function sealsComplete(w: World): boolean {
 
 export function gateOpen(w: World, run: Run): boolean {
   if (w.gate === "open") return true;
+  if (gateScarOpen(w.gate, run.flags)) return true;
   if (w.gate === "fire-seals") return hasFlag(run, "branded") && sealsComplete(w);
   if (w.gate === "watch") return hasFlag(run, "watchOpen") || w.progress.includes("n");
   if (w.gate === "mirror") return hasFlag(run, "trueMirror") || w.progress.includes("w");
@@ -91,6 +168,10 @@ export function gateOpen(w: World, run: Run): boolean {
   if (w.gate === "deed") return hasItem(run, "deed");
   if (w.gate === "tide") return hasFlag(run, "tideOpen") || w.progress.includes("s");
   if (w.gate === "incense") return hasItem(run, "incense");
+  if (w.gate === "crossing") {
+    const need = ["catcher", "escort", "piler", "delay", "twin"] as const;
+    return need.every((id) => run.beaten.includes(id));
+  }
   return false;
 }
 
@@ -100,11 +181,30 @@ function extraProp(scene: SceneId, ch: string): { kind: PropKind; tag: string } 
   if (scene === "lamp" && ch === "u") return { kind: "well", tag: "hiddenWell" };
   if (scene === "tea" && ch === "f") return { kind: "tree", tag: "hiddenTree" };
   if (scene === "wharf" && ch === "m") return { kind: "stone", tag: "hiddenStone" };
-  if (ch === "f" && scene !== "outer" && scene !== "tea") return { kind: "cart", tag: "cart" };
-  if (ch === "o" && scene !== "tea") return { kind: "well", tag: "well" };
-  if (ch === "H" && (scene === "plot" || scene === "ridge" || scene === "wharf" || scene === "lane")) {
+  if (ch === "f" && (scene === "wharf" || scene === "pier" || scene === "plot" || scene === "ridge")) {
+    return { kind: "cart", tag: "cart" };
+  }
+  // 古井：仅户外特定场景用 o；室内 o 留给凳
+  if (ch === "o" && (scene === "wharf" || scene === "spit" || scene === "yard" || scene === "ridge" || scene === "plot" || scene === "lamp" || scene === "sluice" || scene === "pier")) {
+    return { kind: "well", tag: "well" };
+  }
+  if (scene === "drums" && ch === "z") return { kind: "drum", tag: "watchDrum" };
+  if (scene === "clinic" && ch === "f") return { kind: "basin", tag: "wash" };
+  if ((scene === "wine" || scene === "lodge") && ch === "f") return { kind: "board", tag: "kitchen" };
+  if ((scene === "yamen" || scene === "escort") && ch === "h") return { kind: "banner", tag: "flag" };
+  if ((scene === "shrine" || scene === "tea") && ch === "c") return { kind: "mat", tag: "mat" };
+  if (scene === "pawn" && ch === "k") return { kind: "counter", tag: "pawnDesk" };
+  if (ch === "S" && (scene === "wharf" || scene === "lane")) return { kind: "stall", tag: "stall" };
+  if (ch === "H" && (scene === "plot" || scene === "ridge" || scene === "wharf" || scene === "lane" || scene === "flower" || scene === "escort" || scene === "yamen" || scene === "martial")) {
     return { kind: "house", tag: "shed" };
   }
+  // Decorative gates: walkable, not portals. ; = named 税卡 / 门额, : = plain arch (no「门」字).
+  if (ch === ";") {
+    if (scene === "wharf") return { kind: "arch", tag: "税卡" };
+    if (scene === "ridge") return { kind: "arch", tag: "衙门" };
+    return { kind: "arch", tag: "" };
+  }
+  if (ch === ":") return { kind: "arch", tag: "" };
   return null;
 }
 
@@ -149,7 +249,6 @@ export function walkable(w: World, x: number, y: number, run: Run): boolean {
   if (talkerAt(w, x, y)) return false;
   const prop = propAt(w, x, y);
   if (prop && BLOCKING.includes(prop.kind)) return false;
-  if (w.player.x === x && w.player.y === y) return false;
   return true;
 }
 
@@ -194,22 +293,18 @@ const STEP: { dir: Dir; x: number; y: number }[] = [
   { dir: "right", x: 1, y: 0 },
 ];
 
-function portalCell(w: World, x: number, y: number): boolean {
-  return w.portals.some((p) => p.x === x && p.y === y);
-}
-
 function pathCell(
   w: World,
   run: Run,
   x: number,
   y: number,
-  goalX: number,
-  goalY: number,
+  _goalX: number,
+  _goalY: number,
   explored: (x: number, y: number) => boolean,
 ): boolean {
   if (!explored(x, y)) return false;
+  // Portals stay walkable for click-pathing; mid-path travel is suppressed in tryMove.
   if (!walkable(w, x, y, run)) return false;
-  if (portalCell(w, x, y) && (x !== goalX || y !== goalY)) return false;
   return true;
 }
 
@@ -345,6 +440,49 @@ export function loadScene(scene: SceneId, run: Run, arrival: string | null = nul
     tiles.push(row);
   }
 
+  for (const p of portals) {
+    // 屋子里面不用路：通路规则只对室外贴边一级门生效
+    if (!isOutdoor(scene)) continue;
+    // 贴边一级门：并入路面并向内侧拉通路；院内门仅在贴路时并入，避免孤岛路砖
+    const h = tiles.length;
+    const w = tiles[0]?.length ?? 0;
+    const roadish = (t?: Tile) => t === "road" || t === "pack" || t === "gate";
+    const paintable = (t?: Tile) => t === "floor" || t === "pack" || t === "road";
+    const onLeft = p.x <= 1;
+    const onRight = p.x >= w - 2;
+    const onTop = p.y <= 1;
+    const onBot = p.y >= h - 2;
+    const onRim = onLeft || onRight || onTop || onBot;
+    if (onRim) {
+      if (paintable(tiles[p.y][p.x])) tiles[p.y][p.x] = "road";
+      if (onLeft || onRight) {
+        const dir = onLeft ? 1 : -1;
+        for (let x = p.x + dir; x > 0 && x < w - 1; x += dir) {
+          const t = tiles[p.y][x];
+          if (!paintable(t)) break;
+          if (roadish(t) && x !== p.x) break;
+          tiles[p.y][x] = "road";
+          if (roadish(tiles[p.y - 1]?.[x]) || roadish(tiles[p.y + 1]?.[x])) break;
+        }
+      } else {
+        const dir = onTop ? 1 : -1;
+        for (let y = p.y + dir; y > 0 && y < h - 1; y += dir) {
+          const t = tiles[y][p.x];
+          if (!paintable(t)) break;
+          if (roadish(t) && y !== p.y) break;
+          tiles[y][p.x] = "road";
+          if (roadish(tiles[y]?.[p.x - 1]) || roadish(tiles[y]?.[p.x + 1])) break;
+        }
+      }
+    } else if (tiles[p.y][p.x] === "floor") {
+      const n = tiles[p.y - 1]?.[p.x];
+      const s = tiles[p.y + 1]?.[p.x];
+      const e = tiles[p.y]?.[p.x + 1];
+      const w_ = tiles[p.y]?.[p.x - 1];
+      if (roadish(n) || roadish(s) || roadish(e) || roadish(w_)) tiles[p.y][p.x] = "road";
+    }
+  }
+  if (isOutdoor(scene)) healRoadGaps(tiles);
   if (scene === "lamp" && hasFlag(run, "wellOpen")) {
     const i = props.findIndex((p) => p.tag === "hiddenWell");
     if (i >= 0) {
@@ -361,10 +499,61 @@ export function loadScene(scene: SceneId, run: Run, arrival: string | null = nul
       props.splice(i, 1);
     }
   }
+  // Hero late forks — side door appears after midgame unlock.
+  if (scene === "lane" && hasFlag(run, "forkRail")) {
+    portals.push({ ch: "9", x: 6, y: 15, to: "railNight", at: "D" });
+  }
+  if (scene === "outer" && hasFlag(run, "forkSeer")) {
+    portals.push({ ch: "9", x: 8, y: 4, to: "seerGaze", at: "D" });
+  }
+  if (scene === "ropes" && hasFlag(run, "forkSapper")) {
+    // 东缘内侧旁门，距缆市门 T 至少 3 格
+    portals.push({ ch: "9", x: 28, y: 5, to: "sapperPile", at: "D" });
+  }
+  // 驿路：港湾南岸西侧出淮阴（与码头门至少隔 3 格，贴南缘路尽）
+  if (
+    scene === "wharf" &&
+    (hasFlag(run, "mainOpen") ||
+      hasFlag(run, "branded") ||
+      hasFlag(run, "heardRebel") ||
+      hasFlag(run, "caseRebel") ||
+      hasFlag(run, "graceKnown") ||
+      run.beaten.includes("inkhand") ||
+      run.beaten.includes("stakeboss"))
+  ) {
+    portals.push({ ch: "9", x: 6, y: 30, to: "huainan", at: "Y" });
+  }
+  // 税卡 / 缆厂的淮阴门已写进 ascii（南廊 / 北缘），按职显隐
+  if (scene === "customs" && !(run.hero === "seer" || run.beaten.includes("inkhand"))) {
+    for (let i = portals.length - 1; i >= 0; i--) {
+      if (portals[i].to === "huainan") portals.splice(i, 1);
+    }
+  }
+  if (scene === "ropes" && !(run.hero === "sapper" || run.beaten.includes("stakeboss"))) {
+    for (let i = portals.length - 1; i >= 0; i--) {
+      if (portals[i].to === "huainan") portals.splice(i, 1);
+    }
+  }
+  if (scene === "bianjing" && !hasFlag(run, "roadUsurp")) {
+    for (let i = portals.length - 1; i >= 0; i--) {
+      if (portals[i].to === "usurpCamp") portals.splice(i, 1);
+    }
+  }
 
   if (arrival) {
     const p = portals.find((pt) => pt.ch === arrival);
     if (p) player = { x: p.x, y: p.y };
+  }
+
+  // 长镖：官道上塞一只绕不开的强敌（未打倒前挡门）
+  if (hasFlag(run, "escortLong") && !hasFlag(run, "escortEliteDone") && isOutdoor(scene)) {
+    const raw = run.flags.find((f) => f.startsWith("escortElite-"));
+    const eid = (raw?.replace("escortElite-", "") ?? "") as EnemyId;
+    if (eid && ENEMIES[eid] && !npcs.some((n) => n.id === eid)) {
+      const cx = Math.min(width - 3, Math.max(2, player.x + 2));
+      const cy = player.y;
+      npcs.push({ id: eid, x: cx, y: cy, beaten: run.beaten.includes(eid) });
+    }
   }
 
   const progress = [...((run.sealProgress[scene] ?? []) as SealId[])];
@@ -449,6 +638,7 @@ export function tryMove(
   w: World,
   dir: Dir,
   run: Run,
+  opts?: { suppressPortal?: boolean },
 ): { world: World; travel?: { to: SceneId; at: string } } {
   const next: World = structuredClone(w);
   next.facing = dir;
@@ -486,7 +676,27 @@ export function tryMove(
   if (next.tiles[ny][nx] === "seal") stepSeal(next, nx, ny, run);
 
   const portal = portalAt(next, nx, ny);
-  if (portal && portal.ch !== w.arrival) {
+  if (portal && portal.ch !== w.arrival && !opts?.suppressPortal) {
+    const eliteBlock = next.npcs.find(
+      (n) => !n.beaten && run.flags.some((f) => f === `escortElite-${n.id}`) && hasFlag(run, "escortLong") && !hasFlag(run, "escortEliteDone"),
+    );
+    if (eliteBlock) {
+      voice(next, "劫镖的人挡在官道上。不打过，门不开。", "绕不开。这是局里写进帖里的规矩。");
+      next.player = { x: w.player.x, y: w.player.y };
+      return { world: next };
+    }
+    const gate = canTravelTo(w.scene, portal.to, run);
+    if (!gate.ok) {
+      voice(next, gate.reason, "路未开。开了再走。");
+      next.player = { x: w.player.x, y: w.player.y };
+      return { world: next };
+    }
+    const hub = canEnterHubScene(portal.to, run);
+    if (!hub.ok) {
+      voice(next, hub.reason, "不是这条线上的人，先进不去。");
+      next.player = { x: w.player.x, y: w.player.y };
+      return { world: next };
+    }
     return { world: next, travel: { to: portal.to, at: portal.at } };
   }
   return { world: next };
@@ -512,6 +722,19 @@ function applyVoice(
   return beat.flags ?? [];
 }
 
+function talkCtx(run: Run, talkerId: string, pick?: string) {
+  return {
+    branded: hasFlag(run, "branded"),
+    items: run.items,
+    beaten: run.beaten,
+    flags: run.flags,
+    party: run.party,
+    step: run.talks?.[talkerId] ?? 0,
+    pick,
+    hero: run.hero ?? ("rail" as const),
+  };
+}
+
 export function interact(
   w: World,
   run: Run,
@@ -520,7 +743,7 @@ export function interact(
   world: World;
   action: InteractAction;
   enemyId?: EnemyId;
-  itemId?: GroundItem["id"];
+  itemId?: string;
   flags?: string[];
   travel?: { to: SceneId; at: string };
   tech?: "nightStep";
@@ -547,8 +770,20 @@ export function interact(
   if (npc) {
     next.dueling = npc.id;
     next.speaker = npc.id;
-    voice(next, "", "出招之前先亮招。");
-    return { world: next, action: "duel", enemyId: npc.id };
+    if (pick === "fight") {
+      voice(next, "", "出招之前先亮招。");
+      return { world: next, action: "duel", enemyId: npc.id };
+    }
+    if (pick === "leave") {
+      voice(next, "「算了。」", "刀收回去。人还在。");
+      next.dueling = null;
+      return { world: next, action: "talk" };
+    }
+    voice(next, ENEMY_PITCH[npc.id] ?? "「站住。」", "出招之前先亮招。", "", [
+      { id: "fight", label: "动手" },
+      { id: "leave", label: "算了" },
+    ]);
+    return { world: next, action: "talk" };
   }
 
   const talker =
@@ -557,6 +792,358 @@ export function interact(
     (pick && prevSpeaker && prevSpeaker !== "rail" ? next.talkers.find((t) => t.id === prevSpeaker) : undefined);
   if (talker) {
     next.speaker = talker.id;
+    if (talker.id === "doctor" && pick === "heal") {
+      const beat = talkBeat(talker.id, talkCtx(run, talker.id, pick));
+      applyVoice(next, beat);
+      if ((run.silver ?? 0) < 8) {
+        voice(next, "“银不够八两。脉通不了。”", "医馆不赊账。");
+        return { world: next, action: "talk" };
+      }
+      return { world: next, action: "heal", flags: beat.flags };
+    }
+    if (talker.id === "doctor") {
+      if (pick === "buySalve") {
+        voice(next, "“伤药六两一包。外用。”", "医馆卖药。");
+        return { world: next, action: "buyBag", itemId: "salve" };
+      }
+      if (pick === "buyTonic") {
+        voice(next, "“提气散八两。局内提一息。”", "药轻，气也不重。");
+        return { world: next, action: "buyBag", itemId: "tonic" };
+      }
+      if (pick === "buyHerb") {
+        voice(next, "“生药三两。你自己熬。”", "");
+        return { world: next, action: "buyBag", itemId: "herb" };
+      }
+      if (pick === "craftSalve") {
+        voice(next, "“两把药草，炉上走一刻。好了来取。”", "炼药不等人，也不催人。");
+        return { world: next, action: "craft", itemId: "salve" };
+      }
+      if (pick === "collect") {
+        voice(next, "“炉冷了。药在你手里。”", "");
+        return { world: next, action: "collectCraft" };
+      }
+      if (pick === "leave") {
+        voice(next, "“脉枕还温着。”", "");
+        return { world: next, action: "talk" };
+      }
+      voice(next, "“坐。诊脉八两。也可买药、借炉。”", "医馆不入江湖。江湖却常进医馆。", "", [
+        { id: "heal", label: "疗伤（八两）" },
+        { id: "buySalve", label: "买伤药（六两）" },
+        { id: "buyTonic", label: "买提气散（八两）" },
+        { id: "buyHerb", label: "买药草（三两）" },
+        { id: "craftSalve", label: "借炉炼伤药" },
+        { id: "collect", label: "取炉上的药" },
+        { id: "leave", label: "不诊" },
+      ]);
+      return { world: next, action: "talk" };
+    }
+    if (next.scene === "pawn" && talker.id === "vendor") {
+      if (pick === "buyPalm" || pick === "buySaber") {
+        const gearId = pick === "buyPalm" ? "palm-3" : "saber-3";
+        voice(next, "“银两点清。刀是旧的，劲是新的。”", "当铺认银。");
+        return { world: next, action: "shop", itemId: gearId };
+      }
+      if (pick?.startsWith("sell-")) {
+        voice(next, "“成色尚可。银给你。”", "当铺认货。");
+        return { world: next, action: "sellBag", itemId: pick.slice(5) };
+      }
+      if (pick === "sellMenu") {
+        voice(next, "“把货摊开。我按成色给银。”", "零碎货进柜，银进袋。", "", [
+          { id: "sell-herb", label: "当药草" },
+          { id: "sell-hide", label: "当兽皮" },
+          { id: "sell-dish", label: "当炒菜" },
+          { id: "sell-silk", label: "当碎绸" },
+          { id: "sell-copper", label: "当赤铜屑" },
+          { id: "leave", label: "算了" },
+        ]);
+        return { world: next, action: "talk" };
+      }
+      if (pick === "leave") {
+        voice(next, "“柜关着。”", "");
+        return { world: next, action: "talk" };
+      }
+      voice(next, "“当得出，也卖得出。兵刃柜上一排；零碎货按成色收。”", "当铺不讲价。", "", [
+        { id: "buyPalm", label: "买拳套（十八两）" },
+        { id: "buySaber", label: "买砍刀（二十二两）" },
+        { id: "sellMenu", label: "当掉行囊货" },
+        { id: "leave", label: "不买" },
+      ]);
+      return { world: next, action: "talk" };
+    }
+    if (next.scene === "escort" && talker.id === "docker") {
+      if (hasFlag(run, "escortDone")) {
+        voice(next, "“这趟镖结过了。旗还在风里。”", "镖认路。路走完了。");
+        return { world: next, action: "talk" };
+      }
+      if (hasFlag(run, "escortJob") || hasItem(run, "cargo")) {
+        const destFlag = run.flags.find((f) => f.startsWith("escortDest-"));
+        const destId = destFlag?.replace("escortDest-", "") ?? "";
+        const destName = ESCORT_DESTS.find((d) => d.id === destId)?.name ?? (destId || "码头");
+        const long = hasFlag(run, "escortLong");
+        voice(
+          next,
+          long
+            ? `“货还在你身上。送到${destName}才结。路上劫镖的人挡道，绕不开，打过才放行。”`
+            : "“货还在你身上。出西门到码头，交车夫手里。结银六两。”",
+          long ? "长镖：目的地固定抽签，路上必遇强敌。" : "东院出门就是码头。",
+        );
+        return { world: next, action: "talk" };
+      }
+      if (pick === "job") {
+        voice(
+          next,
+          "“短镖一帖。货箱给你。出西门到码头，交给车夫，结银六两。”",
+          "目的地：码头 · 车夫。出镖局西门即是。",
+        );
+        return { world: next, action: "talk", flags: ["escortJob"] };
+      }
+      if (pick === "jobLong") {
+        const job = pickEscortJob();
+        voice(
+          next,
+          `“长镖一帖。货送到${job.name}。银十五两，外加一锭碎元宝意思意思。路上有劫的，不让绕。”`,
+          `目的地：${job.name}。强敌已在官道上候着。`,
+        );
+        return {
+          world: next,
+          action: "talk",
+          flags: ["escortJob", "escortLong", `escortDest-${job.dest}`, `escortElite-${job.elite}`],
+        };
+      }
+      if (pick === "leave") {
+        voice(next, "“旗还在风里。”", "");
+        return { world: next, action: "talk" };
+      }
+      voice(next, "“局子接短镖，也接长镖。短的到码头；长的进城，路上必打一仗。”", "镖局认手。码头在西门外。", "", [
+        { id: "job", label: "接短镖（送码头）" },
+        { id: "jobLong", label: "接长镖（远城·必战）" },
+        { id: "leave", label: "不接" },
+      ]);
+      return { world: next, action: "talk" };
+    }
+    if (next.scene === "pier" && talker.id === "carter") {
+      if (hasFlag(run, "escortDone")) {
+        voice(next, "“货已经卸了。辕是空的。”", "");
+        return { world: next, action: "talk" };
+      }
+      if (hasFlag(run, "escortLong")) {
+        voice(next, "“长镖不卸码头。按帖送到城里。”", "目的城交货才结。");
+        return { world: next, action: "talk" };
+      }
+      if (hasFlag(run, "escortJob") || hasItem(run, "cargo")) {
+        if (pick === "leave") {
+          voice(next, "“货还在辕边等。”", "码头车夫接货才结银。");
+          return { world: next, action: "talk" };
+        }
+        if (pick === "deliver") {
+          voice(next, "“货到了。六两结你。回镖局报一声也成。”", "短镖落地。银入袋。");
+          return { world: next, action: "talk", flags: ["escortDone", "escortPay"] };
+        }
+        voice(next, "“局里的短镖？卸到辕上。我给你结银。”", "车夫认货，不认帖。目的地就是这儿。", "", [
+          { id: "deliver", label: "交货结银（六两）" },
+          { id: "leave", label: "先不交" },
+        ]);
+        return { world: next, action: "talk" };
+      }
+    }
+    // 长镖：目的城交货（任意城门吏/驿卒/摊贩可结，认货认帖）
+    if (
+      hasFlag(run, "escortLong") &&
+      (hasFlag(run, "escortJob") || hasItem(run, "cargo")) &&
+      !hasFlag(run, "escortDone")
+    ) {
+      const destFlag = run.flags.find((f) => f.startsWith("escortDest-"));
+      const destId = destFlag?.replace("escortDest-", "") ?? "";
+      if (destId && next.scene === destId) {
+        if (!hasFlag(run, "escortEliteDone")) {
+          voice(next, "“劫镖的人还没清。货我不敢接。”", "先打过官道上那一仗。");
+          return { world: next, action: "talk" };
+        }
+        if (pick === "deliverLong") {
+          const name = ESCORT_DESTS.find((d) => d.id === destId)?.name ?? destId;
+          voice(next, `“${name}的帖对上了。货卸下。十五两，外加一锭碎元宝。”`, "长镖落地。");
+          return { world: next, action: "talk", flags: ["escortDone", "escortPay"] };
+        }
+        if (pick === "leave") {
+          voice(next, "“货还在你身上。”", "");
+          return { world: next, action: "talk" };
+        }
+        voice(next, "“局里长镖？帖与货都在，便卸。”", "目的城交货结银。", "", [
+          { id: "deliverLong", label: "交货结长镖" },
+          { id: "leave", label: "先不交" },
+        ]);
+        return { world: next, action: "talk" };
+      }
+    }
+    if (next.scene === "martial" && talker.id === "coach") {
+      if (pick === "leave") {
+        const beat = talkBeat(talker.id, talkCtx(run, talker.id, pick));
+        applyVoice(next, beat);
+        return { world: next, action: "talk" };
+      }
+      if (pick === "craftPowder") {
+        voice(next, "“硫、炭、硝各一。砂坑旁炉上走两刻。”", "火折伤人轻，吓人重。");
+        return { world: next, action: "craft", itemId: "powder" };
+      }
+      if (pick === "craftDart") {
+        voice(next, "“赤铜屑一撮，磨两枚细镖。炉要热一会儿。”", "");
+        return { world: next, action: "craft", itemId: "dart" };
+      }
+      if (pick === "collect") {
+        voice(next, "“炉上的货，拿走。”", "");
+        return { world: next, action: "collectCraft" };
+      }
+      if (pick === "tongbaoForge") {
+        voice(next, "“通宝一枚，赤铜屑一撮，刃再涨一成。不是银两能催的。”", "锻刃认通宝。");
+        return { world: next, action: "tongbaoForge" };
+      }
+      if (pick === "matForge") {
+        voice(next, "“精材、玄铁、神髓——成色够了才吃炉。缺什么我报你。”", "精以上认锻材，不认空银。");
+        return { world: next, action: "matForge" };
+      }
+      if (pick === "craftXuanHp") {
+        voice(next, "“灵草两株、丹砂一撮、药草两把。炉要走三刻。”", "玄药·铁骨。选人服。");
+        return { world: next, action: "craft", itemId: "pillXuanHp" };
+      }
+      if (pick === "craftXuanQi") {
+        voice(next, "“灵草两株、丹砂一撮、硝石一撮。”", "玄药·长息。选人服。");
+        return { world: next, action: "craft", itemId: "pillXuanQi" };
+      }
+      if (pick === "forgeMenu") {
+        voice(next, "“砂坑炼暗器。通宝锻凡良。精以上吃锻材。玄药也在这炉。”", "", "", [
+          { id: "craftPowder", label: "配火折子" },
+          { id: "craftDart", label: "磨细镖" },
+          { id: "tongbaoForge", label: "通宝锻刃（凡→良）" },
+          { id: "matForge", label: "锻材升刃（精/玄/神）" },
+          { id: "craftXuanHp", label: "炼玄药·铁骨" },
+          { id: "craftXuanQi", label: "炼玄药·长息" },
+          { id: "collect", label: "取炉上货" },
+          { id: "leave", label: "回去" },
+        ]);
+        return { world: next, action: "talk" };
+      }
+      const lesson = pick ? lessonByPick(pick) : null;
+      if (lesson) {
+        if (run.techniques.includes(lesson.id)) {
+          voice(next, "“这门你已经有了。”", "砂坑不卖重复的谱。");
+          return { world: next, action: "talk" };
+        }
+        if ((run.silver ?? 0) < lesson.price) {
+          voice(next, `“银不够 ${lesson.price} 两。谱不赊。”`, "武馆认银。");
+          return { world: next, action: "talk" };
+        }
+        voice(next, `“${lesson.label}。银两点清。下去砂坑走两步。”`, TECHNIQUES[lesson.id].text);
+        return { world: next, action: "learn", itemId: lesson.id };
+      }
+      const offers = martialOffers(run.techniques as TechniqueId[]);
+      voice(
+        next,
+        "“外功点名。砂坑也能炼暗器。通宝锻刃另开一炉。”",
+        "馆主不劝打。他劝人掏银。",
+        "",
+        [
+          ...offers.slice(0, 3).map((o) => ({ id: `learn:${o.id}`, label: `${o.label}（${o.price}两）` })),
+          { id: "forgeMenu", label: "炼器 / 锻刃" },
+          { id: "leave", label: "不学" },
+        ],
+      );
+      return { world: next, action: "talk" };
+    }
+    if (talker.id === "passClerk") {
+      if (hasFlag(run, "roadPass") || hasItem(run, "roadPass")) {
+        voice(next, "「帖已在你身上。关卡验火印。」", "");
+        return { world: next, action: "talk" };
+      }
+      if (pick === "tongbaoPass") {
+        voice(next, "「通宝一枚。我给你提前盖帖。驿路三程先开。」", "官帖认通宝，比银烫手。");
+        return { world: next, action: "tongbaoPass" };
+      }
+      if (pick === "buy" || pick === "ask") {
+        voice(next, "「通关文牒，官价八两。盖了可走驿路三程。」", "他不看刀。他看银。");
+        return { world: next, action: "talk", flags: ["buyRoadPass8"] };
+      }
+      voice(next, "「城门验帖。无帖者退回。通宝急件另议。」", "", "", [
+        { id: "buy", label: "银两买文牒（八两）" },
+        { id: "tongbaoPass", label: "通宝贿帖（一枚）" },
+        { id: "leave", label: "先退" },
+      ]);
+      return { world: next, action: "talk" };
+    }
+    if (talker.id === "herbDoc") {
+      if (pick === "tongbaoTech") {
+        voice(next, "「两枚通宝，换一页旧谱。不是银两能催的。」", "药香里藏着刀谱。");
+        return { world: next, action: "tongbaoTech" };
+      }
+      if (pick === "buySulfur") {
+        voice(next, "「硫磺三两一包。炼火折用。」", "");
+        return { world: next, action: "buyBag", itemId: "sulfur" };
+      }
+      if (pick === "ask") {
+        const beat = talkBeat(talker.id, talkCtx(run, talker.id, pick));
+        applyVoice(next, beat);
+        return { world: next, action: "talk", flags: beat.flags };
+      }
+      if (pick === "leave") {
+        voice(next, "「药香还在。」", "");
+        return { world: next, action: "talk" };
+      }
+      voice(next, "「亳州药香压刀香。通宝也能换残页。」", "", "", [
+        { id: "ask", label: "可有托付" },
+        { id: "buySulfur", label: "买硫磺（三两）" },
+        { id: "tongbaoTech", label: "通宝换残页（二枚）" },
+        { id: "leave", label: "路过" },
+      ]);
+      return { world: next, action: "talk" };
+    }
+    if (talker.id === "roadHawker") {
+      if (pick === "buyGreens") {
+        voice(next, "「青菜二两一把。灶上能炒。」", "");
+        return { world: next, action: "buyBag", itemId: "greens" };
+      }
+      if (pick === "craftDish") {
+        voice(next, "「两把青菜，锅上走一刻。好了来取。」", "摊贩也借灶。");
+        return { world: next, action: "craft", itemId: "dish" };
+      }
+      if (pick === "collect") {
+        voice(next, "「菜好了。趁热。」", "");
+        return { world: next, action: "collectCraft" };
+      }
+      if (pick === "buy") {
+        voice(next, "「闸饭一碗。热。别赊。」", "摊上油烟，盖过马粪。");
+        return { world: next, action: "talk" };
+      }
+      if (pick === "rumor") {
+        const beat = talkBeat(talker.id, talkCtx(run, talker.id, pick));
+        applyVoice(next, beat);
+        return { world: next, action: "talk", flags: beat.flags };
+      }
+      if (pick === "leave") {
+        voice(next, "「下回再来。」", "");
+        return { world: next, action: "talk" };
+      }
+      voice(next, "「驿路边卖热食。青菜也能买。灶上能炒。」", "摊主眼睛比勺快。", "", [
+        { id: "buy", label: "买一碗" },
+        { id: "buyGreens", label: "买青菜（二两）" },
+        { id: "craftDish", label: "借灶炒菜" },
+        { id: "collect", label: "取锅上的菜" },
+        { id: "rumor", label: "听闲话" },
+        { id: "leave", label: "路过" },
+      ]);
+      return { world: next, action: "talk" };
+    }
+    if (next.scene === "yamen" && talker.id === "bailiff" && pick === "bribe") {
+      const beat = talkBeat(talker.id, talkCtx(run, talker.id, pick));
+      applyVoice(next, beat);
+      if (hasFlag(run, "yamenBribe")) {
+        return { world: next, action: "talk", flags: beat.flags };
+      }
+      if ((run.silver ?? 0) < 15) {
+        voice(next, "“十五两不够，帖压不住。”", "差人腰里空着。");
+        return { world: next, action: "talk" };
+      }
+      voice(next, "“帖压下了。夜里岗松半息。”", "贿赂不入正册。");
+      return { world: next, action: "talk", flags: ["yamenBribe", "yamenPay-15"] };
+    }
     if (talker.id === "inn" && hasFlag(run, "emptyBowl") && run.hp < run.hpMax && !hasFlag(run, "restedTea")) {
       voice(next, "茶是热的。喝了这一碗。", "空碗开过锁。热茶开过气。");
       return { world: next, action: "rest", flags: ["restedTea"] };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MATES, WEAPON_NAME, WEAPON_PACE, addCompanion, deckFor, grantChapterTwo, healRun, noteFall, reviveHp, schoolLabel, stashOrTeach } from "./party";
+import { MATES, MATE_OFFER, WEAPON_NAME, WEAPON_PACE, addCompanion, deckFor, grantChapterTwo, healRun, mateJoinReady, noteFall, reviveHp, schoolLabel, stashOrTeach } from "./party";
 import { makeRun } from "./run";
 import { makeBattle, swapFighter } from "./sim";
 
@@ -31,9 +31,19 @@ describe("party and weapons", () => {
     expect(run.party).toEqual(["rail", "porter"]);
   });
 
-  it("gives the boat at the start of the second chapter", () => {
+  it("gates companion joins by hero offer order", () => {
+    const seer = makeRun("empty", "seer");
+    expect(mateJoinReady(seer, "scribe")).toBe(true);
+    expect(mateJoinReady(seer, "porter")).toBe(false);
+    expect(MATE_OFFER.sapper[0]).toBe("hooker");
+    expect(MATE_OFFER.rail[0]).toBe("porter");
+  });
+
+  it("gives the next mate in hero offer order at chapter two", () => {
     const run = grantChapterTwo(makeRun("empty"));
-    expect(run.party).toContain("boat");
+    expect(run.party).toContain("porter");
+    const seer = grantChapterTwo(makeRun("empty", "seer"));
+    expect(seer.party).toContain("scribe");
   });
 
   it("heals everyone a little at a rest", () => {
@@ -53,8 +63,8 @@ describe("swap and packs", () => {
     expect(b.bench.some((m) => m.id === "porter")).toBe(true);
     b = swapFighter(b, "porter");
     expect(b.active).toBe("porter");
-    expect(b.energy).toBe(2);
-    expect(b.player.name).toBe("杠七");
+    expect(b.energy).toBe(7);
+    expect(b.player.name).toBe("韩铁");
     expect(b.hand.some((c) => c.defId === "plant")).toBe(true);
   });
 
@@ -62,7 +72,7 @@ describe("swap and packs", () => {
     const run = addCompanion(makeRun("empty"), "hermit");
     let b = makeBattle("catcher", run, true);
     b = swapFighter(b, "hermit");
-    expect(b.player.name).toBe("井叟");
+    expect(b.player.name).toBe("井清源");
     expect(b.hand.some((c) => c.defId === "elbow")).toBe(true);
   });
 
@@ -77,6 +87,7 @@ describe("weapon scrolls", () => {
   it("marks generic cards as 通用", () => {
     expect(schoolLabel("defend")).toBe("通用");
     expect(schoolLabel("mend")).toBe("通用");
+    expect(schoolLabel("sidestep")).toBe("通用");
     expect(schoolLabel("cut")).toBe("刀");
     expect(schoolLabel("strike")).toBe("拳掌");
   });

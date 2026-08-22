@@ -8,9 +8,9 @@ describe("three names on one map", () => {
   it("starts each name at a different door", () => {
     expect(HERO_START.rail).toBe("hut");
     expect(HERO_START.seer).toBe("customs");
-    expect(HERO_START.sapper).toBe("ropes");
+    expect(HERO_START.sapper).toBe("pit");
     expect(makeRun("empty", "seer").scene).toBe("customs");
-    expect(makeRun("empty", "sapper").scene).toBe("ropes");
+    expect(makeRun("empty", "sapper").scene).toBe("pit");
     expect(makeRun("empty").party).toEqual(["rail"]);
     expect(makeRun("empty", "seer").party).toEqual(["seer"]);
   });

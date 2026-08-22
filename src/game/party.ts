@@ -51,7 +51,7 @@ const SABER_DECK: CardId[] = [
   "charge",
   "cut",
   "mend",
-  "backpalm",
+  "sidestep",
 ];
 
 const SPEAR_DECK: CardId[] = [
@@ -78,10 +78,11 @@ const SWORD_DECK: CardId[] = [
   "pierce",
   "defend",
   "advance",
+  "cauterize",
 ];
 
 const STAFF_DECK: CardId[] = [
-  "strike",
+  "split",
   "defend",
   "split",
   "sweep",
@@ -91,6 +92,7 @@ const STAFF_DECK: CardId[] = [
   "advance",
   "mend",
   "sweep",
+  "sidestep",
 ];
 
 const HOOK_DECK: CardId[] = [
@@ -104,6 +106,7 @@ const HOOK_DECK: CardId[] = [
   "defend",
   "sweep",
   "hookpull",
+  "sidestep",
 ];
 
 const HERMIT_DECK: CardId[] = [
@@ -117,6 +120,7 @@ const HERMIT_DECK: CardId[] = [
   "defend",
   "strike",
   "mend",
+  "suture",
 ];
 
 export const MATES: Record<CompanionId, MateDef> = {
@@ -138,7 +142,7 @@ export const MATES: Record<CompanionId, MateDef> = {
   },
   sapper: {
     id: "sapper",
-    name: "工兵",
+    name: "沈夯",
     title: "桩师",
     weapon: "staff",
     hp: 32,
@@ -146,8 +150,8 @@ export const MATES: Record<CompanionId, MateDef> = {
   },
   porter: {
     id: "porter",
-    name: "杠七",
-    title: "杠手",
+    name: "韩铁",
+    title: "码头扛手",
     weapon: "staff",
     hp: 26,
     deck: STAFF_DECK,
@@ -155,8 +159,8 @@ export const MATES: Record<CompanionId, MateDef> = {
   },
   boat: {
     id: "boat",
-    name: "阿渡",
-    title: "水上剑",
+    name: "苏渡烟",
+    title: "船娘",
     weapon: "sword",
     hp: 24,
     deck: SWORD_DECK,
@@ -164,8 +168,8 @@ export const MATES: Record<CompanionId, MateDef> = {
   },
   watch: {
     id: "watch",
-    name: "更三",
-    title: "夜刀",
+    name: "沈夜行",
+    title: "夜巡刀",
     weapon: "saber",
     hp: 26,
     deck: SABER_DECK,
@@ -173,8 +177,8 @@ export const MATES: Record<CompanionId, MateDef> = {
   },
   pilgrim: {
     id: "pilgrim",
-    name: "香九",
-    title: "锡杖",
+    name: "玄香",
+    title: "锡杖客",
     weapon: "spear",
     hp: 24,
     deck: SPEAR_DECK,
@@ -182,8 +186,8 @@ export const MATES: Record<CompanionId, MateDef> = {
   },
   hooker: {
     id: "hooker",
-    name: "缆石",
-    title: "岸钩",
+    name: "石岸",
+    title: "岸缆手",
     weapon: "hook",
     hp: 25,
     deck: HOOK_DECK,
@@ -191,12 +195,66 @@ export const MATES: Record<CompanionId, MateDef> = {
   },
   hermit: {
     id: "hermit",
-    name: "井叟",
+    name: "井清源",
     title: "井底掌",
     weapon: "palm",
     hp: 25,
     deck: HERMIT_DECK,
     talker: "hermit",
+  },
+  salter: {
+    id: "salter",
+    name: "颜牙",
+    title: "秤上刀",
+    weapon: "saber",
+    hp: 25,
+    deck: SABER_DECK,
+    talker: "saltBroker",
+  },
+  scribe: {
+    id: "scribe",
+    name: "朱文渊",
+    title: "案头剑",
+    weapon: "sword",
+    hp: 22,
+    deck: SWORD_DECK,
+    talker: "caseclerk",
+  },
+  bard: {
+    id: "bard",
+    name: "柳青云",
+    title: "舌上剑",
+    weapon: "palm",
+    hp: 23,
+    deck: PALM_DECK,
+    talker: "storyman",
+  },
+  blade: {
+    id: "blade",
+    name: "江晚涛",
+    title: "航边客",
+    weapon: "saber",
+    hp: 27,
+    deck: SABER_DECK,
+    talker: "riverBlade",
+  },
+  weaver: {
+    id: "weaver",
+    name: "苏素心",
+    title: "绣钩",
+    weapon: "hook",
+    hp: 24,
+    deck: HOOK_DECK,
+    talker: "silkWife",
+  },
+  guard: {
+    id: "guard",
+    name: "西门远山",
+    title: "关城卒",
+    weapon: "spear",
+    hp: 28,
+    deck: SPEAR_DECK,
+    talker: "westGuard",
   },
 };
 
@@ -207,16 +265,77 @@ export const JOIN_FLAG: Record<string, CompanionId> = {
   joinPilgrim: "pilgrim",
   joinRoper: "hooker",
   joinHermit: "hermit",
+  joinSalter: "salter",
+  joinScribe: "scribe",
+  joinBard: "bard",
+  joinBlade: "blade",
+  joinWeaver: "weaver",
+  joinGuard: "guard",
+};
+
+/** 三职伙伴出场序：前段完全错开，后期才交错。 */
+export const MATE_OFFER: Record<"rail" | "seer" | "sapper", CompanionId[]> = {
+  rail: ["porter", "boat", "watch", "pilgrim", "hooker", "hermit", "salter", "blade", "weaver", "guard", "scribe", "bard"],
+  seer: ["scribe", "weaver", "bard", "guard", "salter", "blade", "porter", "boat", "watch", "pilgrim", "hooker", "hermit"],
+  sapper: ["hooker", "hermit", "guard", "blade", "porter", "salter", "weaver", "scribe", "bard", "boat", "watch", "pilgrim"],
+};
+
+/** 只有轮到本职序的下一位（或已过序）才可入队。 */
+export function mateJoinReady(run: Run, mate: CompanionId): boolean {
+  if (run.party.includes(mate)) return false;
+  const hero = (run.hero ?? "rail") as "rail" | "seer" | "sapper";
+  const order = MATE_OFFER[hero];
+  const idx = order.indexOf(mate);
+  if (idx < 0) return true;
+  for (let i = 0; i < idx; i++) {
+    if (!run.party.includes(order[i])) return false;
+  }
+  return true;
+}
+
+export interface MatePassive {
+  name: string;
+  text: string;
+}
+
+export const MATE_PASSIVE: Partial<Record<CompanionId, MatePassive>> = {
+  rail: { name: "门劲", text: "推撞成功，格挡 +1。" },
+  seer: { name: "余墨", text: "收势时若劲力用尽，下回额外回劲 +1。" },
+  sapper: { name: "桩皮", text: "有格挡时，挨打多 1 点反震。" },
+  porter: { name: "稳肩", text: "上场每回开局格挡 +1。" },
+  boat: { name: "水步", text: "不贴身时，每回开局格挡 +1。" },
+  watch: { name: "夜袖", text: "上场手牌上限 +1。" },
+  pilgrim: { name: "锡息", text: "这一息没出攻击，收势回 1 血。" },
+  hooker: { name: "缆手", text: "拉近后，下一掌 +2。" },
+  hermit: { name: "井根", text: "场上有桩，每回开局格挡 +1。" },
+  salter: { name: "秤口", text: "先机领先时，攻击 +1。" },
+  scribe: { name: "案锋", text: "破绽≥2 时抽牌上限视作多 1（开局）。" },
+  bard: { name: "舌刃", text: "每回开局若手牌有技能，格挡 +1。" },
+  blade: { name: "航刃", text: "贴身攻击 +1。" },
+  weaver: { name: "经纬", text: "铺势≥1 时格挡牌额外 +1。" },
+  guard: { name: "门岗", text: "开局格挡 +2，先机 -1。" },
 };
 
 export function cardSchool(id: CardId): WeaponId | "any" {
   const key = id.replace(/2$/, "");
-  if (key === "strike" || key === "push" || key === "backpalm" || key === "elbow" || key === "finisher" || key === "layer" || key === "weave") return "palm";
-  if (key === "cut" || key === "drawcut" || key === "rift") return "saber";
-  if (key === "thrust") return "spear";
-  if (key === "pierce" || key === "expose" || key === "marking") return "sword";
-  if (key === "split" || key === "plant" || key === "bleedcut" || key === "thorns" || key === "ironform") return "staff";
-  if (key === "hookpull") return "hook";
+  if (
+    key === "strike" ||
+    key === "push" ||
+    key === "backpalm" ||
+    key === "elbow" ||
+    key === "finisher" ||
+    key === "layer" ||
+    key === "weave" ||
+    key === "bindwound" ||
+    key === "palmSeal"
+  )
+    return "palm";
+  if (key === "cut" || key === "drawcut" || key === "rift" || key === "saberBleed") return "saber";
+  if (key === "thrust" || key === "spearLock") return "spear";
+  if (key === "pierce" || key === "expose" || key === "marking" || key === "swordMute") return "sword";
+  if (key === "split" || key === "plant" || key === "bleedcut" || key === "thorns" || key === "ironform" || key === "staffBind")
+    return "staff";
+  if (key === "hookpull" || key === "hookDisarm") return "hook";
   return "any";
 }
 
@@ -260,8 +379,16 @@ export function teachScrolls(run: Run): Run {
   return next;
 }
 
+export const PARTY_CAP = 7;
+
 export function addCompanion(run: Run, id: CompanionId): Run {
   if (run.party.includes(id)) return run;
+  if (run.party.length >= PARTY_CAP) {
+    return {
+      ...run,
+      flags: run.flags.includes("partyFullHint") ? run.flags : [...run.flags, "partyFullHint"],
+    };
+  }
   const def = MATES[id];
   return teachScrolls({
     ...run,
@@ -270,9 +397,21 @@ export function addCompanion(run: Run, id: CompanionId): Run {
   });
 }
 
+export function dismissCompanion(run: Run, id: CompanionId): Run {
+  if (isLead(run, id)) return run;
+  if (!run.party.includes(id)) return run;
+  const party = run.party.filter((p) => p !== id);
+  const companionHp = { ...run.companionHp };
+  delete companionHp[id];
+  const active = run.active === id ? (party[0] ?? run.active) : run.active;
+  return { ...run, party, companionHp, active };
+}
+
 export function grantChapterTwo(run: Run): Run {
-  if (!run.party.includes("boat")) return addCompanion(run, "boat");
-  if (!run.party.includes("watch")) return addCompanion(run, "watch");
+  const hero = (run.hero ?? "rail") as keyof typeof MATE_OFFER;
+  for (const id of MATE_OFFER[hero]) {
+    if (!run.party.includes(id)) return addCompanion(run, id);
+  }
   return run;
 }
 
@@ -291,20 +430,20 @@ export function reviveHp(max: number): number {
 
 export function noteFall(falls: number): { over: boolean; said: string; thought: string } {
   if (falls >= FALL_LIMIT) {
-    return { over: true, said: "三次都倒了。这一趟帖作废。", thought: "要重新递。" };
+    return { over: true, said: "三次都倒了。这趟算完了。", thought: "要重新走。港上的口，也不会再认这一回。" };
   }
   const left = FALL_LIMIT - falls;
   if (left === 2) {
     return {
       over: false,
       said: "倒了。只剩一成血。还能起两回。",
-      thought: "第三回就要重新递帖。",
+      thought: "港上的人看见了。有些话，会变得短。",
     };
   }
   return {
     over: false,
     said: "倒了。只剩一成血。还能起一回。",
-    thought: "再倒一次，这一趟就完了。",
+    thought: "再倒一次，井树石那些口子，港上就不认了。",
   };
 }
 

@@ -1,8 +1,12 @@
 export const EDGE_TILES = 3;
 
-export function coverScale(mapW: number, mapH: number, stageW: number, stageH: number): number {
-  if (mapW <= 0 || mapH <= 0 || stageW <= 0 || stageH <= 0) return 1;
-  return Math.max(stageW / mapW, stageH / mapH);
+/** Outdoor: higher camera (more ground in view). Indoor: lower camera (tiles closer). */
+export const OUTDOOR_SCALE = 1;
+export const INDOOR_SCALE = 1.42;
+
+/** Fixed play scales — big cities must not shrink the avatar. */
+export function coverScale(outdoor: boolean): number {
+  return outdoor ? OUTDOOR_SCALE : INDOOR_SCALE;
 }
 
 export interface Cam {

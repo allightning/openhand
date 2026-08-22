@@ -250,5 +250,9 @@ export function heartMark(): string {
 }
 
 export function coinMark(): string {
-  return `<svg viewBox="0 0 16 16" class="ico"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8" cy="8" r="2" fill="currentColor"/></svg>`;
+  return `<svg viewBox="0 0 20 20" class="ico coin-ico" aria-hidden="true">
+    <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2.2"/>
+    <circle cx="10" cy="10" r="5.2" fill="none" stroke="currentColor" stroke-width="1.4" opacity=".55"/>
+    <circle cx="10" cy="10" r="2.2" fill="currentColor"/>
+  </svg>`;
 }

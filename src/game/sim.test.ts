@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { STARTER } from "./content";
+import { ENEMY_WEAPON, STARTER } from "./content";
+import { addCompanion, cardSchool } from "./party";
 import { makeRun } from "./run";
 import {
   cloneBattle,
@@ -8,6 +9,8 @@ import {
   makeTutorialBattle,
   playCard,
   previewCard,
+  statusChips,
+  swapFighter,
   yourPace,
 } from "./sim";
 import type { CardId } from "./types";
@@ -40,7 +43,7 @@ describe("tutorial battle", () => {
     b = playNamed(b, "strike");
     b = playNamed(b, "strike");
     expect(b.enemy.hp).toBe(38);
-    expect(b.energy).toBe(0);
+    expect(b.energy).toBe(STARTER.energyStart - 3);
     expect(b.phase).toBe("player");
   });
 
@@ -200,8 +203,9 @@ describe("new verbs and techniques", () => {
   it("lets a yard bandit take the stone", () => {
     const b = makeBattle("bandit");
     expect(b.enemy.name).toBe("岗花子");
-    expect(b.enemy.hp).toBe(74);
-    expect(b.intent.kind).toBe("charge");
+    expect(b.enemy.hp).toBe(110);
+    expect(b.enemyEnergyMax).toBeGreaterThanOrEqual(2);
+    expect(b.intents.length).toBeGreaterThanOrEqual(1);
   });
 
   it("lets follow hit harder after an attack, and chain after combo", () => {
@@ -283,6 +287,50 @@ describe("new verbs and techniques", () => {
     const b = makeBattle("smuggler");
     expect(b.intent.kind).toBe("guard");
   });
+
+  it("fires a buried slash when the catcher finally hits", () => {
+    const run = makeRun("empty");
+    run.deck = ["burySlash", "defend", "defend", "defend", "defend"];
+    let b = makeBattle("catcher", run, true);
+    b = playNamed(b, "burySlash");
+    expect(b.youRiposte).toBe("slash");
+    expect(b.youRiposteTurns).toBeGreaterThanOrEqual(4);
+    expect(statusChips(b, "you").some((c) => c.key === "bury" && c.value.includes("回刀"))).toBe(true);
+    b = endTurn(b);
+    expect(b.youRiposte).toBe(null);
+    expect(b.enemy.hp).toBe(46);
+    expect(b.player.hp).toBe(STARTER.playerHp - 18);
+  });
+
+  it("lets 金创 stop your 裂创", () => {
+    const run = makeRun("empty");
+    run.deck = ["salve", "defend", "defend", "defend", "defend"];
+    let b = makeBattle("catcher", run, true);
+    b.youBleed = 4;
+    b.player.hp = 20;
+    b = playNamed(b, "salve");
+    expect(b.youBleed).toBe(0);
+    expect(b.player.hp).toBe(26);
+  });
+
+  it("lets a foe interrupt stacked 铺势 after the first turn", () => {
+    const run = makeRun("empty");
+    run.deck = ["setup", "setup", "defend", "defend", "defend"];
+    let b = makeBattle("catcher", run, true);
+    b = playNamed(b, "setup");
+    b = playNamed(b, "setup");
+    expect(b.setup).toBe(2);
+    b = endTurn(b);
+    expect(b.intent).toEqual({ kind: "lunge", damage: 16 });
+  });
+
+  it("gives each enemy a weapon and more than one school", () => {
+    expect(ENEMY_WEAPON.catcher).toBe("saber");
+    expect(ENEMY_WEAPON.piler).toBe("staff");
+    expect(ENEMY_WEAPON.hauler).toBe("hook");
+    expect(ENEMY_WEAPON.delay).toBe("sword");
+    expect(new Set(Object.values(ENEMY_WEAPON)).size).toBeGreaterThanOrEqual(4);
+  });
 });
 
 describe("先机", () => {
@@ -308,6 +356,62 @@ describe("先机", () => {
     expect(yourPace(b)).toBe(5);
     b = playNamed(b, "haste");
     expect(yourPace(b)).toBe(8);
+  });
+});
+
+describe("stance, swap, and mates", () => {
+  it("swaps places with an adjacent foe", () => {
+    const run = makeRun("empty");
+    run.deck = ["close", "sidestep", "defend", "defend", "defend"];
+    let b = makeBattle("catcher", run, true);
+    b = playNamed(b, "close");
+    expect(b.player.pos).toBe(4);
+    expect(b.enemy.pos).toBe(5);
+    b = playNamed(b, "sidestep");
+    expect(b.player.pos).toBe(5);
+    expect(b.enemy.pos).toBe(4);
+  });
+
+  it("punishes advancing and retreating in the same breath", () => {
+    const run = makeRun("empty");
+    run.deck = ["advance", "backpalm", "defend", "defend", "defend"];
+    let b = makeBattle("catcher", run, true);
+    b = playNamed(b, "advance");
+    b = playNamed(b, "backpalm");
+    b = endTurn(b);
+    expect(b.log.some((line) => line.includes("乱步"))).toBe(true);
+    expect(b.youSway).toBe(1);
+    expect(b.player.hp).toBe(STARTER.playerHp - 16);
+  });
+
+  it("keeps a buried form for several turns when it does not fire", () => {
+    const run = makeRun("empty");
+    run.deck = ["burySlash", "defend", "defend", "defend", "defend"];
+    let b = makeBattle("smuggler", run, true);
+    b = playNamed(b, "burySlash");
+    const held = b.youRiposteTurns;
+    expect(held).toBeGreaterThanOrEqual(4);
+    b = endTurn(b);
+    expect(b.youRiposte).toBe("slash");
+    expect(b.youRiposteTurns).toBe(held - 1);
+  });
+
+  it("discards off-school pages when a mate takes the floor", () => {
+    const run = addCompanion(makeRun("empty"), "watch");
+    let b = makeBattle("catcher", run, true);
+    const bag = b.bench.find((m) => m.id === "watch");
+    if (!bag) throw new Error("watch missing");
+    bag.hand[0] = { uid: bag.hand[0].uid, defId: "strike" };
+    const n = bag.hand.length;
+    b = swapFighter(b, "watch");
+    expect(b.active).toBe("watch");
+    expect(b.hand.some((c) => c.defId === "strike")).toBe(false);
+    expect(b.hand.length).toBe(n);
+    expect(b.discardPile.some((c) => c.defId === "strike")).toBe(true);
+    expect(b.hand.every((c) => {
+      const school = cardSchool(c.defId);
+      return school === "any" || school === "saber";
+    })).toBe(true);
   });
 });
 
