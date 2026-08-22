@@ -24,13 +24,14 @@ describe("phase1-5 scaffolds", () => {
     expect(PATH_BEATS.blade.length).toBeGreaterThanOrEqual(4);
   });
   it("difficulty change cap 3 + smooth curve", () => {
-    let s: DifficultyState = { difficulty: "normal", changes: 0, lastChangeAt: 0 };
+    const cool = 10 * 60 * 1000;
+    let s: DifficultyState = { difficulty: "normal", changes: 0, lastChangeAt: -cool };
     for (let i = 0; i < 3; i++) {
-      const r = applyDifficultyChange(s, "hard", i * 11 * 60 * 1000);
+      const r = applyDifficultyChange(s, "hard", i * cool + cool);
       expect(r.error).toBeUndefined();
       s = r.state;
     }
-    expect(applyDifficultyChange(s, "easy", 99 * 60 * 1000).error).toMatch(/用尽/);
+    expect(applyDifficultyChange(s, "easy", 99 * cool).error).toMatch(/用尽/);
     const mods = [1, 2, 3, 4, 5, 6, 7].map((c) => difficultyModifier("normal", c));
     expect(validateDifficultyCurve(mods).ok).toBe(true);
   });
