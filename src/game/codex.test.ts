@@ -13,7 +13,7 @@ import { questLog } from "./quest";
 describe("codex", () => {
   it("explains how an upgrade beats the old card", () => {
     const beats = upgradeBeats("strike", "strike2");
-    expect(beats.some((b) => b.includes("伤害") && b.includes("6") && b.includes("9"))).toBe(true);
+    expect(beats.some((b) => b.includes("伤害") && b.includes("5") && b.includes("10"))).toBe(true);
     expect(upgradeCompareLine("strike", "strike2")).toMatch(/劈掌/);
   });
 

@@ -32,6 +32,9 @@ import type {
   SceneId,
 } from "./types";
 import { isOutdoor } from "./tileset";
+import { encodePropId, type EntityMark } from "./entityMarks";
+import { applyPropFootprints, propCovers } from "./propFootprint";
+import type { Barrier } from "./types";
 
 const ENEMY_PITCH: Partial<Record<EnemyId, string>> = Object.fromEntries(
   Object.values(ENEMIES).map((e) => [e.id, e.pitch]),
@@ -108,10 +111,16 @@ function tileOf(ch: string, scene: SceneId): Tile {
   if (ch === "#") return "wall";
   if (ch === "~") return "water";
   // % = 水岸/泽；^ = 山丘（户外恢复高度感，不再整片压成水）
-  if (ch === "%") return isOutdoor(scene) ? "water" : "rock";
+  if (ch === "%") {
+    if (scene === "luoyang") return "shore";
+    return isOutdoor(scene) ? "water" : "rock";
+  }
   if (ch === "^") return isOutdoor(scene) ? "hill" : "rock";
   if (ch === "=") return "road";
-  if (ch === ",") return "pack";
+  if (ch === ",") {
+    if (scene === "luoyang") return "sidewalk";
+    return "pack";
+  }
   if (ch === "G") return "gate";
   if (ch === "!") return "sign";
   if (ch === "C") return "cache";
@@ -187,6 +196,13 @@ function extraProp(scene: SceneId, ch: string): { kind: PropKind; tag: string } 
   if ((scene === "luoyang" || scene.startsWith("luoyang_")) && ch === "f") {
     return { kind: "cart", tag: "carriage" };
   }
+  // 洛阳：e=摊棚、n=井（避开已占用的大写 talker 字母）
+  if ((scene === "luoyang" || scene.startsWith("luoyang_")) && ch === "e") {
+    return { kind: "stall", tag: "stall" };
+  }
+  if ((scene === "luoyang" || scene.startsWith("luoyang_")) && ch === "n") {
+    return { kind: "well", tag: "well" };
+  }
   // 古井：仅户外特定场景用 o；室内 o 留给凳
   if (ch === "o" && (scene === "wharf" || scene === "spit" || scene === "yard" || scene === "ridge" || scene === "plot" || scene === "lamp" || scene === "sluice" || scene === "pier")) {
     return { kind: "well", tag: "well" };
@@ -215,12 +231,23 @@ function extraProp(scene: SceneId, ch: string): { kind: PropKind; tag: string } 
     return { kind: "house", tag: "shed" };
   }
   // Decorative gates: walkable, not portals. ; = named 税卡 / 门额, : = plain arch (no「门」字).
+  // 洛阳院门 : 必须可走（二级内室门在院内深处）；勿做成阻挡 arch，否则进不了院。
   if (ch === ";") {
+    if (scene === "luoyang" || scene.startsWith("luoyang_")) {
+      return { kind: "arch", tag: "洛阳门" };
+    }
     if (scene === "wharf") return { kind: "arch", tag: "税卡" };
     if (scene === "ridge") return { kind: "arch", tag: "衙门" };
     return { kind: "arch", tag: "" };
   }
-  if (ch === ":") return { kind: "arch", tag: "" };
+  if (ch === ":") {
+    if (scene === "luoyang") return { kind: "arch", tag: "院门" };
+    if (scene.startsWith("luoyang_")) return null;
+    return { kind: "arch", tag: "" };
+  }
+  if ((scene === "luoyang" || scene.startsWith("luoyang_")) && ch === "H") {
+    return { kind: "house", tag: "铺面" };
+  }
   return null;
 }
 
@@ -249,7 +276,7 @@ function talkerAt(w: World, x: number, y: number): Talker | undefined {
 }
 
 function propAt(w: World, x: number, y: number): Prop | undefined {
-  return w.props.find((p) => p.x === x && p.y === y);
+  return w.props.find((p) => propCovers(p, x, y));
 }
 
 function sealAt(w: World, x: number, y: number): Seal | undefined {
@@ -260,6 +287,8 @@ export function walkable(w: World, x: number, y: number, run: Run): boolean {
   if (!inBounds(w, x, y)) return false;
   const t = w.tiles[y][x];
   if (t === "wall" || t === "water" || t === "rock" || t === "hill") return false;
+  const bar = barrierAt(w, x, y);
+  if (bar && !barrierOpen(bar, run)) return false;
   if (t === "gate" && !gateOpen(w, run)) return false;
   if (npcAt(w, x, y)) return false;
   if (talkerAt(w, x, y)) return false;
@@ -273,6 +302,8 @@ export function floodFloor(w: World, run: Run, ignoreFoes = true): Set<string> {
     if (!inBounds(w, x, y)) return false;
     const t = w.tiles[y][x];
     if (t === "wall" || t === "water" || t === "rock" || t === "hill") return false;
+    const bar = barrierAt(w, x, y);
+    if (bar && !barrierOpen(bar, run)) return false;
     if (t === "gate" && !gateOpen(w, run)) return false;
     if (talkerAt(w, x, y)) return false;
     const prop = propAt(w, x, y);
@@ -398,6 +429,80 @@ function voice(w: World, said: string, thought: string, reply = "", choices: Wor
   else w.message = a;
 }
 
+function applyEntityMarks(
+  marks: EntityMark[] | undefined,
+  talkers: Talker[],
+  portals: Portal[],
+  props: Prop[],
+  npcs: MapNpc[],
+  barriers: Barrier[],
+  run: Run,
+  nextPropId: () => string,
+): void {
+  if (!marks?.length) return;
+  const occTalk = new Set(talkers.map((t) => `${t.x},${t.y}`));
+  const occProp = new Set(props.map((p) => `${p.x},${p.y}`));
+  const occPortal = new Set(portals.map((p) => `${p.x},${p.y}`));
+  for (const m of marks) {
+    const key = `${m.x},${m.y}`;
+    if (m.role === "talker") {
+      if (occTalk.has(key)) continue;
+      talkers.push({ id: m.ref, x: m.x, y: m.y });
+      occTalk.add(key);
+      continue;
+    }
+    if (m.role === "portal") {
+      if (occPortal.has(key)) continue;
+      portals.push({
+        ch: m.id,
+        x: m.x,
+        y: m.y,
+        to: m.ref as SceneId,
+        at: m.tag ?? "A",
+      });
+      occPortal.add(key);
+      continue;
+    }
+    if (m.role === "npc") {
+      const id = remapEnemy(run.hero ?? "rail", m.ref as EnemyId);
+      npcs.push({ id, x: m.x, y: m.y, beaten: run.beaten.includes(id) });
+      continue;
+    }
+    if (m.role === "barrier") {
+      const hint = m.tag ?? "此门不得擅入。";
+      barriers.push({
+        x: m.x,
+        y: m.y,
+        need: m.ref,
+        said: hint,
+        thought: "没票没令，硬闯只会惹官差。",
+      });
+      continue;
+    }
+    if (m.role === "prop") {
+      if (occProp.has(key)) continue;
+      props.push({
+        id: m.id || nextPropId(),
+        x: m.x,
+        y: m.y,
+        kind: m.ref as PropKind,
+        tag: m.tag,
+      });
+      occProp.add(key);
+    }
+  }
+}
+
+function barrierOpen(b: Barrier, run: Run): boolean {
+  if (b.need.startsWith("item:")) return hasItem(run, b.need.slice(5) as Run["items"][number]);
+  if (b.need.startsWith("flag:")) return hasFlag(run, b.need.slice(5));
+  return hasFlag(run, b.need) || hasItem(run, b.need as Run["items"][number]);
+}
+
+function barrierAt(w: World, x: number, y: number): Barrier | undefined {
+  return w.barriers.find((b) => b.x === x && b.y === y);
+}
+
 export function loadScene(scene: SceneId, run: Run, arrival: string | null = null): World {
   const def = SCENES[scene];
   const rows = def.ascii;
@@ -413,8 +518,11 @@ export function loadScene(scene: SceneId, run: Run, arrival: string | null = nul
   const items: GroundItem[] = [];
   const braziers: Pos[] = [];
   const props: Prop[] = [];
+  const barriers: Barrier[] = [];
   let player = { x: 1, y: 1 };
   let signI = 0;
+  let propSeq = 0;
+  const markPropId = () => encodePropId(propSeq++);
 
   for (let y = 0; y < h; y++) {
     const row: Tile[] = [];
@@ -438,23 +546,42 @@ export function loadScene(scene: SceneId, run: Run, arrival: string | null = nul
         const id = remapEnemy(run.hero ?? "rail", nid);
         npcs.push({ id, x, y, beaten: run.beaten.includes(id) });
       }
-      const tid = def.talkers[ch];
-      if (tid) talkers.push({ id: tid, x, y });
-      const portal = def.portals[ch];
-      if (portal) portals.push({ ch, x, y, to: portal.to, at: portal.at });
+      // 单字母 talker/portal：仅当无 entityMarks 时启用（旧场景兼容）
+      const hasMarks = Boolean(def.entityMarks && def.entityMarks.length > 0);
+      if (!hasMarks) {
+        const tid = def.talkers[ch];
+        if (tid) talkers.push({ id: tid, x, y });
+        const portal = def.portals[ch];
+        if (portal) portals.push({ ch, x, y, to: portal.to, at: portal.at });
+      } else {
+        // 有 marks 时仍认 ascii 上的旅行大门（贴边 D/W/E 等）与敌位
+        const portal = def.portals[ch];
+        if (portal && (ch === "D" || ch === "W" || ch === "E" || ch === "N" || ch === "S" || ch === "U" || ch === "Y" || ch === "A")) {
+          portals.push({ ch, x, y, to: portal.to, at: portal.at });
+        }
+      }
       const extra = extraProp(scene, ch);
       if (extra) {
-        props.push({ x, y, kind: extra.kind, tag: extra.tag });
+        props.push({ id: markPropId(), x, y, kind: extra.kind, tag: extra.tag });
       } else {
         const pk = PROP_LETTER[ch];
-        const occupied = Boolean(def.talkers[ch] || def.npcs[ch] || def.portals[ch] || SEAL_LETTER[ch]);
+        const occupied = Boolean(
+          (!hasMarks && def.talkers[ch]) ||
+            def.npcs[ch] ||
+            def.portals[ch] ||
+            SEAL_LETTER[ch],
+        );
         if (pk && !occupied) {
-          props.push({ x, y, kind: pk, tag: propTag(scene, ch) });
+          props.push({ id: markPropId(), x, y, kind: pk, tag: propTag(scene, ch) });
         }
       }
     }
     tiles.push(row);
   }
+
+  // 多字符实体表：talker / 室内二级 portal / 显式 prop
+  applyEntityMarks(def.entityMarks, talkers, portals, props, npcs, barriers, run, () => markPropId());
+  applyPropFootprints(props, tiles, scene);
 
   for (const p of portals) {
     // 屋子里面不用路：通路规则只对室外贴边一级门生效
@@ -592,9 +719,15 @@ export function loadScene(scene: SceneId, run: Run, arrival: string | null = nul
     const canStand = (x: number, y: number) => {
       if (blocked.has(`${x},${y}`)) return false;
       if (arterial(x, y)) return false;
+      // 二级门廊禁停：否则会堵死 FA/GA
+      if (
+        portals.some((p) => Math.max(Math.abs(p.x - x), Math.abs(p.y - y)) <= 2)
+      ) {
+        return false;
+      }
       const t = tiles[y]?.[x];
       if (t !== "floor" && t !== "pack") return false;
-      if (props.some((p) => p.x === x && p.y === y && BLOCKING.includes(p.kind))) return false;
+      if (props.some((p) => propCovers(p, x, y) && BLOCKING.includes(p.kind))) return false;
       return true;
     };
     const tryPlaceNear = (t: { x: number; y: number }, roadFirst: boolean) => {
@@ -643,6 +776,7 @@ export function loadScene(scene: SceneId, run: Run, arrival: string | null = nul
         braziers,
         signs,
         caches,
+        barriers,
         arrival,
         hp: run.hp,
         hpMax: run.hpMax,
@@ -721,7 +855,8 @@ export function loadScene(scene: SceneId, run: Run, arrival: string | null = nul
           if (arterial(nx, ny)) continue;
           if (Math.abs(nx - cx) <= 1) continue;
           if (tiles[ny]?.[nx] !== "floor" && tiles[ny]?.[nx] !== "pack") continue;
-          if (props.some((p) => p.x === nx && p.y === ny && BLOCKING.includes(p.kind))) continue;
+          if (props.some((p) => propCovers(p, nx, ny) && BLOCKING.includes(p.kind))) continue;
+          if (portals.some((p) => Math.max(Math.abs(p.x - nx), Math.abs(p.y - ny)) <= 2)) continue;
           const open = openness(nx, ny);
           if (open < 2) continue;
           // 禁止贴路列队：贴路扣分；与其他 NPC 间距 <2 扣分
@@ -757,7 +892,8 @@ export function loadScene(scene: SceneId, run: Run, arrival: string | null = nul
               if (!seenFree.has(key) || usedPos.has(key)) continue;
               if (arterial(nx, ny) || Math.abs(nx - cx) <= 1) continue;
               if (tiles[ny]?.[nx] !== "floor" && tiles[ny]?.[nx] !== "pack") continue;
-              if (props.some((p) => p.x === nx && p.y === ny && BLOCKING.includes(p.kind))) continue;
+              if (props.some((p) => propCovers(p, nx, ny) && BLOCKING.includes(p.kind))) continue;
+              if (portals.some((p) => Math.max(Math.abs(p.x - nx), Math.abs(p.y - ny)) <= 2)) continue;
               if (talkers.some((o) => o !== t && Math.abs(o.x - nx) + Math.abs(o.y - ny) < 2)) continue;
               usedPos.delete(`${t.x},${t.y}`);
               t.x = nx;
@@ -822,7 +958,8 @@ export function loadScene(scene: SceneId, run: Run, arrival: string | null = nul
             const ny = Number(key.slice(comma + 1));
             if (used2.has(key) || arterial(nx, ny) || Math.abs(nx - cx) <= 1) continue;
             if (tiles[ny]?.[nx] !== "floor" && tiles[ny]?.[nx] !== "pack") continue;
-            if (props.some((p) => p.x === nx && p.y === ny && BLOCKING.includes(p.kind))) continue;
+            if (props.some((p) => propCovers(p, nx, ny) && BLOCKING.includes(p.kind))) continue;
+            if (portals.some((p) => Math.max(Math.abs(p.x - nx), Math.abs(p.y - ny)) <= 2)) continue;
             if (talkers.some((o) => o !== t && Math.abs(o.x - nx) + Math.abs(o.y - ny) < 2)) continue;
             const score = openness(nx, ny) * 10 - (nearRoad(nx, ny) ? 20 : 0);
             if (!best || score > best.score) best = { x: nx, y: ny, score };
@@ -833,6 +970,53 @@ export function loadScene(scene: SceneId, run: Run, arrival: string | null = nul
           }
           used2.add(`${t.x},${t.y}`);
         }
+      }
+    }
+
+    // 最终：清开二级门廊（FA/GA 周围 2 格不得站人）—— 只在「同室地板」内挪，禁止踢出院外死角
+    for (const p of portals) {
+      if (p.ch !== "FA" && p.ch !== "GA") continue;
+      for (const t of talkers) {
+        if (Math.max(Math.abs(t.x - p.x), Math.abs(t.y - p.y)) > 2) continue;
+        const room: { x: number; y: number }[] = [];
+        const q = [{ x: t.x, y: t.y }];
+        const seenRoom = new Set<string>([`${t.x},${t.y}`]);
+        while (q.length && room.length < 80) {
+          const cur = q.shift()!;
+          room.push(cur);
+          for (const [dx, dy] of [
+            [0, 1],
+            [0, -1],
+            [1, 0],
+            [-1, 0],
+          ] as const) {
+            const nx = cur.x + dx;
+            const ny = cur.y + dy;
+            const key = `${nx},${ny}`;
+            if (seenRoom.has(key)) continue;
+            const tt = tiles[ny]?.[nx];
+            if (tt !== "floor" && tt !== "pack") continue;
+            seenRoom.add(key);
+            q.push({ x: nx, y: ny });
+          }
+        }
+        let moved = false;
+        const ranked = room
+          .filter((c) => Math.max(Math.abs(c.x - p.x), Math.abs(c.y - p.y)) > 2)
+          .sort(
+            (a, b) =>
+              Math.abs(a.x - t.x) + Math.abs(a.y - t.y) - (Math.abs(b.x - t.x) + Math.abs(b.y - t.y)),
+          );
+        for (const c of ranked) {
+          if (props.some((pr) => propCovers(pr, c.x, c.y) && BLOCKING.includes(pr.kind))) continue;
+          if (talkers.some((o) => o !== t && o.x === c.x && o.y === c.y)) continue;
+          if (portals.some((q2) => Math.max(Math.abs(q2.x - c.x), Math.abs(q2.y - c.y)) <= 2)) continue;
+          t.x = c.x;
+          t.y = c.y;
+          moved = true;
+          break;
+        }
+        void moved;
       }
     }
   }
@@ -858,6 +1042,7 @@ export function loadScene(scene: SceneId, run: Run, arrival: string | null = nul
     braziers,
     signs,
     caches,
+    barriers,
     arrival,
     hp: run.hp,
     hpMax: run.hpMax,
@@ -930,7 +1115,10 @@ export function tryMove(
 
   if (!walkable(next, nx, ny, run)) {
     const t = inBounds(next, nx, ny) ? next.tiles[ny][nx] : "wall";
-    if (t === "gate") {
+    const bar = barrierAt(next, nx, ny);
+    if (bar && !barrierOpen(bar, run)) {
+      voice(next, bar.said, bar.thought);
+    } else if (t === "gate") {
       const v = bumpVoice("gate", next.gate);
       voice(next, v.said, v.thought);
     } else if (t === "water") {

@@ -24,6 +24,8 @@ export interface MetroScene {
   gate: GateKind;
   signs: string[];
   items: Record<string, ItemId>;
+  /** 多字符实体表：talker/portal 用 AA.. 键，避开陈设单字母 */
+  entityMarks?: import("./entityMarks").EntityMark[];
 }
 
 function rows(id: string, lines: string[]): string[] {
@@ -1369,42 +1371,48 @@ export function furnishByTemplate(
     put(1, 1, "l");
     put(Math.floor(R / 2), B - 1, ",");
   } else if (template === "yanboChamber") {
+    // 青楼：屏风/床榻/香炉/桌凳/灯笼 —— 严禁兵器架
     put(0, 1, "u");
     put(R, 1, "h");
     put(0, B - 1, "g");
-    put(R, B - 1, "m");
+    put(R, B - 1, "y");
     put(1, 0, "&");
     put(R - 1, 0, "&");
-    put(Math.floor(R / 2), 1, "z");
+    put(Math.floor(R / 2), 1, "h");
     put(R - 2, B - 1, "h");
     put(1, B - 1, "l");
     put(R - 1, 2, "l");
+    put(2, B - 1, "j"); // 花瓶意象
+    put(3, 1, "o");
   } else if (template === "yanboStage") {
-    put(0, 1, "z");
-    put(R, 1, "z");
+    // 戏台区：凳、灯、屏 —— 无兵器
+    put(0, 1, "h");
+    put(R, 1, "h");
     put(0, B - 1, "o");
     put(1, B - 1, "o");
     put(R, B - 1, "o");
     put(0, 2, "l");
     put(R, 2, "l");
+    put(Math.floor(R / 2), 1, "y");
   } else if (template === "taibaiHall") {
     for (let s = 0; s < Math.min(4, 1 + scale); s++) {
-      put(1 + s * 2, 1, "m");
-      put(1 + s * 2, 2, "o");
+      put(1 + s * 2, 1, "y"); // 桌
+      put(1 + s * 2, 2, "o"); // 凳
     }
     put(R, 1, "j");
     put(R, 2, "j");
     put(R - 1, 1, "j");
-    put(0, B - 1, "q");
+    put(0, B - 1, "q"); // 柜台
     put(1, 0, "l");
     put(R - 1, 0, "l");
     put(1, B, "l");
     put(R - 1, B, "l");
     put(Math.floor(R / 2), B - 1, "*");
   } else if (template === "taibaiPrivate") {
-    put(Math.floor(R / 2), Math.floor(B / 2), "m");
+    put(Math.floor(R / 2), Math.floor(B / 2), "y");
     put(0, 1, "h");
     put(R, 1, "j");
+    put(1, B - 1, "o");
   } else if (template === "martialYard") {
     put(0, 1, "d");
     put(2, 1, "d");
@@ -1413,27 +1421,30 @@ export function furnishByTemplate(
     put(0, B - 1, "z");
     put(R, B - 1, "z");
     put(1, B - 1, "b");
-    put(R - 1, 2, "h");
+    put(Math.floor(R / 2), 1, "l");
     put(Math.floor(R / 2), B - 1, "l");
   } else if (template === "clinicHall") {
+    // 药铺：柜、案、药坛 —— 无兵器/沙袋
     put(0, 1, "k");
     put(1, 1, "k");
     put(R, 1, "m");
-    put(0, B - 1, "z");
+    put(0, B - 1, "i");
     put(R, B - 1, "j");
     put(R - 1, B - 1, "j");
     put(R - 2, B - 1, "j");
-    put(R - 3, B - 1, "j");
-    put(2, B - 1, "c");
+    put(2, B - 1, "q");
     put(1, 0, "l");
   } else if (template === "pawnHall" || template === "shopHall") {
     put(0, 1, "q");
+    put(1, 1, "q");
     put(R, 1, "i");
+    put(R - 1, 1, "i");
     put(0, B - 1, "v");
     put(R, B - 1, "v");
     put(1, B - 1, ",");
     put(R - 1, B - 1, ",");
     put(Math.floor(R / 2), 1, "l");
+    put(Math.floor(R / 2), B - 1, "o");
   } else if (template === "templeHall") {
     put(Math.floor(R / 2), 1, "g");
     put(0, Math.floor(B / 2), "h");
@@ -1441,20 +1452,26 @@ export function furnishByTemplate(
     put(0, B - 1, "l");
     put(R, B - 1, "l");
   } else if (template === "postHall") {
-    put(0, 1, "p");
+    put(0, 1, "q");
     put(R, 1, "v");
     put(0, B - 1, "b");
-    put(R, B - 1, "p");
+    put(R, B - 1, "i");
     put(1, 1, "l");
+    put(Math.floor(R / 2), 1, "m");
   } else if (template === "homeHall") {
     put(0, 1, "u");
-    put(R, 1, "m");
-    put(0, B - 1, "j");
+    put(R, 1, "y");
+    put(0, B - 1, "j"); // 水缸
     put(R, B - 1, "l");
+    put(Math.floor(R / 2), Math.floor(B / 2), "t");
+    put(2, B - 1, "a"); // 第二口缸/盆
   } else if (template === "shedHall") {
-    put(0, 1, "z");
+    // 肉铺/作坊：案、箱、桶 —— 非武馆兵器架
+    put(0, 1, "y");
     put(R, 1, "v");
     put(0, B - 1, "b");
+    put(R, B - 1, "j");
+    put(Math.floor(R / 2), 1, "q");
   }
 }
 
@@ -1473,13 +1490,15 @@ export function applyBuildingTheme(
   const sx = door === "e" || door === "w" ? 0 : 1;
   const tryPut = (x: number, y: number, ch: string) => {
     const cur = gridGet(g, x, y);
-    if (cur === "." || cur === "=") gridSet(g, x, y, ch);
+    // 只写空地：马路/水/山上绝不挂陈设（禁幽灵墙、禁室内家具漂河）
+    if (cur !== ".") return;
+    gridSet(g, x, y, ch);
   };
   const theme = building.spriteTheme;
   if (theme === "yamen") {
     tryPut(doorX + ox + sx, doorY + oy + side, "p");
     tryPut(doorX + ox - sx, doorY + oy - side, "p");
-    tryPut(doorX - ox, doorY - oy, "h"); // 照壁在门内一侧若为空
+    tryPut(doorX - ox, doorY - oy, "p"); // 照壁改石桩，禁室外屏风
     signs.push("肃静");
     signs.push("回避");
     tryPut(doorX + ox * 2 + sx, doorY + oy * 2 + side, "!");
@@ -1497,11 +1516,11 @@ export function applyBuildingTheme(
     tryPut(doorX + ox + sx, doorY + oy + side, "j");
     tryPut(doorX + ox - sx, doorY + oy - side, "j");
   } else if (theme === "martial") {
-    tryPut(doorX + ox + sx, doorY + oy + side, "z");
-    tryPut(doorX + ox - sx, doorY + oy - side, "d");
+    tryPut(doorX + ox + sx, doorY + oy + side, "p");
+    tryPut(doorX + ox - sx, doorY + oy - side, "l");
   } else if (theme === "clinic") {
     tryPut(doorX + ox * 2, doorY + oy * 2, "!");
-    signs.push("回春堂·药幌");
+    signs.push("慈惠堂·药幌");
     tryPut(doorX + ox + sx, doorY + oy + side, "j");
     tryPut(doorX + ox - sx, doorY + oy - side, "j");
   }
@@ -1764,15 +1783,15 @@ export function renderWallVariant(
   if (spriteTheme === "yamen" || spriteTheme === "jail") {
     tryPut(x + 1, y + h, "p");
     tryPut(x + w - 2, y + h, "p");
-    tryPut(x + Math.floor(w / 2), y - 1, "h");
+    tryPut(x + Math.floor(w / 2), y - 1, "p");
   } else if (spriteTheme === "home") {
     tryPut(x + 2, y + h, "j");
     tryPut(x + w - 3, y + h, "v");
   } else if (spriteTheme === "yanbo" || spriteTheme === "brothel") {
     for (const d of [1, 3, 5]) tryPut(x + d, y - 1, "l");
   } else if (spriteTheme === "martial") {
-    tryPut(x + 1, y + h, "z");
-    tryPut(x + w - 2, y + h, "d");
+    tryPut(x + 1, y + h, "p");
+    tryPut(x + w - 2, y + h, "l");
   } else if (spriteTheme === "clinic") {
     tryPut(x + 2, y + h, "j");
     tryPut(x + w - 3, y + h, "&");

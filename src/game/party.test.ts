@@ -8,7 +8,9 @@ describe("party and weapons", () => {
     expect(Object.keys(WEAPON_NAME).sort()).toEqual(["hook", "palm", "saber", "spear", "staff", "sword"]);
     expect(new Set(Object.values(MATES).map((m) => m.weapon)).size).toBe(6);
     expect(WEAPON_PACE.sword).toBeGreaterThan(WEAPON_PACE.spear);
-    expect(WEAPON_PACE.saber).toBeGreaterThan(WEAPON_PACE.staff);
+    expect(WEAPON_PACE.palm).toBeGreaterThan(WEAPON_PACE.sword);
+    expect(WEAPON_PACE.sword).toBeGreaterThan(WEAPON_PACE.spear);
+    expect(WEAPON_PACE.staff).toBeGreaterThan(WEAPON_PACE.saber); // §31.11 刀最慢
     expect(MATES.porter.bio?.length).toBeGreaterThan(4);
     expect(MATES.rail.bio?.length).toBeGreaterThan(4);
   });
@@ -93,15 +95,24 @@ describe("weapon scrolls", () => {
     expect(schoolLabel("strike")).toBe("拳掌");
   });
 
-  it("stashes a saber page until a saber hand joins", () => {
-    let run = stashOrTeach(makeRun("empty"), "cut");
+  it("stashes off-family scroll until a matching hand joins", () => {
+    let run = makeRun("empty");
+    run.party = ["seer"];
+    run.active = "seer";
+    run = stashOrTeach(run, "cut");
     expect(run.scrolls).toEqual(["cut"]);
     expect(run.deck.includes("cut")).toBe(false);
     run = addCompanion(run, "watch");
     expect(run.scrolls).toEqual([]);
     expect(run.mateDecks.watch).toContain("cut");
     expect(deckFor(run, "watch")).toContain("cut");
-    expect(deckFor(run, "rail")).not.toContain("cut");
+    expect(deckFor(run, "seer")).not.toContain("cut");
+  });
+
+  it("teaches secondary-family scroll to hero when primary party lacks school", () => {
+    const run = stashOrTeach(makeRun("empty"), "cut");
+    expect(run.scrolls).toEqual([]);
+    expect(run.deck).toContain("cut");
   });
 
   it("puts a generic page on the rail", () => {

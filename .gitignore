@@ -5,3 +5,12 @@ dist
 *.log
 .cursor
 .venv-art/
+# 本地调试截图与 dump（不入库）
+/*-dump.txt
+/v7*.png
+/v74*.png
+/v73*.png
+/combat-lab-*.png
+/gauntlet-*.png
+/v2-*.png
+/v316-*.jpg

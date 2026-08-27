@@ -38,6 +38,7 @@ const FAMILIES: {
       { kind: "strike", damage: 12 },
       { kind: "guard", block: 6 },
       { kind: "bleedcut", damage: 8, bleed: 2 },
+      { kind: "trap" },
     ],
     pitch: "镖旗一歪，人就围上来了。",
     count: 14,
@@ -97,7 +98,7 @@ const FAMILIES: {
     pattern: [
       { kind: "lunge", damage: 14 },
       { kind: "swap" },
-      { kind: "breathe", amount: 3 },
+      { kind: "seal" },
       { kind: "bleedcut", damage: 10, bleed: 3 },
       { kind: "guard", block: 5 },
     ],
@@ -247,6 +248,8 @@ function build(): Record<string, EnemyDef> {
         remnant: fam.key === "canal" ? "tether" : fam.key === "escortBand" ? "rebound" : fam.key === "court" ? "delayGuard" : "leftover",
         pattern: fam.pattern.map((p) => scaleIntent(p)),
         pace: fam.pace,
+        // §31.10 长兵器敌：棍僧/禅杖与宫廷长刀隔一格也能打到（拆招的空间博弈对它们不成立白送）。
+        ...(fam.key === "monk" || fam.key === "court" ? { reach: 2 } : {}),
       };
     }
   }

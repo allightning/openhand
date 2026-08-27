@@ -1,18 +1,23 @@
 /**
- * 预生成 PNG 索引。运行时只引用路径，禁止 ctx/svg 画 NPC。
- * 资源位于 public/art/stand 与 public/art/sprites。
+ * 资源索引。
+ * - portrait / dialogue bust：可用 stand 立绘
+ * - npc map（局内小人）：只能用 /art/sprites/sprite-*.png，严禁 stand
  */
-import { standSrc, standFile, hasStand } from "../art/portraits";
-import { npcById } from "../map/npc";
+import { standSrc, standFile } from "../art/portraits";
+import { spriteSrc } from "../map/tileset";
 
 export type SpriteCategory = "portrait" | "npc" | "furnish";
 
-/** 场景小人：优先 stand 板（与对话头像同源，风格统一） */
+/** 局内模型 —— 绝对禁止返回 /art/stand/ */
 export function getNpcMapSrc(npcId: string): string {
-  if (hasStand(npcId) || npcById(npcId)) return standSrc(npcId, true);
-  return "/art/stand/alley.png";
+  const src = spriteSrc(npcId);
+  if (src.includes("/art/stand/")) {
+    throw new Error(`禁止用立绘作局内模型: ${npcId} -> ${src}`);
+  }
+  return src;
 }
 
+/** 对话栏头像 —— 可用 stand */
 export function getPortraitSrc(npcId: string): string {
   return standSrc(npcId, true);
 }
@@ -22,6 +27,7 @@ export function getPortraitKey(npcId: string): string {
 }
 
 export function getSprite(category: SpriteCategory, id: string): string {
-  if (category === "portrait" || category === "npc") return getNpcMapSrc(id);
+  if (category === "portrait") return getPortraitSrc(id);
+  if (category === "npc") return getNpcMapSrc(id);
   return `/art/objs/obj-${id}.png`;
 }

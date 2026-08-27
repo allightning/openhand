@@ -584,8 +584,29 @@ export function roadAxis(tiles: Tile[][], x: number, y: number): "h" | "v" | "x"
 
 export function tileArt(scene: SceneId, tiles: Tile[][], x: number, y: number): TileArt {
   const tile = tiles[y][x];
+  if (scene === "luoyang" && (x === 40 || x === 44) && y >= 1 && y <= 31) {
+    return finish([
+      { src: paintedSrc("brick"), role: "under" },
+      { src: "/art/tiles/tile-cobble-fy.png", role: "under" },
+    ]);
+  }
+  if (tile === "sidewalk") {
+    return finish([
+      { src: paintedSrc("brick"), role: "under" },
+      { src: "/art/tiles/tile-cobble-fy.png", role: "under" },
+    ]);
+  }
+  if (tile === "shore") {
+    return finish([
+      { src: paintedSrc("water"), role: "under" },
+      { src: "/art/tiles/tile-gravel-dirt.png", role: "under" },
+    ]);
+  }
   if (tile === "water") {
-    // 取消水岸：纯水面
+    if (scene === "luoyang") {
+      const alt = hash(x, y, 11) < 0.5 ? "water" : "water";
+      return finish([{ src: paintedSrc(alt), role: "under" }]);
+    }
     return finish([{ src: paintedSrc("water"), role: "under" }]);
   }
   if (tile === "hill") {
@@ -634,7 +655,25 @@ export function tileArt(scene: SceneId, tiles: Tile[][], x: number, y: number): 
     }
     return finish([{ src: roadSrc, role: "under" }]);
   }
+  if (tile === "sidewalk") {
+    return finish([
+      { src: paintedSrc("brick"), role: "under" },
+      { src: "/art/tiles/tile-cobble-fy.png", role: "under" },
+    ]);
+  }
+  if (tile === "shore") {
+    return finish([
+      { src: paintedSrc("water"), role: "under" },
+      { src: "/art/tiles/tile-gravel-dirt.png", role: "under" },
+    ]);
+  }
   if (tile === "pack") {
+    if (scene === "luoyang") {
+      return finish([
+        { src: paintedSrc("grass"), role: "under" },
+        { src: "/art/tiles/tile-dirt-fy.png", role: "under" },
+      ]);
+    }
     return finish([
       { src: paintedSrc("grass"), role: "under" },
       { src: paintedSrc("dirt"), role: "under" },
@@ -690,6 +729,7 @@ export type StampName =
   | "tree-pot";
 
 export function plantStamp(scene: SceneId, tile: Tile, x: number, y: number, tiles?: Tile[][]): StampName | null {
+  if (scene === "luoyang") return null;
   if (!OUTDOOR.has(scene)) return null;
   // 山崖只靠崖面贴图，不嵌树丛/草影
   if (tile === "hill" || tile === "rock") return null;
@@ -827,27 +867,40 @@ const SPRITE: Record<string, string> = {
   hillBandit: "foe",
   riverThug: "foe",
   // 洛阳身份立绘（复用轮廓，palette 另着色）
-  judge: "clerk",
+  judge: "judge",
   caseclerk: "clerk",
   luoBailiff: "clerk",
   luoClerk: "clerk",
+  luoConstable: "clerk",
+  luoConstable2: "foe",
+  luoCaptain: "foe",
+  luoGuard: "foe",
+  luoGuard2: "foe",
   luoJailer: "foe",
   luoGate: "clerk",
-  luoAsha: "woman",
+  luoAsha: "luoAsha",
   luoMadam: "woman",
   luoMusician: "woman",
-  luoBarkeeper: "worker",
-  luoCook: "worker",
-  luoCoach: "foe",
+  // 太白酒楼：独立局内模型（截图基准上增量，非立绘）
+  luoBarkeeper: "luoBarkeeper",
+  luoCook: "luoCook",
+  luoWaiter: "luoWaiter",
+  luoWaiter2: "luoWaiter2",
+  luoGuest: "luoGuest",
+  luoGuest2: "luoGuest2",
+  luoRaconteur: "luoRaconteur",
+  luoFlower: "luoFlower",
+  luoCoach: "luoCoach",
   luoDisciple: "foe",
   luoDoctor: "clerk",
   luoVendor: "worker",
+  luoSilk: "worker",
+  luoSmith: "worker",
   luoHerb: "worker",
   luoAntique: "worker",
   luoHawker: "worker",
   luoPost: "worker",
   luoTemple: "woman",
-  luoRaconteur: "worker",
 };
 
 /** 洛阳 / 通用 NPC 色板（CSS class；不增 PNG） */
@@ -856,6 +909,11 @@ export const NPC_PALETTE: Record<string, string> = {
   caseclerk: "yamenInk",
   luoBailiff: "yamenInk",
   luoClerk: "yamenInk",
+  luoConstable: "yamenInk",
+  luoConstable2: "yamenInk",
+  luoCaptain: "martialIron",
+  luoGuard: "martialIron",
+  luoGuard2: "martialIron",
   luoJailer: "yamenInk",
   passClerk: "yamenInk",
   townWatch: "yamenInk",
@@ -870,6 +928,8 @@ export const NPC_PALETTE: Record<string, string> = {
   butcher: "martialIron",
   luoDoctor: "merchantOchre",
   luoVendor: "merchantOchre",
+  luoSilk: "merchantOchre",
+  luoSmith: "merchantOchre",
   luoHerb: "merchantOchre",
   luoAntique: "merchantOchre",
   luoHawker: "merchantOchre",
@@ -913,14 +973,21 @@ export function npcPalette(id: string): string {
 }
 
 export function spriteSrc(id: string): string {
+  // 局内模型只走 /art/sprites/sprite-*.png；禁止 stand 立绘
+  if (SPRITE[id]) return `/art/sprites/sprite-${SPRITE[id]}.png`;
   const n = npcById(id);
   if (n) {
-    // 四维轮廓走 SVG；PNG 仅作回退（按性别/职业粗分）
     const fallback =
-      n.gender === "f" ? "woman" : n.job === "martial" || n.job === "yamen" ? (n.job === "martial" ? "foe" : "clerk") : "worker";
+      n.gender === "f"
+        ? "woman"
+        : n.job === "martial"
+          ? "foe"
+          : n.job === "yamen" || n.job === "clergy"
+            ? "clerk"
+            : "worker";
     return `/art/sprites/sprite-${fallback}.png`;
   }
-  return `/art/sprites/sprite-${SPRITE[id] ?? "worker"}.png`;
+  return `/art/sprites/sprite-worker.png`;
 }
 
 /** 配套物件 tag → 复用既有 obj PNG（不增外部资源） */
@@ -1156,7 +1223,8 @@ export function wallSeamEdge(tiles: Tile[][], x: number, y: number): "h" | "v" {
   return "h";
 }
 
-export function archSrc(tiles: Tile[][], x: number, y: number): string {
+export function archSrc(tiles: Tile[][], x: number, y: number, tag?: string): string {
+  if (tag === "院门") return `/art/objs/obj-hut-h.png`;
   return `/art/objs/obj-paifang-${wallSeamEdge(tiles, x, y)}.png`;
 }
 

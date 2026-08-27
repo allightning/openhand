@@ -1,6 +1,13 @@
-import { STARTER_DECK } from "./content";
+import { CARDS, STARTER_DECK } from "./content";
 import { SAPPER_DECK, SEER_DECK } from "./hero";
+import { isLabMode } from "./labTuning";
+import { getContentOverrides } from "./labContentOverrides";
 import type { CardId, CompanionId, Run, WeaponId } from "./types";
+import type { MateRole } from "./labV25Constants";
+import { ROLE_LABEL } from "./labV25Constants";
+
+export { ROLE_LABEL };
+export type { MateRole };
 
 export const WEAPON_NAME: Record<WeaponId, string> = {
   palm: "拳掌",
@@ -11,13 +18,24 @@ export const WEAPON_NAME: Record<WeaponId, string> = {
   hook: "钩",
 };
 
+/** §31.11 甲方定速度链：拳最快 > 剑钩 > 枪棍 > 刀最慢（势大力沉）。 */
 export const WEAPON_PACE: Record<WeaponId, number> = {
-  sword: 8,
-  saber: 7,
-  hook: 6,
-  palm: 5,
-  staff: 4,
+  palm: 8,
+  sword: 7,
+  hook: 7,
+  spear: 5,
+  staff: 5,
+  saber: 4,
+};
+
+/** §31.11 甲方定攻击距离：拳掌贴身 1，刀/剑/钩 2，枪/棍 3（七步石台的距离感）。 */
+export const SCHOOL_REACH: Record<WeaponId, number> = {
+  palm: 1,
+  saber: 2,
+  sword: 2,
+  hook: 2,
   spear: 3,
+  staff: 3,
 };
 
 export const WEAPON_VERB: Record<WeaponId, string> = {
@@ -33,7 +51,14 @@ export interface MateDef {
   id: CompanionId;
   name: string;
   title: string;
+  /** 主武器系 */
   weapon: WeaponId;
+  /** v2.2 指定副武器系（§23.4） */
+  secondFamily: WeaponId;
+  /** v2.5 软定位（§21.4） */
+  role: MateRole;
+  /** §21.1 助战定位；缺省同 role */
+  assist?: MateRole;
   hp: number;
   deck: CardId[];
   talker?: string;
@@ -131,6 +156,8 @@ export const MATES: Record<CompanionId, MateDef> = {
     name: "轨刃",
     title: "破门刀",
     weapon: "palm",
+    secondFamily: "saber",
+    role: "dps",
     hp: 28,
     deck: PALM_DECK,
     bio: "门要正。踹歪了，自己也站不稳。",
@@ -140,6 +167,8 @@ export const MATES: Record<CompanionId, MateDef> = {
     name: "镜亭",
     title: "观气客",
     weapon: "sword",
+    secondFamily: "hook",
+    role: "control",
     hp: 24,
     deck: SEER_DECK,
     bio: "气先于刀。案上的墨，比街上的血更早脏。",
@@ -149,6 +178,8 @@ export const MATES: Record<CompanionId, MateDef> = {
     name: "沈夯",
     title: "桩师",
     weapon: "staff",
+    secondFamily: "palm",
+    role: "tank",
     hp: 32,
     deck: SAPPER_DECK,
     bio: "桩不松，人就还认得这一方地。",
@@ -158,6 +189,8 @@ export const MATES: Record<CompanionId, MateDef> = {
     name: "韩铁",
     title: "码头扛手",
     weapon: "staff",
+    secondFamily: "spear",
+    role: "tank",
     hp: 26,
     deck: STAFF_DECK,
     talker: "porter",
@@ -168,6 +201,8 @@ export const MATES: Record<CompanionId, MateDef> = {
     name: "苏渡烟",
     title: "船娘",
     weapon: "sword",
+    secondFamily: "saber",
+    role: "skirmish",
     hp: 24,
     deck: SWORD_DECK,
     talker: "boat",
@@ -178,6 +213,8 @@ export const MATES: Record<CompanionId, MateDef> = {
     name: "沈夜行",
     title: "夜巡刀",
     weapon: "saber",
+    secondFamily: "sword",
+    role: "dps",
     hp: 26,
     deck: SABER_DECK,
     talker: "watch",
@@ -188,6 +225,8 @@ export const MATES: Record<CompanionId, MateDef> = {
     name: "玄香",
     title: "锡杖客",
     weapon: "spear",
+    secondFamily: "staff",
+    role: "support",
     hp: 24,
     deck: SPEAR_DECK,
     talker: "pilgrim",
@@ -198,6 +237,8 @@ export const MATES: Record<CompanionId, MateDef> = {
     name: "石岸",
     title: "岸缆手",
     weapon: "hook",
+    secondFamily: "palm",
+    role: "control",
     hp: 25,
     deck: HOOK_DECK,
     talker: "roper",
@@ -208,6 +249,8 @@ export const MATES: Record<CompanionId, MateDef> = {
     name: "井清源",
     title: "井底掌",
     weapon: "palm",
+    secondFamily: "staff",
+    role: "tank",
     hp: 25,
     deck: HERMIT_DECK,
     talker: "hermit",
@@ -218,6 +261,8 @@ export const MATES: Record<CompanionId, MateDef> = {
     name: "颜牙",
     title: "秤上刀",
     weapon: "saber",
+    secondFamily: "spear",
+    role: "dps",
     hp: 25,
     deck: SABER_DECK,
     talker: "saltBroker",
@@ -228,6 +273,8 @@ export const MATES: Record<CompanionId, MateDef> = {
     name: "朱文渊",
     title: "案头剑",
     weapon: "sword",
+    secondFamily: "palm",
+    role: "control",
     hp: 22,
     deck: SWORD_DECK,
     talker: "caseclerk",
@@ -238,6 +285,8 @@ export const MATES: Record<CompanionId, MateDef> = {
     name: "柳青云",
     title: "舌上剑",
     weapon: "palm",
+    secondFamily: "sword",
+    role: "support",
     hp: 23,
     deck: PALM_DECK,
     talker: "storyman",
@@ -248,6 +297,8 @@ export const MATES: Record<CompanionId, MateDef> = {
     name: "江晚涛",
     title: "航边客",
     weapon: "saber",
+    secondFamily: "hook",
+    role: "dps",
     hp: 27,
     deck: SABER_DECK,
     talker: "riverBlade",
@@ -258,6 +309,8 @@ export const MATES: Record<CompanionId, MateDef> = {
     name: "苏素心",
     title: "绣钩",
     weapon: "hook",
+    secondFamily: "sword",
+    role: "control",
     hp: 24,
     deck: HOOK_DECK,
     talker: "silkWife",
@@ -268,6 +321,8 @@ export const MATES: Record<CompanionId, MateDef> = {
     name: "西门远山",
     title: "关城卒",
     weapon: "spear",
+    secondFamily: "saber",
+    role: "tank",
     hp: 28,
     deck: SPEAR_DECK,
     talker: "westGuard",
@@ -318,12 +373,12 @@ export interface MatePassive {
 export const MATE_PASSIVE: Partial<Record<CompanionId, MatePassive>> = {
   rail: { name: "门劲", text: "推撞成功，格挡 +1。" },
   seer: { name: "余墨", text: "收势时若劲力用尽，下回额外回劲 +1。" },
-  sapper: { name: "桩皮", text: "有格挡时，挨打多 1 点反震。" },
+  sapper: { name: "桩皮", text: "有格挡时，挨打多 2 点反震。" },
   porter: { name: "稳肩", text: "上场每回开局格挡 +1。" },
   boat: { name: "水步", text: "不贴身时，每回开局格挡 +1。" },
   watch: { name: "夜袖", text: "上场手牌上限 +1。" },
-  pilgrim: { name: "锡息", text: "这一息没出攻击，收势回 1 血。" },
-  hooker: { name: "缆手", text: "拉近后，下一掌 +2。" },
+  pilgrim: { name: "锡息", text: "这一息没出攻击，收势回 3 血。" },
+  hooker: { name: "缆手", text: "拉近后，下一掌 +3。" },
   hermit: { name: "井根", text: "场上有桩，每回开局格挡 +1。" },
   salter: { name: "秤口", text: "先机领先时，攻击 +1。" },
   scribe: { name: "案锋", text: "破绽≥2 时抽牌上限视作多 1（开局）。" },
@@ -333,7 +388,17 @@ export const MATE_PASSIVE: Partial<Record<CompanionId, MatePassive>> = {
   guard: { name: "门岗", text: "开局格挡 +2，先机 -1。" },
 };
 
+export function matePassive(id: CompanionId): MatePassive | undefined {
+  const base = MATE_PASSIVE[id];
+  if (!isLabMode()) return base;
+  const ov = getContentOverrides().mates[id]?.passive;
+  if (!ov) return base;
+  return { name: ov.name || base?.name || "", text: ov.text || base?.text || "" };
+}
+
 export function cardSchool(id: CardId): WeaponId | "any" {
+  const def = CARDS[id];
+  if (def.school) return def.school;
   const key = id.replace(/2$/, "");
   if (
     key === "strike" ||
@@ -361,9 +426,18 @@ export function schoolLabel(id: CardId): string {
   return school === "any" ? "通用" : WEAPON_NAME[school];
 }
 
+export function mateLearnableSchools(id: CompanionId): WeaponId[] {
+  const m = MATES[id];
+  return [m.weapon, m.secondFamily];
+}
+
+export function canMateLearnSchool(mateId: CompanionId, school: WeaponId): boolean {
+  return mateLearnableSchools(mateId).includes(school);
+}
+
 export function wielderOf(run: Run, school: WeaponId | "any"): CompanionId | null {
   if (school === "any") return run.active;
-  return run.party.find((id) => MATES[id].weapon === school) ?? null;
+  return run.party.find((id) => canMateLearnSchool(id, school)) ?? null;
 }
 
 export function isLead(run: Run, id: CompanionId): boolean {
@@ -481,6 +555,7 @@ export function syncActiveHp(run: Run, hp: number): Run {
 
 export function deckFor(run: Run, id: CompanionId): CardId[] {
   const extra = run.mateDecks[id] ?? [];
+  if (isLabMode()) return extra.length ? [...extra] : isLead(run, id) ? [...run.deck] : [];
   if (isLead(run, id)) return [...run.deck, ...extra];
   return [...MATES[id].deck, ...extra];
 }

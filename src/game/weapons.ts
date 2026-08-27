@@ -1,5 +1,7 @@
 import type { WeaponId } from "./types";
 import { WEAPON_NAME } from "./party";
+import { getContentOverrides } from "./labContentOverrides";
+import { isLabMode } from "./labTuning";
 
 /** 凡良精玄神 — five combat gear tiers. */
 export type WeaponTier = "fan" | "liang" | "jing" | "xuan" | "shen";
@@ -192,16 +194,21 @@ export function nextGrade(id: string): string | null {
 
 export function gearById(id: string | null | undefined): GearWeapon | null {
   if (!id) return null;
-  const hit = GEAR_WEAPONS.find((g) => g.id === id);
-  if (hit) return hit;
-  // legacy palm-3 or palm-a-7 → clamp into 1–5
-  const m = /^([a-z]+)-(?:([ab])-)?(\d+)$/.exec(id);
-  if (!m) return null;
-  const school = m[1] as WeaponId;
-  const path = (m[2] as WeaponPath | undefined) ?? "a";
-  const raw = Number(m[3]);
-  const grade = Math.min(5, Math.max(1, raw <= 5 ? raw : Math.ceil(raw / 2)));
-  return GEAR_WEAPONS.find((g) => g.school === school && g.path === path && g.grade === grade) ?? null;
+  let base = GEAR_WEAPONS.find((g) => g.id === id) ?? null;
+  if (!base) {
+    // legacy palm-3 or palm-a-7 → clamp into 1–5
+    const m = /^([a-z]+)-(?:([ab])-)?(\d+)$/.exec(id);
+    if (!m) return null;
+    const school = m[1] as WeaponId;
+    const path = (m[2] as WeaponPath | undefined) ?? "a";
+    const raw = Number(m[3]);
+    const grade = Math.min(5, Math.max(1, raw <= 5 ? raw : Math.ceil(raw / 2)));
+    base = GEAR_WEAPONS.find((g) => g.school === school && g.path === path && g.grade === grade) ?? null;
+  }
+  if (!base) return null;
+  if (!isLabMode()) return base;
+  const ov = getContentOverrides().weapons[base.id];
+  return ov ? { ...base, ...ov } : base;
 }
 
 export function gearForSchool(school: WeaponId, path?: WeaponPath): GearWeapon[] {

@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 5175 --strictPort --host 127.0.0.1",
+    "lab": "vite --open /combat-lab.html --port 5175 --strictPort --host 127.0.0.1",
+    "build:pages": "VITE_BASE=/openhand/ vite build",
+    "test:combat": "vitest run src/combatLab src/game/sim.test.ts src/game/party.test.ts src/game/settings.test.ts src/game/codex.test.ts",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run"

@@ -150,7 +150,7 @@ export const CAP_CH: Record<CapKind, string> = {
 
 export const DEFAULT_CAPS: Record<CapKind, number> = {
   barrel: 6,
-  tree: 15,
+  tree: 28, // 洛阳 V4：成组点缀，非地毯
   lantern: 10,
   jar: 4,
   cart: 8,
@@ -228,8 +228,8 @@ const ENSURE_CH: Record<FurnishKind, string> = {
   cart: "f",
   post: "p",
   brazier: "*",
-  stall: "v",
-  well: "o",
+  stall: "e",
+  well: "n",
   stele: "!",
 };
 

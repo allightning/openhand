@@ -78,7 +78,17 @@ import { bagArtMarkup } from "./art/bagArt";
 import { weaponArt, weaponArtMarkup, weaponDetail } from "./art/weaponArt";
 import { clearFx, playCardFx, playIntentFx } from "./fx";
 import { cueMusic, getEar, playSfx, setEar } from "./audio";
-import { applyCamera, coverScale, type Cam } from "./map/camera";
+import { applyCamera, coverScale, testCamScale, overviewCamera, type Cam } from "./map/camera";
+import { LUOYANG_LABEL_ANCHORS } from "./map/luoyangGen";
+import { buildingByYard } from "./map/luoyangMeta";
+import {
+  LABEL_PRI,
+  QUEST_TALKERS,
+  arbitrateLabels,
+  renderLabelHtml,
+  spriteAnchor,
+  type LabelJob,
+} from "./map/floatLabel";
 import { canTravelTo } from "./map/access";
 import { HERO_BOSSES, HERO_START } from "./game/hero";
 import { questLog } from "./game/quest";
@@ -186,6 +196,9 @@ let sparKeep: { hp: number; companionHp: Run["companionHp"] } | null = null;
 let talkSig = "";
 let talkPages: { cls: string; text: string }[] = [];
 let talkPage = 0;
+
+/** 测试版镜头：0 近、1 远、2 全图。 */
+let testCamLift = 0;
 
 let fogStamp = "";
 
@@ -865,12 +878,10 @@ function mateArt(id: string, kind: string): string {
 }
 
 function cutSprite(id: string): string {
-  // 美术铁律：预生成 PNG，禁止 SVG/代码简笔画
-  const n = npcById(id);
-  const pal = n?.palette ?? npcPalette(id);
+  // 局内模型：仅 /art/sprites/sprite-*.png（getNpcMapSrc 禁 stand）
+  const pal = npcById(id)?.palette ?? npcPalette(id);
   const cls = `sprite${pal ? ` pal-${pal}` : ""}`;
-  const src = getNpcMapSrc(id);
-  return `<img class="${cls.trim()}" src="${src}" alt="" draggable="false">`;
+  return `<img class="${cls.trim()}" src="${getNpcMapSrc(id)}" alt="" draggable="false">`;
 }
 
 function houseLabel(world: World, p: { x: number; y: number; tag?: string }): string {
@@ -907,7 +918,7 @@ function houseLabel(world: World, p: { x: number; y: number; tag?: string }): st
     luoAsha: "烟波楼",
     luoMadam: "烟波楼",
     luoCoach: "定鼎武馆",
-    luoDoctor: "回春堂",
+    luoDoctor: "慈惠堂",
     luoVendor: "通远质库",
     luoTemple: "大秦寺",
     luoPost: "洛阳驿",
@@ -936,7 +947,7 @@ function propArt(kind: PropKind, x = 0, y = 0, scene?: SceneId, tiles?: Tile[][]
     return `<img class="sprite obj${grow}" src="${stampSrc(stamp)}" alt="" draggable="false">`;
   }
   if (kind === "arch" && tiles) {
-    return `<img class="sprite obj" src="${archSrc(tiles, x, y)}" alt="" draggable="false">`;
+    return `<img class="sprite obj" src="${archSrc(tiles, x, y, tag)}" alt="" draggable="false">`;
   }
   return `<img class="sprite obj" src="${objSrc(kind, tag)}" alt="" draggable="false">`;
 }
@@ -959,6 +970,14 @@ function actorTag(name: string): string {
   return `<span class="tag">${name}</span>`;
 }
 
+function floatLabel(x: number, y: number, name: string, cls = ""): string {
+  if (!name) return "";
+  const { ax, ay } = spriteAnchor(cls.includes("landmark") ? "landmark-arch" : "npc", x, y);
+  const left = ax;
+  const top = ay;
+  return `<div class="float-label${cls ? " " + cls : ""}" style="left:${left}px;top:${top}px">${name}</div>`;
+}
+
 function placeName(id: SceneId): string {
   return SCENES[id].name;
 }
@@ -973,7 +992,7 @@ export function courtyardAreaLabels(w: World): { x: number; y: number; name: str
     return t === "floor" || t === "pack" || t === "road" || t === "gate";
   };
   for (const seed of w.props) {
-    if (seed.kind !== "arch" || !seed.tag || seed.tag === "门") continue;
+    if (seed.kind !== "arch" || !seed.tag || seed.tag === "门" || seed.tag === "院门") continue;
     if (seen.has(seed.tag)) continue;
     const q: [number, number][] = [[seed.x, seed.y]];
     const vis = new Set<string>([key(seed.x, seed.y)]);
@@ -2140,6 +2159,7 @@ function renderMap(): string {
           <span class="fy-btn hp" title="命数">${heartMark()} ${run.lives ?? 3}/${run.livesMax ?? 3}</span>
           <button id="btn-title" class="fy-btn" type="button">名册</button>
           <button id="btn-settings" class="fy-btn" type="button">设置</button>
+          ${run.flags.includes("testMode") ? `<button id="btn-test-cam" class="fy-btn test-cam-btn" type="button" title="测试版：拉高镜头，最高可看全图">${testCamLift >= 2 ? "镜头·全图" : testCamLift >= 1 ? "镜头·远" : "镜头·近"}</button>` : ""}
         </div>
       </header>
       <div class="map-stage" id="map-stage">
@@ -2149,6 +2169,7 @@ function renderMap(): string {
           <div class="tiles" style="grid-template-columns:repeat(${w.w}, ${TILE}px)">${tiles.join("")}</div>
           <canvas class="fog-layer" id="fog" width="${w.w * TILE}" height="${w.h * TILE}"></canvas>
           <div class="actors" id="actors"></div>
+          <div class="float-labels" id="float-labels" aria-hidden="true"></div>
         </div>
       </div>
       <div class="fy-talk">
@@ -2179,11 +2200,24 @@ function paintMap(): void {
   }
   const visible = (x: number, y: number) => isSeen(run.seenTiles, w.scene, x, y);
   const bountyId = bountyTarget(run);
+  const jobs: LabelJob[] = [];
+  const pushJob = (job: LabelJob) => {
+    jobs.push(job);
+  };
   const npcs = w.npcs
     .filter((n) => !n.beaten && visible(n.x, n.y))
     .map((n) => {
       const mark = bountyId && n.id === bountyId ? " bounty-mark" : "";
-      return `<div class="actor npc foe ${n.id}${mark}" data-foe="${n.id}" style="transform:translate(${n.x * TILE}px,${n.y * TILE}px)">${cutSprite(n.id)}${actorTag(ENEMIES[n.id].name)}</div>`;
+      const a = spriteAnchor("npc", n.x, n.y);
+      pushJob({
+        id: `foe-${n.id}`,
+        pri: n.id === bountyId ? LABEL_PRI.quest : LABEL_PRI.npc,
+        ax: a.ax,
+        ay: a.ay,
+        text: ENEMIES[n.id].name,
+        cls: "foe",
+      });
+      return `<div class="actor npc foe ${n.id}${mark}" data-foe="${n.id}" style="transform:translate(${n.x * TILE}px,${n.y * TILE}px)">${cutSprite(n.id)}</div>`;
     })
     .join("");
   const talkers = w.talkers
@@ -2197,51 +2231,78 @@ function paintMap(): void {
       const ageCls = age ? ` age-${age}` : "";
       const gen = npcById(t.id)?.gender;
       const genCls = gen ? ` gen-${gen}` : "";
-      return `<div class="actor npc talk${palCls}${ageCls}${genCls}" style="transform:translate(${t.x * TILE}px,${t.y * TILE}px)">${cutSprite(t.id)}${actorTag(label)}</div>`;
+      const a = spriteAnchor("npc", t.x, t.y);
+      pushJob({
+        id: `talk-${t.id}`,
+        pri: QUEST_TALKERS.has(t.id) ? LABEL_PRI.quest : LABEL_PRI.npc,
+        ax: a.ax,
+        ay: a.ay,
+        text: label,
+        cls: "",
+      });
+      return `<div class="actor npc talk${palCls}${ageCls}${genCls}" style="transform:translate(${t.x * TILE}px,${t.y * TILE}px)">${cutSprite(t.id)}</div>`;
     })
     .join("");
   const props = w.props
     .filter((p) => visible(p.x, p.y))
     .map((p) => {
-      const name =
-        p.kind === "tree"
-          ? ""
-          : p.tag === "empty"
-            ? actorTag("空碗")
-            : p.kind === "cart" || p.tag === "cart"
-              ? actorTag("车")
-              : p.kind === "well"
-                ? actorTag("井")
-                : p.kind === "house"
-                  ? actorTag(houseLabel(w, p))
-                  : p.kind === "stall"
-                    ? actorTag("摊棚")
-                    : p.kind === "arch"
-                      ? // 院名只走中央大字，牌坊上不再挂「衙门/税卡」
-                        ""
-                      : p.tag === "flag"
-                        ? actorTag("旗")
-                        : "";
+      let label = "";
+      let pri: typeof LABEL_PRI.shop | typeof LABEL_PRI.landmark | null = null;
+      let kind: "npc" | "house" | "landmark-arch" | "tile" = "tile";
+      if (p.tag === "empty") label = "空碗";
+      else if (p.kind === "cart" || p.tag === "cart") label = "车";
+      else if (p.kind === "well" && w.scene !== "luoyang") label = "井";
+      else if (p.kind === "house" && w.scene !== "luoyang") {
+        label = houseLabel(w, p);
+        kind = "house";
+        pri = LABEL_PRI.shop;
+      } else if (p.kind === "stall" && w.scene !== "luoyang") label = "摊棚";
+      else if (p.kind === "arch" && p.tag === "洛阳门") {
+        label = "洛阳门";
+        kind = "landmark-arch";
+        pri = LABEL_PRI.landmark;
+      } else if (p.kind === "counter") label = "柜台";
+      else if (p.tag === "flag") label = "旗";
+      if (label) {
+        const a = spriteAnchor(kind, p.x, p.y);
+        pushJob({
+          id: `prop-${p.x}-${p.y}-${label}`,
+          pri: pri ?? LABEL_PRI.npc,
+          ax: a.ax,
+          ay: a.ay,
+          text: label,
+          cls: pri === LABEL_PRI.landmark ? "landmark" : "",
+        });
+      }
       const seam = p.kind === "arch" ? wallSeamEdge(w.tiles, p.x, p.y) : "";
       const seamClass = seam ? ` edge-${seam}` : "";
-      return `<div class="actor prop ${p.kind}${p.tag ? " " + p.tag : ""}${seamClass}" style="transform:translate(${p.x * TILE}px,${p.y * TILE}px)">${propArt(p.kind, p.x, p.y, w.scene, w.tiles, p.tag)}${name}</div>`;
+      const spanW = p.spanW ?? 1;
+      const spanH = p.spanH ?? 1;
+      const spanClass = spanW > 1 || spanH > 1 ? ` span-${spanW}x${spanH}` : "";
+      const landmarkClass = p.kind === "arch" && p.tag === "洛阳门" ? " landmark" : "";
+      const tagClass = p.tag && !/[\u4e00-\u9fff]/.test(p.tag) ? ` ${p.tag}` : "";
+      return `<div class="actor prop ${p.kind}${tagClass}${seamClass}${spanClass}${landmarkClass}" style="transform:translate(${p.x * TILE}px,${p.y * TILE}px)">${propArt(p.kind, p.x, p.y, w.scene, w.tiles, p.tag)}</div>`;
     })
     .join("");
   const chests = w.caches
     .filter((c) => !c.open && visible(c.x, c.y))
-    .map(
-      (c) =>
-        `<div class="actor crate" style="transform:translate(${c.x * TILE}px,${c.y * TILE}px)">${propArt("crate")}${actorTag("残谱箱")}</div>`,
-    )
+    .map((c) => {
+      const ca = spriteAnchor("tile", c.x, c.y);
+      pushJob({ id: `cache-${c.x}-${c.y}`, pri: LABEL_PRI.npc, ax: ca.ax, ay: ca.ay, text: "残谱箱", cls: "" });
+      return `<div class="actor crate" style="transform:translate(${c.x * TILE}px,${c.y * TILE}px)">${propArt("crate")}</div>`;
+    })
     .join("");
   const doors = w.portals
     .filter((p) => visible(p.x, p.y))
     .map((p) => {
       const kind = doorKind(p.to);
       const label = placeName(p.to);
-      // 地名写在传送点上
-      const tag = label && label !== "门" ? actorTag(label) : "";
-      return `<div class="actor door ${kind}" style="transform:translate(${p.x * TILE}px,${p.y * TILE}px)"><img class="sprite obj door" src="${doorSrc(kind)}" alt="" draggable="false">${tag}</div>`;
+      const inner = p.ch === "FA" || p.ch === "GA" || p.to.startsWith("luoyang_");
+      if (label && label !== "门" && !inner) {
+        const da = spriteAnchor("tile", p.x, p.y);
+        pushJob({ id: `door-${p.ch}`, pri: LABEL_PRI.shop, ax: da.ax, ay: da.ay, text: label, cls: "door" });
+      }
+      return `<div class="actor door ${kind}" style="transform:translate(${p.x * TILE}px,${p.y * TILE}px)"><img class="sprite obj door" src="${doorSrc(kind)}" alt="" draggable="false"></div>`;
     })
     .join("");
   const areaMarks = "";
@@ -2258,35 +2319,67 @@ function paintMap(): void {
   }
   const fires = w.braziers
     .filter((b) => visible(b.x, b.y))
-    .map(
-      (b) =>
-        `<div class="actor fire" style="transform:translate(${b.x * TILE}px,${b.y * TILE}px)"><img class="sprite obj" src="/art/objs/obj-stove.png" alt="" draggable="false">${actorTag("炉")}</div>`,
-    )
+    .map((b) => {
+      const fa = spriteAnchor("tile", b.x, b.y);
+      pushJob({ id: `fire-${b.x}-${b.y}`, pri: LABEL_PRI.npc, ax: fa.ax, ay: fa.ay, text: "炉", cls: "" });
+      return `<div class="actor fire" style="transform:translate(${b.x * TILE}px,${b.y * TILE}px)"><img class="sprite obj" src="/art/objs/obj-stove.png" alt="" draggable="false"></div>`;
+    })
     .join("");
   const sealMarks = w.seals
     .filter((s) => s.id !== "x" && visible(s.x, s.y))
     .map((s) => {
       const lit = sealsComplete(w) || w.progress.includes(s.id);
       const label = s.id === "w" ? "西印" : s.id === "e" ? "东印" : s.id === "s" ? "南印" : s.id === "n" ? "北印" : "印";
-      return `<div class="actor seal${lit ? " lit" : ""}" style="transform:translate(${s.x * TILE}px,${s.y * TILE}px)"><img class="sprite obj" src="/art/objs/obj-seal${lit ? "-lit" : ""}.png" alt="" draggable="false">${actorTag(label)}</div>`;
+      const a = spriteAnchor("tile", s.x, s.y);
+      pushJob({ id: `seal-${s.id}`, pri: LABEL_PRI.npc, ax: a.ax, ay: a.ay, text: label, cls: "" });
+      return `<div class="actor seal${lit ? " lit" : ""}" style="transform:translate(${s.x * TILE}px,${s.y * TILE}px)"><img class="sprite obj" src="/art/objs/obj-seal${lit ? "-lit" : ""}.png" alt="" draggable="false"></div>`;
     })
     .join("");
   const grounds = w.items
     .filter((i) => !i.taken && visible(i.x, i.y))
     .map((i) => {
       const src = itemSprite(i.id);
-      return `<div class="actor loot" style="transform:translate(${i.x * TILE}px,${i.y * TILE}px)"><img class="sprite obj loot" src="${src}" alt="${itemName(i.id)}" draggable="false">${actorTag(itemName(i.id))}</div>`;
+      const a = spriteAnchor("tile", i.x, i.y);
+      pushJob({ id: `loot-${i.id}`, pri: LABEL_PRI.npc, ax: a.ax, ay: a.ay, text: itemName(i.id), cls: "" });
+      return `<div class="actor loot" style="transform:translate(${i.x * TILE}px,${i.y * TILE}px)"><img class="sprite obj loot" src="${src}" alt="${itemName(i.id)}" draggable="false"></div>`;
     })
     .join("");
   const you = run.hero ?? "rail";
   const haul = run.items.includes("cargo") ? " · 押镖" : "";
-  const player = `<div class="actor you" style="transform:translate(${w.player.x * TILE}px,${w.player.y * TILE}px)">${cutSprite(you)}${actorTag(MATES[you].name + haul)}</div>`;
+  {
+    const a = spriteAnchor("npc", w.player.x, w.player.y);
+    pushJob({ id: "you", pri: LABEL_PRI.you, ax: a.ax, ay: a.ay, text: MATES[you].name + haul, cls: "you" });
+  }
+  if (w.scene === "luoyang") {
+    for (const anc of LUOYANG_LABEL_ANCHORS) {
+      const def = buildingByYard(anc.key) ?? (anc.key === "bridge" ? buildingByYard("bridge") : undefined);
+      if (!def?.functional) continue;
+      if (!visible(anc.x, anc.y) && !(anc.houseX != null && visible(anc.houseX, anc.houseY))) continue;
+      const landmark = Boolean(def.landmark);
+      const useHouse = !landmark && anc.houseX != null && anc.houseY != null;
+      const lx = useHouse ? anc.houseX! : anc.x;
+      const ly = useHouse ? anc.houseY! : anc.y;
+      const a = spriteAnchor(useHouse ? "house" : landmark ? "tile" : "tile", lx, ly);
+      pushJob({
+        id: `bld-${anc.key}`,
+        pri: landmark ? LABEL_PRI.landmark : LABEL_PRI.shop,
+        ax: a.ax,
+        ay: a.ay,
+        text: def.name,
+        cls: landmark ? "landmark" : "",
+        scale: def.renderScale,
+      });
+    }
+  }
+  const player = `<div class="actor you" style="transform:translate(${w.player.x * TILE}px,${w.player.y * TILE}px)">${cutSprite(you)}</div>`;
   const cargoMark =
     run.items.includes("cargo") && visible(w.player.x, w.player.y)
-      ? `<div class="actor prop crate cargo-follow" style="transform:translate(${w.player.x * TILE}px,${(w.player.y - 0.35) * TILE}px)">${propArt("crate")}${actorTag("镖货")}</div>`
+      ? `<div class="actor prop crate cargo-follow" style="transform:translate(${w.player.x * TILE}px,${(w.player.y - 0.35) * TILE}px)">${propArt("crate")}</div>`
       : "";
   const actors = root.querySelector("#actors");
   if (actors) actors.innerHTML = props + chests + doors + areaMarks + bars.join("") + fires + sealMarks + grounds + talkers + npcs + cargoMark + player;
+  const floatEl = root.querySelector("#float-labels");
+  if (floatEl) floatEl.innerHTML = arbitrateLabels(jobs).map(renderLabelHtml).join("");
   paintFog(w);
   const talkWords = root.querySelector("#talk-words");
   if (talkWords) talkWords.innerHTML = renderTalkWords(w);
@@ -2303,8 +2396,15 @@ function paintMap(): void {
     if (stageW >= 64 && stageH >= 64) {
       const mapW = w.w * TILE;
       const mapH = w.h * TILE;
-      const scale = coverScale(isOutdoor(w.scene));
-      cam = applyCamera(cam, w.scene, w.player, mapW * scale, mapH * scale, stageW, stageH, TILE * scale);
+      const outdoor = isOutdoor(w.scene);
+      const testMode = run.flags.includes("testMode");
+      const scale = testMode ? testCamScale(testCamLift, outdoor, mapW, mapH, stageW, stageH) : coverScale(outdoor);
+      if (testMode && testCamLift >= 2) {
+        const o = overviewCamera(mapW, mapH, stageW, stageH, scale);
+        cam = { ...o, scene: w.scene };
+      } else {
+        cam = applyCamera(cam, w.scene, w.player, mapW * scale, mapH * scale, stageW, stageH, TILE * scale);
+      }
       map.style.transformOrigin = "0 0";
       map.style.transform = `translate(${cam.x}px, ${cam.y}px) scale(${scale})`;
     }
@@ -2359,6 +2459,7 @@ function paintHover(): void {
 function goTitle(): void {
   stopWalk();
   clearFx();
+  testCamLift = 0;
   if (screen === "map" || screen === "combat" || screen === "reward") autosave();
   screen = "title";
   fallOpen = false;
@@ -2393,6 +2494,7 @@ function beginRun(heart: HeartId): void {
     world.message = world.said;
   }
   cam = { x: 0, y: 0, scene: "" };
+  testCamLift = 0;
   settingsOpen = false;
   screen = "map";
   cueMusic("map");
@@ -2422,12 +2524,16 @@ function beginTestRun(): void {
   ] as const) {
     run = addBag(run, id, n);
   }
-  world = loadScene(HERO_START[pendingHero], run);
+  run = addFlag(run, "roadPass");
+  run = addFlag(run, "watchOpen");
+  run = addItem(run, "roadPass");
+  world = loadScene("luoyang", run);
   seeAround();
-  world.said = "测试版：雾已开，路已通，囊里有材。";
+  world.said = "测试版：直接落在洛阳。雾已开，路已通，囊里有材。";
   world.thought = "正式开局请点「出门」。";
   world.message = world.said;
   cam = { x: 0, y: 0, scene: "" };
+  testCamLift = 0;
   settingsOpen = false;
   screen = "map";
   cueMusic("map");
@@ -2574,6 +2680,7 @@ function resumeRun(): void {
   world.player = resumeSpawn(world, save.at);
   seeAround();
   cam = { x: 0, y: 0, scene: "" };
+  testCamLift = run.flags.includes("testMode") ? testCamLift : 0;
   settingsOpen = false;
   screen = "map";
   cueMusic("map");
@@ -2759,6 +2866,16 @@ function finishLoss(): void {
   stashFight();
   world = afterDuel(world, false, hp, 0, note);
   if (bet.line) world.thought = `${world.thought} ${bet.line}`;
+  if (run.flags.includes("testMode")) {
+    const said = world.said;
+    const thought = world.thought;
+    const message = world.message;
+    world = loadScene("luoyang", run);
+    world.said = said;
+    world.thought = thought;
+    world.message = message;
+    seeAround();
+  }
   // Full status between fights
   run = {
     ...syncActiveHp(run, hp),
@@ -2933,6 +3050,12 @@ function bind(): void {
   };
   root.querySelector("#btn-settings")?.addEventListener("click", openSettings);
   root.querySelector("#btn-settings-title")?.addEventListener("click", openSettings);
+  root.querySelector("#btn-test-cam")?.addEventListener("click", () => {
+    if (!run.flags.includes("testMode")) return;
+    testCamLift = (testCamLift + 1) % 3;
+    cam = { x: 0, y: 0, scene: "" };
+    render();
+  });
   for (const id of Object.keys(CODEX) as CodexBook[]) {
     root.querySelector(`#btn-codex-${id}`)?.addEventListener("click", () => {
       if (!hasCodex(run, id)) return;
@@ -3515,6 +3638,13 @@ window.addEventListener("keydown", (e) => {
   if (n >= 1 && n <= battle.hand.length) {
     const card = battle.hand[n - 1];
     fireCard(card.uid);
+  }
+});
+
+window.addEventListener("keydown", (e) => {
+  if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "l") {
+    e.preventDefault();
+    window.location.href = "./combat-lab.html";
   }
 });
 

@@ -65,6 +65,8 @@ export interface SceneDef {
   gate: GateKind;
   signs: string[];
   items: Record<string, ItemId>;
+  /** 多字符实体表（优先于单字母 ascii 映射 talker/portal） */
+  entityMarks?: import("./entityMarks").EntityMark[];
 }
 
 export interface TalkCtx {
@@ -3867,6 +3869,11 @@ export const TALKER_NAME: Record<string, string> = {
   judge: "洛司",
   luoBailiff: "捕头姜",
   luoClerk: "府衙师爷",
+  luoConstable: "六扇门捕快",
+  luoConstable2: "捕快乙",
+  luoCaptain: "城防校尉",
+  luoGuard: "守备兵",
+  luoGuard2: "守备兵乙",
   luoCoach: "教头朱文渊",
   luoDoctor: "慈惠堂医",
   luoBarkeeper: "掌柜老温",
@@ -3874,10 +3881,13 @@ export const TALKER_NAME: Record<string, string> = {
   luoAsha: "名妓阿砂",
   luoMadam: "平康鸨母",
   luoVendor: "通远当铺",
+  luoSilk: "绸缎庄主",
+  luoSmith: "铁匠",
   luoHerb: "南市药贩",
   luoAntique: "古董商",
   luoRaconteur: "说书人",
-  luoTemple: "景教祠司",
+  luoTemple: "白马寺司",
+  luoMonk: "寺僧",
   luoPost: "驿邮署吏",
   luoHawker: "南市摊贩",
   luoGate: "定鼎门卒",
@@ -4123,7 +4133,79 @@ export function propVoice(kind: string, tag: string | undefined, scene: SceneId)
   if (kind === "bench") {
     return { said: "条凳一条，坐痕深。", thought: "坐过的人早走了。" };
   }
-  return { said: "瓦罐一口，空的。", thought: "空罐子有时比满的有用。" };
+  if (kind === "rack") {
+    return { said: "兵器架一列，刀鞘磕出印。", thought: "架上有刀，人不在架上。" };
+  }
+  if (kind === "dummy") {
+    return { said: "木人桩一根，身上尽是棍痕。", thought: "练过的，才会留下这些。" };
+  }
+  if (kind === "sandbag") {
+    return { said: "沙袋沉甸甸的。", thought: "武馆里才挂这个。" };
+  }
+  if (kind === "table") {
+    return { said: "方桌一张，漆面发亮。", thought: "坐过客，也坐过账。" };
+  }
+  if (kind === "stool") {
+    return { said: "小凳一只。", thought: "挪开就能过。" };
+  }
+  if (kind === "cabinet") {
+    return { said: "柜门关着。", thought: "柜里的东西不外露。" };
+  }
+  if (kind === "shelf") {
+    return { said: "货架一层层。", thought: "货在架上，价在嘴里。" };
+  }
+  if (kind === "bed") {
+    return { said: "榻上叠着被。", thought: "有人歇过，席还温。" };
+  }
+  if (kind === "counter") {
+    return { said: "柜台横着，磨出包浆。", thought: "买卖隔着这道木。" };
+  }
+  if (kind === "screen") {
+    return { said: "屏风半掩。", thought: "遮的是人，不是事。" };
+  }
+  if (kind === "censer") {
+    return { said: "香炉凉了。", thought: "香尽了，味还在。" };
+  }
+  if (kind === "basin") {
+    return { said: "铜盆一只。", thought: "水浑了就换。" };
+  }
+  if (kind === "drum") {
+    return { said: "更鼓沉默。", thought: "敲了才算更。" };
+  }
+  if (kind === "mat") {
+    return { said: "草席一领。", thought: "坐得住人。" };
+  }
+  if (kind === "banner") {
+    return { said: "布幌微动。", thought: "幌在，店就还开着。" };
+  }
+  if (kind === "board") {
+    return { said: "告示板一块。", thought: "字是官写的，人是民看的。" };
+  }
+  if (kind === "pot") {
+    return { said: "花盆一口，土还潮。", thought: "院里才养得住。" };
+  }
+  if (kind === "desk") {
+    return { said: "书案一张。", thought: "案上无笔，人已离座。" };
+  }
+  if (kind === "stall") {
+    return { said: "摊棚矮矮的。", thought: "货在棚下，人在棚前。" };
+  }
+  if (kind === "arch") {
+    if (tag === "洛阳门") {
+      return { said: "洛阳门·牌楼临水。", thought: "天津桥门面，过桥才算入城。" };
+    }
+    if (tag === "院门") {
+      return { said: "院门半开。", thought: "门在墙缝里，路才通。" };
+    }
+    return { said: "门额在上。", thought: "进了这道门，才算进院。" };
+  }
+  if (kind === "stone") {
+    return { said: "石墩一个。", thought: "压得住脚，压不住话。" };
+  }
+  if (kind === "jar") {
+    return { said: "瓦罐一口，空的。", thought: "空罐子有时比满的有用。" };
+  }
+  return { said: "陈设一件。", thought: "认清楚再伸手。" };
 }
 
 export function bumpVoice(kind: "gate" | "water" | "cliff", gate: GateKind): Voice {

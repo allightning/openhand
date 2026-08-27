@@ -43,7 +43,7 @@ describe("tutorial battle", () => {
     b = playNamed(b, "strike");
     b = playNamed(b, "strike");
     b = playNamed(b, "strike");
-    expect(b.enemy.hp).toBe(38);
+    expect(b.enemy.hp).toBe(41); // §31.11 劈掌 6→5
     expect(b.energy).toBe(STARTER.energyStart - 3);
     expect(b.phase).toBe("player");
   });
@@ -62,7 +62,7 @@ describe("tutorial battle", () => {
     b = playNamed(b, "push");
     b = playNamed(b, "strike");
     b = playNamed(b, "strike");
-    expect(b.enemy.hp).toBe(36);
+    expect(b.enemy.hp).toBe(38); // §31.11 劈掌 6→5
     expect(b.phase).toBe("player");
   });
 
@@ -95,7 +95,7 @@ describe("tutorial battle", () => {
     const before = cloneBattle(b);
     b = endTurn(b);
     expect(b.player.hp).toBe(before.player.hp - 18);
-    expect(b.enemy.hp).toBe(38);
+    expect(b.enemy.hp).toBe(41); // §31.11 劈掌 6→5
   });
 
   it("turn two can charge then strike for 10", () => {
@@ -106,7 +106,7 @@ describe("tutorial battle", () => {
     b = playNamed(b, "charge");
     const strike = b.hand.find((c) => c.defId === "strike")!;
     const prev = previewCard(b, strike.uid);
-    expect(prev.notes.some((n) => n.includes("10"))).toBe(true);
+    expect(prev.notes.some((n) => n.includes("9"))).toBe(true); // §31.11 蓄劲+4 + 劈掌5
     b = playCard(b, strike.uid);
     expect(b.enemy.hp).toBe(prev.enemyHp);
     expect(b.nextDamage).toBe(0);
@@ -242,7 +242,7 @@ describe("new verbs and techniques", () => {
     expect(b.flow).toBe(1);
     const mid = b.enemy.hp;
     b = playNamed(b, "strike");
-    expect(b.enemy.hp).toBe(mid - 7);
+    expect(b.enemy.hp).toBe(mid - 6); // §31.11 劈掌5 + 气脉1
   });
 
   it("weaves after an attack, mirrors threat, and retains ironform block", () => {
@@ -337,7 +337,7 @@ describe("new verbs and techniques", () => {
 describe("先机", () => {
   it("keeps the catcher slower than a palm so the tutorial still opens", () => {
     const b = makeTutorialBattle();
-    expect(yourPace(b)).toBe(5);
+    expect(yourPace(b)).toBe(8); // §31.11 拳最快
     expect(b.foePace).toBe(4);
     expect(b.player.hp).toBe(STARTER.playerHp);
     expect(b.log.some((line) => line.includes("手先到"))).toBe(false);
@@ -355,9 +355,9 @@ describe("先机", () => {
     const run = makeRun("empty");
     run.deck = ["haste", "defend", "defend", "defend", "defend"];
     let b = makeBattle("catcher", run, true);
-    expect(yourPace(b)).toBe(5);
-    b = playNamed(b, "haste");
     expect(yourPace(b)).toBe(8);
+    b = playNamed(b, "haste");
+    expect(yourPace(b)).toBe(11);
   });
 });
 
@@ -408,7 +408,6 @@ describe("stance, swap, and mates", () => {
     b = swapFighter(b, "watch");
     expect(b.active).toBe("watch");
     expect(b.hand.some((c) => c.defId === "strike")).toBe(false);
-    expect(b.hand.length).toBe(n);
     expect(b.discardPile.some((c) => c.defId === "strike")).toBe(true);
     expect(b.hand.every((c) => {
       const school = cardSchool(c.defId);

@@ -1,0 +1,650 @@
+/* §31 连胜踢馆 — 独立样式，不碰 lab.css v2.8 居中纪律段 */
+
+.gauntlet-entry-btn {
+  border-color: var(--lab-gold, #c9a227);
+  color: #1a1410;
+  background: linear-gradient(165deg, #faf0d8, #e8dcc4);
+}
+
+.gauntlet-entry-best {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.68rem;
+  opacity: 0.75;
+  text-align: center;
+}
+
+.gauntlet-overlay {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  overflow: hidden;
+  padding: 0.5rem 1rem 1rem;
+  box-sizing: border-box;
+}
+
+.gauntlet-shell {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.gauntlet-head {
+  text-align: center;
+  width: 100%;
+}
+
+.gauntlet-head h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.35rem;
+  letter-spacing: 0.12em;
+}
+
+.gauntlet-head p {
+  margin: 0 0 0.5rem;
+  font-size: 0.82rem;
+  opacity: 0.85;
+}
+
+.gauntlet-school-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: stretch;
+  gap: 0.65rem;
+  width: 100%;
+  overflow: hidden;
+}
+
+.gauntlet-school-card,
+.gauntlet-path-card {
+  flex: 0 1 168px;
+  max-width: 180px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.65rem 0.55rem 0.55rem;
+  border: 2px solid #2a2018;
+  background: #f4ead6;
+  color: #1a1410;
+  cursor: pointer;
+  text-align: center;
+  box-shadow: 2px 2px 0 #2a201855;
+}
+
+.gauntlet-school-card:hover,
+.gauntlet-path-card:hover {
+  border-color: #8b2a24;
+  background: #faf2e2;
+}
+
+.gauntlet-school-card b,
+.gauntlet-path-card b {
+  font-size: 1.05rem;
+  letter-spacing: 0.16em;
+}
+
+.gauntlet-school-card em,
+.gauntlet-path-card em {
+  font-style: normal;
+  font-size: 0.68rem;
+  opacity: 0.8;
+}
+
+.gauntlet-error-banner {
+  margin: 0.35rem 0 0;
+  padding: 0.45rem 0.65rem;
+  border: 2px solid #8b2a24;
+  background: #fff0ee;
+  color: #5a1210;
+  font-size: 0.82rem;
+  max-width: 36rem;
+  text-align: center;
+}
+
+.lab-build-tag {
+  font-size: 0.62rem;
+  opacity: 0.55;
+  letter-spacing: 0.04em;
+}
+
+.gauntlet-preview-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.15rem;
+  max-height: 3.6rem;
+  overflow: hidden;
+}
+
+.gauntlet-preview-chip {
+  font-size: 0.58rem;
+  padding: 0.05rem 0.25rem;
+  border: 1px solid #5a4030;
+  background: #efe4cc;
+  line-height: 1.2;
+}
+
+.gauntlet-school-meta {
+  font-size: 0.62rem;
+  opacity: 0.65;
+}
+
+.gauntlet-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--lab-gold, #c9a227);
+  background: rgba(8, 6, 4, 0.55);
+  color: #f5eed8;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  cursor: help;
+  white-space: nowrap;
+}
+
+.gauntlet-reward-sub {
+  cursor: help;
+}
+
+.gauntlet-reward-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.gauntlet-reward-card {
+  flex: 0 1 220px;
+  min-width: 180px;
+  max-width: 260px;
+  padding: 0.85rem 0.75rem;
+  border: 2px solid #2a2018;
+  background: #f4ead6;
+  color: #1a1410;
+  cursor: pointer;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.gauntlet-reward-card:hover {
+  border-color: #8b2a24;
+  transform: translateY(-2px);
+}
+
+.gauntlet-reward-card em {
+  font-style: normal;
+  font-size: 0.68rem;
+  color: #8b2a24;
+  letter-spacing: 0.12em;
+}
+
+.gauntlet-reward-card b {
+  font-size: 1rem;
+}
+
+.gauntlet-reward-card .gauntlet-reward-desc {
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: #4a3d2c;
+  margin: 0.15rem 0 0;
+}
+
+.gauntlet-result-hero {
+  text-align: center;
+  width: 100%;
+}
+
+.gauntlet-result-streak {
+  font-size: clamp(3rem, 12vw, 5.5rem);
+  line-height: 1;
+  font-weight: 700;
+  color: #8b2a24;
+  letter-spacing: 0.08em;
+  cursor: help;
+}
+
+.gauntlet-result-streak-label {
+  margin-top: 0.25rem;
+  font-size: 0.95rem;
+  letter-spacing: 0.28em;
+  opacity: 0.85;
+}
+
+.gauntlet-result-breaks {
+  margin-top: 0.65rem;
+  font-size: 1.25rem;
+  letter-spacing: 0.08em;
+  cursor: help;
+}
+
+.gauntlet-result-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem 1.25rem;
+  font-size: 0.78rem;
+  opacity: 0.9;
+}
+
+.gauntlet-result-meta span {
+  cursor: help;
+}
+
+.gauntlet-result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.65rem;
+  margin-top: 0.5rem;
+}
+
+.lab-start-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.lab-header-battle .gauntlet-badge {
+  margin-left: 0.35rem;
+}
+
+/* §31.12 伙伴选择：同系光环 / 异系组合技 路径签 */
+.gauntlet-companion-card .gauntlet-path-tag { display: inline-block; font-style: normal; font-size: 0.72rem; padding: 0.1rem 0.45rem; border-radius: 999px; margin-bottom: 0.3rem; }
+.gauntlet-companion-card .gauntlet-path-tag.same { background: rgba(232,160,106,0.18); color: #e8a06a; border: 1px solid rgba(232,160,106,0.4); }
+.gauntlet-companion-card .gauntlet-path-tag.cross { background: rgba(120,190,255,0.14); color: #8ec9ff; border: 1px solid rgba(120,190,255,0.35); }
+.gauntlet-companion-card .gauntlet-path-line { color: #d8c9b0; }
+
+/* §31.13 踢馆门厅（Lab 主页） */
+.gauntlet-home-head h2 {
+  font-size: 2rem;
+  letter-spacing: 0.3em;
+}
+
+.gauntlet-home-mid {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.gauntlet-home-start {
+  font-size: 1.3rem;
+  letter-spacing: 0.4em;
+  padding: 0.9rem 2.6rem 0.9rem 3rem;
+}
+
+.gauntlet-best-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  border: 1px solid var(--lab-gold, #c9a227);
+  border-radius: 8px;
+  padding: 0.7rem 1.4rem;
+  font-size: 0.78rem;
+}
+
+.gauntlet-best-card b {
+  font-size: 1.15rem;
+}
+
+.gauntlet-best-card.empty {
+  opacity: 0.65;
+}
+
+.gauntlet-best-title {
+  font-size: 0.68rem;
+  letter-spacing: 0.2em;
+  opacity: 0.7;
+}
+
+.gauntlet-home-rules {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.gauntlet-home-rules span {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 0.18rem 0.7rem;
+  font-size: 0.72rem;
+  opacity: 0.85;
+}
+
+.gauntlet-dev-details {
+  width: 100%;
+  margin-top: 0.5rem;
+  border-top: 1px dashed rgba(128, 128, 128, 0.4);
+  padding-top: 0.6rem;
+}
+
+.gauntlet-dev-details > summary {
+  cursor: pointer;
+  text-align: center;
+  font-size: 0.75rem;
+  opacity: 0.65;
+  letter-spacing: 0.15em;
+}
+
+.gauntlet-dev-details > summary:hover {
+  opacity: 1;
+}
+
+/* 实验台 · 分实体调参 */
+.lab-gauntlet-dev {
+  text-align: left;
+  padding: 0.5rem 0;
+}
+.lab-dev-lead {
+  font-size: 0.72rem;
+  margin: 0 0 0.6rem;
+}
+.lab-dev-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.65rem;
+}
+.lab-dev-tab {
+  border: 1px solid rgba(200, 180, 140, 0.35);
+  background: transparent;
+  color: inherit;
+  border-radius: 6px;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.lab-dev-tab.active {
+  background: var(--lab-gold, #c9a227);
+  color: #1a1410;
+  border-color: var(--lab-gold, #c9a227);
+}
+.lab-dev-section h4 {
+  margin: 0.5rem 0 0.35rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  opacity: 0.75;
+}
+.lab-dev-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.45rem 0.65rem;
+}
+.lab-dev-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.72rem;
+}
+.lab-dev-field.wide {
+  grid-column: 1 / -1;
+}
+.lab-dev-field input,
+.lab-dev-field textarea,
+.lab-dev-pick select {
+  width: 100%;
+  padding: 0.25rem 0.4rem;
+  font-size: 0.78rem;
+  border-radius: 4px;
+  border: 1px solid rgba(128, 128, 128, 0.45);
+  background: rgba(0, 0, 0, 0.25);
+  color: inherit;
+}
+.lab-dev-base {
+  font-size: 0.72rem;
+  margin: 0.35rem 0;
+}
+.lab-dev-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  margin-top: 0.5rem;
+}
+.lab-dev-actions,
+.lab-dev-foot {
+  margin-top: 0.65rem;
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.lab-dev-modal {
+  max-width: min(720px, 96vw);
+  max-height: 90vh;
+  overflow: auto;
+}
+.lab-dev-modal .lab-gauntlet-dev {
+  padding: 0 1rem 1rem;
+}
+.lab-guide-panel {
+  max-width: min(560px, 96vw);
+}
+.lab-guide-body {
+  padding: 0 1.25rem 1rem;
+  max-height: 70vh;
+  overflow: auto;
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+.lab-guide-section {
+  margin-bottom: 1rem;
+}
+.lab-guide-section h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+  color: var(--lab-gold, #c9a227);
+}
+.lab-guide-section p {
+  margin: 0.25rem 0;
+  opacity: 0.92;
+}
+.lab-guide-title {
+  margin: 0;
+  font-size: 1rem;
+  letter-spacing: 0.08em;
+}
+.lab-header .lab-wiki-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.lab-header .lab-wiki-open {
+  font-size: 0.72rem;
+  padding: 0.2rem 0.45rem;
+}
+.lab-guide-btn {
+  border-color: var(--lab-gold, #c9a227);
+}
+
+/* §31.13 下注屏 */
+.gauntlet-wager-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: stretch;
+  gap: 0.65rem;
+  width: 100%;
+}
+
+.gauntlet-wager-card.active {
+  outline: 2px solid var(--lab-gold, #c9a227);
+  outline-offset: 2px;
+}
+
+.gauntlet-stake-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.gauntlet-stake-label {
+  font-size: 0.75rem;
+  opacity: 0.7;
+  letter-spacing: 0.15em;
+}
+
+.gauntlet-stake-chip {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  padding: 0.3rem 0.9rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.gauntlet-stake-chip.active {
+  background: var(--lab-gold, #c9a227);
+  color: #1a1410;
+  border-color: var(--lab-gold, #c9a227);
+}
+
+.gauntlet-stake-chip:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* §31.15 自定义注额填格 */
+.gauntlet-stake-custom {
+  display: inline-flex;
+  align-items: center;
+  border: 1px dashed currentColor;
+  border-radius: 999px;
+  padding: 0 0.6rem;
+  opacity: 0.9;
+}
+
+.gauntlet-stake-custom.active {
+  border: 1px solid var(--lab-gold, #c9a227);
+  background: color-mix(in srgb, var(--lab-gold, #c9a227) 22%, transparent);
+}
+
+.gauntlet-stake-custom input {
+  width: 4.2rem;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: inherit;
+  font-size: 0.8rem;
+  text-align: center;
+  padding: 0.3rem 0;
+}
+
+.gauntlet-stake-custom input::placeholder {
+  color: inherit;
+  opacity: 0.45;
+  font-size: 0.72rem;
+}
+
+.gauntlet-wager-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.gauntlet-pot {
+  /* §31.14 甲方：彩金字看不清 → 纯白加粗 */
+  color: #ffffff;
+  font-weight: 700;
+}
+
+/* §31.13 结算屏彩金 */
+.gauntlet-result-pot {
+  margin-top: 0.35rem;
+  font-size: 1.05rem;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.gauntlet-result-potline {
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+
+.gauntlet-cashout {
+  border-color: var(--lab-gold, #c9a227);
+}
+
+/* §31.16 顺路黑市：领奖屏的彩金出口 */
+.gauntlet-market {
+  margin-top: 14px;
+  border-top: 1px dashed var(--lab-gold, #c9a227);
+  padding-top: 10px;
+}
+.gauntlet-market h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  letter-spacing: 1px;
+  opacity: 0.8;
+}
+.gauntlet-market-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+.gauntlet-market-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 118px;
+  padding: 8px 10px;
+  border: 1px solid #8a6a3f;
+  border-radius: 8px;
+  background: #2e2013;
+  color: #f2e6cf;
+  cursor: pointer;
+  transition: transform 0.12s;
+}
+.gauntlet-market-card:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: #e8c86a;
+}
+.gauntlet-market-card b {
+  font-size: 13px;
+}
+.gauntlet-market-price {
+  font-size: 12px;
+  color: #ffd76a;
+  font-weight: 700;
+}
+.gauntlet-market-card.sold {
+  opacity: 0.45;
+}
+.gauntlet-market-card.sold .gauntlet-market-price {
+  color: #9c8a6a;
+}
+.gauntlet-market-card.poor {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.gauntlet-redeem {
+  background: #3d1414;
+  border: 1px solid #c0392b;
+  color: #ffd0c0;
+  font-weight: 700;
+}
+.gauntlet-redeem:hover {
+  background: #5a1d1d;
+}

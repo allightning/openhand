@@ -187,7 +187,9 @@ export type Tile =
   | "hill"
   | "rock"
   | "road"
-  | "pack";
+  | "pack"
+  | "shore"
+  | "sidewalk";
 
 export interface Pos {
   x: number;
@@ -272,6 +274,11 @@ export interface Prop {
   y: number;
   kind: PropKind;
   tag?: string;
+  /** 多字符唯一 ID（洛阳等大图必填，防单字母溢出错乱） */
+  id?: string;
+  /** 多格足迹（默认 1×1；仅大型家具/载具） */
+  spanW?: number;
+  spanH?: number;
 }
 
 export interface GroundItem {
@@ -279,6 +286,15 @@ export interface GroundItem {
   x: number;
   y: number;
   taken: boolean;
+}
+
+export interface Barrier {
+  x: number;
+  y: number;
+  /** item:roadPass | flag:jailOpen */
+  need: string;
+  said: string;
+  thought: string;
 }
 
 export interface World {
@@ -301,6 +317,8 @@ export interface World {
   braziers: Pos[];
   signs: Sign[];
   caches: Cache[];
+  /** 逻辑空气墙（牢房正门等） */
+  barriers: Barrier[];
   arrival: string | null;
   hp: number;
   hpMax: number;

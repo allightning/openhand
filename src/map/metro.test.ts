@@ -5,7 +5,7 @@ import {
   renderBuildingName,
   applyBuildingTheme,
 } from "./metro";
-import { LUOYANG_BUILDINGS, LUOYANG_TALKERS, LUO_PORTAL_PRISON, LUO_PORTAL_YANBO } from "./luoyangMeta";
+import { LUOYANG_BUILDINGS, LUOYANG_TALKERS } from "./luoyangMeta";
 import { generateLuoyang } from "./luoyangGen";
 import { LUOYANG_SUBSCENES } from "./luoyangHub";
 import { SCENES } from "./scenes";
@@ -19,9 +19,9 @@ describe("luoyang presentation layer", () => {
     expect(names).toContain("太白酒楼");
     expect(names).toContain("烟波楼");
     expect(names).toContain("定鼎武馆");
-    expect(names).toContain("回春堂");
+    expect(names).toContain("慈惠堂");
     expect(names).toContain("通远质库");
-    expect(names).toContain("大秦寺");
+    expect(names).toContain("白马寺");
     expect(names).toContain("洛阳驿");
     expect(names).toContain("永丰坊");
     expect(names).toContain("殖业坊");
@@ -90,16 +90,17 @@ describe("luoyang presentation layer", () => {
     const scene = generateLuoyang();
     expect(scene.ascii[0]!.length).toBe(84);
     expect(scene.ascii.length).toBe(54);
-    expect(scene.portals[LUO_PORTAL_PRISON]?.to).toBe("luoyang_yamen_prison");
-    expect(scene.portals[LUO_PORTAL_YANBO]?.to).toBe("luoyang_yanbo_inner");
+    expect(scene.portals.GA?.to).toBe("luoyang_yamen_prison");
+    expect(scene.portals.FA?.to).toBe("luoyang_yanbo_inner");
     expect(scene.portals.D?.to).toBe("yanshi");
-    // 外门 D/W/E 坐标骨架仍在
     const flat = scene.ascii.join("\n");
     expect(flat.includes("D")).toBe(true);
     expect(flat.includes("W")).toBe(true);
     expect(flat.includes("E")).toBe(true);
-    expect(flat.includes(LUO_PORTAL_PRISON)).toBe(true);
-    expect(flat.includes(LUO_PORTAL_YANBO)).toBe(true);
+    // 二级门用 entityMarks，不再把 F/G 写在外门 ascii
+    const marks = scene.entityMarks ?? [];
+    expect(marks.some((m) => m.id === "FA" && m.role === "portal")).toBe(true);
+    expect(marks.some((m) => m.id === "GA" && m.role === "portal")).toBe(true);
   });
 
   it("registers prison and yanbo inner scenes", () => {

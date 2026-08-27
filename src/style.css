@@ -820,7 +820,57 @@ img.pal-foreignSand { filter: sepia(0.6) hue-rotate(30deg) saturate(1.15) bright
   text-shadow: 0 1px 2px #120e0c, 0 0 4px #120e0c;
   white-space: nowrap;
   font-family: "Noto Serif SC", serif;
+  /* 标签在浮动层统一置顶；此处作回退 */
+  z-index: 5;
 }
+/* 文本标签强制最顶层：不被树/墙/人物遮挡；锚点底部居中 */
+.float-labels {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  overflow: visible;
+}
+.float-labels .float-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  font-family: "Noto Serif SC", serif;
+  color: #1a1410;
+  text-shadow: 0 1px 0 #f4ead6, 0 0 4px #f4ead6, 0 0 8px #e8dcc4;
+  transform: translate(-50%, -100%);
+  z-index: 9999;
+}
+.float-labels .float-label.door {
+  color: var(--gold, #c4a35a);
+  font-weight: 600;
+}
+.float-labels .float-label.you {
+  color: #ffe14a;
+}
+.float-labels .float-label.gate-scale {
+  transform: translate(-50%, -100%);
+}
+.float-labels .float-label.landmark {
+  font-size: 15px;
+  line-height: 1.2;
+  font-weight: 600;
+  color: #fff;
+  background: none;
+  border: none;
+  -webkit-text-stroke: 1px #1a1410;
+  paint-order: stroke fill;
+  text-shadow: none;
+}
+.actor.prop.tree { z-index: 0; }
+.actor.prop { z-index: 1; }
+.actor.npc { z-index: 3; }
+.actor.door { z-index: 4; }
+.actor.you { z-index: 5; }
+.actors { z-index: 3; }
 .actor.you .tag { color: var(--gold); }
 .actor.door .tag { color: var(--gold); }
 .actor.fire { color: #e24a3a; z-index: 2; }
@@ -1311,6 +1361,13 @@ button.ghost { color: #5a4030; border-color: transparent; background: transparen
   font-size: 12px;
 }
 .fy-btn.hp:hover { background: #f4ead6; }
+.fy-btn.test-cam-btn {
+  width: auto;
+  min-width: 88px;
+  padding: 0 10px;
+  font-size: 13px;
+  color: #5a2018;
+}
 .fy-btn .ico { width: 15px; height: 15px; }
 .stat-chip {
   background: linear-gradient(165deg, #f6ecd8, #f4ead6);
@@ -1636,6 +1693,27 @@ button.ghost { color: #5a4030; border-color: transparent; background: transparen
   width: 38px;
   height: 38px;
   margin-top: -6px;
+}
+.actor.prop.span-2x1 img.sprite.obj {
+  width: 72px;
+  height: 40px;
+  margin-top: -8px;
+  margin-left: -4px;
+  object-fit: contain;
+}
+.actor.prop.span-3x1 img.sprite.obj {
+  width: 104px;
+  height: 40px;
+  margin-top: -8px;
+  margin-left: -4px;
+  object-fit: contain;
+}
+.actor.prop.arch.landmark img.sprite.obj {
+  width: 64px;
+  height: 72px;
+  margin-top: -36px;
+  margin-left: -12px;
+  filter: drop-shadow(0 2px 3px #000a);
 }
 .actor.door {
   overflow: visible;

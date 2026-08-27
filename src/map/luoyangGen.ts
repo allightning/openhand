@@ -7,15 +7,61 @@ import type { GateKind, ItemId, SceneId, SealId } from "./types";
 import type { MetroScene } from "./metro";
 import {
   applyBuildingTheme,
-  furnishByTemplate,
   renderBuildingName,
   validateReachability,
   spawnCompanionProps,
   renderWallVariant,
 } from "./metro";
-import { buildingByYard, LUO_PORTAL_PRISON, LUO_PORTAL_YANBO } from "./luoyangMeta";
+import { buildingByYard } from "./luoyangMeta";
 import { capAllFurnishings, capFurnishing, placeNpc, cellKey, ensureFurnishingMins, type PlaceOcc } from "./placement";
 import { npcById } from "./npc";
+import {
+  encodeMarkId,
+  makePortalMark,
+  makeTalkerMark,
+  type EntityMark,
+  makeBarrierMark,
+} from "./entityMarks";
+import {
+  W as LUO_W,
+  H as LUO_H,
+  cx as LUO_CX,
+  cy as LUO_CY,
+  LUOYANG_YARD_DEFS,
+  LUOYANG_BRIDGES,
+  LUOYANG_L_SHAPE_KEYS,
+  V73_TREE_MIN,
+  V73_TREE_MAX,
+  V73_LANTERN_MAX,
+  YINGTIAN_GATE,
+  carveLuoyangRiver,
+  punchRiverBridge,
+  paintImperialAxis,
+  paintPalaceWalls,
+  finalizeV73Lanterns,
+  plantV73Lanterns,
+  sweepBareOutdoor,
+  fillBlankWindows6,
+  southGarden,
+  fixShoreRoads,
+  enforceTreeDensity,
+  topUpV73Trees,
+  stripArterialTrees,
+  ensureV73TreeMin,
+  type LuoyangYardDef,
+} from "./luoyangV73";
+import {
+  activateFangYards,
+  riverBankSpots,
+  wellAdjSpots,
+  trimLanternRuns,
+  LUOYANG_WELLS,
+  npcOnBindSpot,
+  riverColumnsOk,
+  tianjinWaterHeadsOk,
+  countWells,
+  V74_WELL_MAX,
+} from "./luoyangV74";
 
 export type YardFn =
   | "yamen"
@@ -29,7 +75,11 @@ export type YardFn =
   | "shop"
   | "home"
   | "jail"
-  | "shed";
+  | "shed"
+  | "sixDoors"
+  | "garrison"
+  | "silk"
+  | "smith";
 
 export interface CourtyardConfig {
   jin: 1 | 2 | 3;
@@ -87,6 +137,538 @@ function punchWater(g: string[], x: number, y: number): void {
   if (c === "~" || c === "%" || c === "^") set(g, x, y, ".");
 }
 
+export interface CourtyardConfig {
+  jin: 1 | 2 | 3;
+  fn: YardFn;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** 外门朝向（朝街/朝桥） */
+  door: "n" | "s" | "e" | "w";
+  /** 可选 mark 字母（生成后可清） */
+  mark?: string;
+  /** courtyard=带围墙大院；street=临街开放铺面 */
+  form?: "courtyard" | "street";
+  /** L 形 footprint（切角或附翼） */
+  lShape?: boolean;
+  wing?: { x: number; y: number; w: number; h: number };
+}
+
+/**
+ * 临街小铺（V4）：无黑墙、无马路巨型柜台。
+ * 主体=小房子 H；门口仅单格幌/摊/灯；掌柜站屋侧（靠墙），顾客站门前空地。
+ */
+export function generateStreetShop(
+  g: string[],
+  cfg: CourtyardConfig,
+): {
+  doorX: number;
+  doorY: number;
+  behindX: number;
+  behindY: number;
+  front: { x: number; y: number }[];
+} {
+  const { x, y, w, h, fn, door } = cfg;
+  rect(g, x, y, x + w - 1, y + h - 1, ".");
+
+  const midX = x + Math.floor(w / 2);
+  const midY = y + Math.floor(h / 2);
+  let doorX = midX;
+  let doorY = y + h - 1;
+  let houseX = midX;
+  let houseY = y;
+  let behindX = midX;
+  let behindY = y;
+  const front: { x: number; y: number }[] = [];
+
+  if (door === "s") {
+    doorX = midX;
+    doorY = y + h - 1;
+    houseX = midX;
+    houseY = y + 1;
+    behindX = midX - 1;
+    behindY = y + 1;
+    front.push({ x: midX, y: doorY }, { x: midX - 1, y: doorY }, { x: midX + 1, y: doorY });
+  } else if (door === "n") {
+    doorX = midX;
+    doorY = y;
+    houseX = midX;
+    houseY = y + h - 2;
+    behindX = midX + 1;
+    behindY = y + h - 2;
+    front.push({ x: midX, y: doorY }, { x: midX - 1, y: doorY }, { x: midX + 1, y: doorY });
+  } else if (door === "e") {
+    doorX = x + w - 1;
+    doorY = midY;
+    houseX = x + 1;
+    houseY = midY;
+    behindX = x + 1;
+    behindY = midY - 1;
+    front.push({ x: doorX, y: midY }, { x: doorX, y: midY - 1 }, { x: doorX, y: midY + 1 });
+  } else {
+    doorX = x;
+    doorY = midY;
+    houseX = x + w - 2;
+    houseY = midY;
+    behindX = x + w - 2;
+    behindY = midY + 1;
+    front.push({ x: doorX, y: midY }, { x: doorX, y: midY - 1 }, { x: doorX, y: midY + 1 });
+  }
+
+  set(g, houseX, houseY, "H");
+  // 门口单格点缀（绝不放 q 柜台）
+  const sideX = door === "e" || door === "w" ? doorX : Math.max(x, doorX - 1);
+  const sideY = door === "e" || door === "w" ? Math.max(y, doorY - 1) : doorY;
+  if (!(sideX === houseX && sideY === houseY)) {
+    if (fn === "clinic" || fn === "pawn") set(g, sideX, sideY, "l");
+    else if (fn === "shed") set(g, sideX, sideY, "b");
+    else set(g, sideX, sideY, "e"); // 单格幌/摊
+  }
+  set(g, doorX, doorY, ",");
+  return { doorX, doorY, behindX, behindY, front };
+}
+
+/** 室外大地图禁止的室内家具字母 */
+const INDOOR_ONLY = new Set(["h", "u"]);
+
+function neighborWater(g: string[], x: number, y: number): boolean {
+  let n = 0;
+  for (const [dx, dy] of [
+    [0, 1],
+    [0, -1],
+    [1, 0],
+    [-1, 0],
+  ] as const) {
+    const c = get(g, x + dx, y + dy);
+    if (c === "~" || c === "%") n += 1;
+  }
+  return n >= 2;
+}
+
+/** 清洗室外幽灵墙：屏风/床榻清掉；水/路/山上的室内家具清掉。 */
+export function sanitizeOutdoorLuoyang(g: string[], cx: number, cy: number): void {
+  const H = g.length;
+  const W = g[0]?.length ?? 0;
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      const ch = get(g, x, y);
+      if (!INDOOR_ONLY.has(ch)) continue;
+      if (y === cy - 5 || y === cy + 5 || y === cy || Math.abs(x - cx) <= 1) set(g, x, y, "=");
+      else if (neighborWater(g, x, y)) set(g, x, y, "~");
+      else set(g, x, y, ".");
+    }
+  }
+}
+
+/** 相邻院落之间强制 2 格通道（只切开空地/草地之间的贴墙缝）。 */
+export function ensureYardAlleys(
+  g: string[],
+  yards: { x: number; y: number; w: number; h: number }[],
+): void {
+  for (let i = 0; i < yards.length; i++) {
+    for (let j = i + 1; j < yards.length; j++) {
+      const a = yards[i]!;
+      const b = yards[j]!;
+      const overlapY = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+      const overlapX = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+      if (overlapY >= 3 && overlapX <= 0) {
+        const left = a.x < b.x ? a : b;
+        const right = a.x < b.x ? b : a;
+        const gap = right.x - (left.x + left.w);
+        if (gap >= 1 && gap <= 2) {
+          const y0 = Math.max(a.y, b.y) + 1;
+          const y1 = Math.min(a.y + a.h, b.y + b.h) - 2;
+          for (let y = y0; y <= y1; y++) {
+            for (let x = left.x + left.w; x < right.x; x++) {
+              const c = get(g, x, y);
+              if (c === "#" || c === ".") set(g, x, y, "=");
+            }
+          }
+        }
+      }
+      if (overlapX >= 3 && overlapY <= 0) {
+        const top = a.y < b.y ? a : b;
+        const bot = a.y < b.y ? b : a;
+        const gap = bot.y - (top.y + top.h);
+        if (gap >= 1 && gap <= 2) {
+          const x0 = Math.max(a.x, b.x) + 1;
+          const x1 = Math.min(a.x + a.w, b.x + b.w) - 2;
+          for (let x = x0; x <= x1; x++) {
+            for (let y = top.y + top.h; y < bot.y; y++) {
+              const c = get(g, x, y);
+              if (c === "#" || c === ".") set(g, x, y, "=");
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+function cellIsVacant(ch: string): boolean {
+  return ch === "." || ch === ",";
+}
+
+/** 在 15×15 真空里点一处民居/井/树丛，消灭超级空地。 */
+export function fillVacuumPatches(g: string[], W: number, H: number): void {
+  const planted: { x: number; y: number }[] = [];
+  const far = (x: number, y: number) => planted.every((p) => Math.abs(p.x - x) + Math.abs(p.y - y) > 10);
+  for (let y = 2; y < H - 16; y++) {
+    for (let x = 2; x < W - 16; x++) {
+      let empty = 0;
+      let blocked = false;
+      for (let dy = 0; dy < 15 && !blocked; dy++) {
+        for (let dx = 0; dx < 15; dx++) {
+          const ch = get(g, x + dx, y + dy);
+          if (ch === "~" || ch === "%" || ch === "^" || ch === "#" || ch === "=" || ch === "H") {
+            blocked = true;
+            break;
+          }
+          if (cellIsVacant(ch)) empty += 1;
+        }
+      }
+      if (blocked || empty < 15 * 15 * 0.85) continue;
+      const px = x + 5;
+      const py = y + 5;
+      if (!far(px, py)) continue;
+      if (!cellIsVacant(get(g, px, py))) continue;
+      // 5×4 小宅：围墙+俯视门+井+树
+      rect(g, px, py, px + 4, py + 3, "#");
+      rect(g, px + 1, py + 1, px + 3, py + 2, ".");
+      set(g, px + 2, py + 3, ":");
+      set(g, px + 3, py + 3, ":");
+      set(g, px + 1, py + 1, "n");
+      set(g, px + 3, py + 1, "&");
+      set(g, px + 1, py + 2, "j");
+      planted.push({ x: px, y: py });
+      glueCottageToRoad(g, px, py, W, H);
+    }
+  }
+}
+
+/** 真空小宅门前拉 2 格宽支路，接到最近的巷/干道。 */
+function glueCottageToRoad(g: string[], px: number, py: number, W: number, H: number): void {
+  const doorX = px + 2;
+  const doorY = py + 3;
+  let best: { x: number; y: number; dist: number } | null = null;
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      if (get(g, x, y) !== "=") continue;
+      const dist = Math.abs(x - doorX) + Math.abs(y - doorY);
+      if (dist < 2 || dist > 16) continue;
+      if (!best || dist < best.dist) best = { x, y, dist };
+    }
+  }
+  if (!best) return;
+  const sx = Math.sign(best.x - doorX);
+  const sy = Math.sign(best.y - doorY);
+  let x = doorX;
+  let y = doorY + 1;
+  for (let i = 0; i < 20 && (x !== best.x || y !== best.y); i++) {
+    if (x !== best.x) x += sx;
+    else if (y !== best.y) y += sy;
+    for (const [ox, oy] of [
+      [0, 0],
+      [sx === 0 ? 1 : 0, sy === 0 ? 1 : 0],
+    ] as const) {
+      const c = get(g, x + ox, y + oy);
+      if (c === "#" || c === "~" || c === "^" || c === "%") continue;
+      if ("NSEWUDYLK;@".includes(c)) continue;
+      set(g, x + ox, y + oy, "=");
+    }
+  }
+}
+
+export type NpcBindMode = "inYard" | "atDoor" | "atRiver" | "atWell";
+export interface NpcBinding {
+  npcId: string;
+  buildingId: string;
+  mode: NpcBindMode;
+}
+
+/** 室外 NPC 全部绑建筑，禁止自由坐标。阿砂/狱卒主卒不在此表（子场景）。 */
+export const NPC_BINDINGS: NpcBinding[] = [
+  { npcId: "judge", buildingId: "yamen", mode: "inYard" },
+  { npcId: "caseclerk", buildingId: "yamen", mode: "inYard" },
+  { npcId: "luoBailiff", buildingId: "yamen", mode: "inYard" },
+  { npcId: "luoClerk", buildingId: "yamen", mode: "inYard" },
+  { npcId: "luoConstable", buildingId: "sixDoors", mode: "inYard" },
+  { npcId: "luoConstable2", buildingId: "sixDoors", mode: "inYard" },
+  { npcId: "luoCaptain", buildingId: "garrison", mode: "inYard" },
+  { npcId: "luoGuard", buildingId: "garrison", mode: "inYard" },
+  { npcId: "luoGuard2", buildingId: "luoyangGate", mode: "atDoor" },
+  { npcId: "luoCoach", buildingId: "martial", mode: "inYard" },
+  { npcId: "luoDisciple", buildingId: "martial", mode: "inYard" },
+  { npcId: "luoDisciple2", buildingId: "martial", mode: "inYard" },
+  { npcId: "luoDisciple3", buildingId: "martial", mode: "atDoor" },
+  { npcId: "luoYardHand", buildingId: "martial", mode: "inYard" },
+  { npcId: "luoBarkeeper", buildingId: "wine", mode: "inYard" },
+  { npcId: "luoCook", buildingId: "wine", mode: "inYard" },
+  { npcId: "luoWaiter", buildingId: "wine", mode: "inYard" },
+  { npcId: "luoWaiter2", buildingId: "wine", mode: "atDoor" },
+  { npcId: "luoRaconteur", buildingId: "tianjinMarket", mode: "inYard" },
+  { npcId: "luoGuest", buildingId: "tianjinMarket", mode: "inYard" },
+  { npcId: "luoGuest2", buildingId: "tianjinMarket", mode: "inYard" },
+  { npcId: "luoFlower", buildingId: "tianjinMarket", mode: "inYard" },
+  { npcId: "luoHawker", buildingId: "tianjinMarket", mode: "inYard" },
+  { npcId: "rumorTea", buildingId: "tianjinMarket", mode: "inYard" },
+  { npcId: "luoBeggar", buildingId: "tianjinMarket", mode: "inYard" },
+  { npcId: "luoMadam", buildingId: "brothel", mode: "inYard" },
+  { npcId: "luoMusician", buildingId: "brothel", mode: "inYard" },
+  { npcId: "luoGirl", buildingId: "brothel", mode: "inYard" },
+  { npcId: "luoGirl2", buildingId: "brothel", mode: "atDoor" },
+  { npcId: "luoTurtle", buildingId: "brothel", mode: "inYard" },
+  { npcId: "luoEmbroid", buildingId: "brothel", mode: "atDoor" },
+  { npcId: "luoDoctor", buildingId: "clinic", mode: "inYard" },
+  { npcId: "luoHerbBoy", buildingId: "clinic", mode: "atDoor" },
+  { npcId: "luoHerb", buildingId: "clinic", mode: "atDoor" },
+  { npcId: "luoShopHand", buildingId: "shop1", mode: "atDoor" },
+  { npcId: "luoShopWife", buildingId: "shop1", mode: "atDoor" },
+  { npcId: "luoHerb2", buildingId: "shop3", mode: "atDoor" },
+  { npcId: "butcher", buildingId: "shop3", mode: "inYard" },
+  { npcId: "luoVendor", buildingId: "pawn", mode: "inYard" },
+  { npcId: "luoSilk", buildingId: "silk", mode: "inYard" },
+  { npcId: "luoSmith", buildingId: "smith", mode: "inYard" },
+  { npcId: "barber", buildingId: "shop4", mode: "atDoor" },
+  { npcId: "luoTeaGirl", buildingId: "shop5", mode: "atDoor" },
+  { npcId: "townHawker", buildingId: "westGate", mode: "atDoor" },
+  { npcId: "carter", buildingId: "shed2", mode: "inYard" },
+  { npcId: "luoAntique", buildingId: "shop2", mode: "inYard" },
+  { npcId: "luoTemple", buildingId: "templeOffice", mode: "atDoor" },
+  { npcId: "luoPost", buildingId: "post", mode: "inYard" },
+  { npcId: "messenger", buildingId: "eastGate", mode: "atDoor" },
+  { npcId: "passClerk", buildingId: "luoyangGate", mode: "atDoor" },
+  { npcId: "townWatch", buildingId: "luoyangGate", mode: "atDoor" },
+  { npcId: "luoGate", buildingId: "yingtian", mode: "atDoor" },
+  { npcId: "roadHawker", buildingId: "westMarket", mode: "atDoor" },
+  { npcId: "docker", buildingId: "shed", mode: "atDoor" },
+  { npcId: "luoJailer2", buildingId: "jail", mode: "inYard" },
+  { npcId: "luoPrisoner", buildingId: "jail", mode: "inYard" },
+  { npcId: "luoElder", buildingId: "home1", mode: "atWell" },
+  { npcId: "luoElder2", buildingId: "southGarden", mode: "inYard" },
+  { npcId: "luoKid", buildingId: "home1", mode: "atDoor" },
+  { npcId: "luoKid2", buildingId: "home2", mode: "inYard" },
+  { npcId: "luoWife", buildingId: "home1", mode: "inYard" },
+  { npcId: "luoWasher", buildingId: "luoRiver", mode: "atRiver" },
+];
+
+export const LUOYANG_PLAZAS = [
+  { key: "bridgeNorth", x: 39, y: 20, w: 7, h: 4 },
+  { key: "yingtianFore", x: 39, y: 8, w: 7, h: 3 },
+] as const;
+
+export function inLuoyangPlaza(x: number, y: number): boolean {
+  return LUOYANG_PLAZAS.some((p) => x >= p.x && x < p.x + p.w && y >= p.y && y < p.y + p.h);
+}
+
+function punchAxisThrough(g: string[], cfg: { x: number; y: number; w: number; h: number }, axisCx: number): void {
+  if (cfg.y <= 1 && cfg.h >= 7) {
+    set(g, YINGTIAN_GATE.x0, YINGTIAN_GATE.y, ":");
+    set(g, axisCx, YINGTIAN_GATE.y, "H");
+    set(g, YINGTIAN_GATE.x1, YINGTIAN_GATE.y, ":");
+  }
+  const left = 40;
+  const right = 44;
+  if (cfg.x > right || cfg.x + cfg.w - 1 < left) return;
+  for (let y = cfg.y; y < cfg.y + cfg.h; y++) {
+    if (y === YINGTIAN_GATE.y) continue;
+    for (let x = left; x <= right; x++) {
+      if (x < cfg.x || x > cfg.x + cfg.w - 1) continue;
+      const edge = y === cfg.y || y === cfg.y + cfg.h - 1;
+      if (y === 1 && x === axisCx) {
+        set(g, x, y, "D");
+        continue;
+      }
+      if (edge) set(g, x, y, ":");
+      else {
+        const c = get(g, x, y);
+        if (c === "#" || c === ".") set(g, x, y, "=");
+      }
+    }
+  }
+}
+
+const DRESS_CH = ["!", ",", "f"] as const;
+
+/** 路肩点缀：邻 = 的空地约六成放下幌/灯/摊/车，不占马路。 */
+export function dressRoadEdges(
+  g: string[],
+  doors: Iterable<{ doorX: number; doorY: number; door: "n" | "s" | "e" | "w" }>,
+  skipBoxes: { x: number; y: number; w: number; h: number }[],
+  cx: number,
+  cy: number,
+): void {
+  const W = g[0]?.length ?? 0;
+  const H = g.length;
+  const doorFront = new Set<string>();
+  for (const d of doors) {
+    doorFront.add(`${d.doorX},${d.doorY}`);
+    const ox = d.door === "e" ? 1 : d.door === "w" ? -1 : 0;
+    const oy = d.door === "s" ? 1 : d.door === "n" ? -1 : 0;
+    doorFront.add(`${d.doorX + ox},${d.doorY + oy}`);
+  }
+  const inSkip = (x: number, y: number) =>
+    skipBoxes.some((b) => x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h);
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      if (get(g, x, y) !== ".") continue;
+      if (Math.abs(x - cx) <= 1) continue;
+      if (y === cy - 5 || y === cy + 5 || y === cy) continue;
+      if (doorFront.has(`${x},${y}`)) continue;
+      if (inSkip(x, y) && !inLuoyangPlaza(x, y)) continue;
+      let road = false;
+      for (const [dx, dy] of [
+        [0, 1],
+        [0, -1],
+        [1, 0],
+        [-1, 0],
+      ] as const) {
+        if (get(g, x + dx, y + dy) === "=") road = true;
+      }
+      if (!road) continue;
+      const n = (x * 31 + y * 17) % 10;
+      if (inLuoyangPlaza(x, y)) {
+        if (n < 5) set(g, x, y, "!");
+        continue;
+      }
+      if (n >= 9) continue;
+      const ch = DRESS_CH[n % (DRESS_CH.length - (n === 6 ? 1 : 0))]!;
+      if (ch === "f" && n !== 1) set(g, x, y, ",");
+      else set(g, x, y, ch);
+    }
+  }
+}
+
+/** V7 实测凳子 o+t=99；V7.1 按口径 A 砍 80%、树补 70%。 */
+export const V71_STOOL_BASELINE = 99;
+export const V71_STOOL_MAX = Math.floor(V71_STOOL_BASELINE * 0.2);
+export const V71_TREE_MIN = V73_TREE_MIN;
+export const V71_TREE_MAX = V73_TREE_MAX;
+
+export interface LuoLabelAnchor {
+  key: string;
+  x: number;
+  y: number;
+  houseX?: number;
+  houseY?: number;
+}
+
+/** 最近一次 generateLuoyang 的门口/铺面锚点，供渲染层读。 */
+export let LUOYANG_LABEL_ANCHORS: LuoLabelAnchor[] = [];
+
+const CLUMP_SHAPES: [number, number][][] = [
+  [
+    [0, 0],
+    [0, 1],
+  ],
+  [
+    [0, 0],
+    [1, 1],
+    [2, 1],
+  ],
+  [
+    [0, 0],
+    [2, 0],
+    [1, 1],
+    [0, 2],
+  ],
+  [[0, 0]],
+];
+
+export function arterialTreeBan(x: number, y: number, cx: number, cy: number): boolean {
+  if (x >= 40 && x <= 44 && y >= 1 && y <= cy + 4) return true;
+  if (Math.abs(x - cx) <= 1) return true;
+  if (y === cy - 5 || y === cy + 5 || y === cy) return true;
+  for (const [dx, dy] of [
+    [0, 1],
+    [0, -1],
+    [1, 0],
+    [-1, 0],
+  ] as const) {
+    const nx = x + dx;
+    const ny = y + dy;
+    if (nx >= 40 && nx <= 44 && ny >= 1 && ny <= cy + 4) return true;
+    if (Math.abs(nx - cx) <= 1) return true;
+    if (ny === cy - 5 || ny === cy + 5 || ny === cy) return true;
+  }
+  return false;
+}
+
+function countChar(g: string[], ch: string): number {
+  let n = 0;
+  for (const row of g) for (const c of row) if (c === ch) n += 1;
+  return n;
+}
+
+function treeWindowOk(g: string[], x: number, y: number, placed: boolean): boolean {
+  let n3 = 0;
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      if (get(g, x + dx, y + dy) === "&") n3 += 1;
+    }
+  }
+  if (placed ? n3 > 3 : n3 >= 3) return false;
+  let n5 = 0;
+  for (let dy = -2; dy <= 2; dy++) {
+    for (let dx = -2; dx <= 2; dx++) {
+      if (get(g, x + dx, y + dy) === "&") n5 += 1;
+    }
+  }
+  return placed ? n5 <= 6 : n5 < 6;
+}
+
+function treeLineOk(g: string[], x: number, y: number): boolean {
+  const dirs = [
+    [1, 0],
+    [0, 1],
+    [1, 1],
+    [1, -1],
+  ] as const;
+  for (const [dx, dy] of dirs) {
+    let run = 1;
+    for (const s of [1, -1]) {
+      for (let k = 1; k < 4; k++) {
+        if (get(g, x + dx * k * s, y + dy * k * s) === "&") run += 1;
+        else break;
+      }
+    }
+    if (run >= 3) return false;
+  }
+  return true;
+}
+
+function canPlantTree(
+  g: string[],
+  x: number,
+  y: number,
+  cx: number,
+  cy: number,
+  doors: Iterable<{ doorX: number; doorY: number }>,
+): boolean {
+  if (get(g, x, y) !== ".") return false;
+  if (arterialTreeBan(x, y, cx, cy)) return false;
+  if (inLuoyangPlaza(x, y)) return false;
+  if (get(g, x, y) === "=") return false;
+  for (const d of doors) {
+    if (Math.abs(x - d.doorX) + Math.abs(y - d.doorY) <= 2) return false;
+  }
+  if (!treeWindowOk(g, x, y, false)) return false;
+  return true;
+}
+
+/** 丛与丛之间 Chebyshev ≥ 3（本丛尚未写入）。 */
+function clumpFarFromTrees(g: string[], cells: { x: number; y: number }[]): boolean {
+  for (const c of cells) {
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        if (get(g, c.x + dx, c.y + dy) === "&") return false;
+      }
+    }
+  }
+  return true;
+}
+
 /** 多进院落：外墙 #、门洞 :、内隔墙；不输出 Unicode 墙符（解析层不认）。 */
 export function generateCourtyard(g: string[], cfg: CourtyardConfig): { doorX: number; doorY: number } {
   const { x, y, w, h, jin, fn, door } = cfg;
@@ -111,15 +693,21 @@ export function generateCourtyard(g: string[], cfg: CourtyardConfig): { doorX: n
     doorY = midY;
   }
   set(g, doorX, doorY, ":");
+  // 墙缝双格门（俯视木门 2 格宽），禁止单缝空气墙
+  if (door === "n" || door === "s") {
+    if (doorX + 1 < x + w - 1) set(g, doorX + 1, doorY, ":");
+    else if (doorX - 1 > x) set(g, doorX - 1, doorY, ":");
+  } else if (doorY + 1 < y + h - 1) set(g, doorX, doorY + 1, ":");
+  else if (doorY - 1 > y) set(g, doorX, doorY - 1, ":");
 
-  // 进数隔墙（留中门）
+  // 进数隔墙（留中门，同样双格）
   const splits: number[] = [];
   if (jin >= 2) splits.push(y + Math.floor(h / (jin + 1)));
   if (jin >= 3) splits.push(y + Math.floor((2 * h) / (jin + 1)));
   for (const sy of splits) {
     if (sy <= y + 1 || sy >= y + h - 2) continue;
     for (let xx = x + 1; xx < x + w - 1; xx++) {
-      if (xx === midX) set(g, xx, sy, ":");
+      if (xx === midX || xx === midX + 1) set(g, xx, sy, ":");
       else set(g, xx, sy, "#");
     }
   }
@@ -132,6 +720,51 @@ export function generateCourtyard(g: string[], cfg: CourtyardConfig): { doorX: n
   set(g, x + 1, y + h - 2, "l");
   set(g, x + w - 2, y + h - 2, "l");
   return { doorX, doorY };
+}
+
+/** L 形院落：可选附翼 + 切角。 */
+export function generateLCourtyard(
+  g: string[],
+  cfg: CourtyardConfig & { lShape?: boolean; wing?: { x: number; y: number; w: number; h: number } },
+): { doorX: number; doorY: number } {
+  const main = generateCourtyard(g, cfg);
+  if (cfg.wing) {
+    const w = cfg.wing;
+    rect(g, w.x, w.y, w.x + w.w - 1, w.y + w.h - 1, "#");
+    rect(g, w.x + 1, w.y + 1, w.x + w.w - 2, w.y + w.h - 2, ".");
+    const connectX = Math.min(cfg.x + cfg.w - 1, w.x);
+    for (let y = Math.max(cfg.y + 1, w.y + 1); y < Math.min(cfg.y + cfg.h - 1, w.y + w.h - 1); y++) {
+      set(g, connectX, y, ":");
+    }
+    set(g, w.x + 1, w.y + 1, "l");
+    set(g, w.x + w.w - 2, w.y + 1, "l");
+  }
+  if (cfg.lShape && !cfg.wing) {
+    const { x, y, w, h, door } = cfg;
+    const cutW = Math.max(3, Math.floor(w / 3));
+    const cutH = Math.max(3, Math.floor(h / 3));
+    let cx0 = x + w - cutW;
+    let cy0 = y + 1;
+    if (door === "n") {
+      cx0 = x + w - cutW;
+      cy0 = y + h - cutH - 1;
+    } else if (door === "e") {
+      cx0 = x + 1;
+      cy0 = y + 1;
+    } else if (door === "w") {
+      cx0 = x + w - cutW;
+      cy0 = y + 1;
+    }
+    for (let yy = cy0; yy < cy0 + cutH; yy++) {
+      for (let xx = cx0; xx < cx0 + cutW; xx++) {
+        if (get(g, xx, yy) === "#") continue;
+        set(g, xx, yy, "=");
+      }
+    }
+    for (let xx = cx0; xx < cx0 + cutW; xx++) set(g, xx, cy0 - 1, "#");
+    for (let yy = cy0; yy < cy0 + cutH; yy++) set(g, cx0 - 1, yy, "#");
+  }
+  return main;
 }
 
 function clearAxis(
@@ -172,6 +805,7 @@ export function furnishRoom(
   const B = ih - 1;
   if (fn === "yamen") {
     put(0, 1, "m");
+    put(0, 2, "q"); // 大堂柜台（避开门轴）
     put(R, 1, "z");
     put(0, B - 1, "i");
     put(R, B - 1, "j");
@@ -183,16 +817,20 @@ export function furnishRoom(
     put(0, B - 1, "c");
     put(R, B - 1, "l");
   } else if (fn === "brothel") {
-    put(0, 1, "u");
-    put(R, 1, "h");
-    put(0, B - 1, "g");
-    put(R, B - 1, "y");
+    put(0, 1, "g");
+    put(R, 1, "l");
+    put(0, B - 1, "y");
+    put(R, B - 1, "j");
     put(Math.floor(R / 2), 0, "&");
   } else if (fn === "wine") {
-    put(0, 1, "y");
+    put(0, 1, "y"); // 双人桌（院内多格）
     put(2, 1, "t");
+    put(4, 1, "o");
+    put(0, 2, "q"); // 大型柜台仅院内（避开门轴中行）
     put(R, 1, "j");
-    put(0, B - 1, "o");
+    put(R - 2, 2, "r");
+    put(0, B - 1, "b");
+    put(2, B - 1, "j");
     put(R, B - 1, "*");
     put(Math.floor(R / 2), B, ",");
   } else if (fn === "martial") {
@@ -215,8 +853,8 @@ export function furnishRoom(
     put(R, B - 1, "q");
   } else if (fn === "temple") {
     put(Math.floor(R / 2), 1, "g");
-    put(0, Math.floor(B / 2), "h");
-    put(R, Math.floor(B / 2), "h");
+    put(0, Math.floor(B / 2), "l");
+    put(R, Math.floor(B / 2), "l");
     put(0, B - 1, ",");
   } else if (fn === "post") {
     put(0, 1, "p");
@@ -225,34 +863,36 @@ export function furnishRoom(
     put(R, B - 1, "p");
   } else if (fn === "shop") {
     put(0, 1, "v");
-    put(R, 1, "v");
-    put(0, B - 1, ",");
-    put(R, B - 1, ",");
+    put(R, 1, "e"); // 摊棚意象（洛阳 e=stall）
+    put(R, B - 1, "j");
     put(Math.floor(R / 2), B, "p");
   } else if (fn === "home") {
-    put(0, 1, "u");
+    put(0, 1, "j");
     put(R, 1, "y");
-    put(0, B - 1, "o");
+    put(0, B - 1, "n");
     put(R, B - 1, "j");
-    put(Math.floor(R / 2), Math.floor(B / 2), "t"); // 石凳
+  } else if (fn === "sixDoors") {
+    put(0, 1, "z"); // 兵器架（院内）
+    put(R, 1, "k"); // 卷宗柜
+    put(0, B - 1, "m");
+    put(R, B - 1, "z");
+  } else if (fn === "garrison") {
+    put(0, 1, "z");
+    put(R, 1, "d");
+    put(0, B - 1, "c");
+    put(R, B - 1, "z");
+  } else if (fn === "silk" || fn === "smith") {
+    put(0, 1, "i");
+    put(R, 1, "e");
+    put(0, B - 1, "j");
   } else {
     put(0, 1, "v");
-    put(R, 1, "o");
     put(0, B - 1, "j");
   }
 }
 
 function jitter(seed: number, n: number): number {
   return ((seed * 1103515245 + 12345) >>> 0) % n;
-}
-
-function placeChar(g: string[], x: number, y: number, ch: string, occupied: Set<string>): boolean {
-  const cur = get(g, x, y);
-  if (cur !== "." && cur !== "=" && cur !== ":") return false;
-  if (occupied.has(`${x},${y}`)) return false;
-  set(g, x, y, ch);
-  occupied.add(`${x},${y}`);
-  return true;
 }
 
 function eavesSpot(
@@ -282,10 +922,10 @@ export interface LuoNpcSpec {
 
 /** 洛阳全图：十字水街 + 十二处功能建筑 + 分区 NPC。 */
 export function generateLuoyang(): MetroScene {
-  const W = 84;
-  const H = 54;
-  const cx = Math.floor(W / 2);
-  const cy = Math.floor(H / 2);
+  const W = LUO_W;
+  const H = LUO_H;
+  const cx = LUO_CX;
+  const cy = LUO_CY;
   const g = blank(W, H, ".");
   for (let x = 0; x < W; x++) {
     set(g, x, 0, "#");
@@ -296,25 +936,28 @@ export function generateLuoyang(): MetroScene {
     set(g, W - 1, y, "#");
   }
 
-  // 洛水横贯（中带）+ 南北岸 %
-  for (let x = 1; x < W - 1; x++) {
-    for (let dy = -2; dy <= 2; dy++) set(g, x, cy + dy, "~");
-    set(g, x, cy - 3, "%");
-    set(g, x, cy + 3, "%");
-  }
-  // 天津桥三线纵贯，冲开水面
-  for (let y = 1; y < H - 1; y++) {
-    for (const dx of [-1, 0, 1]) {
-      punchWater(g, cx + dx, y);
-      set(g, cx + dx, y, "=");
+  // V7.3 自然洛水 + 西/天津/东三桥
+  carveLuoyangRiver(g, cy, W);
+  for (const br of LUOYANG_BRIDGES) punchRiverBridge(g, br.x0, br.x1, cy);
+  // 天津桥·洛阳门牌楼（水面门面，严禁删除）
+  // 中轴桥面可走；南北牌楼用 ;（arch「洛阳门」）；四角立柱点缀，勿再砌厚重黑亭
+  for (let dx = -3; dx <= 3; dx++) {
+    for (let dy = -1; dy <= 1; dy++) {
+      punchWater(g, cx + dx, cy + dy);
+      if (Math.abs(dx) <= 1) set(g, cx + dx, cy + dy, "=");
+      else set(g, cx + dx, cy + dy, "~");
     }
   }
-  // 桥亭
-  rect(g, cx - 3, cy - 1, cx + 3, cy + 1, "#");
-  for (const dx of [-1, 0, 1]) {
-    set(g, cx + dx, cy - 1, ":");
-    set(g, cx + dx, cy + 1, ":");
-    set(g, cx + dx, cy, "=");
+  punchWater(g, cx, cy - 2);
+  punchWater(g, cx, cy + 2);
+  set(g, cx, cy - 2, ";");
+  set(g, cx, cy + 2, ";");
+  set(g, cx - 2, cy - 1, "#");
+  set(g, cx + 2, cy - 1, "#");
+  set(g, cx - 2, cy + 1, "#");
+  set(g, cx + 2, cy + 1, "#");
+  for (const dy of [-1, 0, 1]) {
+    for (const dx of [-1, 0, 1]) set(g, cx + dx, cy + dy, "=");
   }
   set(g, cx, cy, "@");
 
@@ -330,27 +973,29 @@ export function generateLuoyang(): MetroScene {
   vroad(g, 16, cy + 4, H - 3);
   vroad(g, W - 17, cy + 4, H - 3);
 
-  const yards: (CourtyardConfig & { key: string })[] = [
-    { key: "yamen", jin: 3, fn: "yamen", x: 4, y: 3, w: 14, h: 12, door: "e", mark: "a" },
-    { key: "jail", jin: 1, fn: "jail", x: 4, y: 16, w: 10, h: 7, door: "e", mark: "z" },
-    { key: "martial", jin: 2, fn: "martial", x: W - 18, y: 3, w: 13, h: 11, door: "w", mark: "B" },
-    { key: "clinic", jin: 1, fn: "clinic", x: W - 16, y: 16, w: 11, h: 8, door: "w", mark: "c" },
-    { key: "wine", jin: 2, fn: "wine", x: 5, y: cy + 6, w: 13, h: 10, door: "e", mark: "E" },
-    { key: "brothel", jin: 2, fn: "brothel", x: W - 19, y: cy + 6, w: 14, h: 11, door: "w", mark: "§" },
-    { key: "pawn", jin: 1, fn: "pawn", x: 22, y: 4, w: 10, h: 7, door: "s", mark: "d" },
-    { key: "temple", jin: 1, fn: "temple", x: 48, y: 4, w: 10, h: 7, door: "s", mark: "I" },
-    { key: "post", jin: 1, fn: "post", x: 24, y: H - 14, w: 11, h: 8, door: "n", mark: "h" },
-    { key: "shop1", jin: 1, fn: "shop", x: cx - 18, y: cy - 12, w: 8, h: 6, door: "s", mark: "s" },
-    { key: "shop2", jin: 1, fn: "shop", x: cx + 8, y: cy - 12, w: 8, h: 6, door: "s", mark: "t" },
-    { key: "shop3", jin: 1, fn: "shop", x: cx - 10, y: cy + 7, w: 8, h: 6, door: "n", mark: "u" },
-    { key: "home1", jin: 1, fn: "home", x: 3, y: H - 12, w: 8, h: 6, door: "n" },
-    { key: "home2", jin: 1, fn: "home", x: W - 12, y: H - 12, w: 8, h: 6, door: "n" },
-    { key: "shed", jin: 1, fn: "shed", x: cx + 10, y: H - 13, w: 7, h: 5, door: "n", mark: "J" },
-  ];
+  const yards: (CourtyardConfig & { key: string })[] = LUOYANG_YARD_DEFS.map((yd) => ({ ...yd }));
 
-  const doors = new Map<string, { doorX: number; doorY: number; door: CourtyardConfig["door"] }>();
+  const doors = new Map<
+    string,
+    {
+      doorX: number;
+      doorY: number;
+      door: CourtyardConfig["door"];
+      counterX?: number;
+      counterY?: number;
+      behindX?: number;
+      behindY?: number;
+      front?: { x: number; y: number }[];
+    }
+  >();
   for (const yd of yards) {
-    const d = generateCourtyard(g, yd);
+    const useL = yd.lShape || yd.wing || LUOYANG_L_SHAPE_KEYS.has(yd.key);
+    const d =
+      yd.form === "street"
+        ? generateStreetShop(g, yd)
+        : useL
+          ? generateLCourtyard(g, yd)
+          : generateCourtyard(g, yd);
     doors.set(yd.key, { ...d, door: yd.door });
     // 门前短支路
     const { doorX, doorY } = d;
@@ -358,6 +1003,38 @@ export function generateLuoyang(): MetroScene {
     if (yd.door === "w") hroad(g, doorY, Math.max(1, doorX - 4), doorX - 1);
     if (yd.door === "s") vroad(g, doorX, doorY + 1, Math.min(H - 2, doorY + 3));
     if (yd.door === "n") vroad(g, doorX, Math.max(1, doorY - 3), doorY - 1);
+  }
+  for (const key of ["yingtian", "duanmen"] as const) {
+    const yd = yards.find((y) => y.key === key);
+    if (yd) punchAxisThrough(g, yd, cx);
+  }
+  paintPalaceWalls(g);
+  paintImperialAxis(g, cx, cy);
+  ensureYardAlleys(g, yards);
+  fillVacuumPatches(g, W, H);
+  // 临街铺必须贴干道：店门到 cy±5 拉 2 格宽支路
+  for (const yd of yards) {
+    if (yd.form !== "street") continue;
+    const midX = yd.x + Math.floor(yd.w / 2);
+    if (yd.door === "s") {
+      const doorY = yd.y + yd.h - 1;
+      for (let y = doorY + 1; y <= cy - 5; y++) {
+        for (const x of [midX, midX + 1]) {
+          const c = get(g, x, y);
+          if (c === "#" || c === "~" || c === "^") continue;
+          set(g, x, y, "=");
+        }
+      }
+    } else if (yd.door === "n") {
+      const doorY = yd.y;
+      for (let y = cy + 5; y < doorY; y++) {
+        for (const x of [midX, midX + 1]) {
+          const c = get(g, x, y);
+          if (c === "#" || c === "~" || c === "^") continue;
+          set(g, x, y, "=");
+        }
+      }
+    }
   }
 
   // 院墙若压住东西干道 cy-5，在 cy-4 补旁路（不挪建筑，只开廊道）
@@ -409,32 +1086,21 @@ export function generateLuoyang(): MetroScene {
     if (get(g, market.x + dx, market.y + dy) === ".") set(g, market.x + dx, market.y + dy, ch);
   }
 
-  // 东南丘陵
-  for (let y = H - 14; y < H - 1; y++) {
-    for (let x = W - 16; x < W - 1; x++) {
-      const dx = x - (W - 8);
-      const dy = y - (H - 7);
-      if (dx * dx + dy * dy * 1.2 < 70 && get(g, x, y) === ".") set(g, x, y, "^");
-    }
-  }
-
-  // 疏密树（错落，非网格）
-  const seed = 9041;
-  for (let y = 3; y < H - 3; y++) {
-    for (let x = 3; x < W - 3; x++) {
-      if (get(g, x, y) !== ".") continue;
-      if (Math.abs(x - cx) <= 2) continue;
-      const beside = [[0, 1], [0, -1], [1, 0], [-1, 0]].some(([a, b]) => get(g, x + a, y + b) === "=");
-      if (beside) continue;
-      if ((x * 19 + y * 41 + seed) % 13 === 0) set(g, x, y, "&");
-      else if ((x * 7 + y * 11 + seed) % 29 === 0) {
-        set(g, x, y, "&");
-        if (get(g, x + 1, y) === ".") set(g, x + 1, y, "&");
+  // 东南南苑（取代 ^ 浅丘）
+  southGarden(g);
+  // 建筑地基下若有山/水，一律清成院地
+  for (const yd of yards) {
+    for (let yy = yd.y; yy < yd.y + yd.h; yy++) {
+      for (let xx = yd.x; xx < yd.x + yd.w; xx++) {
+        const c = get(g, xx, yy);
+        if (c === "^" || c === "~" || c === "%") set(g, xx, yy, ".");
       }
     }
   }
 
-  // 门户（既有连通：D→偃师、W→陕州、E→汴京）
+  // 树木改到后期成组种植（V4），此处跳过
+
+    // 门户（既有连通：D→偃师、W→陕州、E→汴京）
   set(g, cx - 1, 1, "#");
   set(g, cx, 1, "D");
   set(g, cx + 1, 1, "#");
@@ -442,6 +1108,19 @@ export function generateLuoyang(): MetroScene {
     punchWater(g, cx + dx, y);
     set(g, cx + dx, y, "=");
   }
+  // 洛阳门牌楼：干道冲刷后必须重钉（严禁被 = 抹掉）
+  punchWater(g, cx, cy - 2);
+  punchWater(g, cx, cy + 2);
+  set(g, cx, cy - 2, ";");
+  set(g, cx, cy + 2, ";");
+  set(g, cx - 2, cy - 1, "#");
+  set(g, cx + 2, cy - 1, "#");
+  set(g, cx - 2, cy + 1, "#");
+  set(g, cx + 2, cy + 1, "#");
+  for (const dy of [-1, 0, 1]) {
+    for (const dx of [-1, 0, 1]) set(g, cx + dx, cy + dy, "=");
+  }
+  set(g, cx, cy, "@");
   set(g, 1, cy - 5, "W");
   set(g, 1, cy - 6, "#");
   set(g, 2, cy - 5, "=");
@@ -453,28 +1132,55 @@ export function generateLuoyang(): MetroScene {
   set(g, W - 3, cy - 4, "=");
   hroad(g, cy - 5, cx + 2, W - 3);
 
-  // 城门片段（定鼎意象：北缘瓮城感）
-  for (let x = cx - 6; x <= cx + 6; x++) {
-    if (get(g, x, 2) === ".") set(g, x, 2, "#");
-  }
-  set(g, cx, 2, "=");
-  // 告示
-  if (get(g, cx + 5, 4) === "." || get(g, cx + 5, 4) === "=") set(g, cx + 5, 5, "!");
+  // 应天门前广场告示（勿再在阙内砌瓮城墙）
+  if (get(g, cx + 3, 9) === "." || get(g, cx + 3, 9) === "=") set(g, cx + 3, 9, "!");
   if (get(g, market.x, market.y - 2) === ".") set(g, market.x, market.y - 2, "!");
 
   const occupied = new Set<string>();
   occupied.add(`${cx},${cy}`);
 
   const talkers: Record<string, string> = {};
-  /** 每个 talker 字母只保留这一格，其余同字母（陈设冲突）清回地面 */
+  const entityMarks: EntityMark[] = [];
+  let talkSeq = 0;
+  /** 每个 talker 唯一 ID → 坐标（配套物件用） */
   const talkerCell = new Map<string, { x: number; y: number }>();
-  const placeTalk = (ch: string, id: string, spots: { x: number; y: number }[]) => {
-    for (const s of spots) {
-      if (placeChar(g, s.x, s.y, ch, occupied)) {
-        talkers[ch] = id;
-        talkerCell.set(ch, { x: s.x, y: s.y });
-        return true;
-      }
+  const placedNpcIds = new Set<string>();
+  const seed = 9041;
+
+  const isArterial = (x: number, y: number) =>
+    (x >= 40 && x <= 44 && y >= 1 && y <= cy + 4) ||
+    Math.abs(x - cx) <= 1 ||
+    y === cy - 5 ||
+    y === cy + 5 ||
+    y === cy;
+  const canStand = (x: number, y: number) => {
+    const cur = get(g, x, y);
+    if (cur !== "." && cur !== "=" && cur !== ":" && cur !== "," && cur !== "G") return false;
+    if (cur === "G") return false; // 空气墙格不站人
+    if (occupied.has(`${x},${y}`)) return false;
+    if (isArterial(x, y) && cur === "=") return false; // 主路不站人
+    for (const d of doors.values()) {
+      if (x === d.doorX && y === d.doorY) return false;
+      // 门口正前方一格也不堵
+      const ox = d.door === "e" ? 1 : d.door === "w" ? -1 : 0;
+      const oy = d.door === "s" ? 1 : d.door === "n" ? -1 : 0;
+      if (x === d.doorX + ox && y === d.doorY + oy) return false;
+    }
+    return true;
+  };
+
+  const placeTalkMark = (npcId: string, spots: { x: number; y: number }[]) => {
+    if (placedNpcIds.has(npcId)) return false;
+    const trySpots = spots;
+    for (const s of trySpots) {
+      if (!canStand(s.x, s.y)) continue;
+      const id = encodeMarkId(talkSeq++);
+      occupied.add(`${s.x},${s.y}`);
+      entityMarks.push(makeTalkerMark(id, s.x, s.y, npcId));
+      talkers[id] = npcId;
+      talkerCell.set(id, { x: s.x, y: s.y });
+      placedNpcIds.add(npcId);
+      return true;
     }
     return false;
   };
@@ -491,61 +1197,114 @@ export function generateLuoyang(): MetroScene {
     return out.concat(eavesSpot(doorX, doorY, door, seed + key.length)).slice(0, n);
   };
 
-  // 具名 NPC：大写 / 数字（避开门户 DWEFG、敌位 1–4）
-  placeTalk("J", "judge", nearDoor("yamen"));
-  placeTalk("N", "caseclerk", nearDoor("yamen"));
-  placeTalk("B", "luoBailiff", nearDoor("yamen"));
-  placeTalk("5", "luoClerk", nearDoor("yamen"));
-  placeTalk("K", "luoCoach", [
-    { x: W - 20, y: 15 },
-    { x: W - 22, y: 14 },
-    ...nearDoor("martial"),
-  ]);
-  placeTalk("X", "luoDoctor", nearDoor("clinic"));
-  placeTalk("P", "luoBarkeeper", nearDoor("wine"));
-  placeTalk("6", "luoCook", nearDoor("wine"));
-  placeTalk("A", "luoAsha", nearDoor("brothel"));
-  placeTalk("M", "luoMadam", nearDoor("brothel"));
-  placeTalk("V", "luoVendor", nearDoor("pawn"));
-  placeTalk("H", "luoHerb", nearDoor("shop1"));
-  placeTalk("O", "luoAntique", nearDoor("shop2"));
-  placeTalk("R", "luoRaconteur", nearDoor("shop3").concat([{ x: market.x + 2, y: market.y + 3 }]));
-  placeTalk("T", "luoTemple", [
-    { x: 48, y: 12 },
-    { x: 50, y: 12 },
-    ...nearDoor("temple"),
-  ]);
-  placeTalk("U", "luoPost", nearDoor("post"));
-  placeTalk("Q", "passClerk", [
-    { x: cx + 2, y: 3 },
-    { x: 3, y: cy - 5 },
-    { x: W - 4, y: cy - 5 },
-  ]);
-  placeTalk("S", "townWatch", [
-    { x: cx - 3, y: 4 },
-    { x: cx + 3, y: 5 },
-  ]);
-  placeTalk("7", "messenger", nearDoor("post"));
-  placeTalk("8", "rumorTea", [
-    { x: market.x - 1, y: market.y + 2 },
-    { x: market.x + 4, y: market.y },
-  ]);
-  placeTalk("9", "luoHawker", [
-    { x: market.x + 1, y: market.y - 1 },
-    { x: market.x - 2, y: market.y + 1 },
-    { x: market.x + 3, y: market.y + 2 },
-  ]);
-  placeTalk("L", "luoGate", [
-    { x: 10, y: 5 },
-    { x: W - 10, y: 5 },
-    { x: cx - 5, y: 6 },
-  ]);
-  placeTalk("Y", "luoMusician", nearDoor("brothel"));
-  placeTalk("Z", "luoDisciple", [
-    { x: W - 20, y: 14 },
-    ...nearDoor("martial"),
-  ]);
-  placeTalk("0", "luoJailer", nearDoor("jail"));
+  const shopBehind = (key: string) => {
+    const d = doors.get(key);
+    if (!d) return nearDoor(key, 4);
+    const spots: { x: number; y: number }[] = [];
+    if (d.behindX != null && d.behindY != null) {
+      spots.push(
+        { x: d.behindX, y: d.behindY },
+        { x: d.behindX - 1, y: d.behindY },
+        { x: d.behindX + 1, y: d.behindY },
+        { x: d.behindX, y: d.behindY - 1 },
+        { x: d.behindX, y: d.behindY + 1 },
+      );
+    }
+    spots.push(...nearDoor(key, 4));
+    return spots;
+  };
+
+  const virtualBox = (id: string) => {
+    if (id === "luoyangGate") return { x: cx - 4, y: cy - 4, w: 9, h: 8 };
+    if (id === "tianjinMarket") return { x: market.x - 2, y: market.y - 1, w: 8, h: 5 };
+    if (id === "southGarden") return { x: 58, y: 42, w: 22, h: 10 };
+    if (id === "luoRiver") return { x: 1, y: cy - 2, w: W - 2, h: 6 };
+    if (id === "westGate") return { x: 1, y: cy - 6, w: 4, h: 4 };
+    if (id === "eastGate") return { x: W - 5, y: cy - 6, w: 4, h: 4 };
+    return yards.find((y) => y.key === id) ?? null;
+  };
+
+  const scanBox = (box: { x: number; y: number; w: number; h: number }) => {
+    const out: { x: number; y: number }[] = [];
+    for (let yy = box.y; yy < box.y + box.h; yy++) {
+      for (let xx = box.x; xx < box.x + box.w; xx++) {
+        if (canStand(xx, yy)) out.push({ x: xx, y: yy });
+      }
+    }
+    return out;
+  };
+
+  const bindSpots = (b: NpcBinding) => {
+    const box = virtualBox(b.buildingId);
+    const doorSpots = nearDoor(b.buildingId, 8);
+    if (b.mode === "atRiver") {
+      return riverBankSpots(g, cy).slice(0, 12);
+    }
+    if (b.mode === "atWell") {
+      const well = LUOYANG_WELLS.get(b.buildingId);
+      if (well) return wellAdjSpots(g, well.x, well.y);
+      return doorSpots;
+    }
+    if (b.mode === "atDoor") {
+      if (b.buildingId === "luoyangGate") {
+        return [
+          { x: cx - 3, y: cy - 4 },
+          { x: cx + 3, y: cy - 4 },
+          { x: cx - 3, y: cy + 4 },
+          { x: cx + 3, y: cy + 4 },
+          { x: cx - 4, y: cy - 4 },
+          { x: cx + 4, y: cy - 4 },
+        ];
+      }
+      if (b.buildingId === "westGate") {
+        return [
+          { x: 2, y: cy - 5 },
+          { x: 2, y: cy - 4 },
+          { x: 3, y: cy - 5 },
+          { x: 3, y: cy - 4 },
+        ];
+      }
+      if (b.buildingId === "eastGate") {
+        return [
+          { x: W - 3, y: cy - 5 },
+          { x: W - 3, y: cy - 4 },
+          { x: W - 4, y: cy - 5 },
+          { x: W - 4, y: cy - 4 },
+        ];
+      }
+      const d = doors.get(b.buildingId);
+      return [...doorSpots, ...(d?.front ?? [])];
+    }
+    const inner = box
+      ? scanBox({ x: box.x + 1, y: box.y + 1, w: Math.max(1, box.w - 2), h: Math.max(1, box.h - 2) })
+      : [];
+    const extra = shopBehind(b.buildingId);
+    if (inner.length) return [...inner, ...extra];
+    console.warn(`洛阳 NPC ${b.npcId} 院内无站位，退到门口 ${b.buildingId}`);
+    return [...doorSpots, ...extra];
+  };
+
+  activateFangYards(g);
+
+  for (const b of NPC_BINDINGS) {
+    if (!placeTalkMark(b.npcId, bindSpots(b))) {
+      console.warn(`洛阳 NPC 绑定落空: ${b.npcId} @ ${b.buildingId}/${b.mode}`);
+    }
+  }
+  // 车：只放院内僻角（室外马路上禁止巨型载具挡路）
+  {
+    const wine = yards.find((y) => y.key === "wine");
+    const martial = yards.find((y) => y.key === "martial");
+    const cartSpots = [
+      ...(wine ? [{ x: wine.x + 2, y: wine.y + 2 }] : []),
+      ...(martial ? [{ x: martial.x + martial.w - 3, y: martial.y + 2 }] : []),
+    ];
+    for (const s of cartSpots) {
+      if (get(g, s.x, s.y) === "#" || get(g, s.x, s.y) === ":") continue;
+      set(g, s.x, s.y, "f");
+      occupied.add(`${s.x},${s.y}`);
+    }
+  }
 
   /** 院内空地候选（不堵门） */
   const yardFloors = (key: string): { x: number; y: number }[] => {
@@ -562,90 +1321,9 @@ export function generateLuoyang(): MetroScene {
     }
     return out;
   };
+  void yardFloors;
 
-  const placeYardNpc = (ch: string, id: string, yardKey: string) => {
-    if (talkers[ch] && talkers[ch] !== id) return false;
-    const spots = yardFloors(yardKey);
-    for (let i = 0; i < spots.length; i++) {
-      const s = spots[(i * 7 + seed) % spots.length]!;
-      if (placeChar(g, s.x, s.y, ch, occupied)) {
-        talkers[ch] = id;
-        talkerCell.set(ch, { x: s.x, y: s.y });
-        return true;
-      }
-    }
-    // 门口备选
-    return placeTalk(ch, id, nearDoor(yardKey));
-  };
-
-  // 院内密度填充（已落具名的跳过字母冲突时换位）
-  const EXTRA: { id: string; ch: string; yard: string }[] = [
-    { id: "luoJailer2", ch: "I", yard: "jail" },
-    { id: "luoPrisoner", ch: "h", yard: "jail" },
-    { id: "luoWaiter", ch: "n", yard: "wine" },
-    { id: "luoWaiter2", ch: "s", yard: "wine" },
-    { id: "luoGuest", ch: "w", yard: "wine" },
-    { id: "luoGuest2", ch: "x", yard: "wine" },
-    { id: "luoFlower", ch: "e", yard: "wine" },
-    { id: "luoGirl", ch: "$", yard: "brothel" },
-    { id: "luoGirl2", ch: "+", yard: "brothel" },
-    { id: "luoTurtle", ch: "/", yard: "brothel" },
-    { id: "luoEmbroid", ch: "r", yard: "brothel" },
-    { id: "luoDisciple2", ch: "?", yard: "martial" },
-    { id: "luoDisciple3", ch: "_", yard: "martial" },
-    { id: "luoYardHand", ch: "(", yard: "martial" },
-    { id: "luoHerbBoy", ch: ")", yard: "clinic" },
-    { id: "luoHerb2", ch: "[", yard: "clinic" },
-    { id: "luoShopHand", ch: "]", yard: "shop1" },
-    { id: "luoShopWife", ch: "g", yard: "shop1" },
-    { id: "luoElder", ch: "{", yard: "home1" },
-    { id: "luoElder2", ch: "}", yard: "home2" },
-    { id: "luoKid", ch: "|", yard: "home1" },
-    { id: "luoKid2", ch: "'", yard: "home2" },
-    { id: "luoWife", ch: "`", yard: "home1" },
-    { id: "luoWasher", ch: "m", yard: "home2" },
-    { id: "luoBeggar", ch: "a", yard: "shop3" },
-    { id: "luoTeaGirl", ch: "d", yard: "shop3" },
-    { id: "butcher", ch: "※", yard: "shed" },
-  ];
-  for (const ex of EXTRA) {
-    // 优先门外可达点，避免院门被陈设封死后困死
-    if (!placeTalk(ex.ch, ex.id, nearDoor(ex.yard, 12))) {
-      placeYardNpc(ex.ch, ex.id, ex.yard);
-    }
-  }
-
-  // 路人：小写字母，随后 uniquify 只留一格
-  const crowdIds = ["roadHawker", "rumorTea", "townHawker", "docker", "carter", "barber"];
-  // 严禁占用陈设字母 v(箱)/p(桩)/i(架)/t(凳)——否则配套扫描会把全城箱子当成车夫刷车
-  const crowdPoolSafe = [">", "<", ";", "·", "‡", "†"];
-  for (let i = 0; i < crowdPoolSafe.length; i++) {
-    const ox = jitter(seed + i * 3, 9) - 4;
-    const oy = jitter(seed + i * 5, 7) - 3;
-    const x = market.x + ox;
-    const y = market.y + oy;
-    if (Math.abs(x - cx) <= 1) continue;
-    const ch = crowdPoolSafe[i]!;
-    if (placeChar(g, x, y, ch, occupied)) {
-      talkers[ch] = crowdIds[i % crowdIds.length]!;
-      talkerCell.set(ch, { x, y });
-    }
-  }
-
-  // 清掉与 talker 字母撞车的陈设重复格——仅小写（大写允许多格同 id）
-  for (const [ch, keep] of talkerCell) {
-    if (ch.length === 1 && ch >= "A" && ch <= "Z") continue;
-    if (ch >= "0" && ch <= "9") continue;
-    for (let y = 0; y < H; y++) {
-      for (let x = 0; x < W; x++) {
-        if (get(g, x, y) !== ch) continue;
-        if (x === keep.x && y === keep.y) continue;
-        set(g, x, y, ".");
-      }
-    }
-  }
-
-  // 金吾卫 / 漕帮匪（可打）
+  // 金吾卫 / 漕帮匪（可打）—— 仍用 ascii 敌位字母
   const npcs: Record<string, EnemyId> = {
     "1": "jinwu",
     "2": "canalThug",
@@ -653,10 +1331,10 @@ export function generateLuoyang(): MetroScene {
     "4": "jailer",
   };
   const foeSpots = [
-    { ch: "1", x: cx + 6, y: 8 },
-    { ch: "2", x: cx - 5, y: cy + 9 },
+    { ch: "1", x: 45, y: 9 },
+    { ch: "2", x: 28, y: cy + 9 },
     { ch: "3", x: W - 22, y: cy + 8 },
-    { ch: "4", x: 15, y: 18 },
+    { ch: "4", x: 8, y: 18 },
   ];
   for (const f of foeSpots) {
     if (get(g, f.x, f.y) === "." && !occupied.has(`${f.x},${f.y}`)) {
@@ -665,7 +1343,7 @@ export function generateLuoyang(): MetroScene {
     }
   }
 
-  // 清 mark：只清院心一格（禁止整院同字母抹除——会误删木桶/NPC）
+  // 清 mark：只清院心一格
   for (const yd of yards) {
     if (!yd.mark) continue;
     const mx = yd.x + Math.floor(yd.w / 2);
@@ -674,7 +1352,7 @@ export function generateLuoyang(): MetroScene {
   }
 
   // 可达性：从 @ 洪水，挪困住 talker
-  const BLOCK = new Set("vbptj&gdkfmyzuqhic*,".split(""));
+  const BLOCK = new Set("vbptj&gdkfmyzuqhic*,en".split(""));
   const reach = new Set<string>();
   const rq: { x: number; y: number }[] = [{ x: cx, y: cy }];
   reach.add(`${cx},${cy}`);
@@ -709,18 +1387,9 @@ export function generateLuoyang(): MetroScene {
     }
     return null;
   };
-  for (const [ch] of Object.entries(talkers)) {
-    let px = -1;
-    let py = -1;
-    for (let y = 0; y < H; y++) {
-      const x = g[y]!.indexOf(ch);
-      if (x >= 0) {
-        px = x;
-        py = y;
-        break;
-      }
-    }
-    if (px < 0) continue;
+  for (const [id, pos] of talkerCell) {
+    const px = pos.x;
+    const py = pos.y;
     const ok = [
       [0, 1],
       [0, -1],
@@ -730,10 +1399,14 @@ export function generateLuoyang(): MetroScene {
     if (ok) continue;
     const spot = rescueFloor();
     if (!spot) continue;
-    set(g, px, py, ".");
-    set(g, spot.x, spot.y, ch);
     occupied.delete(`${px},${py}`);
     occupied.add(`${spot.x},${spot.y}`);
+    talkerCell.set(id, { x: spot.x, y: spot.y });
+    const mark = entityMarks.find((m) => m.id === id && m.role === "talker");
+    if (mark) {
+      mark.x = spot.x;
+      mark.y = spot.y;
+    }
   }
 
   // 宽度校验
@@ -743,47 +1416,27 @@ export function generateLuoyang(): MetroScene {
 
   // ─── 表现层补全（不定墙体/道路/建筑外框；仅加密室内、挂牌、主题地标、子场景门）───
   const nameSigns: string[] = [
-    "西陕州。东汴京。南偃师。河南府衙在桥北。",
-    "天津桥市集。平康坊东，酒楼西。金吾夜巡。",
+    "西陕州。东汴京。南偃师。应天门北，上阳宫西，府衙靠桥。",
+    "天津桥市集。南市在桥北东，西市在桥南西。金吾夜巡。",
   ];
   for (const yd of yards) {
     const def = buildingByYard(yd.key);
     const doorInfo = doors.get(yd.key);
     if (!def || !doorInfo) continue;
-    // 加密陈设：只填室内 `.`
-    furnishByTemplate(g, def.furnishTemplate, yd.x + 1, yd.y + 1, yd.w - 2, yd.h - 2, yd.door);
-    if (yd.key === "brothel") {
-      furnishByTemplate(g, "yanboStage", yd.x + 2, yd.y + 2, Math.max(4, yd.w - 4), Math.max(3, Math.floor(yd.h / 2) - 1), yd.door);
-    }
-    if (yd.key === "wine") {
-      furnishByTemplate(g, "taibaiPrivate", yd.x + 2, yd.y + 2, Math.max(4, yd.w - 4), Math.max(3, Math.floor(yd.h / 2) - 1), yd.door);
+    // 临街小铺已用 H+柜台建模，勿再套院落模板（会加黑墙感陈设）
+    if (yd.form !== "street") {
+      // 室外大地图禁止套室内模板（屏风/床榻/内室柜）；院内陈设只走 furnishRoom
+      renderWallVariant(
+        g,
+        { key: yd.key, spriteTheme: def.spriteTheme, x: yd.x, y: yd.y, w: yd.w, h: yd.h },
+        "battlement",
+      );
     }
     renderBuildingName(g, def, doorInfo.doorX, doorInfo.doorY, yd.door, nameSigns);
     applyBuildingTheme(g, def, doorInfo.doorX, doorInfo.doorY, yd.door, nameSigns);
-    // 墙垛 + 墙脚主题（默认 1.3×，不改 # 厚）
-    renderWallVariant(
-      g,
-      { key: yd.key, spriteTheme: def.spriteTheme, x: yd.x, y: yd.y, w: yd.w, h: yd.h },
-      "battlement",
-    );
   }
 
-  // 水边柳/荷：桥畔与渠岸补树
-  for (let y = 1; y < H - 1; y++) {
-    for (let x = 1; x < W - 1; x++) {
-      if (get(g, x, y) !== ".") continue;
-      const waterNear = [
-        [0, 1],
-        [0, -1],
-        [1, 0],
-        [-1, 0],
-      ].some(([dx, dy]) => get(g, x + dx, y + dy) === "~");
-      if (!waterNear) continue;
-      if ((x * 17 + y * 31 + seed) % 11 !== 0) continue;
-      if (occupied.has(`${x},${y}`)) continue;
-      set(g, x, y, "&");
-    }
-  }
+  // 水边不再乱种树（密度已在科学种树段控制）
 
   // 门洞可达性修复（清门口物件 / 微调门位，不挪建筑外框）
   const doorList = [...doors.entries()].map(([key, d]) => ({
@@ -802,18 +1455,134 @@ export function generateLuoyang(): MetroScene {
     }
   }
 
-  // 子场景门：牢房 / 烟波 外门同坐标由 : 改为门户字母（不挪位置）
-  const jailDoor = doors.get("jail");
-  if (jailDoor) set(g, jailDoor.doorX, jailDoor.doorY, LUO_PORTAL_PRISON);
-  const brothelDoor = doors.get("brothel");
-  if (brothelDoor) set(g, brothelDoor.doorX, brothelDoor.doorY, LUO_PORTAL_YANBO);
+  // 子场景门：正厅深处（非院子大门），并开一条可走中轴廊
+  const innerPortalSpot = (
+    key: string,
+  ): { x: number; y: number } | null => {
+    const yd = yards.find((y) => y.key === key);
+    const d = doors.get(key);
+    if (!yd || !d) return null;
+    let x = d.doorX;
+    let y = d.doorY;
+    const steps =
+      d.door === "e" || d.door === "w"
+        ? Math.max(3, Math.floor(yd.w / 2) + 1)
+        : Math.max(3, Math.floor(yd.h / 2) + 1);
+    const clearCell = (cx: number, cy: number) => {
+      const c = get(g, cx, cy);
+      if (c === "#" || c === "~" || c === "^" || c === "%") return false;
+      if ("vbptj&gdkfmyzuqhic*,oalfzrenf*".includes(c)) {
+        set(g, cx, cy, ".");
+        occupied.delete(`${cx},${cy}`);
+      }
+      return true;
+    };
+    for (let i = 0; i < steps; i++) {
+      if (d.door === "w") x += 1;
+      else if (d.door === "e") x -= 1;
+      else if (d.door === "n") y += 1;
+      else y -= 1;
+      // 撞隔墙时改走中门
+      if (get(g, x, y) === "#") {
+        const midX = yd.x + Math.floor(yd.w / 2);
+        const midY = yd.y + Math.floor(yd.h / 2);
+        if (d.door === "w" || d.door === "e") {
+          x = midX;
+          y = midY;
+        } else {
+          x = midX;
+          y = get(g, midX, y) === "#" ? midY : y;
+        }
+        if (get(g, x, y) === "#") set(g, x, y, ":");
+      }
+      clearCell(x, y);
+      // 两侧各清一格，防道具夹死
+      clearCell(x + 1, y);
+      clearCell(x - 1, y);
+      clearCell(x, y + 1);
+      clearCell(x, y - 1);
+    }
+    // 落在深处但仍在院内
+    if (x <= yd.x || x >= yd.x + yd.w - 1 || y <= yd.y || y >= yd.y + yd.h - 1) {
+      x = yd.x + Math.floor(yd.w / 2);
+      y = yd.y + Math.floor(yd.h / 2);
+    }
+    clearCell(x, y);
+    set(g, x, y, ".");
+    occupied.delete(`${x},${y}`);
+    return { x, y };
+  };
 
-  // 配套物件：只在 talkerCell 登记点生成（禁止按字母全图扫描——箱柜 v / 墙垛 p 会触发假车夫刷车）
+  // 外门恢复为院门（可走入院），二级传送只在正厅
+  const jailDoor = doors.get("jail");
+  if (jailDoor) set(g, jailDoor.doorX, jailDoor.doorY, "G");
+  const brothelDoor = doors.get("brothel");
+  if (brothelDoor) set(g, brothelDoor.doorX, brothelDoor.doorY, ":");
+
+  const prisonInner = innerPortalSpot("jail");
+  if (prisonInner) {
+    entityMarks.push(
+      makePortalMark("GA", prisonInner.x, prisonInner.y, "luoyang_yamen_prison" as SceneId, "A"),
+    );
+  }
+  const yanboInner = innerPortalSpot("brothel");
+  if (yanboInner) {
+    entityMarks.push(
+      makePortalMark("FA", yanboInner.x, yanboInner.y, "luoyang_yanbo_inner" as SceneId, "A"),
+    );
+  }
+  entityMarks.push(makePortalMark("TB", 71, 30, "luoyang_temple_outer" as SceneId, "A"));
+  set(g, 71, 30, ".");
+
+  const modelBlocked = (x: number, y: number) => {
+    const c = get(g, x, y);
+    return c === "H" || c === "e" || c === "#" || c === ";" || c === "G";
+  };
+  const nudgeInnerPortal = (markId: "FA" | "GA", yardKey: string) => {
+    const mark = entityMarks.find((m) => m.id === markId && m.role === "portal");
+    const yd = yards.find((y) => y.key === yardKey);
+    if (!mark || !yd) return;
+    if (!modelBlocked(mark.x, mark.y)) return;
+    const q: { x: number; y: number }[] = [{ x: mark.x, y: mark.y }];
+    const seen = new Set<string>([`${mark.x},${mark.y}`]);
+    while (q.length) {
+      const cur = q.shift()!;
+      for (const [dx, dy] of [
+        [0, 1],
+        [0, -1],
+        [1, 0],
+        [-1, 0],
+      ] as const) {
+        const nx = cur.x + dx;
+        const ny = cur.y + dy;
+        const k = `${nx},${ny}`;
+        if (seen.has(k)) continue;
+        if (nx <= yd.x || nx >= yd.x + yd.w - 1 || ny <= yd.y || ny >= yd.y + yd.h - 1) continue;
+        seen.add(k);
+        const c = get(g, nx, ny);
+        if (c !== "." && c !== "," && c !== ":") {
+          q.push({ x: nx, y: ny });
+          continue;
+        }
+        if (modelBlocked(nx, ny) || occupied.has(k)) {
+          q.push({ x: nx, y: ny });
+          continue;
+        }
+        mark.x = nx;
+        mark.y = ny;
+        return;
+      }
+    }
+    console.warn(`洛阳二级门 ${markId} 与建模重叠，无法平移 @${mark.x},${mark.y}`);
+  };
+  nudgeInnerPortal("GA", "jail");
+  nudgeInnerPortal("FA", "brothel");
+
+  // 配套物件：只在 talkerCell 登记点生成
   let cartLeft = 8;
   for (const [ch, pos] of talkerCell) {
     const id = talkers[ch];
     if (!id) continue;
-    if (get(g, pos.x, pos.y) !== ch) continue;
     const placed = spawnCompanionProps(g, { id, x: pos.x, y: pos.y }, occupied);
     for (const p of placed) {
       if (p.ch !== "f") continue;
@@ -849,7 +1618,7 @@ export function generateLuoyang(): MetroScene {
   }
 
   // 最终清门口：门/门户邻格物件与挡路 NPC 一律挪开
-  const PROP_CLEAR = new Set("vbptj&gdkfmyzuqhic*,oalfzr".split(""));
+  const PROP_CLEAR = new Set("vbptj&gdkfmyzuhi*,oalfzren".split("")); // 不含 q（柜台）
   const clearApproach = (dx: number, dy: number) => {
     if (dx < 0 || dy < 0) return;
     for (let oy = -1; oy <= 1; oy++) {
@@ -930,144 +1699,119 @@ export function generateLuoyang(): MetroScene {
     }
     return null;
   };
-  for (const [ch] of Object.entries(talkers)) {
-    for (let y = 0; y < H; y++) {
-      for (let x = 0; x < W; x++) {
-        if (get(g, x, y) !== ch) continue;
-        const ok =
-          reach2.has(`${x},${y}`) ||
-          [
-            [0, 1],
-            [0, -1],
-            [1, 0],
-            [-1, 0],
-          ].some(([dx, dy]) => reach2.has(`${x + dx},${y + dy}`));
-        if (ok) continue;
-        const spot = rescue2();
-        if (!spot) continue;
-        set(g, x, y, ".");
-        set(g, spot.x, spot.y, ch);
-        occupied.delete(`${x},${y}`);
-        occupied.add(`${spot.x},${spot.y}`);
-        talkerCell.set(ch, { x: spot.x, y: spot.y });
-      }
+  for (const [id, pos] of talkerCell) {
+    const ok =
+      reach2.has(`${pos.x},${pos.y}`) ||
+      [
+        [0, 1],
+        [0, -1],
+        [1, 0],
+        [-1, 0],
+      ].some(([dx, dy]) => reach2.has(`${pos.x + dx},${pos.y + dy}`));
+    if (ok) continue;
+    const spot = rescue2();
+    if (!spot) continue;
+    occupied.delete(`${pos.x},${pos.y}`);
+    occupied.add(`${spot.x},${spot.y}`);
+    talkerCell.set(id, spot);
+    const mark = entityMarks.find((m) => m.id === id && m.role === "talker");
+    if (mark) {
+      mark.x = spot.x;
+      mark.y = spot.y;
     }
   }
 
-  // 再次 uniquify：仅小写
-  for (const [ch, keep] of talkerCell) {
-    if (ch.length === 1 && ch >= "A" && ch <= "Z") continue;
-    if (ch >= "0" && ch <= "9") continue;
-    for (let y = 0; y < H; y++) {
-      for (let x = 0; x < W; x++) {
-        if (get(g, x, y) !== ch) continue;
-        if (x === keep.x && y === keep.y) continue;
-        set(g, x, y, ".");
-      }
-    }
-  }
-
-  // 干道清障：东西门廊道（cy-5）与南北桥轴（cx）上不得站人/挡路物件
+  // 干道清障：东西门廊道与桥轴上不得挡路物件；人站干道则挪开
   const clearArterial = (x: number, y: number) => {
     const ch = get(g, x, y);
-    if (talkers[ch]) {
-      const spot = (() => {
-        for (const [ax, ay] of [
-          [0, 2],
-          [0, -2],
-          [2, 0],
-          [-2, 0],
-          [1, 2],
-          [-1, 2],
-        ] as const) {
-          const nx = x + ax;
-          const ny = y + ay;
-          if (get(g, nx, ny) !== ".") continue;
-          if (occupied.has(`${nx},${ny}`)) continue;
-          if (nx === cx || ny === cy - 5) continue;
-          return { x: nx, y: ny };
-        }
-        return null;
-      })();
-      if (spot) {
-        set(g, x, y, ".");
-        set(g, spot.x, spot.y, ch);
-        occupied.delete(`${x},${y}`);
-        occupied.add(`${spot.x},${spot.y}`);
-        talkerCell.set(ch, spot);
-      }
-    } else if ("fvpb&".includes(ch)) {
+    if ("fvpb&".includes(ch)) {
       set(g, x, y, "=");
       occupied.delete(`${x},${y}`);
     }
   };
+  for (const [id, pos] of talkerCell) {
+    if (pos.x === cx || pos.y === cy - 5) {
+      for (const [ax, ay] of [
+        [0, 2],
+        [0, -2],
+        [2, 0],
+        [-2, 0],
+        [1, 2],
+        [-1, 2],
+      ] as const) {
+        const nx = pos.x + ax;
+        const ny = pos.y + ay;
+        if (get(g, nx, ny) !== "." && get(g, nx, ny) !== "=") continue;
+        if (occupied.has(`${nx},${ny}`)) continue;
+        if (nx === cx || ny === cy - 5) continue;
+        occupied.delete(`${pos.x},${pos.y}`);
+        occupied.add(`${nx},${ny}`);
+        talkerCell.set(id, { x: nx, y: ny });
+        const mark = entityMarks.find((m) => m.id === id && m.role === "talker");
+        if (mark) {
+          mark.x = nx;
+          mark.y = ny;
+        }
+        break;
+      }
+    }
+  }
   for (let x = 1; x < W - 1; x++) clearArterial(x, cy - 5);
   for (let y = 1; y < H - 1; y++) clearArterial(cx, y);
 
-  // —— 先限频车/桶等（语义补种放到门廊清障之后，避免被抹掉）——
+  // —— 先限频车/桶等；树留到路肩/干道清障后再种，避免被后处理抹掉 ——
   capAllFurnishings(g);
 
   const occNpc: PlaceOcc = new Set();
-  const talkerPositions: { ch: string; id: string; x: number; y: number }[] = [];
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      const ch = get(g, x, y);
-      const id = talkers[ch];
-      if (!id) continue;
-      talkerPositions.push({ ch, id, x, y });
-      occNpc.add(cellKey(x, y));
-    }
-  }
+  for (const pos of talkerCell.values()) occNpc.add(cellKey(pos.x, pos.y));
+
+  // 校验 talker 落点可站（不写 ascii 字母）
   const placeFails: string[] = [];
-  for (const tp of talkerPositions) {
-    const cur = get(g, tp.x, tp.y);
-    if (cur === tp.ch && cur !== "#" && cur !== "~" && cur !== "^" && cur !== "%") {
-      continue;
+  for (const [id, pos] of talkerCell) {
+    const cur = get(g, pos.x, pos.y);
+    if (cur === "#" || cur === "~" || cur === "^" || cur === "%") {
+      const npcId = talkers[id]!;
+      const meta = npcById(npcId);
+      const yd = meta?.yard ? yards.find((y) => y.key === meta.yard) : undefined;
+      const yardBox = yd ? { x: yd.x, y: yd.y, w: yd.w, h: yd.h } : undefined;
+      occNpc.delete(cellKey(pos.x, pos.y));
+      const placed = placeNpc(g, { id: npcId, ch: ".", x: pos.x, y: pos.y }, occNpc, yardBox);
+      if (!placed.ok) placeFails.push(`${npcId}: ${placed.reason}`);
+      else {
+        // placeNpc 可能写入 "." — 清回地面语义
+        set(g, placed.to.x, placed.to.y, get(g, placed.to.x, placed.to.y) === "." ? "." : "=");
+        if (get(g, placed.to.x, placed.to.y) === ".") {
+          /* keep */
+        }
+        // 若写成了其他，强制地面
+        const c = get(g, placed.to.x, placed.to.y);
+        if (c !== "." && c !== "=" && c !== "," && c !== ":") set(g, placed.to.x, placed.to.y, ".");
+        talkerCell.set(id, { x: placed.to.x, y: placed.to.y });
+        const mark = entityMarks.find((m) => m.id === id && m.role === "talker");
+        if (mark) {
+          mark.x = placed.to.x;
+          mark.y = placed.to.y;
+        }
+        occNpc.add(cellKey(placed.to.x, placed.to.y));
+      }
     }
-    const meta = npcById(tp.id);
-    const yd = meta?.yard ? yards.find((y) => y.key === meta.yard) : undefined;
-    const yardBox = yd ? { x: yd.x, y: yd.y, w: yd.w, h: yd.h } : undefined;
-    occNpc.delete(cellKey(tp.x, tp.y));
-    const placed = placeNpc(g, { id: tp.id, ch: tp.ch, x: tp.x, y: tp.y }, occNpc, yardBox);
-    if (!placed.ok) placeFails.push(`${tp.id}: ${placed.reason}`);
-    talkerCell.set(tp.ch, { x: placed.to.x, y: placed.to.y });
   }
   if (placeFails.length) {
     throw new Error(`洛阳 NPC 落点失败（禁止静默丢弃）:\n${placeFails.join("\n")}`);
   }
 
-  // 落地率：缺失则强制重落（报错清单，禁止静默丢弃）
-  const missingOnGrid: string[] = [];
-  for (const [ch, id] of Object.entries(talkers)) {
-    const pos = talkerCell.get(ch);
-    if (pos && get(g, pos.x, pos.y) === ch) continue;
-    // 扫描全图是否仍有该字母
-    let found: { x: number; y: number } | null = null;
-    for (let y = 0; y < H && !found; y++) {
-      for (let x = 0; x < W; x++) {
-        if (get(g, x, y) === ch) {
-          found = { x, y };
-          break;
-        }
-      }
-    }
-    if (found) {
-      talkerCell.set(ch, found);
-      continue;
-    }
-    const meta = npcById(id);
-    const yd = meta?.yard ? yards.find((y) => y.key === meta.yard) : undefined;
-    const yardBox = yd ? { x: yd.x, y: yd.y, w: yd.w, h: yd.h } : undefined;
-    const prefer = pos ?? (yd ? { x: yd.x + 2, y: yd.y + 2 } : { x: market.x, y: market.y });
-    const placed = placeNpc(g, { id, ch, x: prefer.x, y: prefer.y }, occNpc, yardBox);
-    if (!placed.ok) missingOnGrid.push(`${id}(${ch}): ${placed.reason}`);
-    else talkerCell.set(ch, { x: placed.to.x, y: placed.to.y });
-  }
-  if (missingOnGrid.length) {
-    throw new Error(`洛阳 NPC 未上图: ${missingOnGrid.join(", ")}`);
-  }
   if (Object.keys(talkers).length < 30) {
     throw new Error(`洛阳 NPC 过少: ${Object.keys(talkers).length} < 30`);
+  }
+
+  // 同步 entityMarks 坐标
+  for (const m of entityMarks) {
+    if (m.role !== "talker") continue;
+    const pos = talkerCell.get(m.id);
+    if (pos) {
+      m.x = pos.x;
+      m.y = pos.y;
+    }
   }
 
   // 最终：旁路干道 + 东/西门接入（防院墙再次封死）
@@ -1130,7 +1874,7 @@ export function generateLuoyang(): MetroScene {
   {
     const wineDoor = doors.get("wine");
     const postDoor = doors.get("post");
-    const templeDoor = doors.get("temple");
+    const templeDoor = doors.get("templeOffice");
     const clinicDoor = doors.get("clinic");
     const wineYard = yards.find((y) => y.key === "wine");
     const postYard = yards.find((y) => y.key === "post");
@@ -1138,12 +1882,12 @@ export function generateLuoyang(): MetroScene {
       g,
       {
         barrel: 4,
-        tree: 12,
-        lantern: 8,
+        tree: 0, // V4 成组已种
+        lantern: 0,
         jar: 3,
         brazier: 3,
-        stall: 4,
-        well: 1,
+        stall: 3,
+        well: 0,
         stele: 1,
         cart: 2,
       },
@@ -1161,20 +1905,11 @@ export function generateLuoyang(): MetroScene {
         },
         {
           kind: "tree",
-          spots: [
-            { x: cx - 4, y: cy - 3 },
-            { x: cx + 4, y: cy - 3 },
-            { x: 8, y: 22 },
-            { x: W - 10, y: 22 },
-            { x: market.x + 1, y: market.y + 5 },
-          ],
+          spots: [],
         },
         {
           kind: "lantern",
-          spots: [...doors.values()].flatMap((d) => [
-            { x: d.doorX + 1, y: d.doorY + 1 },
-            { x: d.doorX - 1, y: d.doorY - 1 },
-          ]),
+          spots: [],
         },
         {
           kind: "jar",
@@ -1208,10 +1943,7 @@ export function generateLuoyang(): MetroScene {
         },
         {
           kind: "well",
-          spots: [
-            { x: market.x - 5, y: market.y + 2 },
-            { x: 18, y: cy + 4 },
-          ],
+          spots: [],
         },
         {
           kind: "stele",
@@ -1242,10 +1974,654 @@ export function generateLuoyang(): MetroScene {
     void clinicDoor;
     capFurnishing(g, "cart", 8);
     capFurnishing(g, "barrel", 6);
-    capFurnishing(g, "tree", 15);
-    capFurnishing(g, "lantern", 10);
+    capFurnishing(g, "tree", V73_TREE_MAX);
+    capFurnishing(g, "lantern", V73_LANTERN_MAX);
     capFurnishing(g, "jar", 4);
     capFurnishing(g, "post", 10);
+  }
+
+  // 保护二级传送格，并清出十字邻格保证 flood 可踩上；挪开叠在门上的 talker
+  for (const m of entityMarks) {
+    if (m.role !== "portal") continue;
+    const c = get(g, m.x, m.y);
+    if (c === "#" || c === "~" || c === "^" || c === "%") {
+      let fixed = false;
+      for (const [dx, dy] of [
+        [0, 0],
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+        [1, 1],
+        [-1, 1],
+      ] as const) {
+        const nx = m.x + dx;
+        const ny = m.y + dy;
+        const nc = get(g, nx, ny);
+        if (nc === "." || nc === "=" || nc === "," || nc === ":") {
+          m.x = nx;
+          m.y = ny;
+          fixed = true;
+          break;
+        }
+      }
+      if (!fixed) continue;
+    }
+    set(g, m.x, m.y, ".");
+    for (const [dx, dy] of [
+      [0, 1],
+      [0, -1],
+      [1, 0],
+      [-1, 0],
+    ] as const) {
+      const nx = m.x + dx;
+      const ny = m.y + dy;
+      const nc = get(g, nx, ny);
+      if ("vbptj&gdkfmyzuhi*,oalfzrenf".includes(nc)) {
+        set(g, nx, ny, ".");
+        occupied.delete(`${nx},${ny}`);
+      }
+    }
+    // talker 不得压在传送格上
+    for (const [id, pos] of talkerCell) {
+      if (pos.x !== m.x || pos.y !== m.y) continue;
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+        [2, 0],
+        [0, 2],
+      ] as const) {
+        const nx = m.x + dx;
+        const ny = m.y + dy;
+        if (!canStand(nx, ny) && get(g, nx, ny) !== "." && get(g, nx, ny) !== "=") continue;
+        if (occupied.has(`${nx},${ny}`) && !(nx === pos.x && ny === pos.y)) continue;
+        occupied.delete(`${pos.x},${pos.y}`);
+        occupied.add(`${nx},${ny}`);
+        talkerCell.set(id, { x: nx, y: ny });
+        const tm = entityMarks.find((e) => e.id === id && e.role === "talker");
+        if (tm) {
+          tm.x = nx;
+          tm.y = ny;
+        }
+        break;
+      }
+    }
+  }
+
+  // 最终强制：外门内 3 步中轴落二级门（可走入院，再进内室）
+  {
+    const forceInner = (key: string, markId: string, to: SceneId) => {
+      const yd = yards.find((y) => y.key === key);
+      const d = doors.get(key);
+      if (!yd || !d) return;
+      const ox = d.door === "e" ? -1 : d.door === "w" ? 1 : 0;
+      const oy = d.door === "s" ? -1 : d.door === "n" ? 1 : 0;
+      const corridor: { x: number; y: number }[] = [];
+      let x = d.doorX;
+      let y = d.doorY;
+      for (let i = 0; i < 3; i++) {
+        x += ox;
+        y += oy;
+        if (get(g, x, y) === "#") set(g, x, y, ":");
+        else set(g, x, y, ".");
+        occupied.delete(`${x},${y}`);
+        corridor.push({ x, y });
+      }
+      const existing = entityMarks.find((m) => m.id === markId && m.role === "portal");
+      if (existing) {
+        existing.x = x;
+        existing.y = y;
+      } else {
+        entityMarks.push(makePortalMark(markId, x, y, to, "A"));
+      }
+      // 廊道与传送格上不得站人（否则 flood 进不了内室门）
+      const blocked = new Set(corridor.map((c) => `${c.x},${c.y}`));
+      blocked.add(`${d.doorX},${d.doorY}`);
+      for (const [id, pos] of [...talkerCell]) {
+        if (!blocked.has(`${pos.x},${pos.y}`)) continue;
+        let moved = false;
+        for (const [dx, dy] of [
+          [0, 2],
+          [0, -2],
+          [2, 0],
+          [-2, 0],
+          [1, 2],
+          [-1, 2],
+          [2, 1],
+          [-2, 1],
+        ] as const) {
+          const nx = pos.x + dx;
+          const ny = pos.y + dy;
+          if (blocked.has(`${nx},${ny}`)) continue;
+          if (get(g, nx, ny) !== "." && get(g, nx, ny) !== "=" && get(g, nx, ny) !== ",") continue;
+          if (occupied.has(`${nx},${ny}`)) continue;
+          occupied.delete(`${pos.x},${pos.y}`);
+          occupied.add(`${nx},${ny}`);
+          talkerCell.set(id, { x: nx, y: ny });
+          const tm = entityMarks.find((e) => e.id === id && e.role === "talker");
+          if (tm) {
+            tm.x = nx;
+            tm.y = ny;
+          }
+          moved = true;
+          break;
+        }
+        if (!moved) {
+          // 最后手段：挪到院外门旁支路
+          const nx = d.doorX - ox * 2;
+          const ny = d.doorY - oy * 2 + 1;
+          occupied.delete(`${pos.x},${pos.y}`);
+          occupied.add(`${nx},${ny}`);
+          talkerCell.set(id, { x: nx, y: ny });
+          const tm = entityMarks.find((e) => e.id === id && e.role === "talker");
+          if (tm) {
+            tm.x = nx;
+            tm.y = ny;
+          }
+        }
+      }
+    };
+    forceInner("brothel", "FA", "luoyang_yanbo_inner" as SceneId);
+    forceInner("jail", "GA", "luoyang_yamen_prison" as SceneId);
+  }
+
+  // 最终钉死：洛阳门 + 临街小房（无柜台）+ 牢房围墙/空气墙
+  punchWater(g, cx, cy - 2);
+  punchWater(g, cx, cy + 2);
+  set(g, cx, cy - 2, ";");
+  set(g, cx, cy + 2, ";");
+  for (const dy of [-1, 0, 1]) {
+    for (const dx of [-1, 0, 1]) {
+      if (get(g, cx + dx, cy + dy) !== "#") set(g, cx + dx, cy + dy, "=");
+    }
+  }
+  set(g, cx, cy, "@");
+  for (const yd of yards) {
+    if (yd.form !== "street") continue;
+    const d = doors.get(yd.key);
+    if (!d) continue;
+    // 清掉误留的马路柜台
+    for (let yy = yd.y; yy < yd.y + yd.h; yy++) {
+      for (let xx = yd.x; xx < yd.x + yd.w; xx++) {
+        if (get(g, xx, yy) === "q") set(g, xx, yy, ".");
+      }
+    }
+    if (d.behindX != null && d.behindY != null) {
+      // 屋体锚在 behind 旁：优先保留已有 H，否则钉 H
+      let hx = d.behindX;
+      let hy = d.behindY;
+      let found = false;
+      for (let yy = yd.y; yy < yd.y + yd.h; yy++) {
+        for (let xx = yd.x; xx < yd.x + yd.w; xx++) {
+          if (get(g, xx, yy) === "H") {
+            hx = xx;
+            hy = yy;
+            found = true;
+            break;
+          }
+        }
+        if (found) break;
+      }
+      if (!found) set(g, hx, hy, "H");
+    }
+  }
+  // 院内大型柜台终局钉死（酒楼/衙门），避免被清障抹掉
+  {
+    const wine = yards.find((y) => y.key === "wine");
+    const yamen = yards.find((y) => y.key === "yamen");
+    if (wine) set(g, wine.x + 8, wine.y + 6, "q");
+    if (yamen) set(g, yamen.x + 1, yamen.y + 2, "q");
+  }
+  // 牢房：完整围墙 + 正门 G + 逻辑屏障（需路引）
+  {
+    const yd = yards.find((y) => y.key === "jail");
+    const d = doors.get("jail");
+    if (yd && d) {
+      for (let xx = yd.x; xx < yd.x + yd.w; xx++) {
+        set(g, xx, yd.y, "#");
+        set(g, xx, yd.y + yd.h - 1, "#");
+      }
+      for (let yy = yd.y; yy < yd.y + yd.h; yy++) {
+        set(g, yd.x, yy, "#");
+        set(g, yd.x + yd.w - 1, yy, "#");
+      }
+      set(g, d.doorX, d.doorY, "G");
+      const existing = entityMarks.find((m) => m.id === "JB" && m.role === "barrier");
+      if (existing) {
+        existing.x = d.doorX;
+        existing.y = d.doorY;
+      } else {
+        entityMarks.push(
+          makeBarrierMark("JB", d.doorX, d.doorY, "item:roadPass", "牢门关着。没路引，狱卒不放人。"),
+        );
+      }
+      // 门廊清障：门外三步可走，门内可走；人不得站门上
+      const ox = d.door === "e" ? 1 : d.door === "w" ? -1 : 0;
+      const oy = d.door === "s" ? 1 : d.door === "n" ? -1 : 0;
+      for (const step of [1, 2, 3]) {
+        const x = d.doorX + ox * step;
+        const y = d.doorY + oy * step;
+        if (get(g, x, y) === "#" || get(g, x, y) === "~") continue;
+        set(g, x, y, "=");
+      }
+      const ix = -ox;
+      const iy = -oy;
+      for (const step of [1, 2]) {
+        const x = d.doorX + ix * step;
+        const y = d.doorY + iy * step;
+        if (x > yd.x && x < yd.x + yd.w - 1 && y > yd.y && y < yd.y + yd.h - 1) {
+          set(g, x, y, ".");
+        }
+      }
+    }
+  }
+  // 车只留在驿站院内/僻静角，清干道上的车
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      if (get(g, x, y) !== "f") continue;
+      if (Math.abs(x - cx) <= 2 || y === cy - 5 || y === cy + 5 || y === cy || get(g, x, y) === "=") {
+        set(g, x, y, ".");
+      }
+    }
+  }
+
+  // 终局：凡站在墙/门/水上的 talker 必须挪进可站格（牢房封墙后尤甚）
+  for (const [id, pos] of [...talkerCell]) {
+    const npcId = talkers[id]!;
+    const jailNpc = ["luoJailer", "luoJailer2", "luoPrisoner"].includes(npcId);
+    const yd = jailNpc ? yards.find((y) => y.key === "jail") : undefined;
+    const ch = get(g, pos.x, pos.y);
+    const outsideJail =
+      yd &&
+      (pos.x <= yd.x || pos.x >= yd.x + yd.w - 1 || pos.y <= yd.y || pos.y >= yd.y + yd.h - 1);
+    const badCell = ch !== "." && ch !== "=" && ch !== "," && ch !== ":";
+    if (!badCell && !outsideJail) continue;
+    let moved = false;
+    const ox0 = yd ? yd.x + Math.floor(yd.w / 2) : pos.x;
+    const oy0 = yd ? yd.y + Math.floor(yd.h / 2) : pos.y;
+    for (let r = 0; r <= 8 && !moved; r++) {
+      for (let dy = -r; dy <= r && !moved; dy++) {
+        for (let dx = -r; dx <= r && !moved; dx++) {
+          const nx = ox0 + dx;
+          const ny = oy0 + dy;
+          const nc = get(g, nx, ny);
+          if (nc !== "." && nc !== "=" && nc !== ",") continue;
+          if (occupied.has(`${nx},${ny}`) && !(nx === pos.x && ny === pos.y)) continue;
+          if (yd && (nx <= yd.x || nx >= yd.x + yd.w - 1 || ny <= yd.y || ny >= yd.y + yd.h - 1)) continue;
+          occupied.delete(`${pos.x},${pos.y}`);
+          occupied.add(`${nx},${ny}`);
+          talkerCell.set(id, { x: nx, y: ny });
+          const tm = entityMarks.find((e) => e.id === id && e.role === "talker");
+          if (tm) {
+            tm.x = nx;
+            tm.y = ny;
+          }
+          moved = true;
+        }
+      }
+    }
+  }
+
+  sanitizeOutdoorLuoyang(g, cx, cy);
+  // 清洗后再钉洛阳门，防止真空填充/廊道冲掉牌楼
+  punchWater(g, cx, cy - 2);
+  punchWater(g, cx, cy + 2);
+  set(g, cx, cy - 2, ";");
+  set(g, cx, cy + 2, ";");
+  for (const dy of [-1, 0, 1]) {
+    for (const dx of [-1, 0, 1]) {
+      if (get(g, cx + dx, cy + dy) !== "#") set(g, cx + dx, cy + dy, "=");
+    }
+  }
+  set(g, cx, cy, "@");
+  {
+    const yd = yards.find((y) => y.key === "jail");
+    const d = doors.get("jail");
+    if (yd && d) {
+      for (let xx = yd.x; xx < yd.x + yd.w; xx++) {
+        set(g, xx, yd.y, "#");
+        set(g, xx, yd.y + yd.h - 1, "#");
+      }
+      for (let yy = yd.y; yy < yd.y + yd.h; yy++) {
+        set(g, yd.x, yy, "#");
+        set(g, yd.x + yd.w - 1, yy, "#");
+      }
+      set(g, d.doorX, d.doorY, "G");
+    }
+  }
+  for (const yd of yards) {
+    if (yd.form !== "street") continue;
+    const midX = yd.x + Math.floor(yd.w / 2);
+    if (yd.door === "s") {
+      const doorY = yd.y + yd.h - 1;
+      for (const x of [midX, midX + 1]) {
+        const c = get(g, x, cy - 5);
+        if (c !== "#" && c !== "~" && c !== "^" && c !== "W" && c !== "E") set(g, x, cy - 5, "=");
+        const lip = get(g, x, doorY + 1);
+        if (lip !== "#" && lip !== "~" && lip !== "H") set(g, x, doorY + 1, "=");
+      }
+    } else if (yd.door === "n") {
+      const doorY = yd.y;
+      for (const x of [midX, midX + 1]) {
+        const c = get(g, x, cy + 5);
+        if (c !== "#" && c !== "~" && c !== "^" && c !== "W" && c !== "E") set(g, x, cy + 5, "=");
+        const lip = get(g, x, doorY - 1);
+        if (lip !== "#" && lip !== "~" && lip !== "H") set(g, x, doorY - 1, "=");
+      }
+    }
+  }
+
+  const palace = yards.find((y) => y.key === "shangyang");
+  dressRoadEdges(
+    g,
+    doors.values(),
+    palace ? [{ x: palace.x, y: palace.y, w: palace.w, h: palace.h }] : [],
+    cx,
+    cy,
+  );
+  for (const name of ["应天门", "端门", "上阳宫", "南市楼", "西市楼", "立德坊门", "通远坊门", "慈惠堂", "天津桥"]) {
+    if (!nameSigns.includes(name)) nameSigns.push(name);
+  }
+  // 路肩布置之后再清一次干道，告示/灯不得占 = 
+  const keepOnRoad = new Set(["=", "@", ";", "D", "W", "E", "N", "S"]);
+  for (let x = 1; x < W - 1; x++) {
+    for (const y of [cy - 5, cy + 5, cy]) {
+      const c = get(g, x, y);
+      if (!keepOnRoad.has(c) && c !== "#" && c !== "~" && c !== "%") set(g, x, y, "=");
+    }
+  }
+  for (let y = 1; y < H - 1; y++) {
+    for (const dx of [-1, 0, 1]) {
+      const c = get(g, cx + dx, y);
+      if (c === "~" || c === "%" || c === "#") continue;
+      if (!keepOnRoad.has(c)) set(g, cx + dx, y, "=");
+    }
+  }
+  set(g, cx, 1, "D");
+  set(g, 1, cy - 5, "W");
+  set(g, W - 2, cy - 5, "E");
+  set(g, cx, cy - 2, ";");
+  set(g, cx, cy + 2, ";");
+  set(g, cx, cy, "@");
+
+  // V7.3：树丛改由 fillBlankWindows6 统一补种
+  {
+    for (let y = 1; y < H - 1; y++) {
+      for (let x = 1; x < W - 1; x++) {
+        if (get(g, x, y) === "&") {
+          set(g, x, y, ".");
+          occupied.delete(`${x},${y}`);
+        }
+      }
+    }
+  }
+
+  // V7.1 凳白名单：酒楼/茶铺门前 + 坊内树下偶发 + 酒楼内 1
+  {
+    const keep: { x: number; y: number }[] = [];
+    const pushKeep = (x: number, y: number) => {
+      if (get(g, x, y) === "#" || get(g, x, y) === "~" || get(g, x, y) === "=") return;
+      if (keep.some((k) => k.x === x && k.y === y)) return;
+      keep.push({ x, y });
+    };
+    const wineD = doors.get("wine");
+    const wineYd = yards.find((y) => y.key === "wine");
+    if (wineD) {
+      const ox = wineD.door === "e" ? 1 : wineD.door === "w" ? -1 : 0;
+      const oy = wineD.door === "s" ? 1 : wineD.door === "n" ? -1 : 0;
+      pushKeep(wineD.doorX + ox, wineD.doorY + oy + 1);
+      pushKeep(wineD.doorX + ox, wineD.doorY + oy - 1);
+    }
+    if (wineYd) pushKeep(wineYd.x + 4, wineYd.y + 2);
+    const tea = doors.get("shop4");
+    if (tea) {
+      pushKeep(tea.doorX - 1, tea.doorY + 1);
+      pushKeep(tea.doorX + 1, tea.doorY + 1);
+    }
+    for (const key of ["home1", "home2", "home3", "home4", "home5", "home6"]) {
+      const yd = yards.find((y) => y.key === key);
+      if (!yd) continue;
+      let placed = false;
+      for (let yy = yd.y + 1; yy < yd.y + yd.h - 1 && !placed; yy++) {
+        for (let xx = yd.x + 1; xx < yd.x + yd.w - 1 && !placed; xx++) {
+          if (get(g, xx, yy) !== "&") continue;
+          for (const [dx, dy] of [
+            [1, 0],
+            [-1, 0],
+            [0, 1],
+            [0, -1],
+          ] as const) {
+            const nx = xx + dx;
+            const ny = yy + dy;
+            if (get(g, nx, ny) === "." || get(g, nx, ny) === "t" || get(g, nx, ny) === "o") {
+              pushKeep(nx, ny);
+              placed = true;
+              break;
+            }
+          }
+        }
+      }
+    }
+    for (let y = 1; y < H - 1; y++) {
+      for (let x = 1; x < W - 1; x++) {
+        if (get(g, x, y) !== "t" && get(g, x, y) !== "o") continue;
+        if (!keep.some((k) => k.x === x && k.y === y)) set(g, x, y, ".");
+      }
+    }
+    let stools = 0;
+    for (const k of keep) {
+      if (stools >= V71_STOOL_MAX) break;
+      const c = get(g, k.x, k.y);
+      if (c === "#" || c === "~" || c === "=" || c === "H" || c === "&") continue;
+      set(g, k.x, k.y, "t");
+      stools += 1;
+    }
+  }
+
+  // V7.1 人群：任意 3×3 内 talker + 出生格 ≤ 3
+  {
+    const bindOf = new Map(NPC_BINDINGS.map((b) => [b.npcId, b]));
+    const positions = [...talkerCell.entries()];
+    const crowdAt = (x: number, y: number) => {
+      let n = 0;
+      if (x === cx && y === cy) n += 1;
+      for (const [, p] of talkerCell) {
+        if (Math.abs(p.x - x) <= 1 && Math.abs(p.y - y) <= 1) n += 1;
+      }
+      return n;
+    };
+    const tryMove = (id: string, npcId: string) => {
+      const bind = bindOf.get(npcId);
+      if (!bind) return false;
+      const cand = bindSpots(bind);
+      for (const s of cand) {
+        if (!canStand(s.x, s.y) && get(g, s.x, s.y) !== "." && get(g, s.x, s.y) !== ",") continue;
+        if (occupied.has(`${s.x},${s.y}`)) continue;
+        if (arterialTreeBan(s.x, s.y, cx, cy) && get(g, s.x, s.y) === "=") continue;
+        const old = talkerCell.get(id)!;
+        occupied.delete(`${old.x},${old.y}`);
+        talkerCell.set(id, s);
+        occupied.add(`${s.x},${s.y}`);
+        const mark = entityMarks.find((m) => m.id === id && m.role === "talker");
+        if (mark) {
+          mark.x = s.x;
+          mark.y = s.y;
+        }
+        if (crowdAt(s.x, s.y) <= 3) return true;
+        occupied.delete(`${s.x},${s.y}`);
+        talkerCell.set(id, old);
+        occupied.add(`${old.x},${old.y}`);
+        if (mark) {
+          mark.x = old.x;
+          mark.y = old.y;
+        }
+      }
+      return false;
+    };
+    const snapToBind = () => {
+      for (const [id, pos] of talkerCell) {
+        const npcId = talkers[id];
+        if (!npcId) continue;
+        const bind = bindOf.get(npcId);
+        if (!bind) continue;
+        const spots = bindSpots(bind);
+        if (npcOnBindSpot(g, bind, pos, virtualBox, spots)) continue;
+        for (const s of spots) {
+          if (!canStand(s.x, s.y)) continue;
+          if (occupied.has(`${s.x},${s.y}`) && !(talkerCell.get(id)?.x === s.x && talkerCell.get(id)?.y === s.y))
+            continue;
+          occupied.delete(`${pos.x},${pos.y}`);
+          talkerCell.set(id, s);
+          occupied.add(`${s.x},${s.y}`);
+          const mark = entityMarks.find((m) => m.id === id && m.role === "talker");
+          if (mark) {
+            mark.x = s.x;
+            mark.y = s.y;
+          }
+          break;
+        }
+      }
+    };
+    for (let pass = 0; pass < 4; pass++) {
+      let dirty = false;
+      for (const [id, pos] of positions) {
+        if (crowdAt(pos.x, pos.y) <= 3) continue;
+        const npcId = talkers[id];
+        if (!npcId) continue;
+        if (tryMove(id, npcId)) dirty = true;
+      }
+      if (!dirty) break;
+    }
+    snapToBind();
+  }
+
+  sweepBareOutdoor(g, yards as LuoyangYardDef[], cx, cy);
+  fillBlankWindows6(g, cx, cy, V73_TREE_MIN, V73_TREE_MAX);
+  fixShoreRoads(g, cy);
+  enforceTreeDensity(g);
+  topUpV73Trees(g, cx, cy, V73_TREE_MIN);
+  paintImperialAxis(g, cx, cy);
+  paintPalaceWalls(g);
+  while (countChar(g, "&") > V73_TREE_MAX) {
+    let cut = false;
+    for (let y = H - 2; y >= 1 && !cut; y--) {
+      for (let x = W - 2; x >= 1 && !cut; x--) {
+        if (get(g, x, y) !== "&") continue;
+        if (x >= 58 && x < 80 && y >= 42 && y < 52) continue;
+        set(g, x, y, ".");
+        cut = true;
+      }
+    }
+    if (!cut) break;
+  }
+  set(g, cx, cy - 2, ";");
+  set(g, cx, cy + 2, ";");
+  set(g, cx, cy, "@");
+  set(g, 1, cy - 5, "W");
+  set(g, W - 2, cy - 5, "E");
+  set(g, YINGTIAN_GATE.x0, YINGTIAN_GATE.y, ":");
+  set(g, cx, YINGTIAN_GATE.y, "H");
+  set(g, YINGTIAN_GATE.x1, YINGTIAN_GATE.y, ":");
+  set(g, cx, 1, "D");
+  {
+    const wineYd = yards.find((y) => y.key === "wine");
+    const yamenYd = yards.find((y) => y.key === "yamen");
+    if (wineYd) set(g, wineYd.x + 8, wineYd.y + 6, "q");
+    if (yamenYd) set(g, yamenYd.x + 4, yamenYd.y + 4, "q");
+  }
+  enforceTreeDensity(g);
+  ensureV73TreeMin(g, cx, cy, V73_TREE_MIN);
+  enforceTreeDensity(g);
+  ensureV73TreeMin(g, cx, cy, V73_TREE_MIN);
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      if (get(g, x, y) === "f") set(g, x, y, ".");
+    }
+  }
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      if (get(g, x, y) !== "f") continue;
+      let onRoad = false;
+      for (const [dx, dy] of [
+        [0, 1],
+        [0, -1],
+        [1, 0],
+        [-1, 0],
+      ] as const) {
+        if (get(g, x + dx, y + dy) === "=") onRoad = true;
+      }
+      if (Math.abs(x - cx) <= 2 || y === cy - 5 || y === cy + 5 || y === cy || onRoad) set(g, x, y, ".");
+    }
+  }
+  {
+    const wineYd = yards.find((y) => y.key === "wine");
+    if (wineYd) set(g, wineYd.x + 10, wineYd.y + 3, "f");
+  }
+  trimLanternRuns(g);
+  finalizeV73Lanterns(g, cx, cy, doors);
+  set(g, 1, cy - 5, "W");
+  set(g, W - 2, cy - 5, "E");
+
+  LUOYANG_LABEL_ANCHORS = [];
+  for (const yd of yards) {
+    const d = doors.get(yd.key);
+    if (!d) continue;
+    let houseX: number | undefined;
+    let houseY: number | undefined;
+    for (let yy = yd.y; yy < yd.y + yd.h; yy++) {
+      for (let xx = yd.x; xx < yd.x + yd.w; xx++) {
+        if (get(g, xx, yy) === "H") {
+          houseX = xx;
+          houseY = yy;
+        }
+      }
+    }
+    LUOYANG_LABEL_ANCHORS.push({ key: yd.key, x: d.doorX, y: d.doorY, houseX, houseY });
+  }
+  LUOYANG_LABEL_ANCHORS.push({ key: "bridge", x: cx, y: cy - 4 });
+  LUOYANG_LABEL_ANCHORS.push({ key: "templeOuter", x: 71, y: 30 });
+
+  // 终局：人群再分散（后期步骤不再挪动 talker）
+  {
+    const bindOf = new Map(NPC_BINDINGS.map((b) => [b.npcId, b]));
+    const crowdAt = (x: number, y: number) => {
+      let n = 0;
+      if (x === cx && y === cy) n += 1;
+      for (const [, p] of talkerCell) {
+        if (Math.abs(p.x - x) <= 1 && Math.abs(p.y - y) <= 1) n += 1;
+      }
+      return n;
+    };
+    for (let pass = 0; pass < 8; pass++) {
+      let dirty = false;
+      for (const [id, pos] of [...talkerCell]) {
+        if (crowdAt(pos.x, pos.y) <= 3) continue;
+        const npcId = talkers[id];
+        if (!npcId) continue;
+        const bind = bindOf.get(npcId);
+        if (!bind) continue;
+        const cand = bindSpots(bind).sort(
+          (a, b) => crowdAt(a.x, a.y) - crowdAt(b.x, b.y),
+        );
+        for (const s of cand) {
+          if (!canStand(s.x, s.y) && get(g, s.x, s.y) !== "." && get(g, s.x, s.y) !== ",") continue;
+          if (occupied.has(`${s.x},${s.y}`)) continue;
+          occupied.delete(`${pos.x},${pos.y}`);
+          talkerCell.set(id, s);
+          occupied.add(`${s.x},${s.y}`);
+          const mark = entityMarks.find((m) => m.id === id && m.role === "talker");
+          if (mark) {
+            mark.x = s.x;
+            mark.y = s.y;
+          }
+          dirty = true;
+          break;
+        }
+      }
+      if (!dirty) break;
+    }
   }
 
   return {
@@ -1254,17 +2630,19 @@ export function generateLuoyang(): MetroScene {
     name: "洛阳·天津桥",
     kicker: "洛阳",
     enter:
-      "天津桥三线石面。洛水横贯，府衙在北，平康在南东，酒旗在南西。桥亭有人验帖，市集里声杂。",
+      "天津桥三线石面。洛水横贯。北阙应天，西苑上阳，府衙靠桥。南市在桥北东，西市在桥南西。",
     mood: "桥上风硬。案卷比刀响。",
     ascii: g,
     npcs,
     talkers,
+    entityMarks,
     portals: {
       D: { to: "yanshi", at: "W" },
       W: { to: "shanzhou", at: "E" },
       E: { to: "bianjing", at: "W" },
-      [LUO_PORTAL_PRISON]: { to: "luoyang_yamen_prison" as SceneId, at: "A" },
-      [LUO_PORTAL_YANBO]: { to: "luoyang_yanbo_inner" as SceneId, at: "A" },
+      FA: { to: "luoyang_yanbo_inner" as SceneId, at: "A" },
+      GA: { to: "luoyang_yamen_prison" as SceneId, at: "A" },
+      TB: { to: "luoyang_temple_outer" as SceneId, at: "A" },
     },
     order: [] as SealId[],
     gate: "open" as GateKind,

@@ -1,4 +1,4 @@
-export const EDGE_TILES = 3;
+export const EDGE_TILES = 6;
 
 /** Outdoor: higher camera (more ground in view). Indoor: lower camera (tiles closer). */
 export const OUTDOOR_SCALE = 1;
@@ -7,6 +7,42 @@ export const INDOOR_SCALE = 1.42;
 /** Fixed play scales — big cities must not shrink the avatar. */
 export function coverScale(outdoor: boolean): number {
   return outdoor ? OUTDOOR_SCALE : INDOOR_SCALE;
+}
+
+/** Smallest uniform scale that fits the whole map in the stage (never upscales). */
+export function fitMapScale(mapW: number, mapH: number, stageW: number, stageH: number): number {
+  if (mapW <= 0 || mapH <= 0 || stageW <= 0 || stageH <= 0) return 1;
+  return Math.min(1, stageW / mapW, stageH / mapH);
+}
+
+/** Center the scaled map in the stage (full-map / survey view). */
+export function overviewCamera(
+  mapW: number,
+  mapH: number,
+  stageW: number,
+  stageH: number,
+  scale: number,
+): { x: number; y: number } {
+  return {
+    x: (stageW - mapW * scale) / 2,
+    y: (stageH - mapH * scale) / 2,
+  };
+}
+
+/** Test版镜头档位：0 近、1 远、2 全图。 */
+export function testCamScale(
+  lift: number,
+  outdoor: boolean,
+  mapW: number,
+  mapH: number,
+  stageW: number,
+  stageH: number,
+): number {
+  const base = coverScale(outdoor);
+  if (lift <= 0) return base;
+  const fit = fitMapScale(mapW, mapH, stageW, stageH);
+  if (lift >= 2) return fit;
+  return (base + fit) / 2;
 }
 
 export interface Cam {
