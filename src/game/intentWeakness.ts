@@ -1,4 +1,5 @@
 import type { Battle, CardId, Intent, V2TurnFlags, WeaknessDef, WeaknessKind } from "./types";
+import { isBreakAlign } from "../combatLab/labRuleset";
 
 export type { WeaknessKind, WeaknessDef };
 
@@ -208,8 +209,11 @@ export function evalWeakness(
       return flags.endTurnCommitted && (flags.endDist ?? dist(b)) > 1;
     case "endBlockGt0":
       return flags.endTurnCommitted && (flags.endBlock ?? b.playerBlock) > 0;
-    case "endBlockGte8":
-      return flags.endTurnCommitted && (flags.endBlock ?? b.playerBlock) >= (w.param ?? 8);
+    case "endBlockGte8": {
+      let need = w.param ?? 8;
+      if (isBreakAlign() && b.techniques.includes("softPalm")) need = Math.max(1, need - 2);
+      return flags.endTurnCommitted && (flags.endBlock ?? b.playerBlock) >= need;
+    }
     case "antiGuardPlayed":
       return flags.antiGuardPlayed;
     case "bleedcutFullyBlocked":

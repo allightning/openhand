@@ -3,6 +3,7 @@ import { stressMetaAt } from "../game/labEnemyStress";
 import { weaknessTip } from "../game/intentWeakness";
 import { breakCounterDamage, breakLootFor } from "../game/labV2";
 import { isLabV2 } from "../game/labTuning";
+import { isBreakAlign } from "./labRuleset";
 import { MATES } from "../game/party";
 import { dangerCellsForIntent, intentIncoming, livingFoes, projectedQueueThreat } from "../game/sim";
 import type { Battle, Intent, Unit } from "../game/types";
@@ -90,12 +91,13 @@ function timelineRow(
   grazePreview: Set<number>,
   currentIdx: number,
   eyeIdx: number,
+  foeCount: number,
   projected?: number[][],
 ): string {
   const cards = queue
     .map((intent, i) => segmentHtml(b, intent, i, broken, preview, grazed, grazePreview, hoverIdx, currentIdx, eyeIdx, projected?.[i]))
     .join("");
-  return `<div class="lab-intent-row"><span class="lab-intent-label">${foe.name}</span>${cards}</div>`;
+  return `<div class="lab-intent-row" data-foe-count="${foeCount}"><span class="lab-intent-label">${foe.name}</span>${cards}</div>`;
 }
 
 /** §30.3 敌人 aside 内意图条（蓝条下方）。 */
@@ -109,20 +111,26 @@ export function renderFoeIntentStrip(b: Battle, hoverIdx: number | null): string
   const currentIdx = b.intentIndex ?? 0;
   const breakCount = b.v2BreakCount ?? 0;
   const offBalance = (b.v2OffBalance ?? 0) > 0;
-  const head = `<div class="lab-intent-bandhead"><span>破=硬拆全免 · 让=半效 · 空=打不着 · 打=照打</span>${offBalance ? `<span class="lab-offbalance">他失衡了 · 承伤 ×2</span>` : ""}${breakCount > 0 ? `<span class="lab-break-count">已拆 ${breakCount}</span>` : ""}</div>`;
+  const turnBreaks = b.v2TurnBreakCount ?? 0;
+  const grazedCount = (b.v2GrazedSegments ?? []).length;
+  const qi = b.qi ?? 0;
+  const breakMode = isBreakAlign();
+  const head = breakMode
+    ? `<div class="lab-intent-bandhead"><span>破=硬拆全免+反打 · 让=半效 · 空=打不着 · 打=照打</span>${offBalance ? `<span class="lab-offbalance">他失衡了 · 承伤 ×2</span>` : ""}<span class="lab-break-count">充能 ${b.v2Turn?.moveCharges ?? 0} · 已硬拆 ${breakCount}${turnBreaks > 0 ? `（本回合 +${turnBreaks}）` : ""} · 已让 ${grazedCount} · 势 ${qi}</span></div>`
+    : `<div class="lab-intent-bandhead lab-intent-compact"><span>敌招一览</span>${offBalance ? `<span class="lab-offbalance">他失衡了 · 承伤 ×2</span>` : ""}${breakCount > 0 ? `<span class="lab-break-count">已拆 ${breakCount}</span>` : ""}</div>`;
   const eyeIdx = b.v2EyeIdx ?? -1;
-  // §31.14 拆招教学行：不用悬停也知道「眼在哪、怎么拆」——先降低理解门槛
+  // §31.14 拆招版常驻眼提示；对战版不默认展开（拆招为辅）
   const mainQueue = b.intents.length ? b.intents : [b.intent];
   const eyeIntent = eyeIdx >= 0 ? mainQueue[eyeIdx] : null;
   const eyeHint =
-    eyeIntent && !broken.has(eyeIdx)
-      ? `<div class="lab-eye-hint">眼在第 ${eyeIdx + 1} 段「${intentLabel(eyeIntent)}」——${weaknessTip(eyeIntent)}。拆掉它，整套套路跟着崩。</div>`
+    breakMode && eyeIntent && !broken.has(eyeIdx)
+      ? `<div class="lab-eye-hint">眼在第 ${eyeIdx + 1} 段「${intentLabel(eyeIntent)}」——${weaknessTip(eyeIntent)}。硬拆它，整套套路跟着崩。</div>`
       : "";
   // §31.15 主队列逐段投影一次算清（后手段红格按先手落位后的敌位画）
   const projected = projectedQueueThreat(b);
   if (live.length <= 1) {
     const queue = mainQueue;
-    return `<div class="lab-intent-slot">${head}${eyeHint}<div class="lab-intent-timeline foe-inline">${timelineRow(b, b.enemy, queue, hoverIdx, broken, preview, grazed, grazePreview, currentIdx, eyeIdx, projected)}</div></div>`;
+    return `<div class="lab-intent-slot">${head}${eyeHint}<div class="lab-intent-timeline foe-inline">${timelineRow(b, b.enemy, queue, hoverIdx, broken, preview, grazed, grazePreview, currentIdx, eyeIdx, live.length, projected)}</div></div>`;
   }
   const rows = live.map((foe, row) => {
     const queue =
@@ -142,6 +150,7 @@ export function renderFoeIntentStrip(b: Battle, hoverIdx: number | null): string
       row === 0 ? grazePreview : new Set(),
       row === 0 ? currentIdx : 0,
       row === 0 ? eyeIdx : -1,
+      live.length,
       row === 0 ? projected : undefined,
     );
   });

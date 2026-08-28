@@ -188,7 +188,7 @@ export function simV2ResolveIntentQueue(b: Battle, resolveOne: (intent: Intent, 
       b.journal.push({ side: "you", text: "散！" });
       continue;
     }
-    // §31.11 眩晕：跳过攻击段（棍连击/拳震壁施加）
+    // §31.11 眩晕：跳过攻击段（棍连击/拳震壁/助战施加）。多敌人时眩晕只影响主敌队列。
     if ((b.foeStun ?? 0) > 0 && "damage" in intent && (intent.damage ?? 0) > 0) {
       b.foeStun = (b.foeStun ?? 0) - 1;
       b.log.push(`【眩晕】${intent.kind} 段被打懵，没出出来`);

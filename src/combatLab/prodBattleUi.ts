@@ -8,6 +8,7 @@ import { cardDisplayText } from "../game/cardTextV2";
 import { variantActiveLabel, variantBranch } from "../game/labV21";
 import { ROLE_LABEL } from "../game/labV25Constants";
 import { isLabV2 } from "../game/labTuning";
+import { isBreakAlign } from "./labRuleset";
 import { MATES, MATE_PASSIVE, WEAPON_NAME, schoolLabel } from "../game/party";
 import { dangerCells, livingFoes, statusChips, yourPace, isComboUnlockCard } from "../game/sim";
 import { BOARD_SIZE, type Battle, type EnemyId, type Preview } from "../game/types";
@@ -161,11 +162,54 @@ function stanceLine(b: Battle): string {
   return `你 ${b.player.hp} 血${block}　·　${foe.name} ${foe.hp} 血${foeBlock}　·　第 ${foe.pos + 1} 步`;
 }
 
-function labCoachText(b: Battle, prev: Preview | null): string {
+const MOVE_CHARGE_CARDS = new Set(["advance", "advance2", "sweep", "retreat", "sidestep"]);
+
+function renderBreakChargeHud(b: Battle): string {
+  if (!isBreakAlign() || !isLabV2()) return "";
+  const move = b.v2Turn?.moveCharges ?? 0;
+  const anti = b.v2Turn?.antiGuardCharges ?? 0;
+  const maxShow = 5;
+  const pips = Array.from({ length: maxShow }, (_, i) =>
+    `<span class="lab-charge-pip ${i < move ? "on" : ""}"></span>`,
+  ).join("");
+  const tip = "位移牌 +1 拆招充能；硬拆一段打击类消耗 1。破架类牌 +1，拆架势段消耗 1。";
+  return `<div class="lab-break-charge" data-tip="${escapeAttr(tip)}">
+    <span class="lab-break-charge-label">拆招充能</span>
+    <span class="lab-break-charge-pips">${pips}</span>
+    <span class="lab-break-charge-num">${move}</span>
+    ${anti > 0 ? `<span class="lab-break-anti">破架 ${anti}</span>` : ""}
+  </div>`;
+}
+
+function renderBreakTeachingBanner(stage: number | undefined): string {
+  if (!isBreakAlign() || !stage || stage > 2) return "";
+  const copy =
+    stage === 1
+      ? "入门馆：位移牌 +1 拆招充能。收势时离开红格 = 硬拆（耗 1 充能），那段全免并反打真伤。"
+      : "入门馆：格挡够高 = 让拆（半效）。带「眼」的段硬拆 → 套路崩塌 + 失衡承伤×2。";
+  return `<div class="lab-break-teach">${escapeHtml(copy)}</div>`;
+}
+
+function labCoachText(b: Battle, prev: Preview | null, gauntletStage?: number): string {
+  if (isBreakAlign() && gauntletStage === 1 && !prev) {
+    return "先看意图条，再打位移牌攒拆招充能。离开红格收势 = 硬拆。";
+  }
+  if (isBreakAlign() && gauntletStage === 2 && !prev) {
+    return "卸力够高可让拆；找带「眼」的段，硬拆它整套崩。";
+  }
   if (prev && prev.legal && prev.enemyDies) return "他要撑不住了。";
-  if (b.energy === 0) return "劲尽了。收势，看他下一招。";
+  if (b.energy === 0) return isBreakAlign() ? "劲尽了。收势，看他下一招——想想怎么拆。" : "劲尽了。收势，看他下一招。";
   const intent = b.intent;
-  if (isLabV2() && (b.qi ?? 0) > 0) return `势 ${b.qi}。积势还是爆势，这一息要想清。`;
+  if (isLabV2() && (b.qi ?? 0) > 0) {
+    return isBreakAlign()
+      ? `势 ${b.qi}。硬拆叠势后爆打，或先拆再收势反打。`
+      : `势 ${b.qi}。积势还是爆势，这一息要想清。`;
+  }
+  if (isBreakAlign() && isLabV2()) {
+    const charges = b.v2Turn?.moveCharges ?? 0;
+    if (charges > 0) return `拆招充能 ${charges}。悬停意图段看破法，硬拆高伤段。`;
+    return "打位移牌攒充能，或卸力让拆。红格是他要落的步。";
+  }
   if (intent.kind === "strike") return "红格是他要落的步。卸力，或进步躲开。";
   if (intent.kind === "charge") return "他要冲过来。让开红格，或用推宫撞他。";
   if (intent.kind === "guard") return "他架着。破架或推开再出掌。";
@@ -224,6 +268,8 @@ export interface ProdBattleOpts {
   pauseOverlay: string;
   toolbarExtra: string;
   weaponSheetHtml: string;
+  /** 踢馆当前馆序（拆招版 1–2 关教学用）。 */
+  gauntletStage?: number;
 }
 
 export function renderProdBattle(opts: ProdBattleOpts): string {
@@ -243,11 +289,17 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
     pauseOverlay,
     toolbarExtra,
     weaponSheetHtml,
+    gauntletStage,
   } = opts;
+  const breakAlign = isBreakAlign();
   const mate = MATES[b.active];
   const live = livingFoes(b);
   const foeHp = live.reduce((s, f) => s + f.hp, 0);
   const foeMax = live.reduce((s, f) => s + f.maxHp, 0) || b.enemy.maxHp;
+  // 多敌人时血条分开算：主敌 + 每个额外敌人各自一条
+  const foeBars = live.length > 1
+    ? live.map((f) => `<div class="lab-foe-hp-row"><span>${f.name}</span>${hpBar(f.hp, f.maxHp)}</div>`).join("")
+    : hpBar(foeHp, foeMax);
   const threatHighlight = threatCellsForHover(b, hoverIntentIdx);
   const gearId = weaponId || starterGear(mate.weapon);
   const eqSchool = battleEquippedSchool(b, b.active);
@@ -272,15 +324,16 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
       const comboUnlock = isComboUnlockCard(b, c.defId) && gate.ok;
       const comboBadge = comboUnlock ? `<span class="combo-unlock-badge">合</span>` : "";
       const vBadge = vLabel ? `<span class="variant-badge">${escapeHtml(vLabel)}</span>` : "";
+      const chargeCard = breakAlign && MOVE_CHARGE_CARDS.has(def.id) ? "break-charge-card" : "";
       return `
-        <button class="card ${def.type} ${active ? "hot" : ""} ${gate.ok ? "" : "dead"} ${comboUnlock ? "combo-unlock" : ""} ${vClass}"
+        <button class="card ${def.type} ${active ? "hot" : ""} ${gate.ok ? "" : "dead"} ${comboUnlock ? "combo-unlock" : ""} ${vClass} ${chargeCard}"
           data-uid="${c.uid}" style="--i:${idx}" ${gate.ok ? "" : "disabled"}>
           <span class="cost">${def.cost}</span>
           ${comboBadge}${vBadge}
           <div class="art">${cardArt(def.id)}</div>
           <div class="banner">${typeLabel(def.type)} · ${schoolLabel(c.defId)}${def.tags?.includes("组合") ? " · 组合" : ""}</div>
           <h3>${def.name}</h3>
-          <p class="text">${escapeHtml(cardDisplayText(def))}</p>
+          <p class="text">${escapeHtml(cardDisplayText(def, { breakAlign }))}</p>
           <p class="flavor">${gate.ok ? def.flavor : gate.reason ?? def.flavor}</p>
           <span class="hotkey">${idx + 1}</span>
         </button>`;
@@ -299,11 +352,12 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
         <header class="fy-top lab-combat-top">
           <div class="fy-place">
             <em>Combat Lab</em>
-            <b>拆招试炼</b>
+            <b>${breakAlign ? "拆招试炼" : "对战踢馆"}</b>
           </div>
           <h1 class="fy-ink">七步石台</h1>
           <div class="fy-stats lab-combat-tools">
             ${toolbarExtra}
+            ${breakAlign ? `<span class="fy-btn lab-mode-badge" data-tip="拆招版：硬拆反打 · 10馆短局 · 核心产品测">拆招版</span>` : `<span class="fy-btn lab-mode-badge classic" data-tip="对战版：15馆爬塔 · 肉鸽 build · 拆招为辅">对战版</span>`}
             <span class="fy-btn hp" data-tip="当前回合">回合 ${b.turn}</span>
             <span class="fy-btn" data-tip="先机对比">先机 ${yourPace(b)}/${b.foePace}</span>
           </div>
@@ -322,6 +376,7 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
               </div>
               <div class="lab-bar-slot">${hpBar(b.player.hp, b.player.maxHp)}</div>
               <div class="lab-bar-slot">${qiBar(b.energy, b.energyMax, b.energyRegen)}</div>
+              <div class="lab-bar-slot">${renderBreakChargeHud(b)}</div>
               <div class="lab-aside-extra">
                 <div class="lab-tech-slot">${techList}</div>
                 ${entranceNote}${freshNote}
@@ -329,9 +384,10 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
             </aside>
 
             <div class="stage-core">
+              ${renderBreakTeachingBanner(gauntletStage)}
               <div class="lab-intent-band">${renderFoeIntentStrip(b, hoverIntentIdx)}</div>
               <div class="strip" id="strip">${renderProdBoard(b, prev, threatHighlight, summonPickCells ?? [])}</div>
-              <div class="coach" id="coach">${labCoachText(b, prev)}</div>
+              <div class="coach" id="coach">${labCoachText(b, prev, gauntletStage)}</div>
             </div>
 
             <aside class="fighter foe-side">
@@ -342,8 +398,9 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
               <div class="lab-name-slot" data-tip="${escapeAttr(foeTip)}">
                 <b>${b.enemy.name}${live.length > 1 ? ` · ${live.length}人` : ""}</b>
                 <span>${b.enemy.title} · ${WEAPON_NAME[ENEMY_WEAPON[b.enemyId]]}</span>
+                ${live.length > 1 ? `<span class="lab-foe-count">场上 ${live.length} 敌</span>` : ""}
               </div>
-              <div class="lab-bar-slot">${hpBar(foeHp, foeMax)}</div>
+              <div class="lab-bar-slot">${foeBars}</div>
               <div class="lab-bar-slot">${qiBar(b.enemyEnergy, b.enemyEnergyMax)}</div>
             </aside>
           </div>

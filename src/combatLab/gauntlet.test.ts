@@ -14,6 +14,7 @@ import {
   createGauntletRun,
   enterGauntletTuning,
   exitGauntletTuning,
+  getGauntletFinalStage,
   loadGauntletBest,
   rollCompanionChoices,
   rollGauntletRewards,
@@ -22,6 +23,7 @@ import {
 } from "./gauntlet";
 import { pathLadder } from "./gauntletPaths";
 import { getLabTuning, setLabTuning } from "../game/labTuning";
+import { setLabRuleset } from "./labRuleset";
 
 describe("§31 连胜踢馆", () => {
   beforeEach(() => {
@@ -30,6 +32,7 @@ describe("§31 连胜踢馆", () => {
     } catch {
       /* vitest node 环境可能无 localStorage */
     }
+    setLabRuleset("classic");
     exitGauntletTuning();
   });
 
@@ -42,7 +45,8 @@ describe("§31 连胜踢馆", () => {
     }
   });
 
-  it("三条 15 馆路径：少林/土匪/朝廷，期中 7 期末 15", () => {
+  it("三条 15 馆路径：少林/土匪/朝廷，期中 7 期末 15（经典模式）", () => {
+    setLabRuleset("classic");
     for (const path of ["shaolin", "bandit", "court"] as const) {
       const ladder = pathLadder(path);
       expect(ladder).toHaveLength(15);
@@ -50,6 +54,30 @@ describe("§31 连胜踢馆", () => {
       expect(ladder[14]?.tier).toBe("extreme");
       expect(GAUNTLET_MAX_STAGE).toBe(15);
     }
+  });
+
+  it("拆招模式：10 馆、双敌/三敌、伙伴里程碑 4/7", () => {
+    setLabRuleset("break");
+    for (const path of ["shaolin", "bandit", "court"] as const) {
+      const ladder = pathLadder(path);
+      expect(ladder).toHaveLength(10);
+      expect(ladder[0]?.label).toMatch(/来锋位移/);
+      expect(ladder[1]?.label).toMatch(/让与破眼/);
+      expect(ladder[7]?.extraEnemyIds).toHaveLength(1);
+      expect(ladder[8]?.extraEnemyIds).toHaveLength(1);
+      expect(ladder[9]?.extraEnemyIds).toHaveLength(1);
+      expect(ladder[9]?.forceGrudge).toBe(true);
+    }
+    expect(getGauntletFinalStage()).toBe(10);
+    let run = createGauntletRun("bandit", "sword");
+    const a = rollCompanionChoices(run, () => 0)[0]!;
+    run = applyCompanion(run, a);
+    expect(run.companions).toEqual([a]);
+    expect(run.companion).toBe(a);
+    const b = rollCompanionChoices(run, () => 0)[0]!;
+    run = applyCompanion(run, b);
+    expect(run.companions).toHaveLength(2);
+    expect(buildGauntletPreset(run).party).toHaveLength(3);
   });
 
   it("战后回血与阶段推进", () => {

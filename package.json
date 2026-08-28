@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --port 5175 --strictPort --host 127.0.0.1",
     "lab": "vite --open /combat-lab.html --port 5175 --strictPort --host 127.0.0.1",
+    "lab:ensure": "bash scripts/ensure-lab.sh",
     "build:pages": "VITE_BASE=/openhand/ vite build",
     "test:combat": "vitest run src/combatLab src/game/sim.test.ts src/game/party.test.ts src/game/settings.test.ts src/game/codex.test.ts",
     "build": "tsc --noEmit && vite build",

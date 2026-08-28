@@ -17,6 +17,7 @@ import {
 } from "../game/sim";
 import { startLabBattle } from "./factory";
 import { BUILTIN_PRESETS } from "./presets";
+import { setLabRuleset } from "./labRuleset";
 import type { Battle, CardId, LabItemId } from "../game/types";
 
 function v2Battle(enemyId: "catcher" | "escort" = "catcher") {
@@ -35,6 +36,7 @@ function withCard(b: Battle, id: CardId, patch: Partial<Battle> = {}): Battle {
 }
 
 beforeEach(() => {
+  setLabRuleset("classic");
   setLabMode(true);
   setLabTuning({ rulesV2: true });
 });

@@ -1,4 +1,4 @@
-import { CARDS } from "../game/content";
+import { CARDS, ENEMIES } from "../game/content";
 import { tierFx } from "../game/labResonance";
 import { MATES, WEAPON_NAME } from "../game/party";
 import { gearById } from "../game/weapons";
@@ -6,13 +6,13 @@ import type { CompanionId } from "../game/types";
 import { escapeAttr, escapeHtml } from "./setupUi";
 import {
   GAUNTLET_HEAL_RATIO,
-  GAUNTLET_MAX_STAGE,
   GAUNTLET_SCHOOL_LOADOUT,
   GAUNTLET_SCHOOLS,
   GAUNTLET_STARTERS,
   GAUNTLET_TIER_LABEL,
   GAUNTLET_START_POT,
   LIFELINE_DEFS,
+  isGauntletEndless,
   wagerStakeMax,
   basePot,
   ladderEntryForRun,
@@ -27,8 +27,10 @@ import {
   type LifelineKind,
   type WagerKind,
   type WagerOffer,
+  type GauntletLadderEntry,
 } from "./gauntlet";
-import { GAUNTLET_PATH_BLURB, GAUNTLET_PATH_LABEL, type GauntletPath } from "./gauntletPaths";
+import { GAUNTLET_PATH_BLURB, GAUNTLET_PATH_LABEL, getGauntletFinalStage, type GauntletPath } from "./gauntletPaths";
+import { isBreakAlign } from "./labRuleset";
 
 export function renderGauntletEntryButton(): string {
   const best = loadGauntletBest();
@@ -50,24 +52,47 @@ export function renderGauntletHome(devPanelHtml: string): string {
         <span>彩金 ${best.pot ?? 0} · 破招 ${best.breaks}</span>
       </div>`
     : `<div class="gauntlet-best-card empty"><span class="gauntlet-best-title">本机最佳</span><b>虚位以待</b><span>踢赢第一馆就上榜</span></div>`;
+  const head = isBreakAlign()
+    ? {
+        title: "拆招试炼",
+        blurb:
+          "敌招全亮，硬拆反打。10 馆短局专测拆招爽感——前两关入门，后八关正式踢馆。过一馆有一馆的彩金；敢下注，赢得更多。",
+        rules: [
+          ["拆招充能", "位移牌 +1；硬拆一段消耗 1，全免并反打"],
+          ["拆招四档", "破 / 让 / 空 / 打 — 意图条全亮"],
+          ["破眼", "硬拆带眼段 → 套路崩塌，失衡承伤×2"],
+          ["下注", "连拆 / 破眼 / 硬拆等盘口"],
+          ["同道", "第 4/7 馆可带 2 名同行"],
+          ["结业", "第 10 馆期末即毕业，无无尽"],
+        ] as const,
+      }
+    : {
+        title: "对战踢馆",
+        blurb:
+          "七步石台，连赢爬塔。15 馆长线 + 无尽，过一馆攒 build 与彩金；拆招是手段之一，核心是肉鸽成长与押注。",
+        rules: [
+          ["爬塔", "15 馆期中/期末 · 通关后可无尽续踢"],
+          ["经济", "彩金 · 下注 · 黑市 · 复活赊账"],
+          ["build", "战利品 · 外功 · 淬刃 · 同道（4/7/12）"],
+          ["拆招", "意图条可读，但非主卖点"],
+          ["首馆垫资", "×2 或 ×3 起步彩金"],
+          ["破产线", "峰值锚 1/3，低于不可赊账"],
+        ] as const,
+      };
+  const ruleSpans = head.rules
+    .map(([label, tip]) => `<span data-tip="${escapeAttr(tip)}">${escapeHtml(label)}</span>`)
+    .join("");
   return `
     <div class="gauntlet-shell gauntlet-home">
       <header class="gauntlet-head gauntlet-home-head">
-        <h2>连胜踢馆</h2>
-        <p>七步石台，敌招全亮。读懂它、拆掉它、反打它——拆就是打。<br/>过一馆有一馆的彩金；敢下注，赢得更多。输一场，连胜清零。</p>
+        <h2>${escapeHtml(head.title)}</h2>
+        <p>${head.blurb}</p>
       </header>
       <div class="gauntlet-home-mid">
         <button type="button" class="lab-btn primary large gauntlet-home-start" id="start-gauntlet">开 踢</button>
         ${bestCard}
       </div>
-      <div class="gauntlet-home-rules">
-        <span data-tip="敌招意图全亮；硬拆一段 = 那段作废 + 反打真伤">拆招四档：破 / 让 / 空 / 打</span>
-        <span data-tip="破眼被拆：套路崩塌，失衡承伤×2">破眼 = 处决窗</span>
-        <span data-tip="开擂前下注；六种盘口每场随机开三">下注 = 翻倍</span>
-        <span data-tip="整局仅 1 次赊账；付复活费（非全赔）+ 救命奖励三选一">破产 = 赊账一次</span>
-        <span data-tip="第 1 馆选庄家垫资 ×2 或 ×3">首馆垫资</span>
-        <span data-tip="彩金 &lt; 复活费 → 破产区，直接出局">破产线 = 峰值/3</span>
-      </div>
+      <div class="gauntlet-home-rules">${ruleSpans}</div>
       <details class="gauntlet-dev-details">
         <summary>实验台 · 踢馆调参（开发者）</summary>
         ${devPanelHtml}
@@ -103,10 +128,20 @@ export function renderGauntletWager(run: GauntletRun, offers: WagerOffer[], selK
   );
   const customMax = wagerStakeMax(run.pot);
   const customActive = selStake != null && !quick.some((q) => q.val === selStake);
-  const custom = `<span class="gauntlet-stake-custom ${customActive ? "active" : ""}" data-tip="填 1~${customMax}：回车落注。"><input id="wager-custom" type="number" min="1" max="${customMax}" step="1" value="${selStake ?? ""}" placeholder="自定义" /></span>`;
+  const custom = `<span class="gauntlet-stake-custom ${customActive ? "active" : ""}" data-tip="填 1~${customMax}：回车落注。再点其他比例可改。"><input id="wager-custom" type="number" min="1" max="${customMax}" step="1" value="${selStake ?? ""}" placeholder="自定义" /></span>`;
   const stakeChips = chips.join("") + custom;
   const revive = reviveCost(run.stage);
   const canFight = selKind != null && selStake != null && selStake > 0;
+  const foeCount = 1 + (entry.extraEnemyIds?.length ?? 0);
+  const foeNames = [entry.enemyId, ...(entry.extraEnemyIds ?? [])]
+    .map((id) => ENEMIES[id]?.name ?? id)
+    .join("、");
+  const tierLabel = GAUNTLET_TIER_LABEL[entry.tier];
+  const nextInfo =
+    isBreakAlign() && run.stage <= 2
+      ? `下一馆：${foeNames} · ${foeCount}人 · 难度 ${tierLabel} · 血量 ×${entry.hpMul.toFixed(2)} · ${run.stage === 1 ? "入门：位移充能 + 硬拆" : "入门：让拆 + 破眼"}`
+      : `下一馆：${foeNames} · ${foeCount}人 · 难度 ${tierLabel} · 血量 ×${entry.hpMul.toFixed(2)}`;
+  const fightLabel = canFight ? "下 注 开 打" : selKind == null ? "先 选 盘 口" : "再 落 注 额";
   return `
     <div class="gauntlet-shell gauntlet-wager">
       <header class="gauntlet-head">
@@ -114,11 +149,12 @@ export function renderGauntletWager(run: GauntletRun, offers: WagerOffer[], selK
         <p class="gauntlet-reward-sub" data-tip="复活费 ${revive}（峰值锚 ${peakPotAnchor(run.stage)} 的 1/3）；彩金低于此不可赊账。">
           连胜 ${run.streak} · 彩金 <b class="gauntlet-pot">${run.pot}</b> · 破招 ${run.totalBreaks}${run.bankruptUsed ? " · 已用过赊账" : ""}
         </p>
+        <p class="gauntlet-next-info">${escapeHtml(nextInfo)}</p>
       </header>
       <div class="gauntlet-wager-row">${cards}</div>
       <div class="gauntlet-stake-row"><span class="gauntlet-stake-label">注额</span>${stakeChips}</div>
       <div class="gauntlet-wager-actions">
-        <button type="button" class="lab-btn primary large" id="wager-fight" ${canFight ? "" : "disabled"}>下 注 开 打</button>
+        <button type="button" class="lab-btn primary large" id="wager-fight" ${canFight ? "" : "disabled"}>${fightLabel}</button>
         <button type="button" class="lab-btn" id="wager-skip">不押 · 直接打</button>
       </div>
     </div>`;
@@ -126,13 +162,18 @@ export function renderGauntletWager(run: GauntletRun, offers: WagerOffer[], selK
 
 export function renderGauntletPathPick(): string {
   const paths: GauntletPath[] = ["shaolin", "bandit", "court"];
+  const final = getGauntletFinalStage();
+  const mid = Math.ceil(final / 2);
+  const meta = isBreakAlign()
+    ? `${final} 馆 · 前两关入门 · 同道 4/7 · 期末第 ${final} 馆`
+    : `${final} 关 · 期中第 ${mid} 关 · 期末第 ${final} 关 · 可无尽`;
   const cards = paths
     .map(
       (path) => `
       <button type="button" class="gauntlet-path-card" data-gauntlet-path="${path}" data-tip="${escapeAttr(GAUNTLET_PATH_BLURB[path])}">
         <b>${escapeHtml(GAUNTLET_PATH_LABEL[path])}</b>
         <em>${escapeHtml(GAUNTLET_PATH_BLURB[path])}</em>
-        <span class="gauntlet-school-meta">15 关 · 期中第 7 关 · 期末第 15 关</span>
+        <span class="gauntlet-school-meta">${meta}</span>
       </button>`,
     )
     .join("");
@@ -183,10 +224,14 @@ export function renderGauntletSchoolPick(path: GauntletPath, error = ""): string
 
 export function renderGauntletBadge(run: GauntletRun): string {
   const entry = ladderEntryForRun(run);
+  const final = getGauntletFinalStage();
   const w = run.wager;
   const wager = w ? ` · 已押「${wagerLabel(w.kind)}」${w.stake}` : "";
-  const tip = `${entry.label} · 彩金 ${run.pot} · 累计破招 ${run.totalBreaks}${w ? `\n本馆注：${wagerLabel(w.kind)} 押 ${w.stake}（赔 ×${w.odds}）` : ""}`;
-  return `<span class="gauntlet-badge" data-tip="${escapeAttr(tip)}">${escapeHtml(entry.label)} · 彩金 <b class="gauntlet-pot">${run.pot}</b> · 破招 ${run.totalBreaks}${wager}</span>`;
+  const stageTag = isBreakAlign()
+    ? `第 ${run.stage}/${final} 馆`
+    : `第 ${run.stage}/${final} 馆`;
+  const tip = `${stageTag} · ${entry.label} · 彩金 ${run.pot} · 累计破招 ${run.totalBreaks}${w ? `\n本馆注：${wagerLabel(w.kind)} 押 ${w.stake}（赔 ×${w.odds}）` : ""}`;
+  return `<span class="gauntlet-badge" data-tip="${escapeAttr(tip)}">${escapeHtml(stageTag)} · ${escapeHtml(entry.label)} · 彩金 <b class="gauntlet-pot">${run.pot}</b>${wager}</span>`;
 }
 
 const REWARD_KIND_LABEL: Record<GauntletRewardOption["kind"], string> = {
@@ -234,7 +279,7 @@ export function renderGauntletRewardPick(
   const next = ladderEntryForRun(run);
   const potLine = run.lastPotText ? ` · ${run.lastPotText}` : "";
   const cashout =
-    run.stage > GAUNTLET_MAX_STAGE
+    isGauntletEndless() && run.stage > getGauntletFinalStage()
       ? `<button type="button" class="lab-btn gauntlet-cashout" id="gauntlet-cashout" data-tip="见好就收：带着 ${run.pot} 彩金上榜走人（再继续，输了就清零）">见好就收 · 揣走 ${run.pot} 彩金</button>`
       : "";
   return `
@@ -377,7 +422,7 @@ export function renderGauntletCompanionPick(run: GauntletRun, choices: Companion
   return `
     <div class="gauntlet-shell gauntlet-companion">
       <header class="gauntlet-head">
-        <h2>第4馆 告捷 · 同道来投</h2>
+        <h2>第${run.stage}馆 告捷 · 同道来投</h2>
         <p class="gauntlet-reward-sub">连胜 ${run.streak} · 破招 ${run.totalBreaks} · 同系得光环，异系得组合技——你自己配</p>
       </header>
       <div class="gauntlet-reward-row">${cards}</div>

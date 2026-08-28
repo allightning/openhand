@@ -38,9 +38,14 @@ function migrateLegacyText(text: string): string {
     .replace(/每层势再 \+6/g, "每点势再 +3");
 }
 
-export function cardDisplayText(def: Pick<CardDef, "id" | "text">): string {
+export function cardDisplayText(
+  def: Pick<CardDef, "id" | "text">,
+  opts?: { breakAlign?: boolean },
+): string {
   if (!isLabV2()) return def.text;
-  return CARD_TEXT_V2[def.id] ?? migrateLegacyText(def.text);
+  let text = CARD_TEXT_V2[def.id] ?? migrateLegacyText(def.text);
+  if (opts?.breakAlign === false) text = text.replace(/拆招充能 \+1/g, "走位 +1");
+  return text;
 }
 
 const PATH_SKILL_V2: Record<string, string> = {

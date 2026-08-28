@@ -2301,6 +2301,23 @@
   justify-content: center;
   gap: 0.2rem;
   overflow: visible;
+  max-width: 100%;
+}
+
+/* 多敌人时意图条紧凑模式：避免溢出石台 */
+.lab-prod-combat .foe-side .lab-intent-overhead .lab-intent-row[data-foe-count="2"] .lab-intent-seg,
+.lab-prod-combat .foe-side .lab-intent-overhead .lab-intent-row[data-foe-count="3"] .lab-intent-seg {
+  min-width: 2.4rem;
+  padding: 0.15rem 0.2rem;
+  font-size: 0.72rem;
+}
+.lab-prod-combat .foe-side .lab-intent-overhead .lab-intent-row[data-foe-count="2"] .lab-intent-seg b,
+.lab-prod-combat .foe-side .lab-intent-overhead .lab-intent-row[data-foe-count="3"] .lab-intent-seg b {
+  font-size: 0.68rem;
+}
+.lab-prod-combat .foe-side .lab-intent-overhead .lab-intent-row[data-foe-count="2"] .lab-intent-seg em,
+.lab-prod-combat .foe-side .lab-intent-overhead .lab-intent-row[data-foe-count="3"] .lab-intent-seg em {
+  font-size: 0.62rem;
 }
 
 .lab-prod-combat .foe-side .lab-intent-overhead .lab-intent-slot {
@@ -3099,6 +3116,41 @@ html.lab-fullscreen #app.lab-root {
 /* §31.14 全意图解析：「够不着你」的段直接灰掉并给签——能不能打到我是第一信息 */
 .lab-root .lab-intent-seg.unreachable { opacity: 0.5; filter: grayscale(0.6); }
 .lab-root .lab-intent-seg.unreachable em { text-decoration: line-through; }
+.lab-root .lab-mode-badge {
+  cursor: default;
+  font-size: 12px;
+  font-weight: 700;
+  color: #c45a28;
+  border-color: #c45a28;
+  background: linear-gradient(165deg, #fdf2e2, #f0dcc0);
+}
+.lab-root .lab-mode-badge.classic {
+  color: #5a6a7a;
+  border-color: #5a6a7a;
+  background: linear-gradient(165deg, #eef2f6, #d8e0e8);
+}
+.lab-root .lab-foe-count {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--lab-lantern);
+  font-weight: 700;
+  margin-top: 0.15rem;
+}
+.lab-root .lab-foe-hp-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.2rem;
+}
+.lab-root .lab-foe-hp-row span {
+  font-size: 0.68rem;
+  min-width: 3.2em;
+  text-align: right;
+  color: var(--lab-muted);
+}
+.lab-root .lab-foe-hp-row .bar.hp {
+  flex: 1;
+}
 .lab-root .lab-miss-badge {
   font-size: 0.58rem;
   padding: 0 0.2rem;
@@ -3125,6 +3177,70 @@ html.lab-fullscreen #app.lab-root {
   color: #f0c46c;
   padding: 0.12rem 0.5rem;
   line-height: 1.35;
+}
+
+/* 对战版：意图条头精简 */
+.lab-root .lab-intent-bandhead.lab-intent-compact span:first-child {
+  color: var(--lab-muted);
+  font-weight: 600;
+}
+
+/* 拆招版：充能条 + 教学条 */
+.lab-root .lab-break-charge {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  background: linear-gradient(90deg, rgba(196, 90, 40, 0.12), rgba(196, 90, 40, 0.04));
+  border: 1px solid rgba(196, 90, 40, 0.35);
+}
+.lab-root .lab-break-charge-label {
+  font-weight: 800;
+  color: #c45a28;
+  white-space: nowrap;
+}
+.lab-root .lab-break-charge-pips {
+  display: inline-flex;
+  gap: 0.12rem;
+}
+.lab-root .lab-charge-pip {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  border: 1px solid #c45a28;
+  background: transparent;
+}
+.lab-root .lab-charge-pip.on {
+  background: #e8a06a;
+  box-shadow: 0 0 4px rgba(232, 160, 106, 0.6);
+}
+.lab-root .lab-break-charge-num {
+  font-weight: 800;
+  color: #f0c778;
+}
+.lab-root .lab-break-anti {
+  color: #9fd08a;
+  font-size: 0.68rem;
+}
+.lab-root .lab-break-teach {
+  text-align: center;
+  font-size: 0.74rem;
+  color: #ffe1a8;
+  background: rgba(196, 90, 40, 0.18);
+  border: 1px solid rgba(196, 90, 40, 0.4);
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  margin-bottom: 0.25rem;
+  line-height: 1.4;
+}
+.lab-root .card.break-charge-card .text {
+  color: #f0c778;
+  font-weight: 600;
+}
+.lab-root .card.break-charge-card {
+  box-shadow: inset 0 0 0 1px rgba(232, 160, 106, 0.45);
 }
 
 /* §31.12 预演条上轮回顾态 */

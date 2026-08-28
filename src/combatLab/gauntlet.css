@@ -158,6 +158,13 @@
   cursor: help;
 }
 
+.gauntlet-next-info {
+  margin: 0.35rem 0 0;
+  font-size: 0.82rem;
+  color: var(--lab-paper-2);
+  letter-spacing: 0.02em;
+}
+
 .gauntlet-reward-row {
   display: flex;
   flex-wrap: wrap;

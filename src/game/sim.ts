@@ -57,6 +57,7 @@ import { registerBreakLootApplier } from "./breakLootBus";
 import { BREAK_COUNTER_CHAIN } from "./labV2Constants";
 import { planEyeIdx, registerThreatProvider, registerQueueThreatProvider } from "./intentWeakness";
 import { SUMMON_DEFS } from "./labSummon";
+import { isBreakAlign } from "../combatLab/labRuleset";
 
 // §31.9 破招计划器需要红格数据（sim 内部函数），注册注入避免循环依赖。
 registerThreatProvider((b, intent) => dangerCellsForIntent(b, intent));
@@ -271,7 +272,7 @@ export function makeBattle(
     enemy: foes[0],
     foes,
     enemyId,
-      playerBlock: run.techniques.includes("nightStep") ? 1 : 0,
+      playerBlock: run.techniques.includes("nightStep") && !(isLabMode() && isBreakAlign()) ? 1 : 0,
       // §31.7 踢馆线劲力收敛：v1 的 10/8/4 在单人高压下等于"无限出牌"，拆招失去取舍。占位 6/5/3（甲方可调）。
       // §31.9 仙药加成：劲力上限随 playerEnergyBonus 抬高。
       ...(isLabMode() && getLabTuning().enemySegAll
@@ -596,6 +597,10 @@ function techBlockBonus(b: Battle): number {
   return n;
 }
 
+function breakTurnBonus(b: Battle): boolean {
+  return (b.v2TurnBreakCount ?? 0) > 0;
+}
+
 function adjacent(b: Battle): boolean {
   const foe = targetFoe(b);
   if (!foe) return false;
@@ -783,7 +788,9 @@ function schoolIdentityMods(b: Battle, cardDef: CardDef | undefined, dmg: number
   const school = battleEquippedSchool(b, b.active);
   const d = Math.abs(b.player.pos - b.enemy.pos);
   if (school === "saber" && b.foeHitLastTurn) dmg += 4;
-  if (hasTech(b, "saberGrudge") && b.foeHitLastTurn) dmg += 2;
+  if (hasTech(b, "saberGrudge") && b.foeHitLastTurn) {
+    if (!(isLabMode() && isBreakAlign())) dmg += 2;
+  }
   if (school === "spear") dmg += d >= 2 ? 3 : -2;
   if (hasTech(b, "spearWind") && d >= 3) dmg += 3;
   if (school === "sword") dmg += Math.floor((b.bleed ?? 0) / 3);
@@ -802,7 +809,9 @@ function strikeDamage(b: Battle, base: number, forceMelee = false, cardDef?: Car
       dmg = assistAttackBonus(b, cardDef, dmg, dist);
     }
     dmg = schoolIdentityMods(b, cardDef, dmg);
-    if (hasTech(b, "brightBlade") && (forceMelee || adjacent(b))) dmg += 3;
+    if (hasTech(b, "brightBlade") && (forceMelee || adjacent(b))) {
+      if (!(isLabMode() && isBreakAlign()) || breakTurnBonus(b)) dmg += 3;
+    }
     if (fightScale.youDmg !== 1) dmg = Math.max(1, Math.round(dmg * fightScale.youDmg));
     return Math.max(1, dmg);
   }
@@ -922,6 +931,19 @@ function knockAway(b: Battle, who: "player" | "enemy", dist: number, wall?: numb
         pushFx(b, "wall");
         if (unit.hp <= 0) notes.push(`${unit.name}倒下`);
         break;
+      }
+      // 多敌人时：被友军挡住则连带挤压（把友军也推一格，连锁反应）
+      const blocker = livingFoes(b).find((f) => f.pos === next && f.id !== unit.id);
+      if (who === "enemy" && blocker) {
+        const blockDir = awayDir(unit.pos, blocker.pos);
+        const blockNext = blocker.pos + blockDir;
+        if (blockNext >= 0 && blockNext < BOARD_SIZE && !occupied(b, blockNext, blocker.id)) {
+          blocker.pos = blockNext;
+          notes.push(`连带 ${blocker.name} 退到第 ${blockNext + 1} 步`);
+          unit.pos = next;
+          left -= 1;
+          continue;
+        }
       }
       notes.push(b.stakes.includes(next) ? "桩挡住了" : "去路被占，停下");
       break;
@@ -2568,6 +2590,13 @@ function pickIntent(b: Battle): Intent {
 
 function actAlly(b: Battle, unit: Unit): void {
   if (unit.hp <= 0 || b.phase !== "player") return;
+  // 眩晕对全场敌人生效：被晕的敌人跳过行动
+  if ((b.foeStun ?? 0) > 0) {
+    b.foeStun = (b.foeStun ?? 0) - 1;
+    b.log.push(`【眩晕】${unit.name} 被打懵，没出出来`);
+    b.journal.push({ side: "you", text: `${unit.name} 晕了` });
+    return;
+  }
   const d = Math.abs(unit.pos - b.player.pos);
   if (d === 1) {
     hitPlayer(b, Math.max(1, Math.round(12 * fightScale.dmg)), `${unit.name}补了一刀，`);
@@ -2809,7 +2838,9 @@ export function endTurn(b: Battle): Battle {
   if (isLabMode() && next.hand.length > 0 && next.hand.every((c) => !canPlay(next, c.uid).ok)) {
     next.v2DeadHandTurns = (next.v2DeadHandTurns ?? 0) + 1;
   }
-  const carryCap = (hasTech(next, "leftover") ? 1 : 0) + (hasTech(next, "flowSword") ? 1 : 0);
+  const carryRaw = (hasTech(next, "leftover") ? 1 : 0) + (hasTech(next, "flowSword") ? 1 : 0);
+  const carryCap =
+    isLabMode() && isBreakAlign() && (next.v2TurnBreakCount ?? 0) <= 0 ? 0 : carryRaw;
   const carry = carryCap > 0 ? Math.min(carryCap, next.energy) : 0;
   next.log.push("你收势。");
   if (companionOn(next) && next.active === "seer" && next.energy === 0) {
@@ -2894,7 +2925,10 @@ export function endTurn(b: Battle): Battle {
   tickSignatureCooldown(next);
   simV2StartPlayerTurn(next);
   dismissSummonAtTurnStart(next);
-  const kept = hasTech(next, "keepGuard") ? Math.min(4, next.playerBlock) : 0;
+  const keepOk =
+    hasTech(next, "keepGuard") &&
+    (!(isLabMode() && isBreakAlign()) || (next.v2TurnBreakCount ?? 0) > 0 || (next.v2BreakCount ?? 0) > 0);
+  const kept = keepOk ? Math.min(4, next.playerBlock) : 0;
   let retained = 0;
   if (next.retainTurns > 0 && next.retainAmt > 0) {
     retained = next.retainAmt;

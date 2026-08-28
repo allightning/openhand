@@ -28,6 +28,7 @@ import {
   wagerOffers,
   type GauntletRun,
 } from "./gauntlet";
+import { setLabRuleset } from "./labRuleset";
 import { gearById } from "../game/weapons";
 import { renderGauntletResult, renderGauntletRewardPick } from "./gauntletUi";
 import type { WeaponId } from "../game/types";
@@ -40,6 +41,7 @@ function v2Battle(school: WeaponId = "palm"): Battle {
 }
 
 beforeEach(() => {
+  setLabRuleset("classic");
   setLabMode(true);
   setLabTuning({ rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 });
 });

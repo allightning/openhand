@@ -49,7 +49,7 @@ import { pruneDeckForWeapon } from "./cardUi";
 import { applyAutoLoadout, type AutoTechDepth, type AutoWeaponGrade } from "./autoLoadouts";
 import { renderGauntletDevPanel, bindGauntletDevPanel, renderDevPanelModal } from "./devPanel";
 import { renderGuideSheet } from "./guide";
-import { renderWikiNavButtons, renderWikiSheet, wikiPageCount, type WikiBook } from "./encyclopedia";
+import { renderWikiSheet, wikiPageCount, type WikiBook } from "./encyclopedia";
 import {
   escapeHtml,
   pickPanelTitle,
@@ -78,7 +78,8 @@ import {
   resolveWager,
   rollCompanionChoices,
   rollSuperRewards,
-  GAUNTLET_MAX_STAGE,
+  getGauntletFinalStage,
+  isGauntletEndless,
   ladderEntryForRun,
   nextBossId,
   rollGauntletRewards,
@@ -90,6 +91,8 @@ import {
   reviveGauntletRun,
   canOfferLifeline,
   reviveCost,
+  runCompanions,
+  GAUNTLET_SCHOOL_LOADOUT,
   wagerOffers,
   wagerStakeMax,
   type GauntletMarketOffer,
@@ -99,7 +102,8 @@ import {
   type WagerKind,
   type WagerOffer,
 } from "./gauntlet";
-import { isCompanionMilestone, type GauntletPath } from "./gauntletPaths";
+import { isCompanionMilestone, maxCompanions, type GauntletPath } from "./gauntletPaths";
+import { getLabRuleset, isBreakAlign, setLabRuleset } from "./labRuleset";
 import {
   renderGauntletBadge,
   renderGauntletCompanionPick,
@@ -227,22 +231,31 @@ function renderOverlays(): string {
 function renderHeader(): string {
   const fsLabel = labFullscreen ? "退出全屏" : "全屏";
   const inGauntlet = gauntletRun != null;
+  const modeLabel = isBreakAlign() ? "拆招版" : "对战版";
+  const modeTip =
+    gauntletScreen != null || phase === "battle"
+      ? "踢馆进行中不可切换模式（先回主页）"
+      : `当前 ${modeLabel} · 点击切换对战/拆招`;
+  const subLine = isBreakAlign()
+    ? "硬拆反打 · 10馆短局 · 核心产品测 ·"
+    : "连赢爬塔 · 肉鸽 build · 拆招为辅 ·";
   const backBtn =
     phase === "battle" && inGauntlet
       ? `<button type="button" class="lab-btn" id="gauntlet-exit-battle">退出踢馆</button>`
       : phase !== "setup" && !inGauntlet
         ? `<button type="button" class="lab-btn" id="lab-back-setup">回装配</button>`
         : "";
+  const buildTag = isBreakAlign() ? "build break-v11" : "build battle-v1";
   return `
     <header class="lab-header ${phase === "battle" ? "lab-header-battle" : ""}">
       <div class="lab-title-block">
         <h1>连胜踢馆</h1>
-        <p class="lab-sub">拆就是打 · 敢押敢赢 · 战斗线专测 · <span class="lab-build-tag">build path-v1</span></p>
+        <p class="lab-sub">${subLine} <span class="lab-build-tag">${buildTag}</span></p>
       </div>
       <div class="lab-actions">
         <button type="button" class="lab-btn lab-guide-btn" id="lab-guide-open">攻略</button>
         <button type="button" class="lab-btn" id="lab-dev-open">实验台</button>
-        <div class="lab-wiki-nav">${renderWikiNavButtons()}</div>
+        <button type="button" class="lab-btn" id="lab-ruleset-toggle" data-tip="${escapeHtml(modeTip)}">模式 · ${modeLabel}</button>
         <button type="button" class="lab-btn" id="lab-fullscreen">${fsLabel}</button>
         ${backBtn}
       </div>
@@ -273,9 +286,7 @@ function renderSetup(): string {
     return `${renderHeader()}${renderGauntletOverlay("wager", renderGauntletWager(gauntletRun, wagerOffersCache, wagerKind, wagerStake))}`;
   }
   if (gauntletScreen === "rewardTarget" && gauntletRun && pendingReward) {
-    const members = gauntletRun.companion
-      ? [GAUNTLET_SCHOOL_LOADOUT[gauntletRun.school].fieldMate, gauntletRun.companion]
-      : [GAUNTLET_SCHOOL_LOADOUT[gauntletRun.school].fieldMate];
+    const members = [GAUNTLET_SCHOOL_LOADOUT[gauntletRun.school].fieldMate, ...runCompanions(gauntletRun)];
     return `${renderHeader()}${renderGauntletOverlay("rewardTarget", renderGauntletRewardTarget(gauntletRun, pendingReward.title, members))}`;
   }
   if (gauntletScreen === "result" && gauntletRun) {
@@ -364,41 +375,48 @@ function exitGauntlet(): void {
 
 function beginGauntletBattle(): void {
   if (!gauntletRun) return;
-  const entry = ladderEntryForRun(gauntletRun);
-  // §31.13 下注落锤：开擂前把选中的注写进 run，收馆结算
-  const offer = wagerKind ? wagerOffersCache.find((o) => o.kind === wagerKind) : null;
-  const stake = wagerStake ?? 0;
-  gauntletRun = {
-    ...gauntletRun,
-    wager: offer && stake > 0 ? { kind: offer.kind, stake, target: offer.target, odds: offer.odds } : null,
-  };
-  wagerKind = null;
-  wagerStake = null;
-  applyStageTuning(entry);
-  // §31.9 伙伴入伙后组合技/光环开启；仙药劲力上限随 run 走
-  setLabTuning({
-    rulesCombo: Boolean(gauntletRun.companion || gauntletRun.lifelineCompanion),
-    playerEnergyBonus: gauntletRun.bonusEnergyMax ?? 0,
-    playerDmgMul: gauntletRun.statBoostMul ?? 1,
-  });
-  const preset = buildGauntletPreset(gauntletRun);
-  draft = preset;
-  setLabMode(true);
-  battle = startLabBattle(preset, false, 1);
-  telemetry = startTelemetry({
-    presetId: `gauntlet-${gauntletRun.school}`,
-    presetName: entry.label,
-    enemyId: preset.enemyId,
-    designerMode: false,
-    startedAt: Date.now(),
-  });
-  phase = "battle";
-  gauntletScreen = null;
-  paused = false;
-  hoverUid = null;
-  hoverIntentIdx = null;
-  weaponOpen = null;
-  render();
+  try {
+    const entry = ladderEntryForRun(gauntletRun);
+    // §31.13 下注落锤：开擂前把选中的注写进 run，收馆结算
+    const offer = wagerKind ? wagerOffersCache.find((o) => o.kind === wagerKind) : null;
+    const stake = wagerStake ?? 0;
+    gauntletRun = {
+      ...gauntletRun,
+      wager: offer && stake > 0 ? { kind: offer.kind, stake, target: offer.target, odds: offer.odds } : null,
+    };
+    wagerKind = null;
+    wagerStake = null;
+    applyStageTuning(entry);
+    // §31.9 伙伴入伙后组合技/光环开启；仙药劲力上限随 run 走
+    setLabTuning({
+      rulesCombo: Boolean(runCompanions(gauntletRun).length || gauntletRun.lifelineCompanion),
+      playerEnergyBonus: gauntletRun.bonusEnergyMax ?? 0,
+      playerDmgMul: gauntletRun.statBoostMul ?? 1,
+    });
+    const preset = buildGauntletPreset(gauntletRun);
+    draft = preset;
+    setLabMode(true);
+    battle = startLabBattle(preset, false, 1);
+    telemetry = startTelemetry({
+      presetId: `gauntlet-${gauntletRun.school}`,
+      presetName: entry.label,
+      enemyId: preset.enemyId,
+      designerMode: false,
+      startedAt: Date.now(),
+    });
+    phase = "battle";
+    gauntletScreen = null;
+    paused = false;
+    hoverUid = null;
+    hoverIntentIdx = null;
+    weaponOpen = null;
+    render();
+  } catch (err) {
+    console.error("[gauntlet] beginGauntletBattle failed", err);
+    gauntletError = `开战失败：${err instanceof Error ? err.message : String(err)}`;
+    gauntletScreen = "wager";
+    render();
+  }
 }
 
 function startGauntletSchool(school: WeaponId): void {
@@ -453,14 +471,14 @@ function finishGauntletBattle(outcome: "win" | "loss"): void {
     };
     battle = null;
     phase = "setup";
-    // 伙伴入伙：第 4/7/12 关后三选一（高一层奖励）
-    if (isCompanionMilestone(foughtStage) && !gauntletRun.companion) {
+    // 伙伴入伙：里程碑关后三选一（break 最多 2 人）
+    if (isCompanionMilestone(foughtStage) && runCompanions(gauntletRun).length < maxCompanions()) {
       gauntletCompanions = rollCompanionChoices(gauntletRun);
       gauntletScreen = "companion";
       render();
       return;
     }
-    if (foughtStage === 6 || foughtStage === GAUNTLET_MAX_STAGE) {
+    if (foughtStage === 6 || foughtStage === getGauntletFinalStage()) {
       gauntletRewards = rollSuperRewards(gauntletRun);
       gauntletRewardsAreSuper = true;
       rollGauntletMarket();
@@ -501,7 +519,7 @@ function renderBattle(): string {
   const prev = hoverUid ? previewCard(b, hoverUid) : null;
   const swapCost = labSwapCost();
   // §31.9 踢馆单人无后场；第 4 馆伙伴入伙后换人照常可用
-  const partyMode = !inGauntlet || Boolean(gauntletRun?.companion || gauntletRun?.lifelineCompanion);
+  const partyMode = !inGauntlet || Boolean(runCompanions(gauntletRun).length || gauntletRun?.lifelineCompanion);
   const swaps = !partyMode
     ? ""
     : b.bench
@@ -652,6 +670,7 @@ function renderBattle(): string {
     fxClass: battleFxClasses(b),
     pauseOverlay: pausePanel,
     toolbarExtra: gauntletRun ? renderGauntletBadge(gauntletRun) : "",
+    gauntletStage: gauntletRun?.stage,
     weaponSheetHtml: weaponOpen ? renderWeaponSheet(weaponOpen) : "",
   })}`;
 }
@@ -899,6 +918,11 @@ function bindEvents(): void {
     devPanelOpen = false;
     render();
   });
+  root.querySelector("#lab-ruleset-toggle")?.addEventListener("click", () => {
+    if (gauntletScreen != null || phase === "battle" || gauntletRun != null) return;
+    setLabRuleset(getLabRuleset() === "break" ? "classic" : "break");
+    render();
+  });
   root.querySelector("#lab-dev-open")?.addEventListener("click", () => {
     devPanelOpen = true;
     guideOpen = false;
@@ -1121,6 +1145,14 @@ function bindEvents(): void {
       gauntletRun = gauntletRewardsAreSuper ? applySuperReward(gauntletRun, opt) : applyGauntletReward(gauntletRun, opt);
       gauntletRewards = [];
       gauntletRewardsAreSuper = false;
+      if (gauntletRun.streak >= getGauntletFinalStage() && !isGauntletEndless()) {
+        gauntletEndedByLoss = false;
+        gauntletResultNote = "通关 · 拆招短局结业";
+        saveGauntletBest(gauntletRun);
+        gauntletScreen = "result";
+        render();
+        return;
+      }
       wagerKind = null;
       wagerStake = null;
       wagerOffersCache = wagerOffers(gauntletRun);
@@ -1135,6 +1167,14 @@ function bindEvents(): void {
       gauntletRun = applyGauntletReward(gauntletRun, { ...pendingReward, targetMate: mateId });
       pendingReward = null;
       gauntletRewards = [];
+      if (gauntletRun.streak >= getGauntletFinalStage() && !isGauntletEndless()) {
+        gauntletEndedByLoss = false;
+        gauntletResultNote = "通关 · 拆招短局结业";
+        saveGauntletBest(gauntletRun);
+        gauntletScreen = "result";
+        render();
+        return;
+      }
       wagerKind = null;
       wagerStake = null;
       wagerOffersCache = wagerOffers(gauntletRun);
@@ -1178,7 +1218,10 @@ function bindEvents(): void {
     }
   });
   root.querySelector("#wager-fight")?.addEventListener("click", () => {
-    if (!gauntletRun || !wagerKind || !wagerStake) return;
+    if (!gauntletRun || !wagerKind || !wagerStake) {
+      console.warn("[wager] blocked", { run: !!gauntletRun, kind: wagerKind, stake: wagerStake });
+      return;
+    }
     gauntletScreen = null;
     beginGauntletBattle();
   });

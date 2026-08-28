@@ -18,7 +18,12 @@ import { refreshBreakPromised } from "./labV21";
 import { tryAppendStressIntent } from "./labEnemyStress";
 import { battleMateGearId } from "./equippedWeapon";
 import { gearById } from "./weapons";
-import type { Battle, CardId, Intent, V2TurnFlags } from "./types";
+import type { Battle, CardId, Intent, TechniqueId, V2TurnFlags } from "./types";
+import { isBreakAlign } from "../combatLab/labRuleset";
+
+function hasTech(b: Battle, id: TechniqueId): boolean {
+  return b.techniques.includes(id);
+}
 
 export type LabFxKind = "break" | "wall" | "kill" | "resonance" | "burst" | "swap" | "counter";
 
@@ -44,6 +49,9 @@ export function emptyV2Turn(b: Battle): V2TurnFlags {
 export function initV2Battle(b: Battle): void {
   b.qi = b.qi ?? 0;
   b.v2Turn = emptyV2Turn(b);
+  if (isBreakAlign() && hasTech(b, "nightStep")) {
+    b.v2Turn.moveCharges = (b.v2Turn.moveCharges ?? 0) + 1;
+  }
   b.v2BrokenSegments = [];
   b.v2BreakPreview = [];
   b.v2BreakByKind = {};
@@ -149,6 +157,9 @@ export function applyGraze(b: Battle, intent: Intent, index: number): void {
   b.v2GrazedSegments = [...(b.v2GrazedSegments ?? []), index];
   b.log.push(`【让招】${intent.kind} 被让开一半`);
   b.journal.push({ side: "you", text: "让！" });
+  if (isBreakAlign() && hasTech(b, "rebound")) {
+    counterHitFoe(b, 2, "【回桩·让】反震 2");
+  }
 }
 
 export function shouldBreakIntent(b: Battle, intent: Intent, _index: number, resolveCtx?: { bleedcutRaw?: number; bleedcutBlocked?: number }): boolean {
@@ -201,13 +212,22 @@ export function applyBreak(b: Battle, intent: Intent, index: number): void {
   const kind = intent.kind;
   b.v2BreakByKind = { ...(b.v2BreakByKind ?? {}), [kind]: (b.v2BreakByKind?.[kind] ?? 0) + 1 };
   addQi(b, 1);
+  if (isBreakAlign() && b.labComboPillActive) addQi(b, 1);
   pushFx(b, "break");
   b.log.push(`【拆招】${kind} 被破`);
   b.journal.push({ side: "you", text: "拆！" });
   // §31.13 以拆为杀：硬拆 = 反打真伤；一回合第 2 段起连环拆（+2 伤 +1 势）
   b.v2TurnBreakCount = (b.v2TurnBreakCount ?? 0) + 1;
   const chain = b.v2TurnBreakCount >= 2;
-  const dmg = breakCounterDamage(b) + (chain ? BREAK_COUNTER_CHAIN : 0);
+  let dmg = breakCounterDamage(b) + (chain ? BREAK_COUNTER_CHAIN : 0);
+  if (isBreakAlign() && (b.labNextBreakBonus ?? 0) > 0) {
+    dmg += b.labNextBreakBonus!;
+    b.labNextBreakBonus = 0;
+    b.log.push("破招针：反拆加力");
+  }
+  if (isBreakAlign() && hasTech(b, "saberGrudge") && b.foeHitLastTurn) {
+    dmg += 2;
+  }
   if (chain) addQi(b, 1);
   counterHitFoe(b, dmg, `【反拆${chain ? "·连环" : ""}】借势回敬 ${dmg} 真伤`);
   // §31.15 战利品立刻落账——同队后手段还能吃到这份格挡/劲

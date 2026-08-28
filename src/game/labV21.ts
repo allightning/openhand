@@ -14,6 +14,8 @@ import { initSignatureBattle } from "./labSignature";
 import { comboEffectiveCost, isComboCard } from "./labCombo";
 import { ITEM_DART_DMG, ITEM_HEAL_PCT, ITEM_QI_GAIN } from "./labV21Constants";
 import { BOARD_SIZE, type Battle, type CardDef, type CardId, type LabItemId } from "./types";
+import { isBreakAlign } from "../combatLab/labRuleset";
+import { emptyV2Turn } from "./labV2";
 
 export type { ResonanceStatus as AuraStatus };
 export {
@@ -181,20 +183,40 @@ export function useLabItem(b: Battle, item: LabItemId, pos?: number): { ok: bool
     next.player = { ...next.player, hp: Math.min(next.player.maxHp, next.player.hp + heal) };
     next.journal = [...next.journal, { side: "you", text: `金疮药 回 ${heal}` }];
   } else if (item === "xiujian") {
-    const foe = next.enemy;
-    foe.hp = Math.max(0, foe.hp - ITEM_DART_DMG);
-    next.enemy = { ...foe };
-    next.foes = next.foes.map((f) => (f.id === foe.id ? { ...foe } : f));
-    next.journal = [...next.journal, { side: "you", text: `袖箭 ${ITEM_DART_DMG}（无视格挡）` }];
+    if (isBreakAlign()) {
+      next.labNextBreakBonus = 4;
+      next.journal = [...next.journal, { side: "you", text: "破招针：下一硬拆反打 +4" }];
+    } else {
+      const foe = next.enemy;
+      foe.hp = Math.max(0, foe.hp - ITEM_DART_DMG);
+      next.enemy = { ...foe };
+      next.foes = next.foes.map((f) => (f.id === foe.id ? { ...foe } : f));
+      next.journal = [...next.journal, { side: "you", text: `袖箭 ${ITEM_DART_DMG}（无视格挡）` }];
+    }
   } else if (item === "huiqi") {
     next.energy = Math.min(next.energyMax, next.energy + ITEM_QI_GAIN);
     next.journal = [...next.journal, { side: "you", text: `回气散 +${ITEM_QI_GAIN} 劲` }];
   } else if (item === "lianhuan") {
     next.labComboPillActive = true;
-    next.journal = [...next.journal, { side: "you", text: "连环丹：本回合积势额外 +1" }];
+    next.journal = [
+      ...next.journal,
+      {
+        side: "you",
+        text: isBreakAlign() ? "连环丹：本回合每段硬拆额外 +1 势" : "连环丹：本回合积势额外 +1",
+      },
+    ];
   } else if (item === "pojin") {
-    next.labUnlockUltimate = true;
-    next.journal = [...next.journal, { side: "you", text: "破禁丹：本回合绝招无视前置" }];
+    if (isBreakAlign()) {
+      next.labPojinFreeBreak = true;
+      const f = next.v2Turn ?? emptyV2Turn(next);
+      f.moveCharges = (f.moveCharges ?? 0) + 1;
+      f.antiGuardCharges = (f.antiGuardCharges ?? 0) + 1;
+      next.v2Turn = f;
+      next.journal = [...next.journal, { side: "you", text: "破禁丹：下一段硬拆不耗充能" }];
+    } else {
+      next.labUnlockUltimate = true;
+      next.journal = [...next.journal, { side: "you", text: "破禁丹：本回合绝招无视前置" }];
+    }
   } else if (item === "deathSquad") {
     // §31.9 死士符：在场一回合的挡刀实体（占位：无形体占格，拦截逻辑在敌结算管线）
     next.labDeathSquad = true;

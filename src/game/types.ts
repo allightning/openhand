@@ -657,6 +657,10 @@ export interface Battle {
   labItemUsedThisTurn?: boolean;
   labUnlockUltimate?: boolean;
   labComboPillActive?: boolean;
+  /** Break-align: next hard break counter +N (袖箭). */
+  labNextBreakBonus?: number;
+  /** Break-align: next hard break spends no charge (破禁). */
+  labPojinFreeBreak?: boolean;
   v2AuraQiBonusUsed?: boolean;
 }
 

@@ -2,7 +2,7 @@ import { DEFAULT_LAB_TUNING, setLabMode, setLabTuning } from "../game/labTuning"
 import { canPlay, endTurn, livingFoes, playCard } from "../game/sim";
 import type { Battle, EnemyId } from "../game/types";
 import { applyAutoLoadout } from "./autoLoadouts";
-import { buildGauntletPreset, createGauntletRun, ladderEntry, GAUNTLET_MAX_STAGE } from "./gauntlet";
+import { buildGauntletPreset, createGauntletRun, ladderEntry, getGauntletFinalStage } from "./gauntlet";
 import { startLabBattle } from "./factory";
 
 function mulberry32(seed: number): () => number {
@@ -72,7 +72,8 @@ export function mashWinRate(
 /** §31 踢馆馆主乱点基线：末馆配置 + 起手 preset + rulesCombo=false。 */
 export function runGauntletMashBattle(seed: number, bossId: EnemyId = "usurper"): "win" | "loss" {
   setLabMode(true);
-  const entry = ladderEntry(GAUNTLET_MAX_STAGE);
+  const final = getGauntletFinalStage();
+  const entry = ladderEntry(final);
   setLabTuning({
     ...DEFAULT_LAB_TUNING,
     rulesV2: true,
@@ -83,7 +84,7 @@ export function runGauntletMashBattle(seed: number, bossId: EnemyId = "usurper")
     designerMode: false,
   });
   let run = createGauntletRun("bandit", "palm", bossId);
-  run = { ...run, stage: GAUNTLET_MAX_STAGE, streak: GAUNTLET_MAX_STAGE - 1 };
+  run = { ...run, stage: final, streak: final - 1 };
   const preset = buildGauntletPreset(run);
   let b = startLabBattle(preset, true, 1);
   const rng = mulberry32(seed);

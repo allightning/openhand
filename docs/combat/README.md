@@ -23,6 +23,7 @@
 | [PLAY.md](./PLAY.md) | 测试玩家 | 开局流程、战斗要点、反馈清单 |
 | [RULES.md](./RULES.md) | 玩家 / 策划 / 程序 | 拆招四档、破法表、应激、势、总督 |
 | [CHANGELOG.md](./CHANGELOG.md) | 开发 | 版本迭代记录 |
+| [BREAK_ALIGN_DRAFT.md](./BREAK_ALIGN_DRAFT.md) | 策划 | **拆招核靠拢草案（待拍板，未改码）** |
 | [ROADMAP.md](./ROADMAP.md) | 策划 | 拍板项与待实现 |
 | [SCOPE.md](./SCOPE.md) | Agent | 目录白名单、验收命令 |
 
