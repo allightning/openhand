@@ -261,11 +261,12 @@ function resolveStandKey(id: string): string | null {
 }
 
 export function standSrc(id: string, cut = true): string {
-  return cut ? artUrl(`art/stand/${standFile(id)}.png`) : artUrl(`art/${standFile(id)}.png`);
+  // Web-optimized JPEG plates (was multi‑MB PNG; Pages timed out looking “broken”).
+  return cut ? artUrl(`art/stand/${standFile(id)}.jpg`) : artUrl(`art/${standFile(id)}.jpg`);
 }
 
 export function stand(id: string, kind = ""): string {
-  return `<img class="stand ${kind}" src="${standSrc(id, true)}" alt="" draggable="false">`;
+  return `<img class="stand ${kind}" src="${standSrc(id, true)}" alt="" draggable="false" decoding="async" loading="eager">`;
 }
 
 export function sceneBg(scene: SceneId): string {
@@ -306,5 +307,5 @@ export function combatBg(scene?: SceneId): string {
             scene === "flower"
           ? "combat-hold"
           : "combat";
-  return artUrl(`art/maps/bg-${set}.png`);
+  return artUrl(`art/maps/bg-${set}.jpg`);
 }

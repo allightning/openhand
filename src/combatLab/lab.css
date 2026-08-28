@@ -2089,6 +2089,7 @@
   min-height: 0;
   flex: 1 1 auto;
   align-items: stretch;
+  background: linear-gradient(180deg, #e8dcc8 0%, #d4c4a8 100%);
 }
 
 .lab-prod-combat .lab-stand-slot .fy-stand-wrap .stand,
