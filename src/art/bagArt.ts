@@ -1,5 +1,6 @@
 /** 行囊货色贴图 — AI 图标在 /art/bag/{id}.png；缺图时回落近似色块图。 */
 import type { BagGoodsId } from "../game/bag";
+import { artUrl } from "./artUrl";
 
 const FALLBACK: Partial<Record<BagGoodsId, string>> = {
   forgeIron: "copper",
@@ -9,7 +10,7 @@ const FALLBACK: Partial<Record<BagGoodsId, string>> = {
 
 export function bagArtSrc(id: BagGoodsId | string): string {
   const file = FALLBACK[id as BagGoodsId] ?? id;
-  return `/art/bag/${file}.png`;
+  return artUrl(`art/bag/${file}.png`);
 }
 
 export function bagArtMarkup(id: BagGoodsId | string, cls = ""): string {

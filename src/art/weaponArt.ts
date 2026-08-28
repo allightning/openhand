@@ -3,6 +3,7 @@
 import { gearById, type GearWeapon } from "../game/weapons";
 import { WEAPON_NAME } from "../game/party";
 import type { WeaponId } from "../game/types";
+import { artUrl } from "./artUrl";
 
 const SCHOOL_FILE: Record<WeaponId, string> = {
   palm: "palm",
@@ -14,7 +15,7 @@ const SCHOOL_FILE: Record<WeaponId, string> = {
 };
 
 export function weaponSrc(school: WeaponId): string {
-  return `/art/weapons/${SCHOOL_FILE[school]}.png`;
+  return artUrl(`art/weapons/${SCHOOL_FILE[school]}.png`);
 }
 
 /** Tall plate: PNG 立绘 + grade seal. Readable at a glance. */

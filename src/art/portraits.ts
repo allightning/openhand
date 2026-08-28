@@ -1,4 +1,5 @@
 import type { SceneId } from "../map/types";
+import { artUrl } from "./artUrl";
 
 /**
  * Stand plates. Rule: party heroes/mates keep exclusive plates;
@@ -260,7 +261,7 @@ function resolveStandKey(id: string): string | null {
 }
 
 export function standSrc(id: string, cut = true): string {
-  return cut ? `/art/stand/${standFile(id)}.png` : `/art/${standFile(id)}.png`;
+  return cut ? artUrl(`art/stand/${standFile(id)}.png`) : artUrl(`art/${standFile(id)}.png`);
 }
 
 export function stand(id: string, kind = ""): string {
@@ -269,11 +270,11 @@ export function stand(id: string, kind = ""): string {
 
 export function sceneBg(scene: SceneId): string {
   const key = SCENE_BG[scene] ?? (scene.startsWith("tax") ? "map-office" : scene.startsWith("rope") ? "map-harbor" : "map-lane");
-  return `/art/maps/${key}.png`;
+  return artUrl(`art/maps/${key}.png`);
 }
 
 export function titleBg(): string {
-  return "/art/maps/bg-title.png";
+  return artUrl("art/maps/bg-title.png");
 }
 
 export function combatBg(scene?: SceneId): string {
@@ -305,5 +306,5 @@ export function combatBg(scene?: SceneId): string {
             scene === "flower"
           ? "combat-hold"
           : "combat";
-  return `/art/maps/bg-${set}.png`;
+  return artUrl(`art/maps/bg-${set}.png`);
 }

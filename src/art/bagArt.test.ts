@@ -5,9 +5,9 @@ import { makeRun } from "../game/run";
 
 describe("bagArt", () => {
   it("points every common good at /art/bag", () => {
-    expect(bagArtSrc("herb")).toBe("/art/bag/herb.png");
-    expect(bagArtSrc("hide")).toBe("/art/bag/hide.png");
-    expect(bagArtSrc("forgeShen")).toBe("/art/bag/forgeShen.png");
+    expect(bagArtSrc("herb")).toMatch(/art\/bag\/herb\.png$/);
+    expect(bagArtSrc("hide")).toMatch(/art\/bag\/hide\.png$/);
+    expect(bagArtSrc("forgeShen")).toMatch(/art\/bag\/forgeShen\.png$/);
   });
 });
 
