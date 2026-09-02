@@ -158,7 +158,7 @@ function renderTechPick(draft: LabPreset, mateId: CompanionId): string {
     const t = TECHNIQUES[id];
     const learned = have.includes(id);
     const full = remain <= 0 && !learned;
-    return `<button type="button" class="lab-pick-item tech ${learned ? "learned active" : ""}" data-pick-tech="${id}" data-tech-mate="${mateId}" ${full && !learned ? "disabled" : ""}>
+    return `<button type="button" class="lab-pick-item tech ${learned ? "learned active" : ""}" data-pick-tech="${id}" data-tech-mate="${mateId}" data-tip="${escapeHtml(t.text)}" ${full && !learned ? "disabled" : ""}>
       <b>${escapeHtml(t.name)}</b>
       <small>${escapeHtml(t.text)}</small>
     </button>`;
@@ -201,7 +201,7 @@ export function renderPickPanel(
         ? `<div class="lab-pick-actions">${have
             .map(
               (tid) =>
-                `<span class="lab-tech-chip">${escapeHtml(TECHNIQUES[tid].name)}<button type="button" class="lab-tech-forget" data-forget-tech="${tid}" data-tech-mate="${focusMate}" aria-label="遗忘">×</button></span>`,
+                `<span class="lab-tech-chip" data-tip="${escapeHtml(TECHNIQUES[tid].text)}">${escapeHtml(TECHNIQUES[tid].name)}<button type="button" class="lab-tech-forget" data-forget-tech="${tid}" data-tech-mate="${focusMate}" aria-label="遗忘">×</button></span>`,
             )
             .join("")}</div>`
         : "";
@@ -277,11 +277,11 @@ function renderAuraPreview(draft: LabPreset): string {
           ? ` · 距${s.tier === 1 ? "登堂" : s.tier === 2 ? "宗师" : "下一档"} ×${s.toNext}`
           : "";
       const tip = `${WEAPON_NAME[s.school]} · ${s.tierName}：${s.activeLabel || "已激活"}${next}`;
-      return `<span class="lab-aura-chip">${escapeHtml(WEAPON_NAME[s.school])} ${s.count}/${target} · ${s.tierName}已激活${next}<span class="status-tip">${escapeHtml(tip)}</span></span>`;
+      return `<span class="lab-aura-chip" data-tip="${escapeHtml(tip)}">${escapeHtml(WEAPON_NAME[s.school])} ${s.count}/${target} · ${s.tierName}已激活${next}<span class="status-tip">${escapeHtml(tip)}</span></span>`;
     })
     .join("");
   const flower = res.hundredFlowers
-    ? `<span class="lab-aura-chip lab-aura-flowers">百花齐放 · 先机+1<span class="status-tip">四系各异 · 先机+1 · 助战耗劲-1 · 首张组合卡-1劲</span></span>`
+    ? `<span class="lab-aura-chip lab-aura-flowers" data-tip="四系各异 · 先机+1 · 助战耗劲-1 · 首张组合卡-1劲">百花齐放 · 先机+1<span class="status-tip">四系各异 · 先机+1 · 助战耗劲-1 · 首张组合卡-1劲</span></span>`
     : "";
   if (!schoolChips && !flower) {
     return `<p class="lab-aura-setup muted">构成光环：同系未达 2 人（按当前装备系全队计数）</p>`;

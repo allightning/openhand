@@ -40,7 +40,7 @@ describe("§31.19 分系外功", () => {
   it("透骨劲/沉棍：击退 +1", () => {
     // knockDist 通过 pushEnemy 体现——直接用 push 牌看位移
     const run = createGauntletRun("bandit", "palm");
-    run.mateTechs = { rail: ["piercingPalm"] };
+    run.mateTechs = { baimenghe: ["piercingPalm"] };
     const b = startLabBattle(buildGauntletPreset(run), true, 1);
     expect(hasTech(b, "piercingPalm")).toBe(true);
   });
@@ -50,24 +50,26 @@ describe("§31.19 分系外功", () => {
     plain.player.pos = 1;
     plain.enemy.pos = 4; // 相隔 3：够得着枪距，且触发枪风
     plain.foes = [plain.enemy];
-    const plainThrust = plain.hand.find((c) => c.defId === "thrust")!;
-    const plainDrop = plain.enemy.hp - playCard(plain, plainThrust.uid).enemy.hp;
+    plain.hand = [{ uid: "t1", defId: "thrust" }];
+    plain.energy = 10;
+    const plainDrop = plain.enemy.hp - playCard(plain, "t1").enemy.hp;
 
     const run = createGauntletRun("bandit", "spear");
-    run.mateTechs = { guard: ["spearWind"] };
+    run.mateTechs = { huochangchuan: ["spearWind"] };
     const tech = startLabBattle(buildGauntletPreset(run), true, 1);
     tech.player.pos = 1;
     tech.enemy.pos = 4;
     tech.foes = [tech.enemy];
-    const techThrust = tech.hand.find((c) => c.defId === "thrust")!;
-    const techDrop = tech.enemy.hp - playCard(tech, techThrust.uid).enemy.hp;
+    tech.hand = [{ uid: "t1", defId: "thrust" }];
+    tech.energy = 10;
+    const techDrop = tech.enemy.hp - playCard(tech, "t1").enemy.hp;
 
     expect(techDrop - plainDrop).toBe(3);
   });
 
   it("绵里针：格挡牌额外 +2", () => {
     const run = createGauntletRun("bandit", "palm");
-    run.mateTechs = { rail: ["softPalm"] };
+    run.mateTechs = { baimenghe: ["softPalm"] };
     run.deckRecipe = ["defend", "strike", "strike", "strike", "strike", "strike", "strike", "strike", "strike", "strike", "strike", "strike", "strike", "strike"];
     const b = startLabBattle(buildGauntletPreset(run), true, 1);
     const defend = b.hand.find((c) => c.defId === "defend")!;
@@ -79,7 +81,7 @@ describe("§31.19 分系外功", () => {
 describe("§31.18 心法接线", () => {
   it("心法气血上限进 preset（场上角色）", () => {
     const run = createGauntletRun("bandit", "palm");
-    run.mateMindArts = { rail: ["ironBreath", "steadyRoot"] }; // +10 +6
+    run.mateMindArts = { baimenghe: ["ironBreath", "steadyRoot"] }; // +10 +6
     const base = buildGauntletPreset(createGauntletRun("bandit", "palm"));
     const withMind = buildGauntletPreset(run);
     expect(withMind.hpMax).toBe((base.hpMax ?? 0) + 16);
@@ -96,7 +98,7 @@ describe("§31.18 心法接线", () => {
 
   it("收势时按在场角色心法回血", () => {
     const run = createGauntletRun("bandit", "palm");
-    run.mateMindArts = { rail: ["springQi"] }; // turnHeal 4
+    run.mateMindArts = { baimenghe: ["springQi"] }; // turnHeal 4
     let b = startLabBattle(buildGauntletPreset(run), true, 1);
     b = { ...b, player: { ...b.player, hp: Math.max(1, b.player.maxHp - 10) } };
     const after = endTurn(b);

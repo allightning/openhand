@@ -1,3 +1,9 @@
+export function resolveTipText(dataTip: string | undefined, inlineTip: string | undefined): string {
+  const fromData = dataTip?.trim();
+  if (fromData) return fromData;
+  return inlineTip?.trim() ?? "";
+}
+
 const DELAY_MS = 350;
 
 let tipEl: HTMLDivElement | null = null;
@@ -37,44 +43,45 @@ function showTip(el: HTMLElement, text: string): void {
   tip.style.top = `${top}px`;
 }
 
-/** 浮动 tooltip：立绘/牌堆等；状态/外功/动作条用 inline `.status-tip`。 */
+/** 状态、外功、换人、助战、技能牌、招式段：凡 data-tip 或内联 .status-tip 都挂浮动层。 */
+export function collectTipHosts(root: ParentNode): HTMLElement[] {
+  const hosts = new Set<HTMLElement>();
+  for (const el of root.querySelectorAll<HTMLElement>("[data-tip]")) {
+    hosts.add(el);
+  }
+  for (const tip of root.querySelectorAll<HTMLElement>(".status-tip")) {
+    const host = tip.parentElement;
+    if (host) hosts.add(host);
+  }
+  return [...hosts];
+}
+
+/** 浮动简介：data-tip 与 .status-tip 走同一层；title 作兜底，避免浮动层失败时问号无内容。 */
 export function bindLabTooltips(root: HTMLElement): void {
   hideTip();
-  root.querySelectorAll<HTMLElement>("[data-tip]:not(.card)").forEach((el) => {
-    if (el.querySelector(".status-tip")) return;
-    el.removeAttribute("title");
+  for (const el of collectTipHosts(root)) {
+    const inline = el.querySelector<HTMLElement>(":scope > .status-tip");
+    const text = resolveTipText(el.dataset.tip, inline?.textContent ?? undefined);
+    if (!text) {
+      el.removeAttribute("title");
+      continue;
+    }
+    el.setAttribute("title", text);
     const delay = el.closest(".gauntlet-overlay") ? 500 : DELAY_MS;
     el.addEventListener("mouseenter", () => {
-      const text = el.dataset.tip?.trim();
-      if (!text) return;
+      const again = resolveTipText(
+        el.dataset.tip,
+        el.querySelector<HTMLElement>(":scope > .status-tip")?.textContent ?? undefined,
+      );
+      if (!again) return;
       anchor = el;
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
-        if (anchor === el) showTip(el, text);
+        if (anchor === el) showTip(el, again);
       }, delay);
     });
     el.addEventListener("mouseleave", hideTip);
     el.addEventListener("click", hideTip);
-  });
-  bindActionRowInlineTips(root);
-}
-
-/** 动作条 inline 简介：fixed 定位，不占布局、不被手牌层遮挡。 */
-function bindActionRowInlineTips(root: HTMLElement): void {
-  const row = root.querySelector(".lab-action-row");
-  if (!row) return;
-  for (const host of row.querySelectorAll<HTMLElement>(
-    ".swap-btn, .assist-btn, .lab-action-tip-wrap, .lab-assist-active-badge, .lab-aura-chip",
-  )) {
-    const tip = host.querySelector<HTMLElement>(".status-tip");
-    if (!tip) continue;
-    const place = () => {
-      const r = host.getBoundingClientRect();
-      tip.style.setProperty("--lab-tip-x", `${r.left + r.width / 2}px`);
-      tip.style.setProperty("--lab-tip-y", `${r.top - 6}px`);
-    };
-    host.addEventListener("mouseenter", place);
-    host.addEventListener("focusin", place);
   }
 }
 

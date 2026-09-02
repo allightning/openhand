@@ -76,7 +76,7 @@ export function labResonanceTargets(b: Battle): CompanionId[] {
 
 export function labCanResonance(b: Battle, benchId: CompanionId): { ok: boolean; reason?: string } {
   if (isLabV21()) return { ok: false, reason: "v2.1 共鸣已改为构成光环" };
-  if (!isLabMode()) return { ok: false, reason: "仅 Combat Lab" };
+  if (!isLabMode()) return { ok: false, reason: "仅踢馆" };
   if (b.phase !== "player") return { ok: false, reason: "不是你的回合" };
   if (!isLabV2() && b.labFreshSwap) return { ok: false, reason: "刚换上场，不能共鸣" };
   if (b.labResonanceTurn) return { ok: false, reason: "本回合已共鸣" };

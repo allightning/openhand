@@ -14,6 +14,8 @@ import type {
 } from "./types";
 import { BASE_HP } from "./types";
 import { GENERATED_ELITE_ENERGY, GENERATED_ENEMIES, GENERATED_ENEMY_WEAPON } from "./foeCatalog";
+import { ROGUE_CARD_DEFS } from "./rogueCards";
+import { SIGNATURE_BREAK } from "./enemySignatures";
 
 export const CARDS: Record<CardId, CardDef> = {
   strike: {
@@ -67,17 +69,18 @@ export const CARDS: Record<CardId, CardDef> = {
     name: "开山掌",
     cost: 2,
     type: "attack",
-    text: "造成 10 点伤害。",
-    flavor: "掌风比刀快半寸。",
+    text: "造成 10 点伤害并击退 1。",
+    flavor: "掌风比刀快半寸，人要让开。",
     damage: 10,
+    knock: 1,
   },
   defend2: {
     id: "defend2",
     name: "卸力入骨",
     cost: 1,
     type: "skill",
-    text: "获得 12 点格挡。",
-    flavor: "力走进骨缝里。",
+    text: "获得 12 点格挡，抽 1。",
+    flavor: "力走进骨缝里，手还能再摸一张。",
     block: 12,
   },
   push2: {
@@ -113,7 +116,7 @@ export const CARDS: Record<CardId, CardDef> = {
     name: "抽刀",
     cost: 1,
     type: "attack",
-    text: "相邻打 9 并叠 1 裂创，否则 4。",
+    text: "相邻打 8 并叠 1 裂创，否则 4。",
     flavor: "刀还在鞘里时，人已经到了。",
     damage: 4,
   },
@@ -175,27 +178,28 @@ export const CARDS: Record<CardId, CardDef> = {
     name: "深息",
     cost: 1,
     type: "skill",
-    text: "回复 8 点生命。",
-    flavor: "气走完一圈。",
+    text: "回复 8 点生命，并清裂创。",
+    flavor: "气走完一圈，创口也收口。",
     heal: 8,
+    clearBleed: true,
   },
   cut: {
     id: "cut",
     name: "斩",
     cost: 2,
     type: "attack",
-    text: "造成 9。相邻再 +3，并叠 1 裂创。",
+    text: "贴身 10，叠 2 裂创。距 2 则 4。",
     flavor: "刀认的是胸口，不是风。",
     damage: 9,
     nearBonus: 3,
-    bleed: 1,
+    bleed: 2,
   },
   thrust: {
     id: "thrust",
     name: "戳",
     cost: 1,
     type: "attack",
-    text: "造成 4 点。隔至少 2 格则 7 点。",
+    text: "造成 3 点。隔 2 格则 5，更远 8。贴身打不出。",
     flavor: "枪要有空，才伸得直。",
     damage: 4,
     farBonus: 3,
@@ -617,9 +621,9 @@ export const CARDS: Record<CardId, CardDef> = {
     name: "拖刀创",
     cost: 2,
     type: "attack",
-    text: "伤 8。裂创 +2。",
+    text: "贴身伤 7，距 2 伤 4。裂创 +2。",
     flavor: "刀口不求一刀断，求他滴下去。",
-    damage: 8,
+    damage: 7,
     bleed: 2,
     school: "saber",
   },
@@ -1083,9 +1087,9 @@ export const CARDS: Record<CardId, CardDef> = {
     name: "双掌合击",
     cost: 2,
     type: "attack",
-    text: "组合：需后场有该系同行（异系伙伴=组合技）。伤 10，推 1 格。",
+    text: "组合：后场该系同行。伤 14，推 1 格。",
     flavor: "同门合击。",
-    damage: 10,
+    damage: 14,
     knock: 1,
     tags: ["组合"],
     requiresAssist: true,
@@ -1096,9 +1100,9 @@ export const CARDS: Record<CardId, CardDef> = {
     name: "双刀交剪",
     cost: 2,
     type: "attack",
-    text: "组合：需后场有该系同行（异系伙伴=组合技）。伤 12；贴身 +4。",
+    text: "组合：后场该系同行。伤 16；贴身再 +6。",
     flavor: "同门合击。",
-    damage: 12,
+    damage: 16,
     tags: ["组合"],
     requiresAssist: true,
     school: "saber",
@@ -1153,7 +1157,7 @@ export const CARDS: Record<CardId, CardDef> = {
     requiresAssist: true,
     school: "hook",
   },
-
+  ...ROGUE_CARD_DEFS,
 };
 
 export const UPGRADES: Partial<Record<CardId, CardId>> = {
@@ -2162,14 +2166,49 @@ export function intentLabel(intent: Intent): string {
   if (intent.kind === "seal") return "封脉";
   if (intent.kind === "shatter") return `裂盾 ${intent.amount}`;
   if (intent.kind === "breathe") return `吐纳 +${intent.amount}`;
+  if (intent.kind === "retreat") return `撤 ${intent.steps}`;
+  if (intent.kind === "pestle") return `韦陀杵 ${intent.damage}`;
+  if (intent.kind === "dust") return "迷眼";
+  if (intent.kind === "shackle") return "锁链";
+  if (intent.kind === "dodge") return "闪避";
+  if (intent.kind === "endure") return "霸体";
+  if (intent.kind === "sig") return SIGNATURE_BREAK[intent.id as keyof typeof SIGNATURE_BREAK]?.label ?? "绝招";
   return "换位";
+}
+
+/** 意图条标题：不含数字（数字只出现在右侧一处）。 */
+export function intentShortName(intent: Intent): string {
+  if (intent.kind === "strike") return "打击";
+  if (intent.kind === "charge") return "冲锋";
+  if (intent.kind === "stake") return "落桩";
+  if (intent.kind === "pull") return "拉近";
+  if (intent.kind === "trap") return "下机";
+  if (intent.kind === "windup") return "蓄势";
+  if (intent.kind === "lunge") return "抢步";
+  if (intent.kind === "swap") return "换位";
+  if (intent.kind === "barrage") return "连打";
+  if (intent.kind === "guard") return "卸力";
+  if (intent.kind === "bleedcut") return "刀创";
+  if (intent.kind === "counter") return "埋招";
+  if (intent.kind === "mend") return "金创";
+  if (intent.kind === "seal") return "封脉";
+  if (intent.kind === "shatter") return "裂盾";
+  if (intent.kind === "breathe") return "吐纳";
+  if (intent.kind === "retreat") return "撤";
+  if (intent.kind === "pestle") return "韦陀杵";
+  if (intent.kind === "dust") return "迷眼";
+  if (intent.kind === "shackle") return "锁链";
+  if (intent.kind === "dodge") return "闪避";
+  if (intent.kind === "endure") return "霸体";
+  if (intent.kind === "sig") return SIGNATURE_BREAK[intent.id as keyof typeof SIGNATURE_BREAK]?.label ?? "绝招";
+  return "意图";
 }
 
 /** 意图悬浮说明（对战条用） */
 export function intentTip(intent: Intent): string {
   if (intent.kind === "strike") return `对你造成 ${intent.damage} 点伤害（先吃格挡）。`;
   if (intent.kind === "charge") return `冲 ${intent.steps} 步；撞上则打 ${intent.damage}。`;
-  if (intent.kind === "stake") return "在身前落桩，挡你退路与击退。";
+  if (intent.kind === "stake") return "在身前落桩，挡你退路与击退。挡路的桩会先吃你的攻击（低阶 1 次、高阶 2 次）；棍一棍可拆高阶。";
   if (intent.kind === "pull") return `把你往他身边拉 ${intent.steps} 步。`;
   if (intent.kind === "trap") return "在你脚下埋机关，踩中受伤。";
   if (intent.kind === "windup") return "这一息蓄势，下一息往往更重。";
@@ -2183,6 +2222,16 @@ export function intentTip(intent: Intent): string {
   if (intent.kind === "seal") return "封你的脉：下回少劲，并滞步。";
   if (intent.kind === "shatter") return `震掉你约 ${intent.amount} 点格挡。`;
   if (intent.kind === "breathe") return `吐纳回 ${intent.amount} 点敌劲，下息更好出手。`;
+  if (intent.kind === "retreat") return `向后撤 ${intent.steps} 格。用进步追上可硬拆。`;
+  if (intent.kind === "pestle") return `韦陀杵打 ${intent.damage}，不拆则眩 1。`;
+  if (intent.kind === "dust") return "迷眼：下一段你的攻击须贴身才中。";
+  if (intent.kind === "shackle") return "锁链：收势若仍贴身则滞步。";
+  if (intent.kind === "dodge") return "闪避：你下一张攻击牌落空。走开或先不出刀。";
+  if (intent.kind === "endure") return "霸体：你下一张攻击仍能打伤，但击退/拉/眩晕无效。破绽/刺/开缝可硬拆。";
+  if (intent.kind === "sig") {
+    const sig = SIGNATURE_BREAK[intent.id as keyof typeof SIGNATURE_BREAK];
+    return sig ? `${sig.label}：${sig.tip}` : "特色招。";
+  }
   return "改变站位。";
 }
 
@@ -2202,6 +2251,8 @@ export function intentMark(intent: Intent): string {
   if (intent.kind === "trap") return "机";
   if (intent.kind === "windup") return "蓄";
   if (intent.kind === "swap") return "换";
+  if (intent.kind === "dodge") return "闪";
+  if (intent.kind === "endure") return "霸";
   return "桩";
 }
 

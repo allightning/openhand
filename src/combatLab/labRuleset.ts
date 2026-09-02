@@ -1,32 +1,31 @@
-export type LabRuleset = "classic" | "break";
+export type LabRuleset = "break";
 
 const KEY = "openhand-lab-ruleset";
 
-/** In-memory fallback for vitest / private mode (localStorage may be missing). */
-let memory: LabRuleset | null = null;
-
+/** 产品只留肉鸽踢馆。旧 localStorage `classic` 读到也当 break。 */
 export function getLabRuleset(): LabRuleset {
   try {
-    const v = localStorage.getItem(KEY);
-    if (v === "classic" || v === "break") {
-      memory = v;
-      return v;
-    }
+    localStorage.setItem(KEY, "break");
   } catch {
     /* vitest / private mode */
   }
-  return memory ?? "classic";
+  return "break";
 }
 
-export function setLabRuleset(r: LabRuleset): void {
-  memory = r;
+/** 保留调用点；对战版已删除，写入一律 break。 */
+export function setLabRuleset(_r?: string): void {
   try {
-    localStorage.setItem(KEY, r);
+    localStorage.setItem(KEY, "break");
   } catch {
     /* ignore */
   }
 }
 
 export function isBreakAlign(): boolean {
-  return getLabRuleset() === "break";
+  return true;
+}
+
+/** 学堂/新手关才铺将破将让；正式开踢只留打/空/跳过。 */
+export function isBreakLesson(b: { labBreakLesson?: boolean }): boolean {
+  return Boolean(b.labBreakLesson);
 }

@@ -11,6 +11,7 @@ import {
 } from "./labV25Constants";
 import type { Battle, CardId, WeaponId } from "./types";
 import { cardSchool } from "./party";
+import { addStake } from "./stake";
 import { addQi } from "./labV2";
 
 const TRIO_HEROES = ["rail", "seer", "sapper"] as const;
@@ -156,7 +157,7 @@ export function initResonanceBattle(b: Battle): void {
   if (staffFx?.startBlock) b.playerBlock += staffFx.startBlock;
   if (staffFx?.startStake) {
     const spot = Math.min(BOARD_SIZE - 2, Math.max(0, b.player.pos + 1));
-    if (!b.stakes.includes(spot) && spot < BOARD_SIZE - 1) b.stakes = [...b.stakes, spot];
+    if (!b.stakes.includes(spot) && spot < BOARD_SIZE - 1) addStake(b, spot, 2);
   }
   b.v2PartyComposition = res.composition;
   b.v2ResonanceTierMax = Math.max(0, ...res.schools.map((s) => s.tier));

@@ -15,7 +15,8 @@ import {
 } from "../game/labCombo";
 import { comboAssistMods } from "../game/comboAssist";
 import { setLabMode, setLabTuning } from "../game/labTuning";
-import { canPlay, playCard } from "../game/sim";
+import { setLabRuleset } from "./labRuleset";
+import { canPlay } from "../game/sim";
 import { startLabBattle } from "./factory";
 import { BUILTIN_PRESETS } from "./presets";
 
@@ -34,8 +35,14 @@ function comboBattle() {
   );
 }
 
-beforeEach(() => setLabMode(true));
-afterEach(() => setLabMode(false));
+beforeEach(() => {
+  setLabMode(true);
+  setLabRuleset("break");
+});
+afterEach(() => {
+  setLabMode(false);
+  setLabRuleset("break");
+});
 
 describe("§16 labTuning 总开关", () => {
   it("rulesCombo off keeps v2.5 baseline", () => {
@@ -105,14 +112,24 @@ describe("§16.4 同门合击卡", () => {
     expect(canPlay(b, "t-x").ok).toBe(false);
   });
 
-  it("§31.12 v2 组合技：后场有该系同行即可打（不需叫上场）", () => {
+  it("§31.12 v2 组合技：开踢禁组合技，异系走融合卡", () => {
     const b = comboBattle();
     b.energy = 5;
-    // 后场 hermit 是拳系 → comboPalm 直接可打
     expect(b.bench.some((m) => m.id === "hermit")).toBe(true);
     b.hand.push({ uid: "t-combo", defId: "comboPalm" });
-    expect(comboPlayGate(b, "comboPalm").ok).toBe(true);
-    expect(canPlay(b, "t-combo").ok).toBe(true);
+    const g = comboPlayGate(b, "comboPalm");
+    expect(g.ok).toBe(false);
+    expect(g.reason).toContain("融合卡");
+    expect(canPlay(b, "t-combo").ok).toBe(false);
+  });
+
+  it("拆招开踢禁组合技开闸，异系走融合卡", () => {
+    setLabRuleset("break");
+    const b = comboBattle();
+    b.hand.push({ uid: "t-combo", defId: "comboPalm" });
+    const g = comboPlayGate(b, "comboPalm");
+    expect(g.ok).toBe(false);
+    expect(g.reason).toContain("融合卡");
   });
 });
 
@@ -127,15 +144,12 @@ describe("§16.2 濒死退场", () => {
 });
 
 describe("§17.3 百花首张组合卡减劲", () => {
-  it("first combo card costs 1 less", () => {
+  it("first combo card is also gated in 开踢", () => {
     let b = comboBattle();
     b.v2HundredFlowers = true;
     b.energy = 2;
     b = callAssist(b, "hermit");
     b.hand.push({ uid: "t-combo2", defId: "comboPalm" });
-    expect(canPlay(b, "t-combo2").ok).toBe(true);
-    b = playCard(b, "t-combo2");
-    expect(b.labComboCardPlayedThisTurn).toBe(true);
-    expect(b.labComboCardsPlayed).toBe(1);
+    expect(canPlay(b, "t-combo2").ok).toBe(false);
   });
 });

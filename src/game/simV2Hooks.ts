@@ -1,16 +1,17 @@
-import { CARDS } from "./content";
+import { CARDS, intentShortName } from "./content";
 import { isLabV2, getLabTuning } from "./labTuning";
 import { VARIANT_BREAK_THRESHOLD } from "./labV2Constants";
 import { initLabV21Battle, refreshBreakPromised } from "./labV21";
-import { planBreaks } from "./intentWeakness";
+import { planBreaks, queuedThreatCells } from "./intentWeakness";
+import { isBreakAlign } from "../combatLab/labRuleset";
 import {
   addQi,
   applyBreak,
   applyGraze,
   applyPendingQi,
+  addBreakMomentumTrue,
   clearQi,
   commitV2EndTurn,
-  counterHitFoe,
   emptyV2Turn,
   initV2Battle,
   onV2AttackPlayed,
@@ -27,7 +28,7 @@ import {
 } from "./labV2";
 import { EYE_COUNTER_DMG, OFFBALANCE_MULT, QI_BURST_DMG } from "./labV2Constants";
 import { dismissAssistAtTurnStart, syncDoubleHitTelemetry } from "./labAssist";
-import { tryAppendStressIntent } from "./labEnemyStress";
+import { tryAppendStressIntent, intentEnergyCost } from "./labEnemyStress";
 import type { Battle, CardId, Intent } from "./types";
 
 export function simV2Init(b: Battle): void {
@@ -54,6 +55,7 @@ export function simV2StartPlayerTurn(b: Battle): void {
   b.labAssistCalledThisTurn = false;
   b.labComboCardPlayedThisTurn = false;
   b.v2AuraQiBonusUsed = false;
+  b.v2BrokeLastFoeTurn = (b.v2TurnBreakCount ?? 0) > 0;
   b.v2TurnBreakCount = 0;
   refreshBreakPromised(b);
 }
@@ -174,18 +176,23 @@ export function simV2ResolveIntentQueue(b: Battle, resolveOne: (intent: Intent, 
   b.labFoeTurnPlayerHit = false;
   b.labFoeTurnAssistHit = false;
   const queue = b.intents.length ? [...b.intents] : [b.intent];
-  // §31.8 v3：破招计划一次算清（预览=结算），硬拆耗充能、软拆半效。
-  const plan = planBreaks(b, queue, "resolve");
-  const eyeIdx = b.v2EyeIdx ?? -1;
+  const projected = queuedThreatCells(b, queue);
+  const breakMode = isBreakAlign();
+  // §31.8 v3：破招计划一次算清（预览=结算），硬拆耗充能、软拆半效。经典只算打/空/跳过。
+  const plan = breakMode ? planBreaks(b, queue, "resolve") : new Map<number, "hard" | "graze">();
+  const eyeIdx = breakMode ? (b.v2EyeIdx ?? -1) : -1;
   let collapsed = false;
+  const recap: { ord: number; name: string; outcome: string }[] = [];
   for (let i = 0; i < queue.length; i++) {
     if (b.phase !== "player") break;
     const intent = queue[i]!;
     b.v2ResolveIntentIdx = i;
     b.intent = intent;
+    const name = intentShortName(intent);
     if (collapsed) {
       b.log.push(`【套路散】${intent.kind} 跟着招眼一起散了`);
       b.journal.push({ side: "you", text: "散！" });
+      recap.push({ ord: i + 1, name, outcome: "散" });
       continue;
     }
     // §31.11 眩晕：跳过攻击段（棍连击/拳震壁/助战施加）。多敌人时眩晕只影响主敌队列。
@@ -193,38 +200,85 @@ export function simV2ResolveIntentQueue(b: Battle, resolveOne: (intent: Intent, 
       b.foeStun = (b.foeStun ?? 0) - 1;
       b.log.push(`【眩晕】${intent.kind} 段被打懵，没出出来`);
       b.journal.push({ side: "you", text: "他晕了——这段空了" });
+      recap.push({ ord: i + 1, name, outcome: "晕" });
       continue;
     }
-    if (intent.kind === "bleedcut") {
+    if (b.enemyEnergy < intentEnergyCost(intent)) {
+      pushFx(b, "skip");
+      b.log.push(`【劲尽】${intent.kind} 没劲，跳过`);
+      b.journal.push({ side: "you", text: "劲尽" });
+      recap.push({ ord: i + 1, name, outcome: "劲尽" });
+      continue;
+    }
+    if (breakMode && intent.kind === "bleedcut") {
       // bleedcut 逐段动态判定（格挡在结算中消耗），不走计划器
       const raw = intent.damage ?? 0;
       const blocked = Math.min(b.playerBlock, raw);
       if (raw > 0 && blocked >= raw) {
         applyBreak(b, intent, i);
         b.v2BreakCount = (b.v2BreakCount ?? 0) + 1;
+        recap.push({ ord: i + 1, name, outcome: "破" });
         if (i === eyeIdx && eyeIdx >= 0) collapsed = applyEyeCollapse(b);
       } else {
         resolveOne(intent, i);
+        recap.push({ ord: i + 1, name, outcome: "打" });
+        pushFx(b, "hit");
       }
       continue;
     }
     const tier = plan.get(i);
-    if (tier === "hard") {
+    if (breakMode && intent.kind === "retreat") {
+      if (tier === "hard") {
+        applyBreak(b, intent, i);
+        b.v2BreakCount = (b.v2BreakCount ?? 0) + 1;
+        resolveOne(intent, i);
+        recap.push({ ord: i + 1, name, outcome: "追" });
+        if (i === eyeIdx && eyeIdx >= 0) collapsed = applyEyeCollapse(b);
+        continue;
+      }
+      if (tier === "graze") {
+        applyGraze(b, intent, i);
+        resolveOne(intent, i);
+        recap.push({ ord: i + 1, name, outcome: "让" });
+        continue;
+      }
+      resolveOne(intent, i);
+      recap.push({ ord: i + 1, name, outcome: "放" });
+      continue;
+    }
+    if (breakMode && tier === "hard") {
       applyBreak(b, intent, i);
       b.v2BreakCount = (b.v2BreakCount ?? 0) + 1;
+      recap.push({ ord: i + 1, name, outcome: "破" });
       if (i === eyeIdx && eyeIdx >= 0) collapsed = applyEyeCollapse(b);
       continue;
     }
-    if (tier === "graze") {
+    if (breakMode && tier === "graze") {
       applyGraze(b, intent, i);
       const halved = { ...intent } as Intent;
       if ("damage" in halved && halved.damage !== undefined) halved.damage = Math.floor(halved.damage / 2);
       if ("block" in halved && halved.block !== undefined) halved.block = Math.floor(halved.block / 2);
       resolveOne(halved, i);
+      recap.push({ ord: i + 1, name, outcome: "让" });
       continue;
     }
     resolveOne(intent, i);
+    const dmg = "damage" in intent ? (intent.damage ?? 0) : 0;
+    const startPos = b.v2Turn?.turnStartPos ?? b.player.pos;
+    const cells = projected[i] ?? [];
+    const outcome =
+      intent.kind === "guard"
+        ? "架"
+        : dmg > 0
+          ? cells.includes(startPos)
+            ? "打"
+            : "空"
+          : "出";
+    if (outcome === "打") pushFx(b, "hit");
+    if (outcome === "空") pushFx(b, "miss");
+    recap.push({ ord: i + 1, name, outcome });
   }
+  b.v2LastIntentRecap = recap;
   syncDoubleHitTelemetry(b);
 }
 
@@ -233,10 +287,10 @@ function applyEyeCollapse(b: Battle): boolean {
   b.v2OffBalance = 2;
   b.v2EyeCount = (b.v2EyeCount ?? 0) + 1;
   addQi(b, 2);
-  pushFx(b, "burst");
+  pushFx(b, "eye");
   b.log.push("【破眼】招眼被拆，套路散了——他失衡了（承伤 ×2）");
   b.journal.push({ side: "you", text: "破眼！" });
-  counterHitFoe(b, EYE_COUNTER_DMG, `【拆眼重创】破绽大开，追加 ${EYE_COUNTER_DMG} 真伤`);
+  addBreakMomentumTrue(b, EYE_COUNTER_DMG, "【破眼】");
   return true;
 }
 

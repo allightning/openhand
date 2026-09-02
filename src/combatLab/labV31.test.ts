@@ -11,6 +11,7 @@ import { canPlay, endTurn, labDiscardsLeft, playCard, previewCard } from "../gam
 import type { Battle, CardId, WeaponId } from "../game/types";
 import { startLabBattle } from "./factory";
 import { buildGauntletPreset, createGauntletRun } from "./gauntlet";
+import { setLabRuleset } from "./labRuleset";
 
 function schoolBattle(school: WeaponId): Battle {
   return startLabBattle(buildGauntletPreset(createGauntletRun("bandit", school)), true, 1);
@@ -23,6 +24,7 @@ function withCard(b: Battle, id: CardId, patch: Partial<Battle> = {}): Battle {
 beforeEach(() => {
   setLabMode(true);
   setLabTuning({ rulesV2: true, v2Fx: false });
+  setLabRuleset("break");
 });
 afterEach(() => setLabMode(false));
 
@@ -44,7 +46,7 @@ describe("§31.11 距离与先机", () => {
     expect(WEAPON_PACE.staff).toBeGreaterThan(WEAPON_PACE.saber);
   });
 
-  it("拳掌贴身才打得到，枪三格外也能戳", () => {
+  it("拳掌贴身才打得到；拆招枪禁贴身、2–4 可戳", () => {
     const palm = withCard(schoolBattle("palm"), "strike");
     palm.enemy.pos = palm.player.pos + 3;
     expect(canPlay(palm, "t1").ok).toBe(false);
@@ -53,10 +55,13 @@ describe("§31.11 距离与先机", () => {
     expect(canPlay(palm, "t1").ok).toBe(true);
 
     const spear = withCard(schoolBattle("spear"), "thrust");
+    spear.enemy.pos = spear.player.pos + 1;
+    expect(canPlay(spear, "t1").ok).toBe(false);
+    expect(canPlay(spear, "t1").reason).toContain("贴身使不开枪");
     spear.enemy.pos = spear.player.pos + 3;
     expect(canPlay(spear, "t1").ok).toBe(true);
     spear.enemy.pos = spear.player.pos + 4;
-    expect(canPlay(spear, "t1").ok).toBe(false);
+    expect(canPlay(spear, "t1").ok).toBe(true);
   });
 });
 
@@ -69,13 +74,50 @@ describe("§31.11 六系特色", () => {
     expect(cold.enemyHp - hot.enemyHp).toBe(4);
   });
 
-  it("枪·远强近弱：远 +3 近 -2", () => {
+  it("枪·拆招伤档：2 格 3、3 格 5、4 格 8", () => {
     const b = withCard(schoolBattle("spear"), "thrust");
+    b.enemy.pos = b.player.pos + 2;
+    const d2 = b.enemy.hp - previewCard(b, "t1").enemyHp;
     b.enemy.pos = b.player.pos + 3;
-    const far = previewCard(b, "t1");
+    const d3 = b.enemy.hp - previewCard(b, "t1").enemyHp;
+    b.enemy.pos = b.player.pos + 4;
+    const d4 = b.enemy.hp - previewCard(b, "t1").enemyHp;
+    expect(d3 - d2).toBe(2);
+    expect(d4 - d3).toBe(3);
+  });
+
+  it("刀·斩贴脸高伤、距 2 掉到中低档；流血只在贴身", () => {
+    const b = withCard(schoolBattle("saber"), "cut");
+    b.foeHitLastTurn = false;
     b.enemy.pos = b.player.pos + 1;
-    const near = previewCard(b, "t1");
-    expect(near.enemyHp - far.enemyHp).toBe(8); // farBonus 3 + 特色远+3/近-2
+    const d1 = b.enemy.hp - previewCard(b, "t1").enemyHp;
+    const melee = playCard({ ...b, energy: 10 }, "t1");
+    expect(melee.bleed).toBeGreaterThan(b.bleed ?? 0);
+    b.enemy.pos = b.player.pos + 2;
+    const d2 = b.enemy.hp - previewCard(b, "t1").enemyHp;
+    const far = playCard({ ...b, energy: 10 }, "t1");
+    expect(far.bleed).toBe(b.bleed ?? 0);
+    expect(d1).toBeGreaterThan(d2);
+    expect(d1 - d2).toBeGreaterThanOrEqual(5);
+    const spear = withCard(schoolBattle("spear"), "thrust");
+    spear.enemy.pos = spear.player.pos + 4;
+    const spearPeak = spear.enemy.hp - previewCard(spear, "t1").enemyHp;
+    expect(d2).toBeLessThan(spearPeak);
+  });
+
+  it("刀·拖刀创距 2 伤下降，裂创层数不变", () => {
+    const b = withCard(schoolBattle("saber"), "saberBleed");
+    b.foeHitLastTurn = false;
+    b.enemy.pos = b.player.pos + 1;
+    const melee = playCard({ ...b, energy: 10 }, "t1");
+    const d1 = b.enemy.hp - melee.enemy.hp;
+    const bleed1 = melee.bleed - (b.bleed ?? 0);
+    b.enemy.pos = b.player.pos + 2;
+    const far = playCard({ ...b, energy: 10 }, "t1");
+    const d2 = b.enemy.hp - far.enemy.hp;
+    const bleed2 = far.bleed - (b.bleed ?? 0);
+    expect(bleed1).toBe(bleed2);
+    expect(d1).toBeGreaterThan(d2);
   });
 
   it("剑·创伤叠层：敌裂创 6 层则 +2", () => {
@@ -148,12 +190,12 @@ describe("§31.11 六系特色", () => {
 
 describe("§31.11 六系绝招前置", () => {
   const cases: Array<{ school: WeaponId; id: CardId; setup: (b: Battle) => Battle }> = [
-    { school: "saber", id: "ultSaber", setup: (b) => ({ ...b, foeHitLastTurn: true }) },
-    { school: "sword", id: "ultSword", setup: (b) => ({ ...b, bleed: 4 }) },
-    { school: "spear", id: "ultSpear", setup: (b) => b },
-    { school: "staff", id: "ultStaff", setup: (b) => ({ ...b, attacksThisTurn: 2 }) },
+    { school: "saber", id: "ultSaber", setup: (b) => ({ ...b, bleed: 3 }) },
+    { school: "sword", id: "ultSword", setup: (b) => ({ ...b, v2SwordChain: 4, expose: 1 }) },
+    { school: "spear", id: "ultSpear", setup: (b) => ({ ...b, v2SpearRuler: 4 }) },
+    { school: "staff", id: "ultStaff", setup: (b) => ({ ...b, stakes: [1, 2], v2BrokeLastFoeTurn: true }) },
     { school: "hook", id: "ultHook", setup: (b) => ({ ...b, foeDisarm: 1 }) },
-    { school: "palm", id: "ultPalm", setup: (b) => b },
+    { school: "palm", id: "ultPalm", setup: (b) => ({ ...b, attacksThisTurn: 3 }) },
   ];
   for (const c of cases) {
     it(`${CARDS[c.id].name}：缺前置锁住，满足前置可打`, () => {
@@ -161,8 +203,8 @@ describe("§31.11 六系绝招前置", () => {
       // 摆到该绝招「距离合法但前置不满足」的位置
       if (c.id === "ultSpear") b.enemy.pos = b.player.pos + 2;
       else if (c.id === "ultPalm") {
-        b.enemy.pos = 5;
-        b.player.pos = 4;
+        b.enemy.pos = 4;
+        b.player.pos = 3;
       } else b.enemy.pos = b.player.pos + 1;
       const locked = canPlay(b, "t1");
       expect(locked.ok).toBe(false);
@@ -176,6 +218,16 @@ describe("§31.11 六系绝招前置", () => {
       expect(canPlay(b, "t1").ok).toBe(true);
     });
   }
+
+  it("刀绝招血祭：立刻跳一次流血并 −1 层", () => {
+    let b = withCard(schoolBattle("saber"), "ultSaber", { bleed: 3 });
+    b.enemy.pos = b.player.pos + 1;
+    const hp = b.enemy.hp;
+    b = playCard(b, "t1");
+    expect(b.bleed).toBe(2);
+    expect(b.log.some((l) => l.includes("血祭"))).toBe(true);
+    expect(b.enemy.hp).toBeLessThan(hp);
+  });
 
   it("六系绝招都在奖励池（系别归属正确）", () => {
     for (const id of ["ultSaber", "ultSword", "ultSpear", "ultStaff", "ultHook", "ultPalm"] as CardId[]) {
@@ -206,16 +258,16 @@ describe("§31.11 减费与弃牌", () => {
     expect(b.costDiscountNext ?? 0).toBe(0);
   });
 
-  it("弃牌上限按补牌后的手牌数（上回合打光也有 2 次）", () => {
+  it("置换后本回不能再换（弃 1 摸 1）", () => {
     let b = schoolBattle("palm");
     b.enemy.pos = b.player.pos + 1;
     b = { ...b, hand: [b.hand[0]!], playerBlock: 0 };
     b.intent = { kind: "windup" };
     b.intents = [{ kind: "windup" }];
-    b = endTurn(b); // 补牌后手牌回到 5
-    expect(b.hand.length).toBe(5);
-    expect(b.v2Turn?.turnStartHand).toBe(5);
-    expect(labDiscardsLeft(b)).toBe(2);
+    b = endTurn(b); // 拆招：手 1 + 摸 ⌈5/2⌉=3 → 4
+    expect(b.hand.length).toBe(4);
+    expect(b.v2Turn?.turnStartHand).toBe(4);
+    expect(labDiscardsLeft(b)).toBe(1);
   });
 });
 
@@ -256,36 +308,37 @@ describe("§31.12 败判看全队", () => {
 });
 
 describe("§31.12 红格覆盖与实收伤害", () => {
-  it("抢步红格 = 落点覆盖圈（落点旁也算危险）", async () => {
+  it("抢步红格 = 落点身前覆盖（身后不算）", async () => {
     const { dangerCellsForIntent } = await import("../game/sim");
-    const b = schoolBattle("palm");
+    const b = startLabBattle(buildGauntletPreset(createGauntletRun("shaolin", "palm")), true, 1);
     b.enemy.pos = 4;
     b.player.pos = 1;
     b.v2Turn = { ...b.v2Turn!, turnStartPos: 1 };
-    // 敌在 4，朝锁定格 1 进一步 → 落点 3，reach 1 → 红格 2,3,4
+    // 敌在 4，朝锁定格 1 进一步 → 落点 3，拳 reach1 身前 → 红格 [2]（3 是落点脚下，4 是身后）
     const cells = dangerCellsForIntent(b, { kind: "lunge", damage: 10 });
-    expect(cells).toContain(3);
-    expect(cells).toContain(2);
-    expect(cells).toContain(4);
+    expect(cells).toEqual([2]);
   });
 
-  it("冲锋红格含终点覆盖圈", async () => {
+  it("冲锋红格含终点身前覆盖", async () => {
     const { dangerCellsForIntent } = await import("../game/sim");
     const b = schoolBattle("palm");
     b.enemy.pos = 1;
     b.player.pos = 5;
-    // 冲锋 3 步：路径 2,3,4，终点 4 的 reach1 覆盖 3,4,5 → 你站 5 也是红格
+    b.v2Turn = { ...b.v2Turn!, turnStartPos: 5 };
+    // 冲锋 3 步：路径 2,3,4，终点 4 朝锁定 5 身前 reach1 → 5
     const cells = dangerCellsForIntent(b, { kind: "charge", damage: 10, steps: 3 });
     expect(cells).toContain(2);
     expect(cells).toContain(5);
+    expect(cells).not.toContain(0); // 身后/反方向不红
   });
 
-  it("长兵器敌（reach 2）抢步后 2 格内都命中", async () => {
+  it("长兵器敌（reach 2）抢步身前两格命中", async () => {
     const b = schoolBattle("palm");
     b.enemy = { ...b.enemy, pos: 4 };
     b.player.pos = 2;
+    b.v2Turn = { ...b.v2Turn!, turnStartPos: 2 };
     b.playerBlock = 0;
-    // 篡玺 reach 2：4 → 进一步到 3，距你 1 ≤ 2 → 命中
+    // 篡玺若 reach2：4→落 3，身前 [2,1] 罩住你
     const hp = b.player.hp;
     b.intent = { kind: "lunge", damage: 10 };
     b.intents = [{ kind: "lunge", damage: 10 }];

@@ -1,5 +1,6 @@
 import { ENEMIES, ENEMY_ENERGY } from "./content";
 import { getLabTuning, isLabMode } from "./labTuning";
+import { isBreakAlign } from "../combatLab/labRuleset";
 import type { Battle, EnemyId, Intent } from "./types";
 
 export type StressSource = "break" | "burst" | "assist" | "signature";
@@ -39,12 +40,36 @@ export function isAttackIntent(intent: Intent): boolean {
     intent.kind === "charge" ||
     intent.kind === "lunge" ||
     intent.kind === "barrage" ||
-    intent.kind === "bleedcut"
+    intent.kind === "bleedcut" ||
+    intent.kind === "pestle" ||
+    (intent.kind === "sig" && (intent.damage ?? 0) > 0)
   );
 }
 
 export function isHeavyIntent(intent: Intent): boolean {
-  return intent.kind === "barrage" || intent.kind === "charge";
+  return intent.kind === "barrage" || intent.kind === "charge" || intent.kind === "pestle" || intent.kind === "sig";
+}
+
+/** 与 sim 结算扣劲同一套：连打/冲锋/吐纳/回血/杵/特色 2，其余 1。 */
+export function intentEnergyCost(intent: Intent): number {
+  if (intent.kind === "barrage" || intent.kind === "charge") return 2;
+  if (intent.kind === "mend" || intent.kind === "breathe") return 2;
+  if (intent.kind === "pestle" || intent.kind === "sig") return 2;
+  return 1;
+}
+
+export function intentFirePlan(
+  energy: number,
+  queue: Intent[],
+): { cost: number; skip: boolean; energyBefore: number }[] {
+  let e = energy;
+  return queue.map((intent) => {
+    const cost = intentEnergyCost(intent);
+    const skip = e < cost;
+    const row = { cost, skip, energyBefore: e };
+    if (!skip) e -= cost;
+    return row;
+  });
 }
 
 const STRESS_LABELS: Record<StressSource, string> = {
@@ -71,6 +96,7 @@ function stressIntentFor(b: Battle): Intent {
  */
 export function tryAppendStressIntent(b: Battle, source: StressSource): boolean {
   if (!isLabMode()) return false;
+  if (source === "break" && !isBreakAlign()) return false;
   const cap = getLabTuning().enemyStressCap;
   if ((b.v2StressCount ?? 0) >= cap) return false;
   b.v2PendingStress = [...(b.v2PendingStress ?? []), { source, label: STRESS_LABELS[source] }];

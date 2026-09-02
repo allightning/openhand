@@ -8,6 +8,7 @@ import {
 import { isLabV2 } from "./labTuning";
 import { MATES } from "./party";
 import type { Battle, CardId, WeaponId } from "./types";
+import { isBreakAlign } from "../combatLab/labRuleset";
 
 export const COMBO_CARD_BY_SCHOOL: Record<WeaponId, CardId> = {
   palm: "comboPalm",
@@ -34,6 +35,7 @@ export function comboCardSchool(id: CardId): WeaponId | null {
 
 export function comboPlayGate(b: Battle, defId: CardId): { ok: boolean; reason?: string } {
   if (!isComboCard(defId)) return { ok: true };
+  if (isBreakAlign()) return { ok: false, reason: "开踢无组合技，异系走融合卡" };
   if (!isComboRulesEnabled()) return { ok: false, reason: "组合技未开启" };
   const school = comboCardSchool(defId);
   if (!school) return { ok: false, reason: "未知组合卡" };
@@ -79,31 +81,32 @@ export function comboCardNotes(b: Battle, defId: CardId): string[] {
     const dist = Math.abs(b.player.pos - b.enemy.pos);
     if (dist >= 1 && b.enemy.pos > b.player.pos) b.enemy = { ...b.enemy, pos: b.enemy.pos - 1 };
     else if (dist >= 1 && b.enemy.pos < b.player.pos) b.enemy = { ...b.enemy, pos: b.enemy.pos + 1 };
-    notes.push("合击伤 10，推 1 格");
+    notes.push("合击伤 14，推 1 格");
   } else if (school === "saber") {
-    notes.push(Math.abs(b.player.pos - b.enemy.pos) === 1 ? "合击伤 16（贴身）" : "合击伤 12");
+    notes.push(Math.abs(b.player.pos - b.enemy.pos) === 1 ? "合击伤 22（贴身）" : "合击伤 16");
   } else if (school === "spear") {
     b.expose += 2;
-    notes.push("合击伤 11，破绽 +2");
+    notes.push("合击伤 15，破绽 +2");
   } else if (school === "sword") {
     b.youSlow = Math.max(b.youSlow, 1);
-    notes.push("合击伤 9，封脉滞步");
+    notes.push("合击伤 14，封脉滞步");
   } else if (school === "staff") {
-    b.playerBlock += 6 + assistBlockBonus(b, CARDS[defId]!);
-    notes.push("合击伤 8，格挡 +6");
+    b.playerBlock += 8 + assistBlockBonus(b, CARDS[defId]!);
+    notes.push("合击伤 12，格挡 +8");
   } else {
-    notes.push("合击伤 8，拉近 1");
+    notes.push("合击伤 12，拉近 1");
   }
   return notes;
 }
 
 export function comboCardDamage(b: Battle, defId: CardId): number {
   const school = comboCardSchool(defId);
-  if (school === "saber") return Math.abs(b.player.pos - b.enemy.pos) === 1 ? 16 : 12;
-  if (school === "spear") return 11;
-  if (school === "sword") return 9;
-  if (school === "staff") return 8;
-  if (school === "hook") return 8;
+  if (school === "saber") return Math.abs(b.player.pos - b.enemy.pos) === 1 ? 22 : 16;
+  if (school === "palm") return 14;
+  if (school === "spear") return 15;
+  if (school === "sword") return 14;
+  if (school === "staff") return 12;
+  if (school === "hook") return 12;
   return 10;
 }
 

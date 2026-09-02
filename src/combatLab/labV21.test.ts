@@ -36,7 +36,7 @@ function withCard(b: Battle, id: CardId, patch: Partial<Battle> = {}): Battle {
 }
 
 beforeEach(() => {
-  setLabRuleset("classic");
+  setLabRuleset("break");
   setLabMode(true);
   setLabTuning({ rulesV2: true });
 });
@@ -57,14 +57,16 @@ describe("v2.1 绝招", () => {
     expect(canPlay(b, "t1").ok).toBe(true);
   });
 
-  it("pojin ignores ult gate for the turn", () => {
+  it("pojin in 开踢 gives a free hard-break charge, not ult unlock", () => {
     let b = withCard(v2Battle(), "ultQiBurst", { qi: 0, labItems: ["pojin"] });
     expect(canPlay(b, "t1").ok).toBe(false);
     const used = useLabItem(b, "pojin");
     expect(used.ok).toBe(true);
     b = used.battle!;
-    b.enemy.pos = b.player.pos + 1; // §31.11 距离闸
-    expect(canPlay(b, "t1").ok).toBe(true);
+    expect(b.labPojinFreeBreak).toBe(true);
+    expect(b.labUnlockUltimate).toBeFalsy();
+    b.enemy.pos = b.player.pos + 1;
+    expect(canPlay(b, "t1").ok).toBe(false);
   });
 });
 
@@ -98,29 +100,31 @@ describe("v2.1 变式", () => {
 describe("v2.1 道具", () => {
   const ALL_ITEMS: LabItemId[] = ["jinchuang", "xiujian", "huiqi", "lianhuan", "pojin"];
 
-  it("each item type usable once when carried", () => {
+  it("each item type usable when carried; charges start at 2", () => {
     for (const item of ALL_ITEMS) {
       let b = v2Battle();
-      b = { ...b, labItems: [item], labItemUsedThisTurn: false, energy: 8, player: { ...b.player, hp: Math.max(1, b.player.maxHp - 10) } };
+      b = { ...b, labItems: [item], labItemCharges: { [item]: 2 }, labItemUsedThisTurn: false, energy: 8, player: { ...b.player, hp: Math.max(1, b.player.maxHp - 10) } };
       const hp0 = b.player.hp;
       const r = useLabItem(b, item);
       expect(r.ok).toBe(true);
       b = r.battle!;
-      expect(b.labItemUsedThisTurn).toBe(true);
+      expect(b.labItemCharges?.[item]).toBe(1);
       if (item === "jinchuang") expect(b.player.hp).toBeGreaterThan(hp0);
       if (item === "huiqi") expect(b.energy).toBeGreaterThan(8);
       if (item === "lianhuan") expect(b.labComboPillActive).toBe(true);
-      if (item === "pojin") expect(b.labUnlockUltimate).toBe(true);
+      if (item === "pojin") expect(b.labPojinFreeBreak).toBe(true);
     }
   });
 
-  it("limits one item per turn and two slots max", () => {
+  it("two kinds max; same turn can spend another charge", () => {
     let b = v2Battle();
-    b = { ...b, labItems: ["jinchuang", "huiqi"] };
+    b = { ...b, labItems: ["jinchuang", "huiqi"], labItemCharges: { jinchuang: 2, huiqi: 2 }, energy: 4 };
     expect(b.labItems!.length).toBeLessThanOrEqual(2);
     const first = useLabItem(b, "jinchuang");
     b = first.battle!;
-    expect(labCanUseItem(b, "huiqi").ok).toBe(false);
+    expect(labCanUseItem(b, "huiqi").ok).toBe(true);
+    const second = useLabItem(b, "huiqi");
+    expect(second.ok).toBe(true);
   });
 });
 

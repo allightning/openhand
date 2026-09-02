@@ -1,9 +1,26 @@
 import type { Battle, CardId, Intent, V2TurnFlags, WeaknessDef, WeaknessKind } from "./types";
 import { isBreakAlign } from "../combatLab/labRuleset";
+import { SIGNATURE_BREAK } from "./enemySignatures";
+import { ROGUE_SCHOOLS, stepCardId } from "./rogueCards";
 
 export type { WeaknessKind, WeaknessDef };
 
-export const MOVE_CARD_IDS: CardId[] = ["sidestep", "retreat", "advance", "advance2", "close", "backpalm", "push", "push2", "sweep"];
+const SCHOOL_STEP_IDS = ROGUE_SCHOOLS.map(stepCardId);
+const SCHOOL_CHASE_IDS = SCHOOL_STEP_IDS.filter((id) => id !== "stepSword" && id !== "stepSpear");
+
+export const MOVE_CARD_IDS: CardId[] = [
+  "sidestep",
+  "retreat",
+  "advance",
+  "advance2",
+  "close",
+  "backpalm",
+  "push",
+  "push2",
+  "sweep",
+  ...SCHOOL_STEP_IDS,
+];
+export const CHASE_CARD_IDS: CardId[] = ["advance", "advance2", "close", ...SCHOOL_CHASE_IDS];
 export const PLANT_STAKE_CARD_IDS: CardId[] = ["plant", "split"];
 export const ANTI_GUARD_CARD_IDS: CardId[] = ["expose", "pierce", "rift", "marking"];
 
@@ -25,6 +42,13 @@ export const DEFAULT_WEAKNESS: Record<Intent["kind"], WeaknessDef> = {
   seal: { kind: "endEnergyGte3", param: 3 },
   shatter: { kind: "endBlockZero" },
   breathe: { kind: "adjacentAttackHitBreathe" },
+  retreat: { kind: "chaseClosed" },
+  pestle: { kind: "antiGuardPlayed" },
+  dust: { kind: "adjacentAttackHit" },
+  shackle: { kind: "endNotAdjacent" },
+  dodge: { kind: "noAttackOrMoved" },
+  endure: { kind: "antiGuardPlayed" },
+  sig: { kind: "hitFoeThisTurn" },
 };
 
 function dist(b: Battle): number {
@@ -32,6 +56,10 @@ function dist(b: Battle): number {
 }
 
 export function weaknessForIntent(intent: Intent): WeaknessDef {
+  if (intent.kind === "sig") {
+    const sig = SIGNATURE_BREAK[intent.id as keyof typeof SIGNATURE_BREAK];
+    if (sig) return intent.weakness ?? sig.weakness;
+  }
   return intent.weakness ?? DEFAULT_WEAKNESS[intent.kind];
 }
 
@@ -42,11 +70,11 @@ export function weaknessTip(intent: Intent): string {
     case "moveCardPlayed":
       return "打出位移牌，离开他锁定的红格（动了还在红圈里不算拆）";
     case "stakeOnBoard":
-      return "场上有桩，或原地不动让他冲过头";
+      return "场上有桩，朝他进步离开落点，或原地让他冲过头";
     case "stoodStillEndTurn":
       return "原地不动收势";
     case "plantStakePlayed":
-      return "打出落桩类牌（点地/裂桩）";
+      return "砸挡路的桩（攻击吃掉它的挡次），或打出点地/裂桩。棍一棍可拆高阶";
     case "adjacentAttackHit":
     case "adjacentAttackHitBreathe":
       return "贴身攻击命中他";
@@ -66,12 +94,18 @@ export function weaknessTip(intent: Intent): string {
       return "格挡完全吃下这一刀";
     case "noAttackThisTurn":
       return "本回合不出攻击牌";
+    case "noAttackOrMoved":
+      return "不出攻击，或打出位移";
     case "markGte2":
       return `他身上印记 ≥${w.param ?? 2}`;
     case "endEnergyGte3":
       return `收势时留劲 ≥${w.param ?? 3}`;
     case "endBlockZero":
       return "收势时不留格挡";
+    case "chaseClosed":
+      return "打出朝他的位移（进步/纵步），收势比回合开始更近（追）";
+    case "endNotAdjacent":
+      return "收势时不要贴身";
     default:
       return "";
   }
@@ -95,6 +129,12 @@ type QueueThreatProvider = (b: Battle, queue: Intent[]) => number[][];
 let queueThreatProvider: QueueThreatProvider | null = null;
 export function registerQueueThreatProvider(fn: QueueThreatProvider): void {
   queueThreatProvider = fn;
+}
+
+/** 与显示/结算同一条投影链；无提供者时退回静态逐段。 */
+export function queuedThreatCells(b: Battle, queue: Intent[]): number[][] {
+  if (queueThreatProvider) return queueThreatProvider(b, queue);
+  return queue.map((intent) => threatCells(b, intent));
 }
 
 /** 哪些破法属于「耗充能的硬拆」。 */
@@ -131,6 +171,21 @@ export function planBreaks(b: Battle, queue: Intent[], phase: "preview" | "resol
   const projected = queueThreatProvider ? queueThreatProvider(b, queue) : null;
   queue.forEach((intent, i) => {
     const w = weaknessForIntent(intent);
+    if (w.kind === "chaseClosed") {
+      const startPos = flags.turnStartPos ?? b.player.pos;
+      const endPos = flags.endPos ?? b.player.pos;
+      const startDist = Math.abs(startPos - b.enemy.pos);
+      const endDist = flags.endDist ?? Math.abs(endPos - b.enemy.pos);
+      const chased = Boolean(flags.chaseCardPlayed) && endDist < startDist;
+      const attempted = Boolean(flags.chaseCardPlayed);
+      if (chased && charges.move > 0) {
+        charges.move -= 1;
+        out.set(i, "hard");
+      } else if (attempted) {
+        out.set(i, "graze");
+      }
+      return;
+    }
     if (isSpatialKind(w)) {
       const cells = projected?.[i] ?? threatCells(b, intent);
       const pos = flags.endPos ?? b.player.pos;
@@ -158,20 +213,27 @@ export function planBreaks(b: Battle, queue: Intent[], phase: "preview" | "resol
       if (evalWeakness(intent, b, flags, phase)) out.set(i, "graze");
       return;
     }
+    if (intent.kind === "charge") {
+      if (evalWeakness(intent, b, flags, phase)) out.set(i, "hard");
+      else if (flags.endTurnCommitted && !flags.stoodStill) out.set(i, "graze");
+      return;
+    }
     if (evalWeakness(intent, b, flags, phase)) out.set(i, "hard");
   });
   return out;
 }
 
 /** 招眼可选段：必须有「硬拆」路径（充能类破法），否则这一手没有眼。 */
-const EYE_KINDS: WeaknessKind[] = ["moveCardPlayed", "antiGuardPlayed"];
+const EYE_KINDS: WeaknessKind[] = ["moveCardPlayed", "antiGuardPlayed", "chaseClosed"];
 
-/** 招眼 = 队列中第一个可硬拆的攻击段（起手是眼：破了起手，后招全无）。 */
+/** 招眼 = 队列中第一个可硬拆的攻击段；撤也可以当眼。 */
 export function planEyeIdx(queue: Intent[]): number {
   for (let i = 0; i < queue.length; i++) {
     const it = queue[i]!;
+    const w = weaknessForIntent(it).kind;
+    if (!EYE_KINDS.includes(w)) continue;
     const dmg = "damage" in it ? (it.damage ?? 0) : 0;
-    if (dmg > 0 && EYE_KINDS.includes(weaknessForIntent(it).kind)) return i;
+    if (dmg > 0 || it.kind === "retreat" || it.kind === "pestle") return i;
   }
   return -1;
 }
@@ -184,7 +246,9 @@ export function evalWeakness(
   resolveCtx?: { bleedcutRaw?: number; bleedcutBlocked?: number },
 ): boolean {
   if (intent.kind === "charge") {
-    return b.stakes.length > 0 || (flags.stoodStill && flags.endTurnCommitted);
+    if (b.stakes.length > 0) return true;
+    if (flags.stoodStill && flags.endTurnCommitted) return true;
+    return Boolean(flags.chaseCardPlayed && flags.endTurnCommitted && !flags.stoodStill);
   }
 
   const w = weaknessForIntent(intent);
@@ -197,7 +261,7 @@ export function evalWeakness(
     case "stoodStillEndTurn":
       return flags.stoodStill && flags.endTurnCommitted;
     case "plantStakePlayed":
-      return flags.plantStakePlayed;
+      return flags.plantStakePlayed || Boolean(flags.hitStakeThisTurn);
     case "adjacentAttackHit":
     case "adjacentAttackHitBreathe":
       return flags.adjacentAttackHit;
@@ -223,12 +287,23 @@ export function evalWeakness(
       return false;
     case "noAttackThisTurn":
       return !flags.attackPlayed;
+    case "noAttackOrMoved":
+      return !flags.attackPlayed || Boolean(flags.moveCardPlayed);
     case "markGte2":
       return b.mark >= (w.param ?? 2);
     case "endEnergyGte3":
       return flags.endTurnCommitted && (flags.endEnergy ?? b.energy) >= (w.param ?? 3);
     case "endBlockZero":
       return flags.endTurnCommitted && (flags.endBlock ?? b.playerBlock) <= 0;
+    case "chaseClosed": {
+      const startPos = flags.turnStartPos ?? b.player.pos;
+      const endPos = flags.endPos ?? b.player.pos;
+      const startDist = Math.abs(startPos - b.enemy.pos);
+      const endDist = flags.endDist ?? Math.abs(endPos - b.enemy.pos);
+      return Boolean(flags.chaseCardPlayed) && endDist < startDist;
+    }
+    case "endNotAdjacent":
+      return flags.endTurnCommitted && (flags.endDist ?? dist(b)) > 1;
     default:
       return false;
   }

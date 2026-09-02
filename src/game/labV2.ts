@@ -4,6 +4,7 @@ import {
   BOSS_VARIANT_BREAK_THRESHOLD,
   BREAK_COUNTER_BASE,
   BREAK_COUNTER_CHAIN,
+  BREAK_MOMENTUM_CAP,
   GRUDGE_BOSS,
   GRUDGE_ELITE,
   GRUDGE_NORMAL,
@@ -12,20 +13,38 @@ import {
   QI_MAX,
   VARIANT_BREAK_THRESHOLD,
 } from "./labV2Constants";
-import { evalWeakness, planBreaks, weaknessForIntent, MOVE_CARD_IDS, PLANT_STAKE_CARD_IDS, ANTI_GUARD_CARD_IDS } from "./intentWeakness";
+import { evalWeakness, planBreaks, weaknessForIntent, MOVE_CARD_IDS, CHASE_CARD_IDS, PLANT_STAKE_CARD_IDS, ANTI_GUARD_CARD_IDS } from "./intentWeakness";
 import { applyBreakLoot, type BreakLoot } from "./breakLootBus";
 import { refreshBreakPromised } from "./labV21";
 import { tryAppendStressIntent } from "./labEnemyStress";
-import { battleMateGearId } from "./equippedWeapon";
+import { battleEquippedSchool, battleMateGearId } from "./equippedWeapon";
 import { gearById } from "./weapons";
-import type { Battle, CardId, Intent, TechniqueId, V2TurnFlags } from "./types";
+import type { Battle, CardId, Intent, TechniqueId, V2TurnFlags, WeaponId } from "./types";
 import { isBreakAlign } from "../combatLab/labRuleset";
 
 function hasTech(b: Battle, id: TechniqueId): boolean {
   return b.techniques.includes(id);
 }
 
-export type LabFxKind = "break" | "wall" | "kill" | "resonance" | "burst" | "swap" | "counter";
+export type LabFxKind =
+  | "break"
+  | "wall"
+  | "kill"
+  | "resonance"
+  | "burst"
+  | "swap"
+  | "counter"
+  | "eye"
+  | "graze"
+  | "miss"
+  | "hit"
+  | "skip"
+  | "cardHit"
+  | "cardWard"
+  | "cardHeal"
+  | "cardStep"
+  | "cardKnock"
+  | "cardStatus";
 
 export function emptyV2Turn(b: Battle): V2TurnFlags {
   return {
@@ -41,8 +60,11 @@ export function emptyV2Turn(b: Battle): V2TurnFlags {
     turnStartPos: b.player.pos,
     moveCharges: 0,
     antiGuardCharges: 0,
+    chaseCardPlayed: false,
+    hitStakeThisTurn: false,
     turnStartHand: b.hand?.length ?? 0,
     discardsUsed: 0,
+    cyclesUsed: 0,
   };
 }
 
@@ -61,6 +83,9 @@ export function initV2Battle(b: Battle): void {
   b.v2FxQueue = [];
   b.labEntranceActive = false;
   b.labEntranceUsed = false;
+  if (isBreakAlign() && b.active === "wenrensheng") {
+    b.v2SwordChain = Math.max(b.v2SwordChain ?? 0, 1);
+  }
 }
 
 export function addQi(b: Battle, n: number, note?: (t: string) => void): void {
@@ -87,6 +112,20 @@ export function v2StrikeBonus(b: Battle, base: number, isAttack: boolean): numbe
     dmg += LAB_ENTRANCE_BONUS;
     b.labEntranceUsed = true;
   }
+  if (isAttack && (b.labChaseMeleeBonus ?? 0) > 0) {
+    const dist = Math.abs(b.player.pos - b.enemy.pos);
+    if (dist <= 1) {
+      dmg += b.labChaseMeleeBonus!;
+      b.labChaseMeleeBonus = 0;
+    }
+  }
+  if (isBreakAlign() && isAttack && battleEquippedSchool(b, b.active) === "sword") {
+    const n = b.v2SwordChain ?? 0;
+    if (n > 0) {
+      dmg += 2 * n;
+      b.v2SwordChain = Math.floor(n / 2);
+    }
+  }
   const grudge = b.v2GrudgeBonus ?? 0;
   if (grudge > 0) dmg += grudge;
   const mul = getLabTuning().playerDmgMul ?? 1;
@@ -106,6 +145,7 @@ export function onV2CardPlayed(b: Battle, defId: CardId, movedPlayer: boolean, h
     f.moveCardPlayed = true;
     f.moveCharges = (f.moveCharges ?? 0) + 1;
   }
+  if (CHASE_CARD_IDS.includes(defId)) f.chaseCardPlayed = true;
   if (PLANT_STAKE_CARD_IDS.includes(defId)) f.plantStakePlayed = true;
   if (ANTI_GUARD_CARD_IDS.includes(defId)) {
     f.antiGuardPlayed = true;
@@ -144,7 +184,10 @@ export function commitV2EndTurn(b: Battle): void {
 }
 
 export function previewBrokenSegments(b: Battle): number[] {
-  if (!isLabV2()) return [];
+  if (!isLabV2() || !isBreakAlign()) {
+    b.v2GrazePreview = [];
+    return [];
+  }
   const queue = b.intents.length ? b.intents : [b.intent];
   const plan = planBreaks(b, queue, "preview");
   b.v2GrazePreview = [...plan.entries()].filter(([, t]) => t === "graze").map(([i]) => i);
@@ -153,17 +196,18 @@ export function previewBrokenSegments(b: Battle): number[] {
 
 /** §31.8 v3 软拆「让」：段仍结算但效果减半，不得势、不算破招、不能破眼。 */
 export function applyGraze(b: Battle, intent: Intent, index: number): void {
-  if (!isLabV2()) return;
+  if (!isLabV2() || !isBreakAlign()) return;
   b.v2GrazedSegments = [...(b.v2GrazedSegments ?? []), index];
+  pushFx(b, "graze");
   b.log.push(`【让招】${intent.kind} 被让开一半`);
   b.journal.push({ side: "you", text: "让！" });
-  if (isBreakAlign() && hasTech(b, "rebound")) {
+  if (hasTech(b, "rebound")) {
     counterHitFoe(b, 2, "【回桩·让】反震 2");
   }
 }
 
 export function shouldBreakIntent(b: Battle, intent: Intent, _index: number, resolveCtx?: { bleedcutRaw?: number; bleedcutBlocked?: number }): boolean {
-  if (!isLabV2()) return false;
+  if (!isLabV2() || !isBreakAlign()) return false;
   const flags = b.v2Turn ?? emptyV2Turn(b);
   return evalWeakness(intent, b, flags, "resolve", resolveCtx);
 }
@@ -174,23 +218,92 @@ export function breakCounterDamage(b: Battle): number {
   return BREAK_COUNTER_BASE + grade;
 }
 
-/** §31.13 反拆/拆眼的真伤出口：打前排敌，能拆死人（自食其力击杀路径）。 */
+/** 硬拆成功：叠一层拆势（不扣血）。连环/破招针加在真伤池里。 */
+export function grantBreakMomentum(b: Battle, extraTrue = 0): void {
+  if (!isLabV2() || !isBreakAlign()) return;
+  const add = breakCounterDamage(b) + extraTrue;
+  const stacks = b.v2BreakMomentum ?? 0;
+  if (stacks < BREAK_MOMENTUM_CAP) b.v2BreakMomentum = stacks + 1;
+  b.v2BreakMomentumTrue = (b.v2BreakMomentumTrue ?? 0) + add;
+  b.log.push(`【拆势】+1（下一次攻击带真伤 ${add}）`);
+  b.journal.push({ side: "you", text: `拆势 ${b.v2BreakMomentum ?? 0} 层` });
+}
+
+/** 破眼等：只加真伤池，不加层。 */
+export function addBreakMomentumTrue(b: Battle, n: number, why: string): void {
+  if (!isLabV2() || !isBreakAlign() || n <= 0) return;
+  b.v2BreakMomentumTrue = (b.v2BreakMomentumTrue ?? 0) + n;
+  b.log.push(`${why}：拆势加力 ${n}`);
+}
+
+export function breakMomentumRiderLabel(school: WeaponId): string {
+  if (school === "saber") return "裂创";
+  if (school === "palm") return "击退";
+  if (school === "sword") return "破绽";
+  if (school === "spear") return "远打";
+  if (school === "staff") return "眩晕";
+  return "缴械";
+}
+
+/** 打出攻击牌时吃 1 层拆势。knock>0 时由 sim 做击退。 */
+export function applyBreakMomentumOnAttack(b: Battle): { notes: string[]; knock: number } {
+  const stacks = b.v2BreakMomentum ?? 0;
+  if (!isLabV2() || !isBreakAlign() || stacks <= 0) return { notes: [], knock: 0 };
+  const pool = b.v2BreakMomentumTrue ?? 0;
+  let take = Math.ceil(pool / stacks);
+  b.v2BreakMomentum = stacks - 1;
+  b.v2BreakMomentumTrue = Math.max(0, pool - take);
+  if ((b.v2BreakMomentum ?? 0) <= 0) b.v2BreakMomentumTrue = 0;
+  const school = battleEquippedSchool(b, b.active);
+  const dist = Math.abs(b.player.pos - b.enemy.pos);
+  const bits: string[] = [];
+  let knock = 0;
+  if (school === "saber") {
+    if (dist <= 1) {
+      take += 2;
+      b.bleed = Math.min(isBreakAlign() ? 4 : 9, (b.bleed ?? 0) + 1);
+      bits.push(`裂创 ${b.bleed}`);
+    }
+  } else if (school === "palm") {
+    knock = 1;
+    bits.push("击退");
+  } else if (school === "sword") {
+    b.expose += 1;
+    bits.push("破绽 +1");
+  } else if (school === "spear") {
+    if (dist >= 2) {
+      take += 3;
+      bits.push("远打");
+    }
+  } else if (school === "staff") {
+    b.foeStun = (b.foeStun ?? 0) + 1;
+    bits.push("眩晕");
+  } else if (school === "hook") {
+    b.foeDisarm = (b.foeDisarm ?? 0) + 1;
+    bits.push("缴械");
+  }
+  counterHitFoe(b, take, `【拆势打出】真伤 ${take}${bits.length ? ` · ${bits.join(" · ")}` : ""}`);
+  return { notes: [`拆势打出 · 真伤 ${take}${bits.length ? ` · ${bits.join(" · ")}` : ""}`], knock };
+}
+
+/** §31.13 真伤出口：打前排敌（拆势打出 / 让震）。
+ * 击杀只扣血，不在这里判胜——交给 sim.checkWin / tryGauntletWaveSpawn，
+ * 否则会先 phase=won 再轮番上场，留下「有敌人但不能操作」软锁。 */
 export function counterHitFoe(b: Battle, n: number, label: string): void {
   if (!isLabV2() || n <= 0) return;
   const foe = b.enemy;
   if (!foe || foe.hp <= 0) return;
   foe.hp -= n;
+  // 真伤必须可见：写入状态栏字段，避免只出现在日志里
+  b.v2LastTrueDamage = n;
+  b.v2LastTrueDamageSrc = /拆势/.test(label) ? "拆势" : /拆眼/.test(label) ? "拆眼" : /让/.test(label) ? "让震" : "反拆";
   pushFx(b, "counter");
   b.log.push(label);
+  b.journal.push({ side: "you", text: `${b.v2LastTrueDamageSrc}真伤 ${n}（无视格挡）` });
+  b.lastHitRead = [b.lastHitRead, `${b.v2LastTrueDamageSrc}真伤${n}`].filter(Boolean).join(" · ");
   if (foe.hp > 0) return;
   const live = (b.foes ?? [b.enemy]).filter((f) => f.hp > 0);
-  if (live[0]) {
-    b.enemy = live[0];
-  } else {
-    b.enemy.hp = 0;
-    b.phase = "won";
-    b.log.push(`${foe.name}被拆得散了架，败下。`);
-  }
+  if (live[0]) b.enemy = live[0];
 }
 
 /**
@@ -199,37 +312,49 @@ export function counterHitFoe(b: Battle, n: number, label: string): void {
  */
 export function breakLootFor(intent: Intent): BreakLoot | null {
   const w = weaknessForIntent(intent).kind;
-  if (w === "moveCardPlayed" || w === "endDistGt1") return { kind: "block", n: 4, label: "让中带架" };
-  if (w === "antiGuardPlayed") return { kind: "expose", n: 2, label: "看穿套路" };
-  if (w === "bleedcutFullyBlocked") return { kind: "heal", n: 3, label: "铁扛回气" };
-  if (w === "plantStakePlayed" || w === "stakeOnBoard") return { kind: "energy", n: 2, label: "借势回劲" };
+  if (w === "chaseClosed") return { kind: "block", n: 2, label: "追上", meleeBonus: 2 };
+  if (w === "moveCardPlayed" || w === "endDistGt1" || w === "endNotAdjacent") return { kind: "block", n: 2, label: "让中带架" };
+  if (w === "antiGuardPlayed") return { kind: "expose", n: 1, label: "看穿套路" };
+  if (w === "bleedcutFullyBlocked") return { kind: "heal", n: 2, label: "铁扛回气" };
+  if (w === "plantStakePlayed" || w === "stakeOnBoard") return { kind: "energy", n: 1, label: "借势回劲" };
+  if (w === "adjacentAttackHit" || w === "hitFoeThisTurn") return { kind: "block", n: 1, label: "跟上" };
   return null;
 }
 
 export function applyBreak(b: Battle, intent: Intent, index: number): void {
-  if (!isLabV2()) return;
+  if (!isLabV2() || !isBreakAlign()) return;
   b.v2BrokenSegments = [...(b.v2BrokenSegments ?? []), index];
   const kind = intent.kind;
   b.v2BreakByKind = { ...(b.v2BreakByKind ?? {}), [kind]: (b.v2BreakByKind?.[kind] ?? 0) + 1 };
   addQi(b, 1);
-  if (isBreakAlign() && b.labComboPillActive) addQi(b, 1);
+  if (b.labComboPillActive) addQi(b, 1);
   pushFx(b, "break");
-  b.log.push(`【拆招】${kind} 被破`);
-  b.journal.push({ side: "you", text: "拆！" });
-  // §31.13 以拆为杀：硬拆 = 反打真伤；一回合第 2 段起连环拆（+2 伤 +1 势）
+  b.log.push(intent.kind === "retreat" ? "【破招】追上" : `【破招】${kind} 被破`);
+  b.journal.push({ side: "you", text: intent.kind === "retreat" ? "追！" : "破！" });
+  // §31.13 以拆为杀：硬拆 = 拆势（下一击兑现）；一回合第 2 段起连环拆（真伤池 +2 +1 势）
   b.v2TurnBreakCount = (b.v2TurnBreakCount ?? 0) + 1;
   const chain = b.v2TurnBreakCount >= 2;
-  let dmg = breakCounterDamage(b) + (chain ? BREAK_COUNTER_CHAIN : 0);
-  if (isBreakAlign() && (b.labNextBreakBonus ?? 0) > 0) {
-    dmg += b.labNextBreakBonus!;
+  let extra = chain ? BREAK_COUNTER_CHAIN : 0;
+  if ((b.labNextBreakBonus ?? 0) > 0) {
+    extra += b.labNextBreakBonus!;
     b.labNextBreakBonus = 0;
-    b.log.push("破招针：反拆加力");
+    b.log.push("破招针：拆势加力");
   }
-  if (isBreakAlign() && hasTech(b, "saberGrudge") && b.foeHitLastTurn) {
-    dmg += 2;
+  if (hasTech(b, "saberGrudge") && b.foeHitLastTurn) {
+    extra += 2;
   }
   if (chain) addQi(b, 1);
-  counterHitFoe(b, dmg, `【反拆${chain ? "·连环" : ""}】借势回敬 ${dmg} 真伤`);
+  grantBreakMomentum(b, extra);
+  if (battleEquippedSchool(b, b.active) === "spear") {
+    const dist = Math.abs(b.player.pos - b.enemy.pos);
+    if (dist > 1) {
+      b.v2SpearRuler = Math.min(6, (b.v2SpearRuler ?? 0) + 2);
+      b.log.push("标尺 +2（硬拆离格）");
+    }
+  }
+  if (battleEquippedSchool(b, b.active) === "sword") {
+    b.v2SwordChain = Math.min(8, (b.v2SwordChain ?? 0) + 1);
+  }
   // §31.15 战利品立刻落账——同队后手段还能吃到这份格挡/劲
   const loot = breakLootFor(intent);
   if (loot) applyBreakLoot(b, loot);

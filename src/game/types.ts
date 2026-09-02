@@ -23,7 +23,25 @@ export type CompanionId =
   | "bard"
   | "blade"
   | "weaver"
-  | "guard";
+  | "guard"
+  /** 拆招开踢 18 人花名册（除沈夜行 watch） */
+  | "baimenghe"
+  | "wenrensheng"
+  | "huochangchuan"
+  | "shiwanshan"
+  | "moqiwan"
+  | "lvchifeng"
+  | "zhounuanxiang"
+  | "boqing"
+  | "ananhuo"
+  | "zhangshoushan"
+  | "chenchenlan"
+  | "lishuangxing"
+  | "fubishan"
+  | "duguposui"
+  | "gongsunsizhang"
+  | "fengtang"
+  | "ouyangyingou";
 export type HeroId = "rail" | "seer" | "sapper";
 
 export type CardId =
@@ -137,7 +155,20 @@ export type CardId =
   | "comboSpear"
   | "comboSword"
   | "comboStaff"
-  | "comboHook";
+  | "comboHook"
+  | RogueCardId;
+
+/** 拆招开踢：直取、本系架、光环卡、异系融合卡。 */
+export type SchoolCap = Capitalize<WeaponId>;
+export type RogueCardId =
+  | "direct"
+  | `ward${SchoolCap}`
+  | `ward${SchoolCap}2`
+  | `aura${SchoolCap}`
+  | `fuse${SchoolCap}${SchoolCap}`
+  | `hit${SchoolCap}`
+  | `status${SchoolCap}`
+  | `step${SchoolCap}`;
 
 export type CardType = "attack" | "skill";
 export type Phase = "player" | "won" | "lost";
@@ -157,10 +188,13 @@ export type WeaknessKind =
   | "antiGuardPlayed"
   | "bleedcutFullyBlocked"
   | "noAttackThisTurn"
+  | "noAttackOrMoved"
   | "markGte2"
   | "endEnergyGte3"
   | "endBlockZero"
-  | "adjacentAttackHitBreathe";
+  | "adjacentAttackHitBreathe"
+  | "chaseClosed"
+  | "endNotAdjacent";
 
 export interface WeaknessDef {
   kind: WeaknessKind;
@@ -240,9 +274,11 @@ export interface V2TurnFlags {
   endDist?: number;
   /** §31.9 收势位置（红格判定用；预览期缺省取当前位）。 */
   endPos?: number;
-  /** §31.10 弃牌：回合开始手牌数（定上限 floor(n/2)）与已用次数。 */
+  /** 弃到上限（不摸）。 */
   turnStartHand?: number;
   discardsUsed?: number;
+  /** 置换：本回已弃一摸一。 */
+  cyclesUsed?: number;
   turnStartPos: number;
   spatialPlayed?: boolean;
   breakPromised?: boolean;
@@ -250,6 +286,10 @@ export interface V2TurnFlags {
   moveCharges?: number;
   /** §31.8 v3：每张破绽/刺类牌 +1，拆一段架势类消耗 1。 */
   antiGuardCharges?: number;
+  /** 追：本回合打出朝他的位移（进步/纵步/close）。 */
+  chaseCardPlayed?: boolean;
+  /** 本回合砸过场上的桩（拆落桩 / 破挡路）。 */
+  hitStakeThisTurn?: boolean;
 }
 
 /** Enemy catalog ids — core named + generated mobs (see foeCatalog). */
@@ -397,7 +437,14 @@ export type Intent =
   | { kind: "mend"; heal: number; weakness?: WeaknessDef }
   | { kind: "seal"; weakness?: WeaknessDef }
   | { kind: "shatter"; amount: number; weakness?: WeaknessDef }
-  | { kind: "breathe"; amount: number; weakness?: WeaknessDef };
+  | { kind: "breathe"; amount: number; weakness?: WeaknessDef }
+  | { kind: "retreat"; steps: number; weakness?: WeaknessDef }
+  | { kind: "pestle"; damage: number; weakness?: WeaknessDef }
+  | { kind: "dust"; weakness?: WeaknessDef }
+  | { kind: "shackle"; weakness?: WeaknessDef }
+  | { kind: "dodge"; weakness?: WeaknessDef }
+  | { kind: "endure"; weakness?: WeaknessDef }
+  | { kind: "sig"; id: string; damage?: number; weakness?: WeaknessDef };
 
 export interface EnemyDef {
   id: EnemyId;
@@ -465,6 +512,8 @@ export interface Battle {
   energyRegen: number;
   nextDamage: number;
   stakes: number[];
+  /** 格上桩剩余可挡次数。缺省每根 1（低阶）。 */
+  stakeHits?: Record<number, number>;
   traps: number[];
   techniques: TechniqueId[];
   hand: CardInst[];
@@ -520,6 +569,8 @@ export interface Battle {
   /** §31.12 预演条空闲态：上一轮敌方行动全程日志（收势到敌结算完）。 */
   v2LastFoeTurn?: string[];
   v2FxQueue?: string[];
+  /** 最近一击给玩家看的拆分：伤 / 真伤 / 裂创 / 兵器。 */
+  lastHitRead?: string;
   /** v2: entrance bonus on first attack after swap. */
   labEntranceActive?: boolean;
   labEntranceUsed?: boolean;
@@ -529,6 +580,24 @@ export interface Battle {
   v2BreakCount?: number;
   /** §31.13 本回合（敌结算窗内）硬拆计数——连环拆判定用，玩家回合开始清零。 */
   v2TurnBreakCount?: number;
+  /** 拆招：上一敌回合是否硬拆过（绝招门槛用）。 */
+  v2BrokeLastFoeTurn?: boolean;
+  /** §31.13 最近一次拆势打出的真伤（日志用；不作为常驻 Buff 芯片）。 */
+  v2LastTrueDamage?: number;
+  /** 真伤来源短标（如「拆势」「让震」）。 */
+  v2LastTrueDamageSrc?: string;
+  /** 拆招开踢：心法/技能提供的手牌上限加成（与 HAND_SIZE 合计，硬顶 10）。 */
+  v2HandCapBonus?: number;
+  /** 枪私有标尺层。 */
+  v2SpearRuler?: number;
+  /** 剑私有连势层。 */
+  v2SwordChain?: number;
+  /** 破绽剩余回合。 */
+  v2ExposeTurns?: number;
+  /** 拆势真伤池：打出时按层均分。 */
+  v2BreakMomentumTrue?: number;
+  /** 上一敌回合意图结算回顾（新队列亮出后仍可读）。 */
+  v2LastIntentRecap?: { ord: number; name: string; outcome: string }[];
   v2VariantTriggers?: number;
   v2SwapCount?: number;
   v2ResonanceCount?: number;
@@ -537,6 +606,30 @@ export interface Battle {
   labDeathSquad?: boolean;
   /** §31.17 踢馆轮番：前排倒下后此敌接力（非同时上场）。 */
   gauntletWaveEnemy?: EnemyId;
+  /** 拆招开踢：后续轮番队列。 */
+  gauntletWaveQueue?: EnemyId[];
+  /** 踢馆馆序（敌人套件 / 品阶 / AI 层）。 */
+  labGauntletStage?: number;
+  /** 本馆馆法：禁位移 / 必须贴身 / 招眼提前。 */
+  labHallLaw?: "noMove" | "mustMelee" | "earlyEye";
+  /** 本场战斗背景。 */
+  labSceneBg?: string;
+  /** 学堂/新手关：展示将破将让与拆招教义。正式开踢不置。 */
+  labBreakLesson?: boolean;
+  /** 本局打出的攻击牌张数（本系刀注）。 */
+  v2AttackPlays?: number;
+  /** 本局打出的非本系攻击牌张数。 */
+  v2OffSchoolAtk?: number;
+  /** 当场主敌 / 轮番副手（品阶用）。 */
+  labEnemyKitRole?: "main" | "extra";
+  /** 敌兵刃品阶：精 / 玄 / 神。 */
+  labEnemyGrade?: "jing" | "xuan" | "shen";
+  /** 刀口：下张技能额外耗劲。 */
+  youSkillTax?: number;
+  /** 迷眼：下一段攻击须贴身才中。 */
+  youDust?: number;
+  /** 追战利品：下张攻击贴身加伤。 */
+  labChaseMeleeBonus?: number;
   /** §16.2 v2.3 助战（批次三实体接线）。 */
   labAssistActive?: CompanionId;
   labAssistPos?: number;
@@ -635,6 +728,14 @@ export interface Battle {
   foeStun?: number;
   /** §31.11 缴械回合数：敌攻击段伤害减半（钩系施加） */
   foeDisarm?: number;
+  /** 闪避层：下一张攻击牌的卡面伤全空（拆势真伤仍穿） */
+  foeDodge?: number;
+  /** 霸体层：下一张攻击牌仍受伤，但不受击退/拉/眩晕 */
+  foeEndure?: number;
+  /** 本张牌结算中：不受控 */
+  foeSkipCc?: boolean;
+  /** 本张牌已被闪掉：后续段也不中 */
+  foeDodgedHit?: boolean;
   /** §31.11 上一敌回合你受过实际穿盾伤害（刀·埋招反击前置） */
   foeHitLastTurn?: boolean;
   /** §31.11 本回合下一张牌耗劲减免（搓手等减费手段） */
@@ -652,8 +753,10 @@ export interface Battle {
   bagUsed?: number;
   /** 开战发牌/回收是否保持配方序（单测 true；实战 false）。 */
   orderedDeal?: boolean;
-  /** v2.1 Lab 携带道具（最多 2） */
+  /** v2.1 Lab 携带道具（种类上限 2～3） */
   labItems?: LabItemId[];
+  /** 每种道具剩余次数；选一颗用一颗。 */
+  labItemCharges?: Partial<Record<LabItemId, number>>;
   labItemUsedThisTurn?: boolean;
   labUnlockUltimate?: boolean;
   labComboPillActive?: boolean;

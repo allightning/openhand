@@ -270,8 +270,8 @@ describe("Combat Lab telemetry", () => {
       startedAt: Date.now(),
     });
     const text = balanceReport(tel);
-    expect(text).toContain("Combat Lab");
-    expect(text).toContain("preview≠play");
+    expect(text).toContain("踢馆平衡报告");
+    expect(text).toContain("预演不符");
     expect(text).toContain("§24 死穴审计");
   });
 });

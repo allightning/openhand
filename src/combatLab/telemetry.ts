@@ -140,12 +140,12 @@ export function balanceReport(tel: LabTelemetry): string {
     .join(" ");
   const avgTurns = playerTurns.length;
   const lines = [
-    `# Combat Lab 平衡报告`,
+    `# 踢馆平衡报告`,
     `- 预设：${tel.meta.presetName}`,
     `- 结果：${tel.outcome ?? "进行中"}`,
     `- 回合记录：${turns}（玩家 ${playerTurns.length}）`,
     `- 平均决策耗时：${avgMs} ms`,
-    `- preview≠play 次数：${previewFails}（应为 0）`,
+    `- 预演不符次数：${previewFails}（应为 0）`,
     `- 破招尝试/成功：${tel.breakAttempts}/${tel.breakSuccess ?? 0}（破招率 ${breakRate}）`,
     `- 破招分型：${breakTypes || "—"}`,
     `- 势 峰值/均值/清零：${tel.v2QiPeak ?? 0} / ${tel.v2QiMean ?? "—"} / ${tel.v2QiClears ?? 0}`,

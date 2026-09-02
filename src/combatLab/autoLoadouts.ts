@@ -1,4 +1,4 @@
-import { ALL_MATE_IDS, ALL_TECHNIQUE_IDS } from "./arsenal";
+import { ALL_TECHNIQUE_IDS } from "./arsenal";
 import { CARDS } from "../game/content";
 import { cardSchool, MATES } from "../game/party";
 import { schoolFromGearId } from "../game/equippedWeapon";
@@ -678,6 +678,8 @@ export function autoLoadoutCoverage(): {
     portraits["2plus1plus1"] === 2 &&
     portraits.allDiff === 3;
 
+  // 一键配装覆盖经典 15 人；拆招花名册新人另入 rogueRoster，不进本覆盖断言。
+  const CLASSIC_MATE_COUNT = 15;
   return {
     mates: mates.size,
     techniques: techniques.size,
@@ -685,7 +687,7 @@ export function autoLoadoutCoverage(): {
     comboCards: comboCards.size,
     portraits,
     ok:
-      mates.size === ALL_MATE_IDS.length &&
+      mates.size === CLASSIC_MATE_COUNT &&
       techniques.size === ALL_TECHNIQUE_IDS.length &&
       items.size === 5 &&
       comboCards.size === COMBO_CARDS.length &&

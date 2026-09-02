@@ -1,0 +1,4 @@
+public/art/char/** filter=lfs diff=lfs merge=lfs -text
+public/art/scenes/** filter=lfs diff=lfs merge=lfs -text
+public/art/vfx/stake-*.png filter=lfs diff=lfs merge=lfs -text
+public/art/audio/** filter=lfs diff=lfs merge=lfs -text

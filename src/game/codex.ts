@@ -86,6 +86,17 @@ export const STATUS_ENTRIES: StatusEntry[] = [
   { id: "intent-bleed", name: "刀创", side: "intent", text: "打出伤害并叠裂创。" },
   { id: "intent-counter", name: "埋招（意图）", side: "intent", text: "他埋下反击，你打他会触发。" },
   { id: "intent-seal", name: "封脉（意图）", side: "intent", text: "他要封你的劲力。" },
+  // —— 拆招版核心（图鉴不可缺）——
+  { id: "breakmom", name: "拆势", side: "you", text: "硬拆成功攒一层。打出攻击牌时吃掉 1 层：无视架势的真伤 + 兵器系效果（刀裂创/拳击退/剑破绽/枪远打/棍眩晕/钩缴械）。" },
+  { id: "moveCharge", name: "位移", side: "you", text: "打位移牌（进步/撤步/换位/纵步等）+1。走开红格时用得上。没这层离开红格只能「让」（半伤）。" },
+  { id: "qiBreak", name: "势", side: "you", text: "硬拆叠势。穿盾受伤会掉。可攒着打爆发。" },
+  { id: "intent-lunge", name: "抢步", side: "intent", text: "他朝锁定格扑一步再打。收势离开其落点圈 + 有充能 = 硬拆；无充能 = 让。" },
+  { id: "intent-retreat", name: "撤", side: "intent", text: "他要退开。朝他位移且收势更近 = 追（硬拆，他仍撤）；没追 = 放。" },
+  { id: "intent-shatter", name: "破架/裂", side: "intent", text: "吃掉你的架或强压。常用破架类牌硬拆。" },
+  { id: "intent-dodge", name: "闪避", side: "intent", text: "他闪过你下一张攻击牌的卡面伤。走开或先不出刀可拆。拆势真伤仍中。" },
+  { id: "intent-endure", name: "霸体", side: "intent", text: "他挨打但不吃击退/拉/眩晕。破绽/刺/开缝可硬拆。" },
+  { id: "hardBreak", name: "硬拆", side: "you", text: "收势时条件成立：该段作废，你得拆势与势。打击类要「离红格 + 位移充能」。" },
+  { id: "grazeBreak", name: "让", side: "you", text: "离开红格但没充能，或挡够连打门槛：半效结算，不算硬拆、不得拆势。" },
 ];
 
 const NUM_KEYS = [

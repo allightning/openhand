@@ -20,8 +20,14 @@ function handCap(b: Battle): number {
   return Math.max(3, 5 - (b.youHandTax ?? 0));
 }
 
-export function signatureDef(mateId: CompanionId): SignatureDef {
+export function signatureDef(mateId: CompanionId): SignatureDef | undefined {
   return LAB_SIGNATURE[mateId];
+}
+
+/** 战场主动技按钮文案。花名册主角多为被动，没有表项时返回 null——调用方不得读 .name。 */
+export function signatureActionCopy(mateId: CompanionId): { name: string; text: string } | null {
+  const def = signatureDef(mateId);
+  return def ? { name: def.name, text: def.text } : null;
 }
 
 export function initSignatureBattle(b: Battle): void {
@@ -54,6 +60,7 @@ export function useSignature(b: Battle): { ok: boolean; reason?: string; battle?
   const gate = canUseSignature(b);
   if (!gate.ok) return { ok: false, reason: gate.reason, notes: [] };
   const def = signatureDef(b.active);
+  if (!def) return { ok: false, reason: "无主动技", notes: [] };
   const next: Battle = {
     ...b,
     labSigUsesLeft: b.labSigUsesLeft,

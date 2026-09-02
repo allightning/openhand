@@ -118,14 +118,14 @@ export interface SignatureDef {
   amount?: number;
 }
 
-/** §21.5 15 人主动技占位 — 全部 mechanic-keyed */
-export const LAB_SIGNATURE: Record<CompanionId, SignatureDef> = {
+/** §21.5 主动技占位 — mechanic-keyed；花名册新人暂用 drawOne 壳，技能真相在 MATE_PASSIVE / rogueRoster */
+export const LAB_SIGNATURE: Partial<Record<CompanionId, SignatureDef>> = {
   rail: { id: "rail", name: "门劲", text: "推撞成功后格挡 +2。", kind: "blockAfterKnock", amount: 2 },
   seer: { id: "seer", name: "余墨", text: "贴身时敌破绽 +1。", kind: "exposeWhenAdjacent", amount: 1 },
   sapper: { id: "sapper", name: "桩皮", text: "有格挡时本回反震 +2。", kind: "thornWhenBlock", amount: 2 },
   porter: { id: "porter", name: "稳肩", text: "立即获得格挡 +3。", kind: "startBlock", amount: 3 },
   boat: { id: "boat", name: "水步", text: "不贴身时格挡 +2。", kind: "blockWhenFar", amount: 2 },
-  watch: { id: "watch", name: "夜袖", text: "抽 1 张牌。", kind: "drawOne", amount: 1 },
+  watch: { id: "watch", name: "贴刃", text: "贴身攻击 +2。", kind: "meleeBonus", amount: 2 },
   pilgrim: { id: "pilgrim", name: "锡息", text: "本回未出攻击则回 1 血。", kind: "healIfNoAttack", amount: 1 },
   hooker: { id: "hooker", name: "缆手", text: "拉近后下一掌 +2 伤。", kind: "nextAttackAfterPull", amount: 2 },
   hermit: { id: "hermit", name: "井根", text: "场上有桩则格挡 +2。", kind: "blockWhenStake", amount: 2 },

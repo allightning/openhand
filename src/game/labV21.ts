@@ -12,7 +12,7 @@ import {
 } from "./labResonance";
 import { initSignatureBattle } from "./labSignature";
 import { comboEffectiveCost, isComboCard } from "./labCombo";
-import { ITEM_DART_DMG, ITEM_HEAL_PCT, ITEM_QI_GAIN } from "./labV21Constants";
+import { ITEM_DART_DMG, ITEM_GRANT_QTY, ITEM_HEAL_PCT, ITEM_QI_GAIN } from "./labV21Constants";
 import { BOARD_SIZE, type Battle, type CardDef, type CardId, type LabItemId } from "./types";
 import { isBreakAlign } from "../combatLab/labRuleset";
 import { emptyV2Turn } from "./labV2";
@@ -36,6 +36,47 @@ export function isLabV21(): boolean {
   return isLabV2();
 }
 
+export { ITEM_GRANT_QTY };
+
+export function defaultItemCharges(items: LabItemId[]): Partial<Record<LabItemId, number>> {
+  const c: Partial<Record<LabItemId, number>> = {};
+  for (const id of items) c[id] = ITEM_GRANT_QTY;
+  return c;
+}
+
+export function grantLabItem(
+  items: LabItemId[],
+  charges: Partial<Record<LabItemId, number>> | undefined,
+  id: LabItemId,
+  qty = ITEM_GRANT_QTY,
+  typeCap = 3,
+): { items: LabItemId[]; charges: Partial<Record<LabItemId, number>> } | null {
+  const have = items.includes(id);
+  if (!have && items.length >= typeCap) return null;
+  const nextItems = have ? [...items] : [...items, id];
+  const nextCharges = { ...(charges ?? {}) };
+  nextCharges[id] = (nextCharges[id] ?? 0) + qty;
+  return { items: nextItems, charges: nextCharges };
+}
+
+export function itemChargeCount(b: Battle, id: LabItemId): number {
+  const mapped = b.labItemCharges?.[id];
+  if (mapped != null) return mapped;
+  return b.labItems?.includes(id) ? ITEM_GRANT_QTY : 0;
+}
+
+function spendItemCharge(b: Battle, id: LabItemId): void {
+  const n = itemChargeCount(b, id) - 1;
+  const charges = { ...(b.labItemCharges ?? {}) };
+  if (n <= 0) {
+    delete charges[id];
+    b.labItems = (b.labItems ?? []).filter((i) => i !== id);
+  } else {
+    charges[id] = n;
+  }
+  b.labItemCharges = charges;
+}
+
 function isSpatialCard(id: CardId): boolean {
   const c = CARDS[id];
   if (!c) return false;
@@ -55,6 +96,7 @@ export function initLabV21Battle(b: Battle): void {
   b.labUnlockUltimate = false;
   b.labComboPillActive = false;
   if (!b.labItems) b.labItems = [];
+  if (b.labItems.length && !b.labItemCharges) b.labItemCharges = defaultItemCharges(b.labItems);
   initResonanceBattle(b);
   initSignatureBattle(b);
 }
@@ -70,9 +112,49 @@ export function auraExtraQiOnGain(b: Battle, cardId?: CardId): number {
   return resonanceExtraQiOnGain(b, cardId);
 }
 
+/** 拆招绝招：门槛只看本系资源，不走通用势。 */
+function breakUltimateGate(b: Battle, def: CardDef): { ok: boolean; reason?: string } | null {
+  if (!isBreakAlign() || !def.ultimate) return null;
+  const id = def.id;
+  if (
+    id !== "ultSaber" &&
+    id !== "ultPalm" &&
+    id !== "ultSword" &&
+    id !== "ultSpear" &&
+    id !== "ultStaff" &&
+    id !== "ultHook"
+  ) {
+    return null;
+  }
+  const reasons: string[] = [];
+  const d = dist(b);
+  const wallDist = Math.min(b.enemy.pos, BOARD_SIZE - 1 - b.enemy.pos);
+  if (id === "ultSaber") {
+    if ((b.bleed ?? 0) < 3) reasons.push("敌流血 ≥3");
+  } else if (id === "ultPalm") {
+    if (b.attacksThisTurn < 3) reasons.push("本回合已出攻击 ≥3");
+    if (wallDist > 1) reasons.push("敌距壁 ≤1");
+  } else if (id === "ultSword") {
+    if ((b.v2SwordChain ?? 0) < 4) reasons.push("连势 ≥4");
+    if ((b.expose ?? 0) <= 0 && (b.v2ExposeTurns ?? 0) <= 0) reasons.push("目标有破绽");
+  } else if (id === "ultSpear") {
+    if ((b.v2SpearRuler ?? 0) < 4) reasons.push("标尺 ≥4");
+    if (d !== 3 && d !== 4) reasons.push("敌在 3 或 4 格");
+  } else if (id === "ultStaff") {
+    if ((b.stakes?.length ?? 0) < 2) reasons.push("场上 ≥2 桩");
+    if (!b.v2BrokeLastFoeTurn) reasons.push("本回合硬拆过");
+  } else if (id === "ultHook") {
+    if ((b.foeDisarm ?? 0) <= 0) reasons.push("敌缴械中");
+  }
+  if (reasons.length) return { ok: false, reason: `绝招：缺 ${reasons.join("、")}` };
+  return { ok: true };
+}
+
 export function ultimateGate(b: Battle, def: CardDef): { ok: boolean; reason?: string } {
   if (!def.ultimate || !isLabV21()) return { ok: true };
   if (b.labUnlockUltimate) return { ok: true };
+  const brk = breakUltimateGate(b, def);
+  if (brk) return brk;
   const u = def.ultimate;
   const reasons: string[] = [];
   if ((u.qiMin ?? 0) > (b.qi ?? 0)) reasons.push(`势 ≥${u.qiMin}`);
@@ -112,16 +194,17 @@ export function variantActiveLabel(def: CardDef, b: Battle): string | null {
 export function labV21EffectiveCost(b: Battle, def: CardDef): number {
   const tax = def.stackTaxQi ?? 0;
   const discount = b.costDiscountNext ?? 0;
+  const nick = def.type === "skill" ? (b.youSkillTax ?? 0) : 0;
   const v = def.variant;
   if (!v || !isLabV21()) {
     const base = def.cost + tax;
     const c = isComboCard(def.id) ? comboEffectiveCost(b, def.id, base) : base;
-    return Math.max(0, c - discount);
+    return Math.max(0, c - discount + nick);
   }
   const br = variantBranch(def, b);
   let cost = br === "b" && v.costZeroOnB ? tax : def.cost + tax;
   if (isComboCard(def.id)) cost = comboEffectiveCost(b, def.id, cost);
-  return Math.max(0, cost - discount);
+  return Math.max(0, cost - discount + nick);
 }
 
 export function labV21StrikeAdjust(b: Battle, def: CardDef, base: number): number {
@@ -165,10 +248,9 @@ export function refreshBreakPromised(b: Battle): void {
 }
 
 export function labCanUseItem(b: Battle, item: LabItemId): { ok: boolean; reason?: string } {
-  if (!isLabMode()) return { ok: false, reason: "仅 Combat Lab" };
+  if (!isLabMode()) return { ok: false, reason: "仅踢馆" };
   if (b.phase !== "player") return { ok: false, reason: "不是你的回合" };
-  if (b.labItemUsedThisTurn) return { ok: false, reason: "本回合已用过道具" };
-  if (!b.labItems?.includes(item)) return { ok: false, reason: "未携带该道具" };
+  if (itemChargeCount(b, item) <= 0) return { ok: false, reason: "没有了" };
   if (b.youNoBag > 0) return { ok: false, reason: "禁药中" };
   return { ok: true };
 }
@@ -176,23 +258,21 @@ export function labCanUseItem(b: Battle, item: LabItemId): { ok: boolean; reason
 export function useLabItem(b: Battle, item: LabItemId, pos?: number): { ok: boolean; reason?: string; battle?: Battle } {
   const gate = labCanUseItem(b, item);
   if (!gate.ok) return gate;
-  if (!isLabMode()) return { ok: false, reason: "仅 Combat Lab" };
-  const next = { ...b, labItemUsedThisTurn: true, v2ItemUses: (b.v2ItemUses ?? 0) + 1 };
+  if (!isLabMode()) return { ok: false, reason: "仅踢馆" };
+  const next = { ...b, v2ItemUses: (b.v2ItemUses ?? 0) + 1 };
+  next.labItemCharges = { ...(b.labItemCharges ?? {}) };
+  next.labItems = [...(b.labItems ?? [])];
+  spendItemCharge(next, item);
   if (item === "jinchuang") {
     const heal = Math.max(1, Math.round(next.player.maxHp * ITEM_HEAL_PCT));
     next.player = { ...next.player, hp: Math.min(next.player.maxHp, next.player.hp + heal) };
     next.journal = [...next.journal, { side: "you", text: `金疮药 回 ${heal}` }];
   } else if (item === "xiujian") {
-    if (isBreakAlign()) {
-      next.labNextBreakBonus = 4;
-      next.journal = [...next.journal, { side: "you", text: "破招针：下一硬拆反打 +4" }];
-    } else {
-      const foe = next.enemy;
-      foe.hp = Math.max(0, foe.hp - ITEM_DART_DMG);
-      next.enemy = { ...foe };
-      next.foes = next.foes.map((f) => (f.id === foe.id ? { ...foe } : f));
-      next.journal = [...next.journal, { side: "you", text: `袖箭 ${ITEM_DART_DMG}（无视格挡）` }];
-    }
+    const foe = next.enemy;
+    foe.hp = Math.max(0, foe.hp - ITEM_DART_DMG);
+    next.enemy = { ...foe };
+    next.foes = next.foes.map((f) => (f.id === foe.id ? { ...foe } : f));
+    next.journal = [...next.journal, { side: "you", text: `袖箭 ${ITEM_DART_DMG}（无视格挡）` }];
   } else if (item === "huiqi") {
     next.energy = Math.min(next.energyMax, next.energy + ITEM_QI_GAIN);
     next.journal = [...next.journal, { side: "you", text: `回气散 +${ITEM_QI_GAIN} 劲` }];
@@ -218,11 +298,9 @@ export function useLabItem(b: Battle, item: LabItemId, pos?: number): { ok: bool
       next.journal = [...next.journal, { side: "you", text: "破禁丹：本回合绝招无视前置" }];
     }
   } else if (item === "deathSquad") {
-    // §31.9 死士符：在场一回合的挡刀实体（占位：无形体占格，拦截逻辑在敌结算管线）
     next.labDeathSquad = true;
     next.journal = [...next.journal, { side: "you", text: "死士入场：替你挡一段攻击并反扑 8" }];
   } else if (isSummonItem(item)) {
-    // §31.12 助战符：一次性消耗。落点 pos 由 UI 点位模式给；缺省取敌身侧（测试/快捷路径）。
     const school = SUMMON_ITEM_TO_SCHOOL[item]!;
     const cells = legalSummonCells(b);
     if (!cells.length) return { ok: false, reason: "台上没空地" };
@@ -235,8 +313,8 @@ export function useLabItem(b: Battle, item: LabItemId, pos?: number): { ok: bool
       })();
     const summoned = summonAssist(b, school, pick);
     if (!summoned.labSummon) return { ok: false, reason: "该格落不了" };
-    summoned.labItems = (summoned.labItems ?? []).filter((i) => i !== item);
-    summoned.labItemUsedThisTurn = true;
+    summoned.labItems = [...(next.labItems ?? [])];
+    summoned.labItemCharges = { ...(next.labItemCharges ?? {}) };
     summoned.v2ItemUses = (summoned.v2ItemUses ?? 0) + 1;
     return { ok: true, battle: summoned };
   }

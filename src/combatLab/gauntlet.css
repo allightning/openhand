@@ -1,5 +1,23 @@
 /* §31 连胜踢馆 — 独立样式，不碰 lab.css v2.8 居中纪律段 */
 
+/* 局外水墨外框：直接铺在边上（上上版），不用 outset 留缝。不改盒内底色。 */
+.gauntlet-school-card,
+.gauntlet-path-card,
+.gauntlet-reward-card,
+.gauntlet-head,
+.gauntlet-best-card,
+.gauntlet-error-banner,
+.gauntlet-home-cta-hint,
+.hall-gate {
+  border: 12px solid transparent;
+  border-image-source: url("/art/ui/ink-border-a.png");
+  border-image-slice: 88;
+  border-image-width: 12px;
+  border-image-repeat: stretch;
+  background-clip: border-box;
+  background-origin: border-box;
+}
+
 .gauntlet-entry-btn {
   border-color: var(--lab-gold, #c9a227);
   color: #1a1410;
@@ -19,40 +37,94 @@
   min-height: 0;
   display: flex;
   align-items: stretch;
-  justify-content: center;
+  justify-content: stretch;
   overflow: hidden;
-  padding: 0.5rem 1rem 1rem;
+  padding: 0.7rem 0.9rem 0.7rem;
   box-sizing: border-box;
+  position: relative;
+  background-image: var(--gauntlet-bg, none);
+  background-size: cover;
+  background-position: center;
+}
+
+.gauntlet-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(232, 220, 196, 0.2);
+  pointer-events: none;
+}
+
+.gauntlet-overlay > * {
+  position: relative;
+  z-index: 1;
 }
 
 .gauntlet-shell {
   width: 100%;
-  max-width: 1120px;
+  max-width: min(1280px, 96vw);
   margin: 0 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1rem;
+  gap: 0.65rem;
   min-height: 0;
+  max-height: 100%;
   overflow: hidden;
+}
+
+.gauntlet-shell.work-screen {
+  max-width: none;
+  width: 100%;
+  height: 100%;
+  align-items: stretch;
+  justify-content: flex-start;
+  overflow: hidden;
+  gap: 0;
+}
+
+.gauntlet-shell.ritual-screen {
+  justify-content: center;
+  overflow: hidden;
+}
+
+.gauntlet-shell.gauntlet-home {
+  justify-content: flex-start;
+  padding-top: 18vh;
+  padding-left: 7vw;
+  align-items: flex-start;
 }
 
 .gauntlet-head {
   text-align: center;
   width: 100%;
+  background: #f4ead6;
+  color: #1a1410;
 }
 
 .gauntlet-head h2 {
-  margin: 0 0 0.35rem;
-  font-size: 1.35rem;
+  margin: 0 0 0.5rem;
+  font-size: clamp(1.45rem, 2.4vw, 1.85rem);
   letter-spacing: 0.12em;
+  line-height: 1.35;
+}
+
+.gauntlet-pager {
+  margin: 0 0 0.45rem;
+  font-size: 0.82rem;
+  letter-spacing: 0.18em;
+  opacity: 0.7;
 }
 
 .gauntlet-head p {
-  margin: 0 0 0.5rem;
-  font-size: 0.82rem;
-  opacity: 0.85;
+  margin: 0 0 0.65rem;
+  font-size: clamp(0.95rem, 1.35vw, 1.08rem);
+  line-height: 1.6;
+  opacity: 0.9;
+  max-width: 40em;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .gauntlet-school-row {
@@ -60,61 +132,61 @@
   flex-wrap: wrap;
   justify-content: center;
   align-items: stretch;
-  gap: 0.65rem;
+  gap: 1.15rem;
   width: 100%;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .gauntlet-school-card,
 .gauntlet-path-card {
-  flex: 0 1 168px;
-  max-width: 180px;
+  flex: 1 1 220px;
+  max-width: 320px;
+  min-width: 200px;
   min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.65rem 0.55rem 0.55rem;
-  border: 2px solid #2a2018;
-  background: #f4ead6;
-  color: #1a1410;
+  gap: 0.55rem;
+  padding: 1.1rem 1rem 1rem;
   cursor: pointer;
   text-align: center;
-  box-shadow: 2px 2px 0 #2a201855;
+  background: #f4ead6;
+  color: #1a1410;
 }
 
 .gauntlet-school-card:hover,
 .gauntlet-path-card:hover {
-  border-color: #8b2a24;
-  background: #faf2e2;
+  background-color: #faf2e2;
 }
 
 .gauntlet-school-card b,
 .gauntlet-path-card b {
-  font-size: 1.05rem;
-  letter-spacing: 0.16em;
+  font-size: clamp(1.15rem, 1.8vw, 1.35rem);
+  letter-spacing: 0.14em;
+  line-height: 1.35;
 }
 
 .gauntlet-school-card em,
 .gauntlet-path-card em {
   font-style: normal;
-  font-size: 0.68rem;
-  opacity: 0.8;
+  font-size: clamp(0.88rem, 1.2vw, 1rem);
+  line-height: 1.55;
+  opacity: 0.88;
 }
 
 .gauntlet-error-banner {
   margin: 0.35rem 0 0;
-  padding: 0.45rem 0.65rem;
-  border: 2px solid #8b2a24;
-  background: #fff0ee;
+  padding: 0.55rem 0.75rem;
   color: #5a1210;
-  font-size: 0.82rem;
+  background-color: #fff0ee;
+  font-size: 0.95rem;
+  line-height: 1.5;
   max-width: 36rem;
   text-align: center;
 }
 
 .lab-build-tag {
-  font-size: 0.62rem;
+  font-size: 0.72rem;
   opacity: 0.55;
   letter-spacing: 0.04em;
 }
@@ -123,31 +195,32 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 0.15rem;
-  max-height: 3.6rem;
+  gap: 0.25rem;
+  max-height: 5rem;
   overflow: hidden;
 }
 
 .gauntlet-preview-chip {
-  font-size: 0.58rem;
-  padding: 0.05rem 0.25rem;
+  font-size: 0.72rem;
+  padding: 0.12rem 0.35rem;
   border: 1px solid #5a4030;
   background: #efe4cc;
-  line-height: 1.2;
+  line-height: 1.35;
 }
 
 .gauntlet-school-meta {
-  font-size: 0.62rem;
-  opacity: 0.65;
+  font-size: clamp(0.82rem, 1.1vw, 0.95rem);
+  line-height: 1.5;
+  opacity: 0.75;
 }
 
 .gauntlet-badge {
   display: inline-flex;
   align-items: center;
   padding: 0.2rem 0.55rem;
-  border: 1px solid var(--lab-gold, #c9a227);
-  background: rgba(8, 6, 4, 0.55);
-  color: #f5eed8;
+  border: 1px solid #2a2018;
+  background: #f4ead6;
+  color: #1a1410;
   font-size: 0.72rem;
   letter-spacing: 0.06em;
   cursor: help;
@@ -159,18 +232,28 @@
 }
 
 .gauntlet-next-info {
-  margin: 0.35rem 0 0;
-  font-size: 0.82rem;
-  color: var(--lab-paper-2);
+  margin: 0.45rem 0 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: #1a1410;
   letter-spacing: 0.02em;
+}
+
+.gauntlet-event-lead {
+  font-size: clamp(0.95rem, 1.4vw, 1.12rem) !important;
+  line-height: 1.65 !important;
+  max-width: 42em !important;
+  color: #1a1410 !important;
 }
 
 .gauntlet-reward-row {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
+  align-items: flex-end;
   gap: 0.75rem;
   width: 100%;
+  padding-top: 0.5rem;
 }
 
 .gauntlet-reward-card {
@@ -178,37 +261,48 @@
   min-width: 180px;
   max-width: 260px;
   padding: 0.85rem 0.75rem;
-  border: 2px solid #2a2018;
-  background: #f4ead6;
-  color: #1a1410;
   cursor: pointer;
   text-align: center;
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+  background: #f4ead6;
+  color: #1a1410;
 }
 
 .gauntlet-reward-card:hover {
-  border-color: #8b2a24;
+  background-color: #faf2e2;
   transform: translateY(-2px);
 }
 
 .gauntlet-reward-card em {
   font-style: normal;
-  font-size: 0.68rem;
+  font-size: 0.82rem;
   color: #8b2a24;
   letter-spacing: 0.12em;
 }
 
 .gauntlet-reward-card b {
-  font-size: 1rem;
+  font-size: 1.12rem;
+  line-height: 1.35;
 }
 
 .gauntlet-reward-card .gauntlet-reward-desc {
-  font-size: 0.74rem;
-  line-height: 1.5;
+  font-size: 0.9rem;
+  line-height: 1.55;
   color: #4a3d2c;
+  margin: 0.2rem 0 0;
+}
+
+.gauntlet-event-fx {
   margin: 0.15rem 0 0;
+  padding: 0.35rem 0.4rem;
+  font-size: 0.92rem;
+  font-weight: 650;
+  line-height: 1.45;
+  color: #1a1410;
+  background: #e8d7b8;
+  border-radius: 2px;
 }
 
 .gauntlet-result-hero {
@@ -272,44 +366,190 @@
 }
 
 /* §31.12 伙伴选择：同系光环 / 异系组合技 路径签 */
-.gauntlet-companion-card .gauntlet-path-tag { display: inline-block; font-style: normal; font-size: 0.72rem; padding: 0.1rem 0.45rem; border-radius: 999px; margin-bottom: 0.3rem; }
-.gauntlet-companion-card .gauntlet-path-tag.same { background: rgba(232,160,106,0.18); color: #e8a06a; border: 1px solid rgba(232,160,106,0.4); }
-.gauntlet-companion-card .gauntlet-path-tag.cross { background: rgba(120,190,255,0.14); color: #8ec9ff; border: 1px solid rgba(120,190,255,0.35); }
-.gauntlet-companion-card .gauntlet-path-line { color: #d8c9b0; }
+.gauntlet-companion-card .gauntlet-path-tag { display: inline-block; font-style: normal; font-size: 0.72rem; padding: 0.1rem 0.45rem; margin-bottom: 0.3rem; }
+.gauntlet-companion-card .gauntlet-path-tag.same { background: #efe0c4; color: #6a2a10; }
+.gauntlet-companion-card .gauntlet-path-tag.cross { background: #dce6ee; color: #1a3a5a; }
+.gauntlet-companion-card .gauntlet-path-line { color: #4a3d2c; }
 
 /* §31.13 踢馆门厅（Lab 主页） */
+.gauntlet-home-head {
+  width: min(42rem, 92vw);
+  margin-bottom: 0.85rem;
+}
+
 .gauntlet-home-head h2 {
-  font-size: 2rem;
-  letter-spacing: 0.3em;
+  font-size: clamp(1.65rem, 2.6vw, 2.05rem);
+  letter-spacing: 0.14em;
+  line-height: 1.3;
 }
 
-.gauntlet-home-mid {
+.gauntlet-home-stage {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1.5rem;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 1.1rem;
   flex-wrap: wrap;
+  width: min(46rem, 94vw);
 }
 
-.gauntlet-home-start {
-  font-size: 1.3rem;
+.gauntlet-home-cta-col {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.7rem;
+  flex: 1 1 22rem;
+}
+
+.gauntlet-home-gates {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  width: 100%;
+}
+
+.hall-gate-kick {
+  min-height: 5.4rem;
+  padding: 0.85rem 1.25rem;
+  justify-content: center;
+  text-align: center;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.hall-gate-kick em {
+  min-width: 0;
   letter-spacing: 0.4em;
-  padding: 0.9rem 2.6rem 0.9rem 3rem;
+}
+
+.hall-gate-kick b {
+  font-size: 1.7rem;
+  letter-spacing: 0.42em;
+  flex: none;
+}
+
+.hall-gate-kick span {
+  font-size: 0.88rem;
+}
+
+.gauntlet-home-lessons {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0.45rem;
+}
+
+.gauntlet-home-lessons .hall-gate {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 3.1rem;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.12rem;
+  padding: 0.4rem 0.55rem;
+}
+
+.gauntlet-home-lessons .hall-gate em {
+  min-width: 0;
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+}
+
+.gauntlet-home-lessons .hall-gate b {
+  font-size: 0.92rem;
+  letter-spacing: 0.1em;
+  flex: none;
+}
+
+.gauntlet-home-lessons .hall-gate span {
+  font-size: 0.68rem;
+}
+
+.hall-gate {
+  width: 100%;
+  min-height: 3.6rem;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.55rem 1rem;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  color: #f4ead6;
+  background:
+    linear-gradient(90deg, rgba(20, 12, 8, 0.72), rgba(40, 28, 16, 0.55));
+  border: 1px solid rgba(232, 200, 140, 0.45);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.hall-gate em {
+  font-style: normal;
+  font-size: 0.72rem;
+  letter-spacing: 0.28em;
+  color: rgba(244, 234, 214, 0.7);
+  min-width: 2.6em;
+}
+
+.hall-gate b {
+  font-size: 1.15rem;
+  letter-spacing: 0.2em;
+  font-weight: 700;
+  flex: 1;
+}
+
+.hall-gate span {
+  font-size: 0.78rem;
+  line-height: 1.3;
+  opacity: 0.85;
+}
+
+.hall-gate.primary {
+  border-color: #e8c070;
+  background:
+    linear-gradient(90deg, rgba(90, 36, 18, 0.88), rgba(40, 20, 12, 0.7));
+}
+.hall-gate.primary em {
+  color: rgba(244, 234, 214, 0.72);
+}
+.hall-gate.primary span {
+  color: rgba(244, 234, 214, 0.92);
+}
+
+.hall-gate:hover {
+  border-color: var(--lab-lantern-soft, #e87850);
+}
+
+.gauntlet-home-cta-hint {
+  margin: 0;
+  width: 100%;
+  text-align: center;
+  font-size: 0.85rem;
+  opacity: 0.88;
+  letter-spacing: 0.06em;
+  color: #1a1410;
+  background: #f4ead6;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid #2a2018;
 }
 
 .gauntlet-best-card {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.15rem;
-  border: 1px solid var(--lab-gold, #c9a227);
-  border-radius: 8px;
-  padding: 0.7rem 1.4rem;
-  font-size: 0.78rem;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.85rem 1.35rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  min-width: 9.5rem;
+  background: #f4ead6;
+  color: #1a1410;
 }
 
 .gauntlet-best-card b {
-  font-size: 1.15rem;
+  font-size: 1.25rem;
 }
 
 .gauntlet-best-card.empty {
@@ -317,7 +557,7 @@
 }
 
 .gauntlet-best-title {
-  font-size: 0.68rem;
+  font-size: 0.82rem;
   letter-spacing: 0.2em;
   opacity: 0.7;
 }
@@ -326,15 +566,16 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 0.5rem;
+  gap: 0.65rem;
 }
 
 .gauntlet-home-rules span {
   border: 1px solid currentColor;
   border-radius: 999px;
-  padding: 0.18rem 0.7rem;
-  font-size: 0.72rem;
-  opacity: 0.85;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  opacity: 0.9;
 }
 
 .gauntlet-dev-details {
@@ -362,22 +603,65 @@
   padding: 0.5rem 0;
 }
 .lab-dev-lead {
-  font-size: 0.72rem;
-  margin: 0 0 0.6rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  margin: 0 0 0.7rem;
+  opacity: 0.92;
+}
+.lab-dev-mode-banner {
+  margin: 0 0 0.75rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid rgba(26, 20, 16, 0.18);
+  background: #f4ead6;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+.lab-dev-mode-banner.classic {
+  border-color: rgba(60, 90, 120, 0.35);
+}
+.lab-dev-mode-banner.break {
+  border-color: rgba(196, 90, 40, 0.4);
+}
+.lab-dev-hint {
+  font-size: 0.78rem;
+  margin: 0 0 0.5rem;
+  line-height: 1.4;
+}
+.lab-dev-kit {
+  margin: 0.5rem 0 0.75rem;
+}
+.lab-dev-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  margin-top: 0.5rem;
+}
+.lab-dev-table th,
+.lab-dev-table td {
+  border: 1px solid rgba(26, 20, 16, 0.15);
+  padding: 0.25rem 0.4rem;
+  text-align: left;
+}
+.lab-dev-table tr.hot {
+  background: rgba(196, 90, 40, 0.12);
+}
+.lab-pause-mode {
+  font-size: 0.8rem;
+  margin: 0 0 0.4rem;
 }
 .lab-dev-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-bottom: 0.65rem;
+  gap: 0.3rem;
+  margin-bottom: 0.75rem;
 }
 .lab-dev-tab {
   border: 1px solid rgba(200, 180, 140, 0.35);
   background: transparent;
   color: inherit;
   border-radius: 6px;
-  padding: 0.25rem 0.65rem;
-  font-size: 0.75rem;
+  padding: 0.28rem 0.7rem;
+  font-size: 0.8rem;
   cursor: pointer;
 }
 .lab-dev-tab.active {
@@ -386,21 +670,21 @@
   border-color: var(--lab-gold, #c9a227);
 }
 .lab-dev-section h4 {
-  margin: 0.5rem 0 0.35rem;
+  margin: 0.55rem 0 0.4rem;
   font-size: 0.78rem;
-  letter-spacing: 0.12em;
-  opacity: 0.75;
+  letter-spacing: 0.14em;
+  color: var(--lab-muted);
 }
 .lab-dev-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 0.45rem 0.65rem;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 0.55rem 0.75rem;
 }
 .lab-dev-field {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
-  font-size: 0.72rem;
+  font-size: 0.78rem;
 }
 .lab-dev-field.wide {
   grid-column: 1 / -1;
@@ -409,12 +693,10 @@
 .lab-dev-field textarea,
 .lab-dev-pick select {
   width: 100%;
-  padding: 0.25rem 0.4rem;
-  font-size: 0.78rem;
+  padding: 0.3rem 0.45rem;
+  font-size: 0.82rem;
   border-radius: 4px;
   border: 1px solid rgba(128, 128, 128, 0.45);
-  background: rgba(0, 0, 0, 0.25);
-  color: inherit;
 }
 .lab-dev-base {
   font-size: 0.72rem;
@@ -457,16 +739,18 @@
 .lab-guide-section h3 {
   margin: 0 0 0.35rem;
   font-size: 0.95rem;
-  color: var(--lab-gold, #c9a227);
+  color: var(--lab-lantern-soft);
 }
 .lab-guide-section p {
   margin: 0.25rem 0;
+  color: var(--lab-ink);
   opacity: 0.92;
 }
 .lab-guide-title {
   margin: 0;
-  font-size: 1rem;
+  font-size: 1.05rem;
   letter-spacing: 0.08em;
+  color: var(--lab-ink);
 }
 .lab-header .lab-wiki-nav {
   display: flex;
@@ -502,11 +786,12 @@
   justify-content: center;
   gap: 0.5rem;
   flex-wrap: wrap;
+  color: #1a1410;
 }
 
 .gauntlet-stake-label {
   font-size: 0.75rem;
-  opacity: 0.7;
+  color: #4a3d2c;
   letter-spacing: 0.15em;
 }
 
@@ -570,16 +855,14 @@
 }
 
 .gauntlet-pot {
-  /* §31.14 甲方：彩金字看不清 → 纯白加粗 */
-  color: #ffffff;
+  color: #8b2a24;
   font-weight: 700;
 }
 
-/* §31.13 结算屏彩金 */
 .gauntlet-result-pot {
   margin-top: 0.35rem;
   font-size: 1.05rem;
-  color: #ffffff;
+  color: #8b2a24;
   font-weight: 700;
 }
 
@@ -594,9 +877,9 @@
 
 /* §31.16 顺路黑市：领奖屏的彩金出口 */
 .gauntlet-market {
-  margin-top: 14px;
-  border-top: 1px dashed var(--lab-gold, #c9a227);
-  padding-top: 10px;
+  margin-top: 0.35rem;
+  border-top: none;
+  padding-top: 0.2rem;
 }
 .gauntlet-market h3 {
   margin: 0 0 8px;
@@ -607,44 +890,29 @@
 .gauntlet-market-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
   justify-content: center;
+  align-items: flex-end;
+  padding-top: 0.35rem;
 }
-.gauntlet-market-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  min-width: 118px;
-  padding: 8px 10px;
-  border: 1px solid #8a6a3f;
-  border-radius: 8px;
-  background: #2e2013;
-  color: #f2e6cf;
-  cursor: pointer;
-  transition: transform 0.12s;
+.gauntlet-overlay .gauntlet-camp-card:hover,
+.gauntlet-overlay .gauntlet-camp-card.hot {
+  transform: translateY(-8px);
 }
-.gauntlet-market-card:hover:not(:disabled) {
-  transform: translateY(-2px);
-  border-color: #e8c86a;
+.gauntlet-overlay .gauntlet-camp-card.dead:hover {
+  transform: none;
 }
-.gauntlet-market-card b {
-  font-size: 13px;
+.gauntlet-overlay .gauntlet-camp-card.sold .flavor,
+.gauntlet-overlay .gauntlet-camp-card.poor .flavor {
+  color: #8a7a60;
 }
-.gauntlet-market-price {
-  font-size: 12px;
-  color: #ffd76a;
+.gauntlet-overlay .gauntlet-camp-card .hotkey {
+  color: #d4b45a;
   font-weight: 700;
+  font-size: 12px;
 }
-.gauntlet-market-card.sold {
-  opacity: 0.45;
-}
-.gauntlet-market-card.sold .gauntlet-market-price {
-  color: #9c8a6a;
-}
-.gauntlet-market-card.poor {
-  opacity: 0.6;
-  cursor: not-allowed;
+.gauntlet-overlay .gauntlet-camp-card .text {
+  -webkit-line-clamp: 7;
 }
 .gauntlet-redeem {
   background: #3d1414;
@@ -655,3 +923,530 @@
 .gauntlet-redeem:hover {
   background: #5a1d1d;
 }
+
+.hall-chrome {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem 1rem;
+  padding: 0.5rem 0.85rem;
+  border-bottom: 1px solid #2a2018;
+  background: linear-gradient(180deg, #f4ead6, #e8dcc4);
+  color: #1a1410;
+}
+
+.hall-chrome-title {
+  text-align: left;
+  min-width: 0;
+}
+
+.hall-chrome-title h2 {
+  margin: 0;
+  font-size: 1.12rem;
+  letter-spacing: 0.16em;
+  line-height: 1.3;
+}
+
+.hall-chrome-title p {
+  margin: 0.12rem 0 0;
+  font-size: 0.78rem;
+  opacity: 0.75;
+  max-width: none;
+  line-height: 1.4;
+}
+
+.hall-cab-tabs {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.hall-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 13.5rem minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.hall-rail {
+  overflow-y: auto;
+  border-right: 1px solid #2a2018;
+  padding: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+  background: rgba(232, 220, 196, 0.55);
+  color: #1a1410;
+}
+
+.hall-rail-item {
+  text-align: left;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-family: inherit;
+  border-radius: 1px;
+}
+
+.hall-rail-item:hover {
+  background: rgba(196, 74, 50, 0.1);
+}
+
+.hall-rail-item.active {
+  border-color: var(--lab-lantern, #c44a32);
+  background: rgba(196, 74, 50, 0.16);
+}
+
+.hall-rail-item b {
+  font-size: 0.92rem;
+  letter-spacing: 0.06em;
+  font-weight: 650;
+}
+
+.hall-detail {
+  overflow: auto;
+  margin: 1rem 1.15rem 1.15rem;
+  padding: 1.5rem 1.75rem 1.75rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  max-width: 42rem;
+  background: var(--lab-paper, #e8dcc4);
+  border: 2px solid #2a2018;
+  border-left: 3px solid var(--lab-lantern, #c45a28);
+  box-shadow: 2px 2px 0 #2a201855;
+  color: #1a1410;
+}
+
+.hall-detail-kicker {
+  letter-spacing: 0.32em;
+  font-size: 0.7rem;
+  color: var(--lab-lantern, #c44a32);
+  margin: 0 0 0.4rem;
+}
+
+.hall-detail h3 {
+  margin: 0 0 0.55rem;
+  font-size: clamp(1.55rem, 3vw, 2.05rem);
+  letter-spacing: 0.1em;
+}
+
+.hall-detail-blurb {
+  margin: 0 0 1.35rem;
+  font-size: 1.02rem;
+  line-height: 1.65;
+  opacity: 0.9;
+}
+
+.hall-detail-btns {
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.hall-detail-btns .lab-btn {
+  min-width: 8.5rem;
+}
+
+.hall-settle-actions {
+  display: flex;
+  gap: 0.65rem;
+  padding: 1.25rem 1.5rem;
+  flex-wrap: wrap;
+}
+
+.gauntlet-shell.work-screen .gauntlet-school-row {
+  flex: 1;
+  overflow: auto;
+  align-content: flex-start;
+  justify-content: flex-start;
+  padding: 1rem 1.15rem 1.4rem;
+}
+
+.gauntlet-path-pick.work-screen .gauntlet-school-row {
+  justify-content: center;
+  align-content: center;
+  align-items: stretch;
+  overflow: visible;
+  padding: 2.2rem 1.5rem 2.8rem;
+  gap: 1.6rem;
+}
+
+.gauntlet-path-pick .gauntlet-path-card {
+  flex: 1 1 260px;
+  max-width: 360px;
+  min-height: 14rem;
+  justify-content: center;
+}
+
+@media (max-width: 720px) {
+  .hall-chrome {
+    grid-template-columns: auto 1fr;
+  }
+  .hall-chrome-title {
+    grid-column: 1 / -1;
+  }
+  .hall-cab-tabs {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+  .hall-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+  .hall-rail {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-right: none;
+    border-bottom: 1px solid var(--lab-line, #3a3228);
+  }
+  .hall-rail-item {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .hall-detail {
+    justify-content: flex-start;
+    padding-top: 1.1rem;
+  }
+}
+
+.gauntlet-companion-card.has-art {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  text-align: left;
+  min-height: 14.5rem;
+  height: 100%;
+}
+
+.gauntlet-reward-row {
+  align-items: stretch;
+}
+
+.gauntlet-companion-card .gauntlet-comp-art {
+  height: 6.4rem;
+  flex: 0 0 6.4rem;
+}
+
+.lab-prod-combat .fy-place em {
+  display: none;
+}
+
+.lab-prod-combat .fy-place b {
+  font-size: 1.05rem;
+}
+
+.lab-action-band.bottombar {
+  padding-top: 0.2rem;
+  padding-bottom: 0.15rem;
+}
+
+.gauntlet-reward-face,
+.gauntlet-comp-art {
+  height: 5.6rem;
+  margin: -0.2rem -0.2rem 0.45rem;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #1a1410;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gauntlet-comp-art .stand {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 22%;
+}
+
+.gauntlet-reward-face.card-face svg,
+.gauntlet-reward-face.card-face .card-art,
+.gauntlet-comp-fallback .card-art {
+  width: 100%;
+  height: 100%;
+}
+
+.gauntlet-comp-skill {
+  color: var(--lab-lantern, #c9a227) !important;
+  font-weight: 600;
+}
+
+.gauntlet-camp-foot,
+.gauntlet-market-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 0.6rem;
+}
+
+.gauntlet-overlay[data-gauntlet-screen="loadout"] {
+  padding: 1.15rem 0.5rem 0.85rem;
+  align-items: stretch;
+}
+
+.gauntlet-shell.gauntlet-loadout.work-screen {
+  display: grid;
+  grid-template-columns: 9.2rem minmax(0, 1fr) 12rem;
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
+  justify-items: stretch;
+  gap: 0.5rem;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  overflow: hidden;
+}
+
+.gauntlet-loadout-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-height: 0;
+  overflow: auto;
+}
+
+.gauntlet-loadout-mates #gauntlet-loadout-back {
+  flex: 0 0 auto;
+  width: 100%;
+}
+
+.gauntlet-loadout-mate {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.2rem;
+  padding: 0;
+  border: 1px solid var(--lab-line, #3a3228);
+  background: #1a1410;
+  color: #f4ead6;
+  cursor: pointer;
+  text-align: left;
+}
+
+.gauntlet-loadout-mate.on {
+  border-color: var(--lab-gold, #c9a227);
+  box-shadow: 0 0 0 1px var(--lab-gold, #c9a227);
+}
+
+.gauntlet-loadout-mate .gauntlet-comp-art {
+  height: 5.2rem;
+  margin: 0;
+  border-radius: 0;
+}
+
+.gauntlet-loadout-mate b {
+  display: block;
+  padding: 0 0.35rem;
+  font-size: 0.82rem;
+}
+
+.gauntlet-loadout-mate span {
+  display: block;
+  padding: 0 0.35rem 0.35rem;
+  font-size: 0.68rem;
+  opacity: 0.75;
+}
+
+.gauntlet-loadout-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.gauntlet-loadout-head {
+  text-align: left;
+  flex: 0 0 auto;
+  padding: 0 0.2rem 0.35rem;
+}
+
+.gauntlet-loadout-head h2 {
+  margin: 0 0 0.2rem;
+  font-size: 1.15rem;
+  letter-spacing: 0.08em;
+}
+
+.gauntlet-loadout-head p {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  opacity: 0.85;
+}
+
+.gauntlet-loadout-warn {
+  margin: 0.25rem 0 0;
+  color: #c45a48;
+  font-size: 0.8rem;
+}
+
+.gauntlet-loadout-deck {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 0.4rem;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.15rem 0.2rem 0.6rem;
+}
+
+.gauntlet-loadout-stash h3 {
+  margin: 0;
+  font-size: 0.85rem;
+  letter-spacing: 0.12em;
+  opacity: 0.8;
+}
+
+.gauntlet-loadout-stash-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  min-height: 0;
+  overflow: auto;
+}
+
+.gauntlet-stash-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.2rem;
+}
+
+.gauntlet-stash-sell {
+  width: 100%;
+}
+
+.gauntlet-loadout .gauntlet-camp-card {
+  width: 112px;
+  height: 156px;
+  font-size: 0.72rem;
+}
+
+.gauntlet-loadout .gauntlet-camp-card .flavor {
+  display: none;
+}
+
+.gauntlet-loadout .gauntlet-camp-card .text {
+  font-size: 0.58rem;
+  line-height: 1.25;
+  max-height: 3.2em;
+  overflow: hidden;
+}
+
+.gauntlet-overlay[data-gauntlet-screen="loadout"] .gauntlet-camp-card:hover,
+.gauntlet-overlay[data-gauntlet-screen="loadout"] .gauntlet-camp-card.hot {
+  transform: translateY(-4px);
+}
+
+.gauntlet-overlay .gauntlet-head h2,
+.gauntlet-overlay .gauntlet-head p,
+.gauntlet-overlay .gauntlet-pager,
+.gauntlet-overlay .gauntlet-reward-sub {
+  color: #1a1410;
+  text-shadow: none;
+}
+
+.gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-shell.gauntlet-reward {
+  height: 100%;
+  width: 100%;
+  max-width: none;
+  justify-content: flex-start;
+  gap: 0.2rem;
+  overflow: hidden;
+}
+
+.gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-head h2 {
+  font-size: 1.2rem;
+  margin: 0;
+}
+
+.gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-pager {
+  margin: 0 0 0.15rem;
+  font-size: 0.75rem;
+}
+
+.gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-reward-sub {
+  font-size: 0.76rem;
+  margin: 0;
+  max-width: 56em;
+}
+
+.gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-reward-row,
+.gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-market-row {
+  flex-wrap: wrap;
+  overflow: visible;
+  padding-top: 0.35rem;
+  gap: 0.85rem;
+  min-height: 0;
+  flex: 1 1 auto;
+  justify-content: center;
+  align-content: start;
+}
+
+.gauntlet-overlay[data-gauntlet-screen="reward"] .card {
+  height: 228px;
+  width: 164px;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.gauntlet-overlay[data-gauntlet-screen="reward"] .card .flavor {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 0.68rem;
+}
+
+.gauntlet-overlay[data-gauntlet-screen="reward"] .card .text {
+  -webkit-line-clamp: 7;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-market {
+  margin-top: 0.15rem;
+  padding-top: 0.2rem;
+}
+
+.gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-market h3 {
+  color: #1a1410;
+  text-shadow: none;
+  margin-bottom: 0.15rem;
+  display: inline-block;
+  background: #f4ead6;
+  padding: 0.15rem 0.55rem;
+}
+
+.gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-camp-foot {
+  margin-top: auto;
+}
+
+.gauntlet-overlay[data-gauntlet-screen="intro"] .gauntlet-home-head h2 {
+  color: #1a1410;
+  text-shadow: none;
+}
+
+.hall-gate,
+.gauntlet-school-card,
+.gauntlet-path-card,
+.gauntlet-reward-card,
+.gauntlet-head,
+.gauntlet-best-card,
+.gauntlet-error-banner,
+.gauntlet-home-cta-hint {
+  border: 12px solid transparent;
+  border-image-source: url("/art/ui/ink-border-a.png");
+  border-image-slice: 88;
+  border-image-width: 12px;
+  border-image-repeat: stretch;
+  background-clip: border-box;
+  background-origin: border-box;
+}
+

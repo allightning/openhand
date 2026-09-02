@@ -111,13 +111,15 @@ describe("§31.12 助战符（与同行分家的客座好手）", () => {
     expect(b.foeStun ?? 0).toBeGreaterThanOrEqual(2); // 顿僧上场 1 + 震壁 1
   });
 
-  it("助战符是消耗品：用掉就没了", () => {
+  it("助战符用一颗少一颗", () => {
     const b = v2Battle();
     b.labItems = ["aidStaff"];
+    b.labItemCharges = { aidStaff: 2 };
     const r = useLabItem(b, "aidStaff", 0);
     expect(r.ok).toBe(true);
     expect(r.battle?.labSummon?.school).toBe("staff");
-    expect(r.battle?.labItems).not.toContain("aidStaff");
+    expect(r.battle?.labItemCharges?.aidStaff).toBe(1);
+    expect(r.battle?.labItems).toContain("aidStaff");
   });
 });
 
@@ -149,16 +151,17 @@ describe("§31.12 预演条双态", () => {
   });
 });
 
-describe("§31.12 伙伴选择界面：同系光环 / 异系组合技 写明", () => {
+describe("§31.12 伙伴选择界面：同系光环 / 异系组合卡 写明", () => {
   it("标注随系别走", async () => {
     const { renderGauntletCompanionPick } = await import("./gauntletUi");
     const { createGauntletRun } = await import("./gauntlet");
-    const run = createGauntletRun("bandit", "palm"); // 主角拳
-    // rail 拳（同系） / watch 刀（异系）
-    const html = renderGauntletCompanionPick(run, ["rail", "watch"]);
-    expect(html).toContain("同系 · 共鸣光环");
-    expect(html).toContain("异系 · 组合技");
-    expect(html).toContain("击退 +1"); // 拳系光环双人档
+    const { setLabRuleset } = await import("./labRuleset");
+    setLabRuleset("break");
+    const run = createGauntletRun("bandit", "palm"); // 主角白孟和
+    // 白孟和拳：周暖香同系 / 吕赤锋刀异系
+    const html = renderGauntletCompanionPick(run, ["zhounuanxiang", "lvchifeng"]);
+    expect(html).toContain("同系 · 光环卡自带");
+    expect(html).toContain("异系 · 组合卡自带");
   });
 });
 

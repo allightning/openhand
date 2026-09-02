@@ -9,6 +9,7 @@ import {
 import { setLabMode, setLabTuning } from "../game/labTuning";
 import type { Battle, Intent, V2TurnFlags } from "../game/types";
 import { startLabBattle } from "./factory";
+import { setLabRuleset } from "./labRuleset";
 import { BUILTIN_PRESETS } from "./presets";
 
 function v2Battle(): Battle {
@@ -24,12 +25,15 @@ function flags(b: Battle, patch: Partial<V2TurnFlags> = {}): V2TurnFlags {
 /** §4.3 全表 16 意图 — 每型正/反例 + D4 预览/结算一致（bleedcut 除外）。 */
 const INTENT_KINDS = Object.keys(DEFAULT_WEAKNESS) as Intent["kind"][];
 
-beforeEach(() => setLabMode(true));
+beforeEach(() => {
+  setLabMode(true);
+  setLabRuleset("break");
+});
 afterEach(() => setLabMode(false));
 
 describe("§4.3 DEFAULT_WEAKNESS 全表映射", () => {
-  it("covers all 16 intent kinds", () => {
-    expect(INTENT_KINDS).toHaveLength(16);
+  it("covers all intent kinds", () => {
+    expect(INTENT_KINDS.length).toBeGreaterThanOrEqual(20);
     for (const kind of INTENT_KINDS) {
       expect(DEFAULT_WEAKNESS[kind]?.kind).toBeTruthy();
     }
@@ -52,6 +56,7 @@ describe("§4.3 破绽条件 · 正例", () => {
       setup: (_, f) => { f.stoodStill = true; f.endTurnCommitted = true; },
     },
     { name: "stake·分桩", intent: { kind: "stake" }, setup: (_, f) => { f.plantStakePlayed = true; } },
+    { name: "stake·砸桩", intent: { kind: "stake" }, setup: (_, f) => { f.hitStakeThisTurn = true; } },
     { name: "pull·贴身攻", intent: { kind: "pull", steps: 1 }, setup: (_, f) => { f.adjacentAttackHit = true; } },
     { name: "trap·未踩格", intent: { kind: "trap" }, setup: (b) => { b.traps = [4]; b.player.pos = 2; } },
     { name: "windup·本回命中", intent: { kind: "windup" }, setup: (_, f) => { f.hitFoeThisTurn = true; } },
@@ -91,6 +96,28 @@ describe("§4.3 破绽条件 · 正例", () => {
       setup: (_, f) => { f.endTurnCommitted = true; f.endBlock = 0; },
     },
     { name: "breathe·贴身攻", intent: { kind: "breathe", amount: 6 }, setup: (_, f) => { f.adjacentAttackHit = true; } },
+    {
+      name: "retreat·追上",
+      intent: { kind: "retreat", steps: 1 },
+      setup: (b, f) => {
+        f.chaseCardPlayed = true;
+        f.turnStartPos = 1;
+        f.endPos = 2;
+        f.endDist = 2;
+        b.player.pos = 2;
+        b.enemy.pos = 4;
+      },
+    },
+    { name: "pestle·破盾牌", intent: { kind: "pestle", damage: 10 }, setup: (_, f) => { f.antiGuardPlayed = true; } },
+    { name: "dust·贴身攻", intent: { kind: "dust" }, setup: (_, f) => { f.adjacentAttackHit = true; } },
+    { name: "dodge·不出攻", intent: { kind: "dodge" }, setup: (_, f) => { f.attackPlayed = false; } },
+    { name: "dodge·出攻但位移", intent: { kind: "dodge" }, setup: (_, f) => { f.attackPlayed = true; f.moveCardPlayed = true; } },
+    {
+      name: "charge·朝他进步",
+      intent: { kind: "charge", damage: 8, steps: 2 },
+      setup: (_, f) => { f.stoodStill = false; f.endTurnCommitted = true; f.chaseCardPlayed = true; },
+    },
+    { name: "endure·破盾牌", intent: { kind: "endure" }, setup: (_, f) => { f.antiGuardPlayed = true; } },
   ];
 
   for (const row of positive) {
@@ -142,6 +169,16 @@ describe("§4.3 破绽条件 · 反例", () => {
       setup: (_, f) => { f.endTurnCommitted = true; f.endBlock = 4; },
     },
     { name: "breathe·未贴身攻", intent: { kind: "breathe", amount: 6 }, setup: () => {} },
+    { name: "retreat·没追", intent: { kind: "retreat", steps: 1 }, setup: () => {} },
+    { name: "pestle·未破盾", intent: { kind: "pestle", damage: 10 }, setup: () => {} },
+    { name: "dust·未贴身攻", intent: { kind: "dust" }, setup: () => {} },
+    {
+      name: "shackle·仍贴身",
+      intent: { kind: "shackle" },
+      setup: (_, f) => { f.endTurnCommitted = true; f.endDist = 1; },
+    },
+    { name: "dodge·已攻击未位移", intent: { kind: "dodge" }, setup: (_, f) => { f.attackPlayed = true; f.moveCardPlayed = false; } },
+    { name: "endure·未破盾", intent: { kind: "endure" }, setup: () => {} },
   ];
 
   for (const row of negative) {
@@ -229,5 +266,26 @@ describe("§4.3 D4 · 预览与结算", () => {
 
     const b3 = v2Battle();
     expect(evalWeakness(intent, b3, flags(b3), "preview")).toBe(false);
+
+    const b4 = v2Battle();
+    const f4 = flags(b4, { stoodStill: false, endTurnCommitted: true, chaseCardPlayed: true });
+    expect(evalWeakness(intent, b4, f4, "preview")).toBe(true);
+  });
+
+  it("charge 横移不进步只让不硬拆", () => {
+    const b = v2Battle();
+    b.intents = [{ kind: "charge", damage: 8, steps: 2 }];
+    const start = b.player.pos;
+    b.v2Turn = flags(b, {
+      stoodStill: false,
+      playerMoved: true,
+      turnStartPos: start,
+      chaseCardPlayed: false,
+      moveCardPlayed: true,
+    });
+    b.player.pos = Math.max(0, start - 1);
+    commitV2EndTurn(b);
+    expect(previewBrokenSegments(b)).toEqual([]);
+    expect(b.v2GrazePreview).toContain(0);
   });
 });

@@ -1,17 +1,19 @@
-import { CARDS, TECHNIQUES } from "../game/content";
+import { CARDS, ENEMIES, TECHNIQUES } from "../game/content";
 import { applyAutoLoadout } from "./autoLoadouts";
 import { normalizePreset } from "./draft";
 import { expandDeckRecipe } from "./rules";
 import type { LabPreset } from "./types";
 import { cardSchool, MATES, WEAPON_NAME } from "../game/party";
 import { gearById, nextGrade } from "../game/weapons";
-import type { CardId, CompanionId, EnemyId, LabItemId, TechniqueId, WeaponId } from "../game/types";
-import { getLabTuning, setLabTuning, type LabTuning } from "../game/labTuning";
+import type { Battle, CardId, CompanionId, EnemyId, LabItemId, TechniqueId, WeaponId } from "../game/types";
+import { DEFAULT_LAB_TUNING, getLabTuning, setLabTuning, type LabTuning } from "../game/labTuning";
 import type { MindArtId } from "../game/mindArts";
 import { ALL_MIND_ART_IDS, MIND_ARTS, mindArtFitsSchool, sumMindArtBonuses } from "../game/mindArts";
 import { LAB_ITEM_LABEL } from "../game/labV21Constants";
+import { grantLabItem } from "../game/labV21";
 import {
   GAUNTLET_FINAL_STAGE,
+  GAUNTLET_MIDTERM_STAGE,
   PATH_COMPANION_POOL,
   getGauntletFinalStage,
   maxCompanions,
@@ -20,6 +22,17 @@ import {
 } from "./gauntletPaths";
 import { isBreakAlign } from "./labRuleset";
 import { BREAK_REWARD_WEIGHTS, itemTip, mindTip, techniqueTip } from "./breakAlign";
+import {
+  breakStarterDeck,
+  injectRogueBondCards,
+  rogueLeadId,
+  rogueCompanionTierForStage,
+  rogueRosterByTier,
+} from "./rogueRoster";
+import { SCHOOL_EXTRA_HIT, SCHOOL_EXTRA_STATUS, SCHOOL_SCHOOL_STEP, SCHOOL_SUB_ATTACK, SCHOOL_ULTIMATE, breakCardUpgrade } from "../game/rogueCards";
+import { GAUNTLET_FOE_IDENTITY } from "../game/enemyKit";
+import { MOVE_CARD_IDS } from "../game/intentWeakness";
+import { fieldDeck, gearSlotMax, grantCardToLoadout, isAidItem, ownedCardIds, replaceOwnedCard, withMateDeck } from "./loadout";
 
 /** §31.9 难度阶梯：简单/中等/困难/极难（2/2/2/1）。 */
 export type GauntletTier = "easy" | "mid" | "hard" | "extreme";
@@ -56,7 +69,7 @@ export interface GauntletLadderEntry {
  */
 export const GAUNTLET_LADDER: GauntletLadderEntry[] = pathLadder("bandit").slice(0, 7);
 
-/** Classic final (15). Runtime caps use getGauntletFinalStage(). */
+/** 十馆终局。 */
 export const GAUNTLET_MAX_STAGE = GAUNTLET_FINAL_STAGE;
 export { getGauntletFinalStage };
 
@@ -95,27 +108,163 @@ export function freeRewardEV(stage: number): number {
   return basePot(stage) * 2.2 + tierBonus + stage * 6;
 }
 
-/** §31.17 黑市通胀：随馆序与档位涨价，且不超过免费奖励期望的 80%。 */
-export function marketPrice(kind: GauntletMarketKind, stage: number, tier: GauntletTier): number {
-  const stageMul = 1 + 0.35 * Math.max(0, stage - 1);
-  const raw = GAUNTLET_MARKET_BASE[kind] * stageMul * marketTierMul(tier);
-  const cap = freeRewardEV(stage) * 0.8;
-  return Math.min(Math.max(1, Math.round(raw)), Math.max(1, Math.round(cap)));
+/** 黑市梯度：1–3 / 4–7 / 8–10 带内缓涨，过 3、过 7 跳一档。 */
+export function marketGradientMul(stage: number): number {
+  const s = Math.max(1, stage);
+  if (s <= 3) return 1 + 0.06 * (s - 1);
+  if (s <= 7) return 1.45 + 0.07 * (s - 4);
+  return 2.15 + 0.08 * (s - 8);
+}
+
+const MARKET_B_MUL: Record<GauntletMarketKind, number> = {
+  heal: 0.9,
+  item: 0.9,
+  card: 1.1,
+  tech: 1.4,
+  forge: 1.8,
+};
+
+/** 货架价只跟馆序/底彩/档位，不跟当前彩金池。最便宜 ≈ 0.9B。 */
+export function marketPrice(kind: GauntletMarketKind, stage: number, tier: GauntletTier, _pot?: number): number {
+  const B = basePot(stage);
+  const jump = kind === "heal" || kind === "item" ? 1 : marketGradientMul(stage);
+  const raw = Math.max(1, Math.round(B * MARKET_B_MUL[kind] * jump * marketTierMul(tier)));
+  if (kind === "heal" || kind === "item") return Math.min(raw, B);
+  return raw;
+}
+
+/** 第 10 馆开战前（stage≥10）取消购买件数上限。 */
+export function marketBuyCap(stage: number): number {
+  return stage >= 10 ? 99 : 4;
+}
+
+/** 刷新费跟底彩走；同一摊第 n 次（0 起）×1.35^n。 */
+export function marketRefreshCost(run: { pot: number; stage: number }, refreshIndex = 0): number {
+  const base = Math.max(4, Math.round(0.45 * basePot(run.stage)));
+  return Math.max(1, Math.round(base * 1.35 ** Math.max(0, refreshIndex)));
+}
+
+export function sellPriceFor(kind: GauntletMarketKind, stage: number, tier: GauntletTier): number {
+  return Math.max(1, Math.floor(marketPrice(kind, stage, tier) / 2));
+}
+
+export const WAGER_BLEED_RATE = 0.1;
+
+export function bleedRemainingPot(pot: number): { pot: number; tax: number } {
+  if (pot <= 0) return { pot: 0, tax: 0 };
+  const tax = Math.max(1, Math.round(pot * WAGER_BLEED_RATE));
+  return { pot: Math.max(0, pot - tax), tax };
+}
+
+/** 刚打完的馆序。战后 stage 已 +1，故 fought = stage - 1（未开打时按 1）。 */
+export function rewardFought(run: { stage: number }): number {
+  return Math.max(1, run.stage - 1);
+}
+
+/** 免费奖励与黑市共用：淬刃/换页 3 馆战后，±2 4 馆战后，绝招 7 馆战后。 */
+export function rewardGate(fought: number): {
+  forge: boolean;
+  upgrade: boolean;
+  ultimate: boolean;
+  advance2: boolean;
+} {
+  return {
+    forge: fought >= 3,
+    upgrade: fought >= 3,
+    ultimate: fought >= 7,
+    advance2: fought >= 4,
+  };
+}
+
+function breakRewardCardPool(run: GauntletRun): CardId[] {
+  const gate = rewardGate(rewardFought(run));
+  const have = ownedCardIds(run);
+  const pool: CardId[] = [
+    ...SCHOOL_SUB_ATTACK[run.school],
+    SCHOOL_EXTRA_HIT[run.school],
+    SCHOOL_EXTRA_STATUS[run.school],
+    SCHOOL_SCHOOL_STEP[run.school],
+  ];
+  if (gate.advance2) pool.push("advance2", "sidestep", "brace");
+  if (gate.ultimate) pool.push(SCHOOL_ULTIMATE[run.school]);
+  return pool.filter((id) => CARDS[id] && !have.has(id));
+}
+
+export { breakRewardCardPool };
+
+/** 谱牌类权重：攻 > 防 > 位移；位移软顶（牌组已有 ≥3 张位移则权重归零）。 */
+function cardRewardBucket(id: CardId): "atk" | "def" | "move" | "ult" {
+  if (Object.values(SCHOOL_ULTIMATE).includes(id)) return "ult";
+  if ((MOVE_CARD_IDS as CardId[]).includes(id) || id === "advance2" || id === "sidestep") return "move";
+  if (id === "brace" || id === "defend" || (CARDS[id]?.type === "skill" && (CARDS[id]?.block ?? 0) > 0)) return "def";
+  return "atk";
+}
+
+const CARD_BUCKET_WEIGHT: Record<"atk" | "def" | "move" | "ult", number> = {
+  atk: 55,
+  def: 20,
+  move: 15,
+  /** 绝招开闸后应能摸到，勿被副攻淹没 */
+  ult: 45,
+};
+
+function deckMoveCount(deck: CardId[]): number {
+  return deck.filter((id) => (MOVE_CARD_IDS as CardId[]).includes(id) || id === "advance2").length;
+}
+
+/** 类权重随机抽一张谱；位移在牌组已 ≥3 时不出。 */
+export function pickWeightedRewardCard(pool: CardId[], deck: CardId[], rng: () => number): CardId | null {
+  if (!pool.length) return null;
+  const moveSoftCap = deckMoveCount(deck) >= 3;
+  const weighted: Array<{ id: CardId; w: number }> = [];
+  for (const id of pool) {
+    const bucket = cardRewardBucket(id);
+    let w = CARD_BUCKET_WEIGHT[bucket];
+    if (bucket === "move" && moveSoftCap) w = 0;
+    if (w > 0) weighted.push({ id, w });
+  }
+  if (!weighted.length) {
+    // 位移被软顶后仍有攻/防：回落均匀（池里只剩位移则仍抽位移）
+    const fallback = pool.filter((id) => cardRewardBucket(id) !== "move");
+    const use = fallback.length ? fallback : pool;
+    return use[Math.floor(rng() * use.length)] ?? null;
+  }
+  const total = weighted.reduce((s, x) => s + x.w, 0);
+  let roll = rng() * total;
+  for (const row of weighted) {
+    if (roll < row.w) return row.id;
+    roll -= row.w;
+  }
+  return weighted[weighted.length - 1]!.id;
+}
+
+function forgeGradeOk(run: GauntletRun, nextGrade: number): boolean {
+  if (!isBreakAlign()) return nextGrade < 5;
+  const gate = rewardGate(rewardFought(run));
+  if (!gate.forge) return false;
+  return nextGrade <= (gate.ultimate ? 3 : 2);
 }
 
 /** 每过馆摆一摊：金创（残血才摆）+ 明码谱 + 小道具 + 外功 +（可升阶时）淬刃。与奖励同批 roll 定，不随重渲染变。 */
 export function marketOffers(run: GauntletRun, rng: () => number = Math.random): GauntletMarketOffer[] {
   const out: GauntletMarketOffer[] = [];
   const entry = ladderEntryForRun(run);
-  const priceOf = (kind: GauntletMarketKind) => marketPrice(kind, run.stage, entry.tier);
+  const priceOf = (kind: GauntletMarketKind) => marketPrice(kind, run.stage, entry.tier, run.pot);
   if (run.hp < run.hpMax) {
     const n = Math.ceil(run.hpMax * GAUNTLET_HEAL_RATIO);
     out.push({ id: "heal", kind: "heal", price: priceOf("heal"), title: "金创药", tip: `当场回 ${n} 血（战后回血同方）。` });
   }
-  const cards = cardPool(run.school, Boolean(runCompanions(run).length || run.lifelineCompanion));
+  if (run.pendingSkipMarket) return out;
+  const cards = isBreakAlign()
+    ? breakRewardCardPool(run)
+    : cardPool(run.school, Boolean(runCompanions(run).length || run.lifelineCompanion));
   if (cards.length > 0) {
-    const id = cards[Math.floor(rng() * cards.length)]!;
-    out.push({ id: `card:${id}`, kind: "card", price: priceOf("card"), title: `谱 · ${CARDS[id].name}`, tip: `${CARDS[id].text}（买入进牌组）` });
+    const id = isBreakAlign()
+      ? pickWeightedRewardCard(cards, [...ownedCardIds(run)], rng)
+      : cards[Math.floor(rng() * cards.length)]!;
+    if (id) {
+      out.push({ id: `card:${id}`, kind: "card", price: priceOf("card"), title: `谱 · ${CARDS[id].name}`, tip: `${CARDS[id].text}（买入进牌组）` });
+    }
   }
   const itemId = ALL_ITEMS[Math.floor(rng() * ALL_ITEMS.length)]!;
   out.push({ id: `item:${itemId}`, kind: "item", price: priceOf("item"), title: `货 · ${LAB_ITEM_LABEL[itemId]}`, tip: `${itemTip(itemId)}。` });
@@ -126,7 +275,7 @@ export function marketOffers(run: GauntletRun, rng: () => number = Math.random):
   }
   const nextId = nextGrade(run.weaponId);
   const next = nextId ? gearById(nextId) : null;
-  if (nextId && next && next.grade < 5) {
+  if (nextId && next && forgeGradeOk(run, next.grade)) {
     const gain = (next.damage ?? 0) - (gearById(run.weaponId)?.damage ?? 0);
     out.push({ id: "forge", kind: "forge", price: priceOf("forge"), title: `淬刃 · ${next.name}`, tip: `兵刃升阶${gain > 0 ? `（伤害 +${gain}）` : ""}。` });
   }
@@ -141,10 +290,12 @@ export function buyMarketOffer(run: GauntletRun, offer: GauntletMarketOffer): Ga
     return { ...run, pot, hp: Math.min(run.hpMax, run.hp + Math.ceil(run.hpMax * GAUNTLET_HEAL_RATIO)) };
   }
   if (offer.kind === "card") {
-    return { ...run, pot, deckRecipe: [...run.deckRecipe, offer.id.slice(5) as CardId] };
+    return grantCardToLoadout({ ...run, pot }, offer.id.slice(5) as CardId);
   }
   if (offer.kind === "item") {
-    return { ...run, pot, items: [...run.items, offer.id.slice(5) as LabItemId] };
+    const g = grantLabItem(run.items, run.itemCharges, offer.id.slice(5) as LabItemId, undefined, 3);
+    if (!g) return null;
+    return { ...run, pot, items: g.items, itemCharges: g.charges };
   }
   if (offer.kind === "tech") {
     const id = offer.id.slice(5) as TechniqueId;
@@ -156,17 +307,10 @@ export function buyMarketOffer(run: GauntletRun, offer: GauntletMarketOffer): Ga
   return { ...run, pot, weaponId: nextId };
 }
 
-/** §31.17 理想峰值彩金锚点（全押×3 一路胜的标尺，随馆序递进）。 */
+/** 峰值彩金锚：二次曲线，馆 10 约 880，不再指数上亿。 */
 export function peakPotAnchor(stage: number): number {
   const s = Math.max(1, stage);
-  const banker = GAUNTLET_START_POT * 3;
-  let pot = banker;
-  for (let i = 1; i <= s; i++) {
-    pot += basePot(i);
-    const stake = Math.max(pot, GAUNTLET_START_POT * 3);
-    pot += stake * 2.5;
-  }
-  return Math.round(pot);
+  return Math.round(60 + 22 * s + 6 * s * s);
 }
 
 /** 复活费 = 峰值锚点 / 3；pot 低于此值 = 破产区，不可赊账复活。 */
@@ -200,12 +344,37 @@ export function canOfferLifeline(run: GauntletRun): boolean {
   return !run.bankruptUsed && run.pot >= reviveCost(run.stage);
 }
 
+/** 第二次馆败：带伤过馆，不另开亡命线。 */
+export function canOfferScarPass(run: GauntletRun): boolean {
+  return Boolean(run.bankruptUsed) && !run.scarPassUsed && (run.scars ?? 0) < 1 && run.stage < getGauntletFinalStage();
+}
+
+export function applyScarPass(run: GauntletRun): GauntletRun {
+  const tax = Math.max(1, Math.round(run.pot * 0.2));
+  const hpMax = scaledHpMax(run);
+  return {
+    ...run,
+    pot: Math.max(0, run.pot - tax),
+    stage: run.stage + 1,
+    streak: 0,
+    scars: (run.scars ?? 0) + 1,
+    scarPassUsed: true,
+    forceDangerNext: true,
+    hp: Math.max(1, Math.floor(hpMax * 0.8)),
+    hpMax,
+    wager: null,
+    lastPotText: `带伤过馆 -${tax}`,
+  };
+}
+
 export function applyLifeline(run: GauntletRun, kind: LifelineKind, rng: () => number = Math.random): GauntletRun {
   if (kind === "stat50") return { ...run, lifeline: kind, statBoostMul: 1.5 };
   if (kind === "divineWeapons") return { ...run, lifeline: kind, divineWeapons: true };
   if (kind === "aidPair") {
     const aid = AID_ITEM_BY_SCHOOL[run.school];
-    return { ...run, lifeline: kind, items: [...run.items, aid, aid] };
+    const g = grantLabItem(run.items, run.itemCharges, aid, undefined, 3);
+    if (!g) return { ...run, lifeline: kind };
+    return { ...run, lifeline: kind, items: g.items, itemCharges: g.charges };
   }
   const taken = new Set(runCompanions(run));
   if (run.lifelineCompanion) taken.add(run.lifelineCompanion);
@@ -225,13 +394,14 @@ export function reviveGauntletRun(run: GauntletRun): GauntletRun | null {
     hp: hpMax,
     hpMax,
     bankruptUsed: true,
+    skipNextWager: true,
     wager: null,
     lastPotText: `赊账复活 -${cost}`,
   };
 }
 
 function scaledHpMax(run: GauntletRun): number {
-  const base = Math.max(MATES[GAUNTLET_SCHOOL_LOADOUT[run.school].fieldMate].hp, 48);
+  const base = Math.max(MATES[gauntletFieldMate(run.school)].hp, isBreakAlign() ? 42 : 48);
   const fromRun = run.hpMax;
   const raw = Math.max(base, fromRun);
   return run.statBoostMul > 1 ? Math.floor(raw * run.statBoostMul) : raw;
@@ -243,10 +413,10 @@ export function redeemGauntletRun(run: GauntletRun): GauntletRun | null {
 }
 
 /** §31.13 无尽踢馆：对战版可在终馆后继续；拆招短局（10 馆）通关即结，无尽后开独立模式。 */
-export const GAUNTLET_ENDLESS = true;
+export const GAUNTLET_ENDLESS = false;
 
 export function isGauntletEndless(): boolean {
-  return GAUNTLET_ENDLESS && !isBreakAlign();
+  return false;
 }
 
 /** §31.13 赌馆启动资金：开局 20 彩金——够押小注，攒过馆底彩换重注。 */
@@ -257,7 +427,17 @@ export function basePot(stage: number): number {
   return 10 + 6 * stage;
 }
 
-export type WagerKind = "chain" | "eye" | "clean" | "speed" | "blood" | "fist";
+export type WagerKind =
+  | "chain"
+  | "eye"
+  | "clean"
+  | "speed"
+  | "blood"
+  | "fist"
+  | "range"
+  | "guard"
+  | "school"
+  | "swap";
 
 export interface GauntletWager {
   kind: WagerKind;
@@ -280,15 +460,29 @@ export function applyBankerBoost(run: GauntletRun, mult: 2 | 3): GauntletRun {
   return { ...run, pot: GAUNTLET_START_POT * mult, bankerChosen: true };
 }
 
-/** §31.15 注额上限 = 当前彩金（第 1 馆垫资后亦同）。 */
-export function wagerStakeMax(pot: number): number {
-  return Math.max(1, pot);
+/** 注额帽随馆序放开：1/2/3 = 30/50/70；4 起 120+50×(馆-4)；7 后每馆 +100。 */
+export function wagerStakeCap(stage: number): number {
+  const s = Math.max(1, stage);
+  if (s <= 1) return 30;
+  if (s === 2) return 50;
+  if (s === 3) return 70;
+  if (s <= 7) return 120 + 50 * (s - 4);
+  return 270 + 100 * (s - 7);
+}
+
+export function wagerStakeMax(pot: number, stage = 1): number {
+  return Math.max(1, Math.min(pot, wagerStakeCap(stage)));
+}
+
+function wagerOdds(kind: WagerKind): number {
+  if (kind === "clean" || kind === "guard" || kind === "school") return 1.5;
+  if (kind === "chain" || kind === "range" || kind === "swap") return 2.5;
+  if (kind === "eye") return 3;
+  return 2;
 }
 
 /**
- * §31.14 盘口轮换：六种盘口每场随机开三（甲方：「怎么能每次都是那三个赌注」）。
- * 设计对子：完璧(≥75%) ↔ 血战(≤35%) 互斥路线；破眼/连拆喂拆招流；速胜喂爆发流；赤手喂空手流。
- * Break 模式：权重偏连拆/破眼，壳盘口改写为拆招兑现。
+ * 盘口每场开三。主盘：完璧/速胜/血战/赤手/不贴身/堆挡/本系刀。连破/破眼默认不开。
  */
 export function wagerOffers(run: GauntletRun, rng: () => number = Math.random): WagerOffer[] {
   const s = run.stage;
@@ -298,98 +492,48 @@ export function wagerOffers(run: GauntletRun, rng: () => number = Math.random): 
   const chainTarget = 3 + tierIdx + k;
   const eyeTarget = (s >= 5 ? 2 : 1) + Math.floor(k / 2);
   const speedTarget = (s >= 5 ? 7 : 6) + Math.floor(k / 2);
-  const fistBreakTarget = 2 + tierIdx;
-  const breakMode = isBreakAlign();
+  const mk = (kind: WagerKind, title: string, target: number, tip: string): WagerOffer => ({
+    kind,
+    title,
+    target,
+    odds: wagerOdds(kind),
+    tip,
+  });
   const all: WagerOffer[] = [
-    {
-      kind: "chain",
-      title: "连拆注",
-      target: chainTarget,
-      odds: 2,
-      tip: `本局硬拆 ≥${chainTarget} 段（助战化招也算）。赢：注额 ×2；输：注额归庄家。`,
-    },
-    {
-      kind: "eye",
-      title: "破眼注",
-      target: eyeTarget,
-      odds: 2,
-      tip: `本局破眼 ≥${eyeTarget} 次：硬拆带「眼」的那一段，让他整套套路崩塌。赢：注额 ×2。`,
-    },
-    breakMode
-      ? {
-          kind: "clean",
-          title: "少伤拆完",
-          target: 75,
-          odds: 3,
-          tip: `赢下本馆、硬拆 ≥${chainTarget} 段，且收势气血 ≥75%。拆完还不残。赢：注额 ×3。`,
-        }
-      : {
-          kind: "clean",
-          title: "完璧注",
-          target: 75,
-          odds: 3,
-          tip: "赢下本馆且收势时气血 ≥75% 上限。赢：注额 ×3；没赢或带伤收官：注额归庄家。",
-        },
-    {
-      kind: "speed",
-      title: "速胜注",
-      target: speedTarget,
-      odds: 3,
-      tip: breakMode
-        ? `在 ${speedTarget} 回合内赢下本馆（硬拆反打可速胜）。赢：注额 ×3；超时或落败：注额归庄家。`
-        : `在 ${speedTarget} 回合内赢下本馆。赢：注额 ×3；超时或落败：注额归庄家。`,
-    },
-    breakMode
-      ? {
-          kind: "blood",
-          title: "险拆",
-          target: 35,
-          odds: 2,
-          tip: `走钢丝：赢下本馆、硬拆 ≥${Math.max(2, chainTarget - 1)}，且收势气血 ≤35%。赢：注额 ×2。`,
-        }
-      : {
-          kind: "blood",
-          title: "血战注",
-          target: 35,
-          odds: 2,
-          tip: "走钢丝：赢下本馆且收势时气血 ≤35% 上限（与完璧注互斥的路）。赢：注额 ×2；压过头（死了）当然算飞。",
-        },
-    breakMode
-      ? {
-          kind: "fist",
-          title: "赤手拆",
-          target: fistBreakTarget,
-          odds: 2,
-          tip: `本局不用任何小道具/助战符，且硬拆 ≥${fistBreakTarget} 段。赢：注额 ×2。`,
-        }
-      : {
-          kind: "fist",
-          title: "赤手注",
-          target: 0,
-          odds: 2,
-          tip: "本局不用任何小道具/助战符，空手赢下本馆。赢：注额 ×2。",
-        },
+    mk("chain", "连破注", chainTarget, `本局硬破 ≥${chainTarget} 段。赢：注额 ×${wagerOdds("chain")}。`),
+    mk("eye", "破眼注", eyeTarget, `本局破眼 ≥${eyeTarget} 次。赢：注额 ×${wagerOdds("eye")}。`),
+    mk("clean", "完璧注", 75, `赢下本馆且收势气血 ≥75%。赢：注额 ×${wagerOdds("clean")}。`),
+    mk("speed", "速胜注", speedTarget, `在 ${speedTarget} 回合内赢下本馆。赢：注额 ×${wagerOdds("speed")}。`),
+    mk("blood", "血战注", 35, `赢下本馆且收势气血 ≤35%。赢：注额 ×${wagerOdds("blood")}。`),
+    mk("fist", "赤手注", 0, `本局不用小道具/助战符，空手赢馆。赢：注额 ×${wagerOdds("fist")}。`),
+    mk("range", "不贴身", 2, `赢馆且收势与敌相隔 ≥2 格。赢：注额 ×${wagerOdds("range")}。`),
+    mk("guard", "堆挡注", 8, `赢馆且收势格挡 ≥8。赢：注额 ×${wagerOdds("guard")}。`),
+    mk("school", "本系刀", 1, `赢馆且本局攻击牌皆为本系（须至少打出一张攻击）。赢：注额 ×${wagerOdds("school")}。`),
+    mk("swap", "换人注", 1, `本局换人至少 1 次。赢：注额 ×${wagerOdds("swap")}。`),
   ];
-  // §31.15 盘口按持有开门：手里一件道具/助战符都没有时不开赤手注——那不是赌，是白送 ×2。
-  const pool = all.filter((o) => o.kind !== "fist" || run.items.length > 0);
-  if (!breakMode) {
-    const out: WagerOffer[] = [];
-    while (out.length < 3 && pool.length) out.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]!);
-    return out;
-  }
-  // Break：连拆/破眼加权
+  const pool = all.filter((o) => {
+    if (o.kind === "fist" && run.items.length === 0) return false;
+    if (o.kind === "chain" || o.kind === "eye") return false;
+    if (o.kind === "swap" && runCompanions(run).length < 1) return false;
+    if (o.kind === "range" && (run.school === "spear" || run.school === "staff")) return false;
+    return true;
+  });
   const weights: Record<WagerKind, number> = {
-    chain: 28,
-    eye: 22,
-    speed: 18,
-    fist: 12,
-    clean: 10,
+    chain: 8,
+    eye: 6,
+    clean: 16,
+    speed: 14,
     blood: 10,
+    fist: 10,
+    range: run.school === "palm" ? 6 : 12,
+    guard: 16,
+    school: 14,
+    swap: 14,
   };
   const out: WagerOffer[] = [];
   const bag = [...pool];
   while (out.length < 3 && bag.length) {
-    const total = bag.reduce((s, o) => s + (weights[o.kind] ?? 10), 0);
+    const total = bag.reduce((sum, o) => sum + (weights[o.kind] ?? 10), 0);
     let roll = rng() * total;
     let pick = 0;
     for (let i = 0; i < bag.length; i++) {
@@ -410,54 +554,96 @@ export interface WagerStats {
   /** 收局时场上角色气血/上限（0-1） */
   hpEndRatio: number;
   won: boolean;
-  /** §31.14 本局破眼次数（破眼注）。 */
+  /** 本局破眼次数（破眼注）。 */
   eyes: number;
-  /** §31.14 本局用过小道具/助战符（赤手注）。 */
+  /** 本局用过小道具/助战符（赤手注）。 */
   itemsUsed: boolean;
+  endDist?: number;
+  endBlock?: number;
+  schoolPure?: boolean;
+  swaps?: number;
 }
 
+export function wagerBattleStats(b: Battle, won: boolean): WagerStats {
+  return {
+    breaks: b.v2BreakCount ?? 0,
+    turns: b.turn,
+    hpEndRatio: b.player.maxHp > 0 ? b.player.hp / b.player.maxHp : 0,
+    won,
+    eyes: b.v2EyeCount ?? 0,
+    itemsUsed: (b.v2ItemUses ?? 0) > 0,
+    endDist: Math.abs(b.player.pos - b.enemy.pos),
+    endBlock: b.playerBlock,
+    schoolPure: (b.v2AttackPlays ?? 0) > 0 && !(b.v2OffSchoolAtk ?? 0),
+    swaps: b.v2SwapCount ?? 0,
+  };
+}
+
+/** 假定注额已从池里扣走。赢：返还 注额×赔率；飞：0。 */
 export function resolveWager(run: GauntletRun, stats: WagerStats): { won: boolean; payout: number; text: string } {
   const w = run.wager;
   if (!w) return { won: false, payout: 0, text: "" };
-  const breakMode = isBreakAlign();
   let ok = false;
   if (w.kind === "chain") ok = stats.breaks >= w.target;
   else if (w.kind === "eye") ok = stats.eyes >= w.target;
-  else if (w.kind === "clean") {
-    ok = stats.hpEndRatio >= w.target / 100;
-    if (breakMode) ok = ok && stats.breaks >= 3 + (run.stage <= 2 ? 0 : run.stage <= 4 ? 1 : run.stage <= 6 ? 2 : 3);
-  } else if (w.kind === "speed") ok = stats.turns <= w.target;
-  else if (w.kind === "blood") {
-    ok = stats.hpEndRatio <= w.target / 100;
-    if (breakMode) ok = ok && stats.breaks >= Math.max(2, 2 + (run.stage <= 2 ? 0 : run.stage <= 4 ? 1 : run.stage <= 6 ? 2 : 3));
-  } else if (w.kind === "fist") {
-    ok = !stats.itemsUsed;
-    if (breakMode) ok = ok && stats.breaks >= w.target;
-  }
+  else if (w.kind === "clean") ok = stats.hpEndRatio >= w.target / 100;
+  else if (w.kind === "speed") ok = stats.turns <= w.target;
+  else if (w.kind === "blood") ok = stats.hpEndRatio <= w.target / 100;
+  else if (w.kind === "fist") ok = !stats.itemsUsed;
+  else if (w.kind === "range") ok = (stats.endDist ?? 0) >= w.target;
+  else if (w.kind === "guard") ok = (stats.endBlock ?? 0) >= w.target;
+  else if (w.kind === "school") ok = Boolean(stats.schoolPure);
+  else if (w.kind === "swap") ok = (stats.swaps ?? 0) >= w.target;
   const won = Boolean(stats.won && ok);
-  const payout = won ? w.stake * w.odds : -Math.min(w.stake, run.pot);
-  const text = won ? `「${wagerLabel(w.kind)}」中了 +${payout} 彩金` : `「${wagerLabel(w.kind)}」飞了 ${Math.min(w.stake, run.pot)} 彩金`;
+  const payout = won ? Math.round(w.stake * w.odds) : 0;
+  const text = won
+    ? `「${wagerLabel(w.kind)}」中了 +${payout} 彩金`
+    : `「${wagerLabel(w.kind)}」飞了（注额已扣）`;
   return { won, payout, text };
 }
 
 export function wagerLabel(kind: WagerKind): string {
-  if (isBreakAlign()) {
-    const breakLabels: Partial<Record<WagerKind, string>> = {
-      clean: "少伤拆完",
-      blood: "险拆",
-      fist: "赤手拆",
-    };
-    if (breakLabels[kind]) return breakLabels[kind]!;
-  }
   const labels: Record<WagerKind, string> = {
-    chain: "连拆注",
+    chain: "连破注",
     eye: "破眼注",
     clean: "完璧注",
     speed: "速胜注",
     blood: "血战注",
     fist: "赤手注",
+    range: "不贴身",
+    guard: "堆挡注",
+    school: "本系刀",
+    swap: "换人注",
   };
   return labels[kind];
+}
+
+/** 馆结算：注已托管。赢馆+中注 → 返还赔率并发底彩；赢馆飞注 → 只发底彩；输馆有注 → 底彩不发并抽 10%。 */
+export function settleHallPot(
+  run: GauntletRun,
+  stats: WagerStats,
+  fightWon: boolean,
+): { pot: number; texts: string[] } {
+  const texts: string[] = [];
+  let pot = run.pot;
+  if (run.wager) {
+    const r = resolveWager(run, stats);
+    pot += r.payout;
+    texts.push(r.text);
+  }
+  if (fightWon) {
+    const mul = run.pendingBasePotMul ?? 1;
+    const base = Math.max(0, Math.round(basePot(run.stage) * mul));
+    pot += base;
+    texts.push(`底彩 +${base}`);
+  } else if (run.wager) {
+    const bled = bleedRemainingPot(pot);
+    if (bled.tax > 0) {
+      pot = bled.pot;
+      texts.push(`出血 -${bled.tax}`);
+    }
+  }
+  return { pot: Math.max(0, pot), texts };
 }
 
 /** §27 纯系队第一位（占位映射）。 */
@@ -475,9 +661,14 @@ export const GAUNTLET_SCHOOL_LOADOUT: Record<
 
 export const GAUNTLET_SCHOOLS: WeaponId[] = ["palm", "staff", "saber", "sword", "spear", "hook"];
 
+/** 拆招开踢用花名册主角；经典模式仍用旧 loadout。 */
+export function gauntletFieldMate(school: WeaponId): CompanionId {
+  return isBreakAlign() ? rogueLeadId(school) : GAUNTLET_SCHOOL_LOADOUT[school].fieldMate;
+}
+
 /**
  * 战间奖励权重占位（§31.9 甲方可调）。难度阶梯越高，淬刃/外功权重越大、选项越多：
- * 简单 3 选 / 中等 4 选 / 困难 4 选偏重养成；第 6 馆后改走超级奖励三选一（rollSuperRewards）。
+ * 简单 3 选 / 中等 4 选 / 困难 4 选偏重养成；第 7 馆后超级奖励三选一，再发本轮免费奖励。
  */
 /** 战间奖励权重：心法/助战/道具/外功 同阶层（§31.18）。谱牌与淬刃单独归位。 */
 /** 战间奖励权重：心法/助战/道具/外功 同阶层（§31.18）。伙伴加入高一层，仅 4/7/12 关。 */
@@ -495,26 +686,14 @@ export const GAUNTLET_HEAL_RATIO = 0.3;
 
 export const GAUNTLET_BEST_KEY = "openhand-gauntlet-best";
 
-/**
- * §31.6 起手脚（策展 · 甲方可调）。三条铁律：
- * 1) 不含「组合」标签卡——踢馆单人无助战，组合卡是死卡；
- * 2) 每系至少 2 张位移/身法（拆招长在空间上，没位移=没玩法）；
- * 3) 攻击 / 防御 / 功能大致 5:2:5，允许重复（ deckbuilding 惯例）。
- * 内容缺口警示：枪/钩系本系卡仅 2–3 种可用，家族扩卡（批次四）是下一批内容任务。
- */
-/** §31.15 各系起手 14 张：撤步（通用退步答案）+ 换位（贴脸对调）入起手——位置对策不再只有进步/纵步。 */
-export const GAUNTLET_STARTERS: Record<WeaponId, CardId[]> = {
-  sword: ["pierce", "pierce", "marking", "marking", "expose", "swordMute", "advance", "advance2", "retreat", "sidestep", "defend", "brace", "sweep", "charge"],
-  saber: ["cut", "cut", "drawcut", "drawcut", "rift", "saberBleed", "advance", "advance2", "retreat", "sidestep", "defend", "brace", "sweep", "charge"],
-  spear: ["thrust", "thrust", "thrust", "spearLock", "spearLock", "haste", "advance", "advance2", "retreat", "sidestep", "defend", "brace", "sweep", "charge"],
-  palm: ["strike", "strike", "strike2", "push", "elbow", "weave", "layer", "backpalm", "retreat", "sidestep", "advance", "advance2", "defend", "brace"],
-  staff: ["split", "split", "bleedcut", "plant", "thorns", "ironform", "advance", "advance2", "retreat", "sidestep", "defend", "brace", "sweep", "charge"],
-  hook: ["hookpull", "hookpull", "hookpull", "hookDisarm", "hookDisarm", "haste", "advance", "advance2", "retreat", "sidestep", "defend", "brace", "sweep", "charge"],
-};
+/** 神兵/仙药只在第 7 馆打完后出现，并且不能顶掉本轮免费奖励。 */
+export function isMidtermSuperFought(fought: number): boolean {
+  return fought === GAUNTLET_MIDTERM_STAGE;
+}
 
 const ALL_ITEMS: LabItemId[] = ["jinchuang", "xiujian", "huiqi", "lianhuan", "pojin"];
 
-export type GauntletRewardKind = "tech" | "mind" | "item" | "aid" | "card" | "forge" | "elixir" | "aidPair";
+export type GauntletRewardKind = "tech" | "mind" | "item" | "aid" | "card" | "forge" | "upgrade" | "elixir" | "aidPair";
 
 export interface GauntletRewardOption {
   kind: GauntletRewardKind;
@@ -546,6 +725,13 @@ export interface GauntletRun {
   /** 每人心法 */
   mateMindArts: Partial<Record<CompanionId, MindArtId[]>>;
   items: LabItemId[];
+  equippedItems?: LabItemId[];
+  equippedAids?: LabItemId[];
+  stashCards?: CardId[];
+  mateDecks?: Partial<Record<CompanionId, CardId[]>>;
+  skipNextWager?: boolean;
+  /** 每种道具剩余颗数；发道具时 +2。 */
+  itemCharges?: Partial<Record<LabItemId, number>>;
   hp: number;
   hpMax: number;
   startedAt: number;
@@ -569,9 +755,43 @@ export interface GauntletRun {
   lifelineCompanion?: CompanionId;
   statBoostMul: number;
   divineWeapons: boolean;
+  scars?: number;
+  scarPassUsed?: boolean;
+  finaleKind?: "mob" | "seat" | "private";
+  seenEvents?: string[];
+  pendingExtraWaves?: number;
+  pendingDmgMul?: number;
+  pendingHallLaw?: "noMove" | "mustMelee" | "earlyEye";
+  pendingRewardBonus?: number;
+  pendingBasePotMul?: number;
+  pendingSkipMarket?: boolean;
+  skipCompanionPick?: boolean;
+  forceDangerNext?: boolean;
+  pendingIntel?: boolean;
+  pendingSkirmish?: "save" | "duel";
+  pendingRecruit?: CompanionId;
+  pendingGuestEnemyId?: EnemyId;
+  skirmishActive?: boolean;
+  storyFlags?: string[];
+  bgUses?: Record<string, number>;
+  bgAssign?: Record<string, string>;
 }
 
-export type GauntletScreen = "path" | "pick" | "banker" | "reward" | "result" | "companion" | "wager" | "lifeline" | "rewardTarget";
+export type GauntletScreen =
+  | "intro"
+  | "path"
+  | "pick"
+  | "banker"
+  | "reward"
+  | "result"
+  | "companion"
+  | "wager"
+  | "lifeline"
+  | "loadout"
+  | "rewardTarget"
+  | "event"
+  | "finale"
+  | "scar";
 
 let savedTuning: LabTuning | null = null;
 
@@ -654,23 +874,28 @@ export function runCompanions(run: GauntletRun): CompanionId[] {
 export function createGauntletRun(path: GauntletPath, school: WeaponId, bossId: EnemyId = "usurper"): GauntletRun {
   const cfg = GAUNTLET_SCHOOL_LOADOUT[school];
   const base = applyAutoLoadout(cfg.loadoutId, 3, 0);
-  const mate = cfg.fieldMate;
-  const hpMax = Math.max(base.hpMax ?? MATES[mate].hp, 48);
+  const mate = gauntletFieldMate(school);
+  const rosterHp = MATES[mate]?.hp ?? 42;
+  const hpMax = Math.max(base.hpMax ?? rosterHp, isBreakAlign() ? rosterHp : 48);
+  const recipe = [...breakStarterDeck(school)];
   return {
     path,
     school,
     stage: 1,
     streak: 0,
     totalBreaks: 0,
-    deckRecipe: [...GAUNTLET_STARTERS[school]],
+    deckRecipe: recipe,
+    mateDecks: { [mate]: [...recipe] },
+    stashCards: [],
     techniques: [],
     mateTechs: { [mate]: [] },
     mateMindArts: { [mate]: [] },
     items: [],
+    itemCharges: {},
     hp: hpMax,
     hpMax,
     startedAt: Date.now(),
-    weaponId: `${school}-a-3`,
+    weaponId: `${school}-a-${isBreakAlign() ? 1 : 3}`,
     bossId,
     pot: GAUNTLET_START_POT,
     wager: null,
@@ -680,6 +905,10 @@ export function createGauntletRun(path: GauntletPath, school: WeaponId, bossId: 
     companions: [],
     statBoostMul: 1,
     divineWeapons: false,
+    scars: 0,
+    seenEvents: [],
+    bgUses: {},
+    bgAssign: {},
   };
 }
 
@@ -687,10 +916,35 @@ export function buildGauntletPreset(run: GauntletRun): LabPreset {
   const entry = ladderEntryForRun(run);
   const cfg = GAUNTLET_SCHOOL_LOADOUT[run.school];
   const enemyId = resolveStageEnemy(entry, run.bossId, run.facedEnemies);
-  const waveEnemyId = waveEnemyForStage(run, entry, enemyId);
+  const extras = entry.extraEnemyIds ? [...entry.extraEnemyIds] : [];
+  const used = new Set<EnemyId>([enemyId, ...extras, ...run.facedEnemies]);
+  const pool = pathLadder(run.path)
+    .map((e) => e.enemyId)
+    .filter((id) => !used.has(id));
+  const waveDelta = run.pendingExtraWaves ?? 0;
+  if (waveDelta > 0) {
+    for (let i = 0; i < waveDelta; i++) {
+      const id = pool[i];
+      if (id) extras.push(id);
+    }
+  } else if (waveDelta < 0) {
+    extras.splice(Math.max(0, extras.length + waveDelta));
+  }
+  const guest = run.pendingGuestEnemyId;
+  if (guest && guest !== enemyId && !extras.includes(guest)) extras.unshift(guest);
+  let waveEnemyId = waveEnemyForStage(run, entry, enemyId);
+  let waveQueue: EnemyId[] | undefined;
+  let extraFoeIds = extras.length ? extras : undefined;
+  if (isBreakAlign()) {
+    waveEnemyId = extras[0];
+    waveQueue = extras.length > 1 ? extras.slice(1) : undefined;
+    extraFoeIds = undefined;
+  }
   const base = applyAutoLoadout(cfg.loadoutId, 3, 0, { enemyId });
-  const mate = cfg.fieldMate;
-  const weapon = run.divineWeapons ? `${run.school}-a-5` : (run.weaponId ?? base.mateWeapons?.[mate] ?? `${run.school}-a-3`);
+  const mate = gauntletFieldMate(run.school);
+  const weapon = run.divineWeapons
+    ? `${run.school}-a-5`
+    : (run.weaponId ?? base.mateWeapons?.[mate] ?? `${run.school}-a-${isBreakAlign() ? 1 : 3}`);
   const companions = runCompanions(run);
   const party: CompanionId[] = [mate, ...companions];
   if (run.lifelineCompanion && !party.includes(run.lifelineCompanion)) {
@@ -716,41 +970,130 @@ export function buildGauntletPreset(run: GauntletRun): LabPreset {
     tags: ["踢馆", run.school],
     enemyId,
     waveEnemyId,
-    extraFoeIds: entry.extraEnemyIds ? [...entry.extraEnemyIds] : undefined,
+    waveQueue,
+    extraFoeIds,
     party,
     fieldMate: mate,
-    deckRecipe: [...run.deckRecipe],
+    deckRecipe: [...fieldDeck(run)],
+    mateDeckRecipes: run.mateDecks,
     mateWeapons,
     mateTechs,
     mateMinds: { ...run.mateMindArts },
-    labItems: [...run.items].slice(0, 3),
-    hp: Math.min(run.hp, hpMax),
+    labItems: [...(run.equippedItems ?? run.items.filter((id) => !isAidItem(id))), ...(run.equippedAids ?? run.items.filter(isAidItem))].slice(0, gearSlotMax(run.stage) * 2),
+    labItemCharges: { ...(run.itemCharges ?? {}) },
+    hp: hpMax,
     hpMax,
     statBoostMul: run.statBoostMul,
+    gauntletStage: run.stage,
+    hallLaw: run.pendingHallLaw,
   });
 }
 
-export function applyStageTuning(entry: GauntletLadderEntry): void {
+export function duelEnemyForSchool(school: WeaponId): EnemyId {
+  if (school === "palm") return "mob_monk_01";
+  if (school === "staff") return "mob_monk_02";
+  if (school === "saber") return "mob_road_01";
+  if (school === "spear") return "mob_canal_01";
+  if (school === "hook") return "mob_escortBand_03";
+  return "mob_court_03";
+}
+
+export function upcomingFoeNames(run: GauntletRun, n = 2): Array<{ stage: number; name: string }> {
+  const out: Array<{ stage: number; name: string }> = [];
+  const cap = getGauntletFinalStage();
+  for (let s = run.stage; s < run.stage + n && s <= cap; s++) {
+    const entry = ladderEntryForRun(run, s);
+    const id = resolveStageEnemy(entry, run.bossId, run.facedEnemies);
+    const name = GAUNTLET_FOE_IDENTITY[id]?.name ?? ENEMIES[id]?.name ?? id;
+    out.push({ stage: s, name });
+  }
+  return out;
+}
+
+export function intelReport(run: GauntletRun): string {
+  if (!run.pendingIntel) return "";
+  return upcomingFoeNames(run, 2)
+    .map((r) => `第${r.stage}馆 ${r.name}`)
+    .join(" · ");
+}
+
+const RIVAL_WEAPON: Record<WeaponId, WeaponId> = {
+  saber: "staff",
+  staff: "saber",
+  palm: "sword",
+  sword: "palm",
+  spear: "hook",
+  hook: "spear",
+};
+
+export function relatedCompanionIds(run: GauntletRun, pool: CompanionId[]): CompanionId[] {
+  const first = runCompanions(run)[0];
+  if (!first) return pool;
+  const w = MATES[first]?.weapon;
+  if (!w) return pool;
+  const rival = RIVAL_WEAPON[w];
+  const same = pool.filter((id) => MATES[id]?.weapon === w);
+  const riv = pool.filter((id) => MATES[id]?.weapon === rival);
+  const rest = pool.filter((id) => MATES[id]?.weapon !== w && MATES[id]?.weapon !== rival);
+  return [...same, ...riv, ...rest];
+}
+
+export function buildSkirmishPreset(run: GauntletRun): LabPreset {
+  const recruit = run.pendingRecruit;
+  const duel = run.pendingSkirmish === "duel" && recruit;
+  const enemyId: EnemyId = duel
+    ? duelEnemyForSchool(MATES[recruit]!.weapon)
+    : run.path === "shaolin"
+      ? "mob_monk_01"
+      : run.path === "court"
+        ? "mob_yamenRunner_01"
+        : "mob_road_01";
+  const who = recruit ? (MATES[recruit]?.name ?? "") : "";
+  const base = buildGauntletPreset({
+    ...run,
+    stage: Math.min(run.stage, 2),
+    pendingExtraWaves: -99,
+    pendingHallLaw: undefined,
+    pendingDmgMul: 0.7,
+    pendingGuestEnemyId: undefined,
+  });
+  return {
+    ...base,
+    id: `skirmish-${run.school}`,
+    name: duel ? `点到 · ${who}` : who ? `替${who}挡刀` : "路遇出手",
+    blurb: "短战 · 不占馆号 · 禁注",
+    enemyId,
+    waveEnemyId: undefined,
+    waveQueue: undefined,
+    extraFoeIds: undefined,
+    hallLaw: undefined,
+  };
+}
+
+export function applyStageTuning(entry: GauntletLadderEntry, run?: Pick<GauntletRun, "pendingDmgMul" | "forceDangerNext" | "scars">): void {
   // §31.14 总督按档：简单 45% / 中等 55% / 困难 65% / 极难 80%（单回合攻击总伤占你气血上限的比例）
   const capRatio = entry.tier === "easy" ? 0.45 : entry.tier === "mid" ? 0.55 : entry.tier === "hard" ? 0.65 : 0.8;
+  const stressCap =
+    isBreakAlign() && entry.stage <= 2 ? 0 : (entry.stressCap ?? DEFAULT_LAB_TUNING.enemyStressCap);
+  const dmgMul = run?.pendingDmgMul ?? 1;
   setLabTuning({
     enemyHpMul: entry.hpMul,
     enemySegBonus: entry.segBonus,
-    dmgCoef: entry.dmgCoef,
-    v2Grudge: Boolean(entry.forceGrudge),
+    dmgCoef: Math.min(2.6, entry.dmgCoef * dmgMul),
+    v2Grudge: Boolean(entry.forceGrudge || run?.forceDangerNext || (run?.scars ?? 0) > 0 && entry.tier === "extreme"),
     enemyTurnCapRatio: capRatio,
-    ...(entry.stressCap != null ? { enemyStressCap: entry.stressCap } : {}),
+    enemyStressCap: stressCap,
   });
 }
 
 export function afterGauntletWin(
   run: GauntletRun,
   breaksThisBattle: number,
-  hpLeft: number,
+  _hpLeft: number,
   hpMax: number,
   enemyId: EnemyId,
 ): GauntletRun {
-  const healed = Math.min(hpMax, hpLeft + Math.round(hpMax * GAUNTLET_HEAL_RATIO));
+  const healed = hpMax;
   const completed = run.stage;
   const faced = run.facedEnemies.includes(enemyId) ? run.facedEnemies : [...run.facedEnemies, enemyId];
   return {
@@ -770,6 +1113,24 @@ export function afterGauntletLoss(run: GauntletRun, breaksThisBattle: number): G
     streak: Math.max(0, run.stage - 1),
     totalBreaks: run.totalBreaks + breaksThisBattle,
   };
+}
+
+export function consumeFightStartMods(run: GauntletRun): GauntletRun {
+  return {
+    ...run,
+    pendingExtraWaves: 0,
+    pendingDmgMul: undefined,
+    pendingHallLaw: undefined,
+    pendingGuestEnemyId: undefined,
+  };
+}
+
+export function consumeHallPotMods(run: GauntletRun): GauntletRun {
+  return { ...run, pendingBasePotMul: undefined };
+}
+
+export function consumeCampMods(run: GauntletRun): GauntletRun {
+  return { ...run, pendingRewardBonus: 0, pendingSkipMarket: false };
 }
 
 /** §31.9 伙伴入伙后组合卡解禁（之前单人踢馆组合卡是死卡）。 */
@@ -803,29 +1164,67 @@ function itemPool(owned: LabItemId[]): LabItemId[] {
   return ALL_ITEMS.filter((id) => !owned.includes(id));
 }
 
-function pickWeightedKind(rng: () => number, tier: Exclude<GauntletTier, "extreme">): GauntletRewardKind {
-  const w = isBreakAlign() ? BREAK_REWARD_WEIGHTS : GAUNTLET_REWARD_TIERS[tier].weights;
-  const total = w.tech + w.mind + w.item + w.aid;
-  const roll = rng() * total;
-  if (roll < w.tech) return "tech";
-  if (roll < w.tech + w.mind) return "mind";
-  if (roll < w.tech + w.mind + w.item) return "item";
-  return "aid";
+function pickWeightedKind(rng: () => number, tier: Exclude<GauntletTier, "extreme">, fought: number): GauntletRewardKind {
+  const w = isBreakAlign() ? BREAK_REWARD_WEIGHTS : { ...GAUNTLET_REWARD_TIERS[tier].weights, card: 0, forge: 0, upgrade: 0 };
+  const gate = rewardGate(fought);
+  const forgeW = isBreakAlign() && gate.forge ? w.forge : 0;
+  const upgradeW = isBreakAlign() && gate.upgrade ? w.upgrade : 0;
+  const parts: Array<[GauntletRewardKind, number]> = [
+    ["tech", w.tech],
+    ["mind", w.mind],
+    ["item", w.item],
+    ["aid", w.aid],
+    ["card", "card" in w ? w.card : 0],
+    ["forge", forgeW],
+    ["upgrade", upgradeW],
+  ];
+  const total = parts.reduce((s, [, n]) => s + n, 0);
+  let roll = rng() * Math.max(1, total);
+  for (const [kind, n] of parts) {
+    if (n <= 0) continue;
+    if (roll < n) return kind;
+    roll -= n;
+  }
+  return "card";
 }
 
-/** 淬刃选项：兵刃升一阶。§31.9 甲方定：常规淬刃封顶玄阶，神兵只出第 6 馆超级奖励。 */
+/** 淬刃：拆招必须 1→2→3；3–6 馆顶 2 档，7 馆后顶 3 档。经典封顶玄阶。 */
 function forgeOption(run: GauntletRun): GauntletRewardOption | null {
   const cur = gearById(run.weaponId);
   const nextId = nextGrade(run.weaponId);
   const next = nextId ? gearById(nextId) : null;
   if (!cur || !next || !nextId) return null;
-  if (next.grade >= 5) return null;
+  if (!forgeGradeOk(run, next.grade)) return null;
   const dmgGain = (next.damage ?? 0) - (cur.damage ?? 0);
   return {
     kind: "forge",
     id: nextId,
     title: `淬刃 · ${next.name}`,
     tip: `${cur.name} → ${next.name}：每击 +${dmgGain} 伤，械效增强（悬停兵刃牌可看细则）。`,
+  };
+}
+
+function upgradeOption(run: GauntletRun, usedFrom: Set<CardId>, rng: () => number): GauntletRewardOption | null {
+  if (!isBreakAlign()) return null;
+  if (!rewardGate(rewardFought(run)).upgrade) return null;
+  const seen = new Set<CardId>();
+  const pool: CardId[] = [];
+  for (const id of ownedCardIds(run)) {
+    if (seen.has(id) || usedFrom.has(id)) continue;
+    seen.add(id);
+    const to = breakCardUpgrade(id);
+    if (to && !ownedCardIds(run).has(to)) pool.push(id);
+  }
+  const from = pickOne(pool, rng);
+  if (!from) return null;
+  const to = breakCardUpgrade(from);
+  if (!to) return null;
+  usedFrom.add(from);
+  return {
+    kind: "upgrade",
+    id: from,
+    title: `换页 · ${CARDS[from].name} → ${CARDS[to].name}`,
+    tip: `${CARDS[from].text} → ${CARDS[to].text}（进步/撤步永不换成 ±2）`,
   };
 }
 
@@ -840,17 +1239,29 @@ function rewardTier(run: GauntletRun): Exclude<GauntletTier, "extreme"> {
   return entry.tier === "extreme" ? "hard" : entry.tier;
 }
 
+/** 拆招：4 选 2；第 9 馆后 4 选 3。经典：按档 3/4 选 1。 */
+export function gauntletRewardTakeCount(run: GauntletRun): number {
+  if (!isBreakAlign()) return 1;
+  const fought = Math.max(1, run.stage - 1);
+  const base = fought >= 9 ? 3 : 2;
+  return base + Math.max(0, run.pendingRewardBonus ?? 0);
+}
+
 export function rollGauntletRewards(run: GauntletRun, rng: () => number = Math.random): GauntletRewardOption[] {
   const tier = rewardTier(run);
-  const picks = GAUNTLET_REWARD_TIERS[tier].picks;
+  const picks = isBreakAlign() ? 4 : GAUNTLET_REWARD_TIERS[tier].picks;
   const out: GauntletRewardOption[] = [];
   const usedTech = new Set(allOwnedTechs(run));
   const usedMind = new Set(Object.values(run.mateMindArts).flat());
   const usedItems = new Set(run.items);
+  const usedCards = new Set<CardId>();
+  const usedUpgradeFrom = new Set<CardId>();
+  const itemCap = isBreakAlign() ? 2 : 3;
+  const fought = Math.max(1, run.stage - 1);
   let guard = 0;
-  while (out.length < picks && guard < 32) {
+  while (out.length < picks && guard < 40) {
     guard += 1;
-    const kind = pickWeightedKind(rng, tier);
+    const kind = pickWeightedKind(rng, tier, fought);
     if (kind === "tech") {
       const pool = techPool([...usedTech], run.school);
       const id = pickOne(pool, rng);
@@ -863,8 +1274,14 @@ export function rollGauntletRewards(run: GauntletRun, rng: () => number = Math.r
       if (!id) continue;
       usedMind.add(id);
       out.push({ kind, id, title: MIND_ARTS[id].name, tip: mindTip(id) });
+    } else if (kind === "card") {
+      const pool = breakRewardCardPool(run).filter((id) => !usedCards.has(id));
+      const id = pickWeightedRewardCard(pool, [...ownedCardIds(run), ...usedCards], rng);
+      if (!id) continue;
+      usedCards.add(id);
+      out.push({ kind: "card", id, title: CARDS[id].name, tip: CARDS[id].text });
     } else if (kind === "item" || kind === "aid") {
-      if (run.items.length >= 3) continue;
+      if (run.items.length >= itemCap) continue;
       const aidPool = kind === "aid" ? ALL_AID_ITEMS : itemPool([...usedItems, ...run.items]);
       const pool = aidPool.filter((id) => !usedItems.has(id) && !run.items.includes(id));
       const id = pickOne(pool.length ? pool : itemPool([...usedItems, ...run.items]), rng);
@@ -876,6 +1293,15 @@ export function rollGauntletRewards(run: GauntletRun, rng: () => number = Math.r
         title: LAB_ITEM_LABEL[id] ?? id,
         tip: itemTip(id),
       });
+    } else if (kind === "forge") {
+      if (out.some((o) => o.kind === "forge")) continue;
+      const fo = forgeOption(run);
+      if (!fo) continue;
+      out.push(fo);
+    } else if (kind === "upgrade") {
+      const uo = upgradeOption(run, usedUpgradeFrom, rng);
+      if (!uo) continue;
+      out.push(uo);
     }
   }
   while (out.length < picks) {
@@ -885,21 +1311,61 @@ export function rollGauntletRewards(run: GauntletRun, rng: () => number = Math.r
     usedMind.add(id);
     out.push({ kind: "mind", id, title: MIND_ARTS[id].name, tip: mindTip(id) });
   }
+  if (isBreakAlign() && fought <= 2 && !out.some((o) => o.kind === "card")) {
+    const pool = breakRewardCardPool(run).filter((id) => !usedCards.has(id));
+    const id = pickWeightedRewardCard(pool, [...ownedCardIds(run), ...usedCards], rng);
+    if (id) {
+      if (out.length >= picks) out.pop();
+      out.unshift({ kind: "card", id, title: CARDS[id].name, tip: CARDS[id].text });
+    }
+  }
+  if (isBreakAlign() && rewardGate(fought).upgrade) {
+    const uo = upgradeOption(run, usedUpgradeFrom, rng);
+    if (uo && !out.some((o) => o.kind === "upgrade")) {
+      if (out.length >= picks) out.pop();
+      out.unshift(uo);
+    }
+  }
+  if (isBreakAlign() && rewardGate(fought).forge) {
+    const fo = forgeOption(run);
+    if (fo && !out.some((o) => o.kind === "forge")) {
+      if (out.length >= picks) out.pop();
+      out.unshift(fo);
+    }
+  }
   return out.slice(0, picks);
 }
 
-/** §31.9 第 4 馆后：随机三位同道三选一入伙（排除已在场的主角与伙伴）。保底同系+异系各至少 1 个。 */
+/** 拆招：3/7 馆六抽四选一；经典：路径池三选一（保底同系+异系）。 */
 export function rollCompanionChoices(run: GauntletRun, rng: () => number = Math.random): CompanionId[] {
+  if (isBreakAlign()) {
+    const fought = Math.max(1, run.stage - 1);
+    const tier = rogueCompanionTierForStage(fought) ?? (run.companions?.length ? 3 : 2);
+    const field = rogueLeadId(run.school);
+    const taken = new Set<CompanionId>([field, ...runCompanions(run)]);
+    const pool = relatedCompanionIds(
+      run,
+      rogueRosterByTier(tier)
+        .map((m) => m.id)
+        .filter((id) => !taken.has(id)),
+    );
+    const out: CompanionId[] = [];
+    const bag = [...pool];
+    while (out.length < 4 && bag.length) {
+      const window = Math.min(bag.length, out.length === 0 && runCompanions(run).length ? 1 : 3);
+      const idx = Math.floor(rng() * window);
+      out.push(bag.splice(idx, 1)[0]!);
+    }
+    return out;
+  }
   const field = GAUNTLET_SCHOOL_LOADOUT[run.school].fieldMate;
   const taken = new Set(runCompanions(run));
   const pool = [...PATH_COMPANION_POOL[run.path]].filter((id) => id !== field && !taken.has(id));
   const same = pool.filter((id) => MATES[id].weapon === run.school);
   const cross = pool.filter((id) => MATES[id].weapon !== run.school);
   const out: CompanionId[] = [];
-  // 保底：同系、异系各先抽 1 个
   if (same.length) out.push(same.splice(Math.floor(rng() * same.length), 1)[0]!);
   if (cross.length) out.push(cross.splice(Math.floor(rng() * cross.length), 1)[0]!);
-  // 剩余从合并池补满 3 个
   const rest = [...same, ...cross];
   while (out.length < 3 && rest.length) {
     const idx = Math.floor(rng() * rest.length);
@@ -913,10 +1379,17 @@ export function applyCompanion(run: GauntletRun, mateId: CompanionId): GauntletR
   if (cur.includes(mateId)) return { ...run, companion: cur[0], companions: cur };
   const max = maxCompanions();
   const next = [...cur, mateId].slice(0, max);
-  return { ...run, companion: next[0], companions: next };
+  const schools = [run.school, ...next.map((id) => MATES[id].weapon)];
+  let deck = run.deckRecipe;
+  let nextRun = { ...run, companion: next[0], companions: next };
+  if (isBreakAlign()) {
+    const theirs = injectRogueBondCards(breakStarterDeck(MATES[mateId].weapon), MATES[mateId].weapon, schools);
+    nextRun = withMateDeck(nextRun, mateId, theirs);
+  }
+  return nextRun;
 }
 
-/** §31.9 第 6 馆后超级奖励三选一：神兵 / 死士符 / 仙药。 */
+/** §31.9 第 7 馆后超级奖励三选一：神兵 / 死士符 / 仙药。 */
 export function rollSuperRewards(run: GauntletRun): GauntletRewardOption[] {
   const godId = `${run.school}-a-5`;
   const god = gearById(godId);
@@ -953,12 +1426,16 @@ export function applySuperReward(run: GauntletRun, opt: GauntletRewardOption): G
     return { ...run, weaponId: god.id };
   }
   if (opt.kind === "aidPair") {
-    // §31.12 随机两系助战符各一枚
     const pool = [...ALL_AID_ITEMS];
     const roll = () => Math.random();
     const first = pool.splice(Math.floor(roll() * pool.length), 1)[0]!;
     const second = pool.splice(Math.floor(roll() * pool.length), 1)[0]!;
-    return { ...run, items: [...run.items, first, second] };
+    let next: GauntletRun = { ...run };
+    const a = grantLabItem(next.items, next.itemCharges, first, undefined, 6);
+    if (a) next = { ...next, items: a.items, itemCharges: a.charges };
+    const b = grantLabItem(next.items, next.itemCharges, second, undefined, 6);
+    if (b) next = { ...next, items: b.items, itemCharges: b.charges };
+    return next;
   }
   if (opt.kind === "elixir") {
     return {
@@ -968,9 +1445,9 @@ export function applySuperReward(run: GauntletRun, opt: GauntletRewardOption): G
       bonusEnergyMax: (run.bonusEnergyMax ?? 0) + 1,
     };
   }
-  // 死士符：超级奖励通道不占常规 2 件上限（preset 截 slice(0,3)）。
-  if (run.items.includes(opt.id as LabItemId)) return run;
-  return { ...run, items: [...run.items, opt.id as LabItemId] };
+  const g = grantLabItem(run.items, run.itemCharges, opt.id as LabItemId, undefined, 6);
+  if (!g) return run;
+  return { ...run, items: g.items, itemCharges: g.charges };
 }
 
 export function applyGauntletReward(run: GauntletRun, opt: GauntletRewardOption): GauntletRun {
@@ -979,26 +1456,33 @@ export function applyGauntletReward(run: GauntletRun, opt: GauntletRewardOption)
     if (!nextId || opt.id !== nextId) return run;
     return { ...run, weaponId: nextId };
   }
+  if (opt.kind === "upgrade") {
+    const from = opt.id as CardId;
+    const to = breakCardUpgrade(from);
+    if (!to) return run;
+    if (!ownedCardIds(run).has(from)) return run;
+    return replaceOwnedCard(run, from, to);
+  }
   if (opt.kind === "card") {
-    // 允许重复卡：叠加是构筑手感的来源。
-    return { ...run, deckRecipe: [...run.deckRecipe, opt.id as CardId] };
+    return grantCardToLoadout(run, opt.id as CardId);
   }
   if (opt.kind === "tech") {
     const id = opt.id as TechniqueId;
-    const mate = opt.targetMate ?? GAUNTLET_SCHOOL_LOADOUT[run.school].fieldMate;
+    const mate = opt.targetMate ?? gauntletFieldMate(run.school);
     const owned = run.mateTechs[mate] ?? [];
     if (owned.includes(id)) return run;
     return { ...run, mateTechs: { ...run.mateTechs, [mate]: [...owned, id] } };
   }
   if (opt.kind === "mind") {
     const id = opt.id as MindArtId;
-    const mate = opt.targetMate ?? GAUNTLET_SCHOOL_LOADOUT[run.school].fieldMate;
+    const mate = opt.targetMate ?? gauntletFieldMate(run.school);
     const owned = run.mateMindArts[mate] ?? [];
     if (owned.includes(id)) return run;
     return { ...run, mateMindArts: { ...run.mateMindArts, [mate]: [...owned, id] } };
   }
-  if (run.items.length >= 3 || run.items.includes(opt.id as LabItemId)) return run;
-  return { ...run, items: [...run.items, opt.id as LabItemId] };
+  const g = grantLabItem(run.items, run.itemCharges, opt.id as LabItemId, undefined, isBreakAlign() ? 2 : 3);
+  if (!g) return run;
+  return { ...run, items: g.items, itemCharges: g.charges };
 }
 
 export function loadGauntletBest(): GauntletBest | null {
@@ -1039,8 +1523,9 @@ export function nextBossId(prev: EnemyId): EnemyId {
 }
 
 export function starterTip(school: WeaponId): string {
+  const recipe = breakStarterDeck(school);
   const counts = new Map<CardId, number>();
-  for (const id of GAUNTLET_STARTERS[school]) counts.set(id, (counts.get(id) ?? 0) + 1);
+  for (const id of recipe) counts.set(id, (counts.get(id) ?? 0) + 1);
   return [...counts.entries()]
     .map(([id, n]) => {
       const c = CARDS[id];

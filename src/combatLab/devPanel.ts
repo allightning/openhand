@@ -1,13 +1,22 @@
+import { cardStatLine } from "../game/cardTextV2";
 import { CARDS, ENEMIES, TECHNIQUES } from "../game/content";
+import {
+  ENEMY_GEAR_GRADE_LABEL,
+  enemyGear,
+  enemyGradeForStage,
+  enemyStrikeAtDist,
+  type EnemyGearGrade,
+} from "../game/enemyGear";
+import { GAUNTLET_FOE_IDENTITY, profileFor, schoolForGeneratedEnemy } from "../game/enemyKit";
 import { getLabTuning, resetLabTuning, setLabTuning } from "../game/labTuning";
 import {
   getContentOverrides,
   resetContentOverrides,
   setContentOverride,
 } from "../game/labContentOverrides";
-import { MATE_PASSIVE, MATES } from "../game/party";
+import { MATE_PASSIVE, MATES, WEAPON_NAME } from "../game/party";
 import { gearById } from "../game/weapons";
-import type { CardId, CompanionId, EnemyId, TechniqueId } from "../game/types";
+import type { CardId, CompanionId, EnemyId, TechniqueId, WeaponId } from "../game/types";
 import {
   ALL_CARD_IDS,
   ALL_ENEMY_IDS,
@@ -16,13 +25,17 @@ import {
   ALL_WEAPON_IDS,
 } from "./arsenal";
 import { peakPotAnchor, reviveCost } from "./gauntlet";
+import { getGauntletFinalStage } from "./gauntletPaths";
+import { isBreakAlign } from "./labRuleset";
 import { escapeHtml } from "./setupUi";
 
-export type DevTab = "combat" | "enemy" | "weapon" | "card" | "tech" | "mate";
+export type DevTab = "combat" | "enemy" | "foeGear" | "weapon" | "card" | "tech" | "mate";
 
 let activeTab: DevTab = "combat";
-let pickEnemy: EnemyId = "catcher";
+let pickEnemy: EnemyId = "mob_monk_02";
 let pickWeapon = ALL_WEAPON_IDS[0] ?? "palm-a-3";
+let pickFoeSchool: WeaponId = "saber";
+let pickFoeGrade: EnemyGearGrade = "jing";
 let pickCard: CardId = "strike";
 let pickTech: TechniqueId = "leftover";
 let pickMate: CompanionId = "rail";
@@ -32,6 +45,21 @@ let devStage = 4;
 let draftValues: Record<string, string> = {};
 /** 最近一次已提交的覆盖快照，供恢复上一步。 */
 let lastSnapshot: ReturnType<typeof getContentOverrides> | null = null;
+
+/** 测试 / 外部：切实验台当前页与选中项。 */
+export function setDevPanelState(patch: {
+  tab?: DevTab;
+  enemy?: EnemyId;
+  stage?: number;
+  foeSchool?: WeaponId;
+  foeGrade?: EnemyGearGrade;
+}): void {
+  if (patch.tab) activeTab = patch.tab;
+  if (patch.enemy) pickEnemy = patch.enemy;
+  if (patch.stage != null) devStage = patch.stage;
+  if (patch.foeSchool) pickFoeSchool = patch.foeSchool;
+  if (patch.foeGrade) pickFoeGrade = patch.foeGrade;
+}
 
 function numInput(id: string, label: string, value: number | undefined, min: number, max: number, step = 1): string {
   const draft = draftValues[id];
@@ -67,12 +95,25 @@ function renderCombatTab(): string {
   const t = getLabTuning();
   const peak = peakPotAnchor(devStage);
   const revive = reviveCost(devStage);
+  const breakMode = isBreakAlign();
+  const final = getGauntletFinalStage();
+  const modeBanner = breakMode
+    ? `<p class="lab-dev-mode-banner break">当前 <b>肉鸽踢馆</b> · 10 馆 · 硬拆/让/追/眼生效（不拆也能爬）· 品阶 1–2 精 / 3–6 玄 / 7+ 神</p>`
+    : `<p class="lab-dev-mode-banner classic">当前 <b>对战版</b> · 15 馆 · <b>无拆招</b>（条上只打/空/跳过）· 品阶 1–4 精 / 5–12 玄 / 13+ 神 · 用来对照拆招</p>`;
+  const breakSlider = breakMode
+    ? slider("sl-break-dev", "破招窗口（遗留旋钮）", "val-break-dev", t.breakWindow, 0, 100, 5)
+    : "";
+  const stressTip = breakMode
+    ? "应激含破招应激；馆 1–2 阶梯常把帽压到 0。"
+    : "对战版：拆招应激不挂；势爆/助战/特色招应激仍可按帽生效。";
+  const comboTip = breakMode ? "开踢禁组合技（融合卡替代）；此钮主要影响非开踢局。" : "经典可开组合技（同道后）。";
   return `
+    ${modeBanner}
     <div class="lab-dev-section">
       <h4>全局战斗</h4>
       <div class="lab-dev-grid">
         ${slider("sl-dmg-dev", "伤害系数", "val-dmg-dev", t.dmgCoef, 0.25, 2, 0.05, (v) => v.toFixed(2))}
-        ${slider("sl-break-dev", "破招窗口", "val-break-dev", t.breakWindow, 0, 100, 5)}
+        ${breakSlider}
         ${slider("sl-pace-dev", "先机偏置", "val-pace-dev", t.paceBias, -3, 5, 1)}
         ${slider("sl-ai-dev", "AI激进度", "val-ai-dev", t.aiAggression, 0, 100, 5)}
         ${slider("sl-deck-mult-dev", "牌堆乘数", "val-deck-mult-dev", t.deckMultiplier, 1, 10, 1)}
@@ -82,6 +123,7 @@ function renderCombatTab(): string {
     </div>
     <div class="lab-dev-section">
       <h4>敌人压力</h4>
+      <p class="muted lab-dev-hint">${escapeHtml(stressTip)}</p>
       <div class="lab-dev-grid">
         ${slider("sl-enemy-hp-setup", "HP×", "val-enemy-hp-setup", t.enemyHpMul, 0.5, 4, 0.05, (v) => v.toFixed(2))}
         ${slider("sl-enemy-seg-setup", "段+", "val-enemy-seg-setup", t.enemySegBonus, 0, 8, 1)}
@@ -92,15 +134,16 @@ function renderCombatTab(): string {
         <label class="lab-check"><input type="checkbox" id="tog-v2-dev" ${t.rulesV2 ? "checked" : ""}/><span>v2规则</span></label>
         <label class="lab-check"><input type="checkbox" id="tog-grudge-setup" ${t.v2Grudge ? "checked" : ""}/><span>鏖战</span></label>
         <label class="lab-check"><input type="checkbox" id="tog-variant-dev" ${t.v2VariantAi ? "checked" : ""}/><span>变招</span></label>
-        <label class="lab-check"><input type="checkbox" id="tog-combo-dev" ${t.rulesCombo ? "checked" : ""}/><span>组合技</span></label>
+        <label class="lab-check" title="${escapeHtml(comboTip)}"><input type="checkbox" id="tog-combo-dev" ${t.rulesCombo ? "checked" : ""}/><span>组合技</span></label>
         <label class="lab-check"><input type="checkbox" id="tog-seg-all-dev" ${t.enemySegAll ? "checked" : ""}/><span>全员加段</span></label>
         <label class="lab-check"><input type="checkbox" id="tog-fx-dev" ${t.v2Fx ? "checked" : ""}/><span>演出</span></label>
       </div>
     </div>
     <div class="lab-dev-section lab-dev-econ">
-      <h4>经济标尺</h4>
-      <label>馆序 <input type="number" id="dev-stage" min="1" max="20" value="${devStage}" class="gauntlet-stake-custom"/></label>
+      <h4>经济标尺 · 本模式 ${final} 馆</h4>
+      <label>馆序 <input type="number" id="dev-stage" min="1" max="${final}" value="${Math.min(devStage, final)}" class="gauntlet-stake-custom"/></label>
       <span>峰值锚 <b id="dev-peak">${peak}</b> · 复活费 <b id="dev-revive">${revive}</b></span>
+      <p class="muted lab-dev-hint">馆序也驱动下方「敌人」页的套件/品阶预览。</p>
     </div>
     <div class="lab-dev-actions">
       <button type="button" class="lab-btn" id="dev-reset-tuning">重置战斗旋钮</button>
@@ -126,9 +169,27 @@ function entityActionBar(id: string, hasOverride: boolean): string {
     </div>`;
 }
 
-function formDirty(id: string): boolean {
-  const keys = draftKeysForTab();
-  return keys.some((k) => (draftValues[`#dev-${k}`] ?? "") !== "");
+function formDirty(_id?: string): boolean {
+  return draftKeysForTab().some((k) => {
+    const v = draftValues[`dev-${k}`];
+    return v != null && v !== "";
+  });
+}
+
+export function recordDevDraft(id: string, value: string): void {
+  draftValues[id] = value;
+}
+
+export function resetDevDrafts(): void {
+  draftValues = {};
+}
+
+export function isDevFormDirty(): boolean {
+  return formDirty();
+}
+
+export function confirmDevEntityOverride(): void {
+  commitEntityOverride();
 }
 
 function bucketForTab(): "cards" | "enemies" | "weapons" | "techniques" | "mates" {
@@ -158,10 +219,49 @@ function currentEntityId(): string {
 function renderEnemyEditor(): string {
   const base = ENEMIES[pickEnemy];
   const ov = getContentOverrides().enemies[pickEnemy] ?? {};
-  const options = ALL_ENEMY_IDS.map((id) => ({ value: id, label: `${ENEMIES[id].name} · ${ENEMIES[id].title}` }));
+  const gauntletIds = Object.keys(GAUNTLET_FOE_IDENTITY) as EnemyId[];
+  const otherIds = ALL_ENEMY_IDS.filter((id) => !GAUNTLET_FOE_IDENTITY[id]);
+  const pathTag = (id: EnemyId) => {
+    const p = GAUNTLET_FOE_IDENTITY[id]?.path;
+    if (p === "shaolin") return "少林";
+    if (p === "jianghu") return "江湖";
+    if (p === "court") return "朝廷";
+    return "踢馆";
+  };
+  const options = [
+    ...gauntletIds.map((id) => ({
+      value: id,
+      label: `[${pathTag(id)}] ${GAUNTLET_FOE_IDENTITY[id]?.name ?? ENEMIES[id].name} · ${WEAPON_NAME[schoolForGeneratedEnemy(id)]}`,
+    })),
+    ...otherIds.map((id) => ({ value: id, label: `${ENEMIES[id].name} · ${ENEMIES[id].title}` })),
+  ];
+  const mode = isBreakAlign() ? "break" : "classic";
+  const kitId = GAUNTLET_FOE_IDENTITY[pickEnemy] ? pickEnemy : null;
+  let kitHtml = "";
+  if (kitId) {
+    const profile = profileFor(kitId, Math.max(1, Math.min(devStage, getGauntletFinalStage())), "main", mode);
+    const gear = enemyGear(profile.school, profile.grade);
+    const opener = profile.opener.map((i) => i.kind).join(" · ");
+    const sigs = profile.sigs.length ? profile.sigs.join(" · ") : "（本馆无）";
+    const d1 = enemyStrikeAtDist(profile.school, profile.grade, 1);
+    const d2 = enemyStrikeAtDist(profile.school, profile.grade, 2);
+    kitHtml = `
+      <div class="lab-dev-section lab-dev-kit">
+        <h4>踢馆套件预览 · 馆 ${devStage}（${mode === "break" ? "拆招" : "对战"}）</h4>
+        <p class="lab-dev-base">系 <b>${escapeHtml(WEAPON_NAME[profile.school])}</b> · 品阶 <b>${ENEMY_GEAR_GRADE_LABEL[profile.grade]}</b> · 敌兵刃 <b>${escapeHtml(gear.name)}</b></p>
+        <p class="muted">条（opener）：${escapeHtml(opener || "—")}</p>
+        <p class="muted">蓝条 ${profile.energy.archive} · 上限 ${profile.energy.max} / 起手 ${profile.energy.start} · 吐纳 ${profile.energy.breathe}</p>
+        <p class="muted">打击距1=${d1} 距2=${d2}${profile.school === "saber" ? "（平砍同伤）" : ""} · 被动：${escapeHtml(gear.passive)}</p>
+        <p class="muted">特色招：${escapeHtml(sigs)}</p>
+        <p class="muted lab-dev-hint">开踢开战会挂 kit（需 labGauntletStage）；下方气血/站位覆盖仍作用于图鉴底数。</p>
+      </div>`;
+  } else {
+    kitHtml = `<p class="muted lab-dev-hint">此 id 不在踢馆具名表——无套件/敌兵刃品阶预览。</p>`;
+  }
   return `
     ${renderPicker("enemy", pickEnemy, options)}
-    <p class="lab-dev-base muted">默认 HP ${base.hp} · 位 ${base.pos} · 距 ${base.reach ?? 1}</p>
+    <p class="lab-dev-base muted">图鉴默认气血 ${base.hp} · 位 ${base.pos} · 距 ${base.reach ?? 1}</p>
+    ${kitHtml}
     <div class="lab-dev-grid">
       ${numInput("dev-enemy-hp", "气血", ov.hp, 1, 999)}
       ${numInput("dev-enemy-pos", "站位", ov.pos, 0, 6)}
@@ -169,6 +269,41 @@ function renderEnemyEditor(): string {
       ${numInput("dev-enemy-pace", "先机", ov.pace, -2, 5)}
     </div>
     ${entityActionBar(pickEnemy, Object.keys(ov).length > 0)}`;
+}
+
+function renderFoeGearEditor(): string {
+  const schools: WeaponId[] = ["palm", "saber", "sword", "spear", "staff", "hook"];
+  const grades: EnemyGearGrade[] = ["jing", "xuan", "shen"];
+  const schoolSel = schools
+    .map((s) => `<option value="${s}" ${s === pickFoeSchool ? "selected" : ""}>${WEAPON_NAME[s]}</option>`)
+    .join("");
+  const gradeSel = grades
+    .map((g) => `<option value="${g}" ${g === pickFoeGrade ? "selected" : ""}>${ENEMY_GEAR_GRADE_LABEL[g]}</option>`)
+    .join("");
+  const gear = enemyGear(pickFoeSchool, pickFoeGrade);
+  const rows = grades
+    .map((g) => {
+      const eg = enemyGear(pickFoeSchool, g);
+      const d1 = enemyStrikeAtDist(pickFoeSchool, g, 1);
+      const d2 = enemyStrikeAtDist(pickFoeSchool, g, 2);
+      return `<tr class="${g === pickFoeGrade ? "hot" : ""}"><td>${ENEMY_GEAR_GRADE_LABEL[g]}</td><td>${escapeHtml(eg.name)}</td><td>${d1}</td><td>${d2}</td><td>${escapeHtml(eg.godSkill ?? "—")}</td></tr>`;
+    })
+    .join("");
+  return `
+    <p class="muted lab-dev-hint">敌兵刃独立表，不复用玩家凡良精玄神。玩家刀 10/4；敌刀距 1–2 平砍。</p>
+    <div class="lab-dev-grid">
+      <label class="lab-dev-pick">系<select id="dev-pick-foe-school">${schoolSel}</select></label>
+      <label class="lab-dev-pick">阶<select id="dev-pick-foe-grade">${gradeSel}</select></label>
+    </div>
+    <div class="lab-dev-section">
+      <h4>${escapeHtml(gear.name)} · ${ENEMY_GEAR_GRADE_LABEL[gear.grade]}</h4>
+      <p>${escapeHtml(gear.passive)}</p>
+      <p class="muted">id <code>${escapeHtml(gear.id)}</code> · 基础打击 ${gear.strike}${gear.godSkill ? ` · 神技 ${escapeHtml(gear.godSkill)}` : ""}</p>
+      <table class="lab-dev-table">
+        <thead><tr><th>阶</th><th>名</th><th>距1</th><th>距2</th><th>神技</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
 }
 
 function renderWeaponEditor(): string {
@@ -180,6 +315,7 @@ function renderWeaponEditor(): string {
     return { value: id, label: g ? `${g.name} (${id})` : id };
   });
   return `
+    <p class="muted lab-dev-hint">玩家兵刃表。敌兵刃见「敌兵刃」页，互不覆盖。</p>
     ${renderPicker("weapon", pickWeapon, options)}
     <p class="lab-dev-base muted">默认 伤+${base.damage} · 推+${base.knock} · 架+${base.ward}</p>
     <div class="lab-dev-grid">
@@ -193,17 +329,19 @@ function renderWeaponEditor(): string {
 function renderCardEditor(): string {
   const base = CARDS[pickCard];
   const ov = getContentOverrides().cards[pickCard] ?? {};
+  const live = { ...base, ...ov };
   const options = ALL_CARD_IDS.map((id) => ({ value: id, label: `${CARDS[id].name} (${id})` }));
   return `
     ${renderPicker("card", pickCard, options)}
     <p class="lab-dev-base muted">${escapeHtml(base.text)}</p>
+    <p class="lab-dev-nums"><b>生效</b> ${escapeHtml(cardStatLine(live))}</p>
     <div class="lab-dev-grid">
-      ${numInput("dev-card-cost", "劲", ov.cost, 0, 9)}
-      ${numInput("dev-card-dmg", "伤害", ov.damage, 0, 99)}
-      ${numInput("dev-card-block", "格挡", ov.block, 0, 99)}
-      ${numInput("dev-card-knock", "推", ov.knock, 0, 10)}
-      ${numInput("dev-card-wall", "撞壁", ov.wall, 0, 30)}
-      ${numInput("dev-card-steps", "步数", ov.steps, 0, 4)}
+      ${numInput("dev-card-cost", "劲", ov.cost ?? base.cost, 0, 9)}
+      ${numInput("dev-card-dmg", "伤害", ov.damage ?? base.damage, 0, 99)}
+      ${numInput("dev-card-block", "格挡", ov.block ?? base.block, 0, 99)}
+      ${numInput("dev-card-knock", "推", ov.knock ?? base.knock, 0, 10)}
+      ${numInput("dev-card-wall", "撞壁", ov.wall ?? base.wall, 0, 30)}
+      ${numInput("dev-card-steps", "步数", ov.steps ?? base.steps, -2, 4)}
     </div>
     ${entityActionBar(pickCard, Object.keys(ov).length > 0)}`;
 }
@@ -240,6 +378,7 @@ function renderMateEditor(): string {
 
 function renderEntityPanel(): string {
   if (activeTab === "enemy") return renderEnemyEditor();
+  if (activeTab === "foeGear") return renderFoeGearEditor();
   if (activeTab === "weapon") return renderWeaponEditor();
   if (activeTab === "card") return renderCardEditor();
   if (activeTab === "tech") return renderTechEditor();
@@ -250,7 +389,8 @@ function renderEntityPanel(): string {
 const TABS: { id: DevTab; label: string }[] = [
   { id: "combat", label: "战斗" },
   { id: "enemy", label: "敌人" },
-  { id: "weapon", label: "兵刃" },
+  { id: "foeGear", label: "敌兵刃" },
+  { id: "weapon", label: "玩家兵刃" },
   { id: "card", label: "招式" },
   { id: "tech", label: "外功" },
   { id: "mate", label: "角色" },
@@ -275,52 +415,48 @@ export function renderGauntletDevPanel(): string {
     </div>`;
 }
 
-function readNum(el: HTMLInputElement | HTMLTextAreaElement | null): number | undefined {
-  if (!el || el.value === "") return undefined;
-  const n = Number(el.value);
-  return Number.isFinite(n) ? n : undefined;
-}
-
-function readStr(el: HTMLInputElement | HTMLTextAreaElement | null): string | undefined {
-  const v = el?.value?.trim();
-  return v || undefined;
-}
+const PATCH_KEY: Record<string, string> = {
+  "enemy-hp": "hp",
+  "enemy-pos": "pos",
+  "enemy-reach": "reach",
+  "enemy-pace": "pace",
+  "weapon-dmg": "damage",
+  "weapon-knock": "knock",
+  "weapon-ward": "ward",
+  "card-cost": "cost",
+  "card-dmg": "damage",
+  "card-block": "block",
+  "card-knock": "knock",
+  "card-wall": "wall",
+  "card-steps": "steps",
+  "tech-name": "name",
+  "tech-text": "text",
+  "mate-hp": "hp",
+  "mate-passive-name": "passiveName",
+  "mate-passive-text": "passiveText",
+};
 
 function collectEntityPatch(): Record<string, unknown> {
-  const g = (id: string) => document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null;
-  if (activeTab === "enemy") {
-    return {
-      hp: readNum(g("dev-enemy-hp")),
-      pos: readNum(g("dev-enemy-pos")),
-      reach: readNum(g("dev-enemy-reach")),
-      pace: readNum(g("dev-enemy-pace")),
-    };
-  }
-  if (activeTab === "weapon") {
-    return { damage: readNum(g("dev-weapon-dmg")), knock: readNum(g("dev-weapon-knock")), ward: readNum(g("dev-weapon-ward")) };
-  }
-  if (activeTab === "card") {
-    return {
-      cost: readNum(g("dev-card-cost")),
-      damage: readNum(g("dev-card-dmg")),
-      block: readNum(g("dev-card-block")),
-      knock: readNum(g("dev-card-knock")),
-      wall: readNum(g("dev-card-wall")),
-      steps: readNum(g("dev-card-steps")),
-    };
+  const out: Record<string, unknown> = {};
+  const pname = draftValues["dev-mate-passive-name"];
+  const ptext = draftValues["dev-mate-passive-text"];
+  for (const k of draftKeysForTab()) {
+    const raw = draftValues[`dev-${k}`];
+    if (raw == null || raw === "") continue;
+    const prop = PATCH_KEY[k];
+    if (!prop) continue;
+    if (prop === "name" || prop === "text" || prop === "passiveName" || prop === "passiveText") continue;
+    const n = Number(raw);
+    if (Number.isFinite(n)) out[prop] = n;
   }
   if (activeTab === "tech") {
-    const name = readStr(g("dev-tech-name"));
-    const text = readStr(g("dev-tech-text"));
-    return { ...(name ? { name } : {}), ...(text ? { text } : {}) };
+    if (draftValues["dev-tech-name"]?.trim()) out.name = draftValues["dev-tech-name"].trim();
+    if (draftValues["dev-tech-text"]?.trim()) out.text = draftValues["dev-tech-text"].trim();
   }
-  const hp = readNum(g("dev-mate-hp"));
-  const pname = readStr(g("dev-mate-passive-name"));
-  const ptext = readStr(g("dev-mate-passive-text"));
-  return {
-    ...(hp != null ? { hp } : {}),
-    ...(pname || ptext ? { passive: { name: pname ?? "", text: ptext ?? "" } } : {}),
-  };
+  if (activeTab === "mate" && (pname || ptext)) {
+    out.passive = { name: (pname ?? "").trim(), text: (ptext ?? "").trim() };
+  }
+  return out;
 }
 
 function commitEntityOverride(): void {
@@ -374,6 +510,8 @@ export function bindGauntletDevPanel(root: ParentNode, onRerender?: () => void):
   const pickers: [string, (v: string) => void][] = [
     ["#dev-pick-enemy", (v) => (pickEnemy = v as EnemyId)],
     ["#dev-pick-weapon", (v) => (pickWeapon = v)],
+    ["#dev-pick-foe-school", (v) => (pickFoeSchool = v as WeaponId)],
+    ["#dev-pick-foe-grade", (v) => (pickFoeGrade = v as EnemyGearGrade)],
     ["#dev-pick-card", (v) => (pickCard = v as CardId)],
     ["#dev-pick-tech", (v) => (pickTech = v as TechniqueId)],
     ["#dev-pick-mate", (v) => (pickMate = v as CompanionId)],
@@ -392,6 +530,8 @@ export function bindGauntletDevPanel(root: ParentNode, onRerender?: () => void):
     if (el.id?.startsWith("dev-") && !el.id.startsWith("dev-pick-") && el.id !== "dev-stage") {
       el.addEventListener("input", () => {
         draftValues[el.id] = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement ? el.value : "";
+        const btn = panel.querySelector<HTMLButtonElement>("#dev-confirm");
+        if (btn) btn.disabled = !formDirty();
       });
     }
   });
@@ -428,11 +568,13 @@ export function bindGauntletDevPanel(root: ParentNode, onRerender?: () => void):
   });
 
   root.querySelector("#dev-stage")?.addEventListener("change", () => {
-    devStage = Number((root.querySelector("#dev-stage") as HTMLInputElement).value) || 1;
+    const final = getGauntletFinalStage();
+    devStage = Math.max(1, Math.min(final, Number((root.querySelector("#dev-stage") as HTMLInputElement).value) || 1));
     const peakEl = root.querySelector("#dev-peak");
     const revEl = root.querySelector("#dev-revive");
     if (peakEl) peakEl.textContent = String(peakPotAnchor(devStage));
     if (revEl) revEl.textContent = String(reviveCost(devStage));
+    if (activeTab === "enemy") onRerender?.();
   });
 
   root.querySelector("#dev-confirm")?.addEventListener("click", () => {
@@ -459,7 +601,7 @@ export function bindGauntletDevPanel(root: ParentNode, onRerender?: () => void):
 export function renderDevPanelModal(): string {
   return `
     <div class="lab-wiki-mask" id="lab-dev-mask">
-      <div class="lab-wiki-panel lab-dev-modal">
+      <div class="lab-wiki-panel lab-dev-modal lab-iron-sheet">
         <header class="lab-wiki-head">
           <h2 class="lab-guide-title">实验台 · 数值调参</h2>
           <button type="button" class="lab-wiki-close" id="lab-dev-close" aria-label="关闭">×</button>

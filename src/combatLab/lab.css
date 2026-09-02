@@ -46,11 +46,17 @@
   box-shadow: inset 0 -1px 0 rgba(212, 180, 90, 0.12);
 }
 
+.lab-header.lab-header-battle {
+  margin-bottom: 0;
+  border-bottom: none;
+  box-shadow: none;
+}
+
 .lab-title-block h1 {
   margin: 0;
   font-size: 1.05rem;
   letter-spacing: 0.12em;
-  color: var(--lab-paper-2);
+  color: var(--lab-ink);
   font-weight: 700;
 }
 
@@ -77,7 +83,6 @@
   background: var(--lab-bg);
   border: 1px solid var(--lab-gold);
   border-radius: 3px;
-  box-shadow: inset 0 0 0 1px #3a3228;
 }
 
 .lab-stat-badge em {
@@ -197,7 +202,7 @@
   flex: 1;
   padding: 0.55rem;
   scrollbar-width: thin;
-  scrollbar-color: #3a2e22 var(--lab-paper);
+  scrollbar-color: #5a4030 var(--lab-bg);
 }
 
 .lab-scroll::-webkit-scrollbar {
@@ -206,7 +211,7 @@
 }
 
 .lab-scroll::-webkit-scrollbar-track {
-  background: var(--lab-paper);
+  background: var(--lab-bg);
 }
 
 .lab-scroll::-webkit-scrollbar-thumb {
@@ -272,7 +277,7 @@
 
 .lab-preset-body small {
   display: block;
-  color: #6a5a40;
+  color: var(--lab-muted);
   font-size: 0.7rem;
   margin-top: 0.2rem;
   line-height: 1.35;
@@ -292,7 +297,7 @@
 .lab-field > label {
   display: block;
   font-size: 0.74rem;
-  color: #6a5a40;
+  color: var(--lab-muted);
   margin-bottom: 0.25rem;
   font-weight: 600;
 }
@@ -325,7 +330,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
-  background: rgba(244, 234, 214, 0.45);
+  background: rgba(0, 0, 0, 0.28);
 }
 
 .lab-deck-empty {
@@ -439,7 +444,7 @@
 .lab-weapon-allow-note {
   margin: 0.35rem 0 0;
   font-size: 0.68rem;
-  color: #6a5a40;
+  color: var(--lab-muted);
   line-height: 1.35;
 }
 
@@ -475,7 +480,7 @@
 
 .lab-arsenal-hint {
   font-size: 0.72rem;
-  color: #6a5a40;
+  color: var(--lab-muted);
   margin: 0 0 0.4rem;
 }
 
@@ -609,7 +614,7 @@
 
 .lab-weapon-meta {
   font-size: 0.68rem;
-  color: #6a5a40;
+  color: var(--lab-muted);
 }
 
 .lab-weapon-stats {
@@ -622,7 +627,7 @@
 .lab-weapon-verb {
   margin: 0 0 0.45rem;
   font-size: 0.72rem;
-  color: #6a5a40;
+  color: var(--lab-muted);
   line-height: 1.4;
   padding-bottom: 0.35rem;
   border-bottom: 1px dashed rgba(58, 46, 34, 0.25);
@@ -670,13 +675,13 @@
 }
 
 .lab-weapon-skill.pending em {
-  color: #6a5a40;
+  color: var(--lab-muted);
 }
 
 .lab-weapon-skill.pending strong {
   font-size: 0.78rem;
   font-weight: 600;
-  color: #5a4a38;
+  color: var(--lab-muted);
 }
 
 .lab-weapon-god {
@@ -705,13 +710,13 @@
 .lab-weapon-god.locked span {
   display: block;
   font-size: 0.74rem;
-  color: #6a5a40;
+  color: var(--lab-muted);
   line-height: 1.35;
 }
 
 .lab-weapon-extra {
   font-size: 0.72rem;
-  color: #5a4a38;
+  color: var(--lab-muted);
   padding-top: 0.25rem;
 }
 
@@ -821,7 +826,7 @@
 .lab-card p {
   margin: 0;
   font-size: 0.68rem;
-  color: #6a5a40;
+  color: var(--lab-muted);
 }
 
 .lab-bar {
@@ -860,12 +865,13 @@
   border: 2px solid #2a2018;
   border-radius: 3px;
   padding: 1rem;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
 }
 
 .lab-overlay-panel h3 {
-  margin: 0 0 0.75rem;
-  font-size: 0.95rem;
+  margin: 0 0 0.55rem;
+  font-size: 1rem;
+  letter-spacing: 0.08em;
 }
 
 .lab-slider-row {
@@ -877,7 +883,7 @@
   justify-content: space-between;
   font-size: 0.78rem;
   margin-bottom: 0.25rem;
-  color: #6a5a40;
+  color: var(--lab-muted);
 }
 
 .lab-slider-row input[type="range"] {
@@ -1262,16 +1268,56 @@
   color: var(--lab-gold);
 }
 
-.lab-fx-pop {
+.lab-settings-panel {
+  min-width: 320px;
+}
+
+.lab-settings-panel h3 {
+  margin: 0 0 0.6rem;
+}
+
+.lab-settings-panel .lab-btn {
+  margin-top: 0.8rem;
+  width: 100%;
+}
+
+.lab-fx-stack {
   position: fixed;
   left: 50%;
-  top: 40%;
+  top: 38%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 90;
+}
+
+.lab-fx-pop {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--i, 0) * 2.2rem);
   transform: translate(-50%, -50%);
   font-size: 2rem;
+  font-weight: 900;
   color: var(--lab-lantern-soft);
   pointer-events: none;
   z-index: 90;
   animation: lab-fx-fade 0.5s ease-out forwards;
+  animation-delay: calc(var(--i, 0) * 0.08s);
+  text-shadow: 0 2px 0 #3a1a0a, 0 0 18px rgba(232, 160, 106, 0.55);
+}
+
+.lab-fx-pop.lab-fx-big {
+  font-size: 3.2rem;
+  letter-spacing: 0.08em;
+  animation: lab-fx-pop-big 0.7s ease-out forwards;
+}
+
+.lab-fx-pop.lab-fx-break,
+.lab-fx-pop.lab-fx-eye {
+  color: #ffe1a8;
+}
+
+.lab-fx-pop.lab-fx-eye {
+  color: #ffb4a2;
 }
 
 .lab-fx-pop.lab-fx-counter {
@@ -1279,9 +1325,43 @@
   font-size: 2.4rem;
 }
 
+.lab-fx-pop.lab-fx-graze {
+  color: #fff3bf;
+}
+
+.lab-fx-pop.lab-fx-miss,
+.lab-fx-pop.lab-fx-skip {
+  color: #cbd5e1;
+}
+
+.lab-fx-pop.lab-fx-hit {
+  color: #fecaca;
+}
+
+.lab-fx-pop.lab-fx-cardHit { color: #fecaca; }
+.lab-fx-pop.lab-fx-cardWard { color: #93c5fd; }
+.lab-fx-pop.lab-fx-cardHeal { color: #86efac; }
+.lab-fx-pop.lab-fx-cardStep { color: #fde68a; }
+.lab-fx-pop.lab-fx-cardKnock { color: #fdba74; }
+.lab-fx-pop.lab-fx-cardStatus { color: #d8b4fe; }
+.lab-fx-pop.lab-fx-read {
+  color: #fff8e8;
+  font-size: 1.05rem;
+  font-weight: 800;
+  max-width: 22rem;
+  text-align: center;
+  text-shadow: 0 1px 2px #1a1410, 0 0 8px #1a1410;
+}
+
 @keyframes lab-fx-fade {
   from { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
   to { opacity: 0; transform: translate(-50%, -60%) scale(1); }
+}
+
+@keyframes lab-fx-pop-big {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+  20% { opacity: 1; transform: translate(-50%, -50%) scale(1.35); }
+  100% { opacity: 0; transform: translate(-50%, -62%) scale(1.05); }
 }
 
 .lab-battle-v2.shake {
@@ -1357,19 +1437,23 @@
   max-height: 92vh;
   background: var(--lab-paper);
   color: var(--lab-ink);
-  border: 2px solid var(--lab-line);
+  border: 2px solid #2a2018;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.62);
+}
+
+.lab-wiki-panel.lab-iron-sheet {
+  background: var(--lab-paper);
 }
 
 .lab-wiki-head {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.45rem 0.6rem;
+  padding: 0.55rem 0.75rem;
   border-bottom: 1px solid var(--lab-line);
-  background: var(--lab-paper-2);
+  background: linear-gradient(180deg, var(--lab-paper-2), var(--lab-paper));
 }
 
 .lab-wiki-tabs {
@@ -1606,11 +1690,19 @@
 .lab-slider-inline {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+}
+
+.lab-slider-inline span {
+  min-width: 2.4em;
+  color: var(--lab-lantern-soft);
+  font-variant-numeric: tabular-nums;
 }
 
 .lab-slider-inline input[type="range"] {
-  width: 80px;
+  width: 96px;
+  accent-color: var(--lab-lantern);
 }
 
 .lab-enemy-pressure {
@@ -1957,22 +2049,50 @@
   padding-bottom: 0.5rem;
 }
 
+/* 拆招充能：石台与底栏之间，铁木格 */
+.lab-prod-combat .lab-break-charge-rail {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0.18rem 1rem 0.22rem;
+  background: transparent;
+  border: none;
+  position: relative;
+  z-index: 3;
+}
+.lab-prod-combat .lab-break-charge-rail .lab-break-charge {
+  font-size: 0.95rem;
+  padding: 0.35rem 0.85rem;
+  gap: 0.45rem;
+  background: rgba(232, 220, 196, 0.94);
+  border: 1px solid var(--lab-lantern);
+  border-radius: 1px;
+  box-shadow: none;
+  color: var(--lab-ink);
+}
+
 .lab-prod-combat .lab-battlefield-band {
   z-index: 1;
   position: relative;
   overflow: visible;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  margin-top: 0.35rem;
 }
 
 .lab-prod-combat .lab-battlefield-band .arena {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 188px 1fr 188px;
+  grid-template-columns: 168px minmax(0, 1fr) 168px;
   grid-template-rows: repeat(6, auto);
   align-items: start;
   align-content: start;
-  gap: 0 14px;
-  padding: 0.15rem 18px 0.35rem;
+  column-gap: 18px;
+  row-gap: 0;
+  padding: 0.15rem 8px 0.35rem;
   overflow: visible;
 }
 
@@ -1989,15 +2109,32 @@
   min-height: 0;
 }
 
+.lab-prod-combat .you-side > .lab-aside-head,
+.lab-prod-combat .you-side > .lab-stand-slot,
+.lab-prod-combat .you-side > .lab-name-slot,
+.lab-prod-combat .you-side > .lab-bar-slot,
+.lab-prod-combat .you-side > .lab-aside-extra {
+  justify-self: start;
+  z-index: 2;
+}
+
+.lab-prod-combat .foe-side > .lab-aside-head,
+.lab-prod-combat .foe-side > .lab-stand-slot,
+.lab-prod-combat .foe-side > .lab-name-slot,
+.lab-prod-combat .foe-side > .lab-bar-slot {
+  justify-self: end;
+  z-index: 2;
+}
+
 .lab-prod-combat .you-side > .lab-aside-head {
   grid-column: 1;
 }
 
 .lab-prod-combat .foe-side > .lab-aside-head {
   grid-column: 3;
-  width: 100%;
-  max-width: 188px;
-  justify-self: center;
+  width: 168px;
+  max-width: 168px;
+  justify-self: end;
 }
 
 .lab-prod-combat .you-side > .lab-stand-slot,
@@ -2020,10 +2157,12 @@
 
 .lab-prod-combat .you-side > .lab-name-slot {
   grid-column: 1;
+  width: 168px;
 }
 
 .lab-prod-combat .foe-side > .lab-name-slot {
   grid-column: 3;
+  width: 168px;
 }
 
 .lab-prod-combat .you-side > .lab-bar-slot:nth-child(4),
@@ -2039,11 +2178,13 @@
 .lab-prod-combat .you-side > .lab-bar-slot:nth-child(4),
 .lab-prod-combat .you-side > .lab-bar-slot:nth-child(5) {
   grid-column: 1;
+  width: 168px;
 }
 
 .lab-prod-combat .foe-side > .lab-bar-slot:nth-child(4),
 .lab-prod-combat .foe-side > .lab-bar-slot:nth-child(5) {
   grid-column: 3;
+  width: 168px;
 }
 
 .lab-prod-combat .you-side > .lab-aside-extra {
@@ -2056,12 +2197,17 @@
 .lab-prod-combat .stage-core {
   grid-column: 2;
   grid-row: 1 / -1;
+  width: 100%;
+  max-width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  align-self: end;
+  align-self: stretch;
+  min-width: 0;
   min-height: 0;
+  z-index: 1;
+  overflow: visible;
 }
 
 .lab-prod-combat .fighter {
@@ -2071,7 +2217,7 @@
   z-index: 2;
 }
 
-/* 立绘：宽 168 不变，加高，图填满框 */
+/* 立绘：宽 168 不变 */
 .lab-prod-combat .lab-stand-slot {
   width: 168px;
   height: min(280px, 38vh);
@@ -2092,6 +2238,10 @@
   background: linear-gradient(180deg, #e8dcc8 0%, #d4c4a8 100%);
 }
 
+.lab-prod-combat .lab-stand-slot .fy-stand-wrap.ink-frame {
+  border-image: none;
+}
+
 .lab-prod-combat .lab-stand-slot .fy-stand-wrap .stand,
 .lab-prod-combat .lab-stand-slot .fy-stand-wrap .stand.side {
   width: 100%;
@@ -2109,13 +2259,21 @@
   overflow: hidden;
 }
 
+/* 整图立绘站位：头像偏上取景，斗笠顶不被 cover 裁掉 */
+.lab-prod-combat .lab-stand-slot .fy-stand-wrap .stand.char-full,
+.lab-prod-combat .lab-stand-slot .fy-stand-wrap .stand.char-full.side {
+  object-position: center 30%;
+}
+
 /* v2.9 看招带（§31.6）：敌意图条从敌栏顶迁入棋盘上方的中央横带——看招是核心循环第一步，必须是全场最清晰的读数。 */
 .lab-prod-combat .stage-core .lab-intent-band {
   width: 100%;
   display: flex;
   justify-content: center;
-  padding: 0.1rem 0.25rem 0.3rem;
+  padding: 0.2rem 0.5rem 0.15rem;
   flex-shrink: 0;
+  background: none;
+  box-sizing: border-box;
 }
 
 .lab-prod-combat .stage-core .lab-intent-band .lab-intent-slot {
@@ -2191,8 +2349,8 @@
 }
 
 .lab-prod-combat .stage-core .lab-intent-band .lab-intent-seg.current {
-  outline: 2px solid var(--lab-gold);
-  background: rgba(196, 160, 80, 0.2);
+  outline: 2px solid var(--lab-lantern);
+  background: rgba(196, 74, 50, 0.22);
 }
 
 .lab-prod-combat .stage-core .lab-intent-band .lab-intent-seg.will-break {
@@ -2327,8 +2485,8 @@
 }
 
 .lab-prod-combat .foe-side .lab-intent-overhead .lab-intent-seg {
-  background: #f4ead6;
-  border: 1px solid #2a2018;
+  background: var(--lab-paper-2);
+  border: 1px solid var(--lab-line);
   flex-shrink: 0;
 }
 
@@ -2339,12 +2497,54 @@
   width: 100%;
 }
 
+.lab-prod-combat .strip {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  gap: 6px;
+  overflow: visible;
+  box-sizing: border-box;
+}
+
 .lab-prod-combat .cell {
-  min-height: clamp(100px, 16vh, 190px);
+  min-width: 0;
+  min-height: 232px;
+  height: 240px;
+  overflow: hidden;
+}
+
+.lab-prod-combat .fig {
+  width: 144px;
+}
+
+.lab-prod-combat .fig.stake img,
+.lab-prod-combat .fig.summon img {
+  width: 88px;
+  height: 120px;
+  object-fit: contain;
+  object-position: bottom center;
+  pointer-events: none;
+}
+
+.lab-prod-combat .fig .stand.board,
+.lab-prod-combat .stand.board {
+  width: 132px;
+  height: 177px;
+}
+
+.lab-prod-combat .cell .fig span,
+.lab-prod-combat .cell .wall-label {
+  font-size: 0.82rem;
+  line-height: 1.35;
 }
 
 .lab-prod-combat.fy-combat {
   overflow: visible;
+  background-color: #e8dcc8;
+}
+
+.lab-prod-combat.fy-combat::before {
+  background: rgba(232, 220, 196, 0.25);
 }
 
 .lab-prod-combat .lab-intent-overhead {
@@ -2367,6 +2567,39 @@
   z-index: 3;
 }
 
+/* 攻击刀光层：黑底白墨 screen 混合，动画结束自隐 */
+.fy-stand-wrap {
+  position: relative;
+}
+
+.lab-slash-overlay {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 150%;
+  max-width: none;
+  transform: translate(-50%, -50%);
+  mix-blend-mode: screen;
+  pointer-events: none;
+  z-index: 6;
+  opacity: 0;
+  animation: lab-slash-flash 0.5s ease-out forwards;
+}
+
+@keyframes lab-slash-flash {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.65) rotate(-7deg);
+  }
+  22% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.18) rotate(2deg);
+  }
+}
+
 .lab-prod-combat .bottombar {
   display: flex;
   flex-direction: column;
@@ -2381,6 +2614,8 @@
   display: flex;
   flex-direction: column;
   gap: 0;
+  margin-top: auto;
+  padding-bottom: 0.45rem;
 }
 
 .lab-prod-combat .lab-action-row {
@@ -2442,6 +2677,15 @@
   transform: translateY(-28px);
   z-index: 9999 !important;
 }
+.lab-prod-combat .lab-hand-row .hand-scroll .hand .card:hover::after,
+.lab-prod-combat .lab-hand-row .hand-scroll .hand .card.hot::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 36px;
+}
 
 .lab-prod-combat .lab-hand-row .hand-scroll .hand .card.dead:hover {
   transform: none;
@@ -2458,7 +2702,7 @@
 .lab-prod-combat .lab-hand-row .foe-col,
 .lab-prod-combat .lab-hand-row .status-col {
   position: relative;
-  z-index: 5;
+  z-index: 50;
 }
 
 .lab-prod-combat .lab-tech-slot {
@@ -2497,7 +2741,7 @@
   box-sizing: border-box;
   background: #1a1410;
   color: #f4ead6;
-  border: 1px solid #d4b45a;
+  border: 1px solid var(--lab-line);
   padding: 6px 8px;
   font-size: 12px;
   line-height: 1.4;
@@ -2520,6 +2764,7 @@
 .lab-prod-combat .lab-action-row .lab-assist-active-badge:hover .status-tip,
 .lab-prod-combat .lab-action-row .lab-aura-chip:hover .status-tip {
   opacity: 1;
+  display: block;
   transition-delay: 0.35s;
 }
 
@@ -2601,22 +2846,22 @@
   clip-path: none;
 }
 
-.lab-prod-combat .lab-name-slot b {
-  color: #1a1410;
+.lab-prod-combat .lab-name-slot b,
+.lab-prod-combat .foe-side .lab-name-slot b {
+  color: #fff;
   font-size: 1rem;
   line-height: 1.2;
+  text-shadow: 0 1px 2px #1a1410, 0 0 8px #1a1410;
 }
 
-.lab-prod-combat .foe-side .lab-name-slot b {
-  color: #8b2a24;
-}
-
-.lab-prod-combat .lab-name-slot span {
+.lab-prod-combat .lab-name-slot span,
+.lab-prod-combat .lab-name-slot .lab-foe-count {
   display: block;
   margin-top: 2px;
-  color: #5a4030;
+  color: #fff;
   font-size: 0.68rem;
   line-height: 1.3;
+  text-shadow: 0 1px 2px #1a1410, 0 0 8px #1a1410;
 }
 
 .lab-prod-combat .tech-list {
@@ -2648,7 +2893,7 @@
 
 .lab-prod-combat .lab-action-row {
   max-height: none;
-  overflow-y: visible;
+  overflow: visible;
 }
 
 .lab-action-row {
@@ -2737,17 +2982,27 @@
 /* §30 统一悬停 tooltip */
 .lab-tip-float {
   position: fixed;
-  z-index: 20000;
+  z-index: 100000;
   max-width: min(320px, 90vw);
-  padding: 0.35rem 0.55rem;
-  font-size: 0.72rem;
-  line-height: 1.35;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  white-space: pre-line;
   color: #f5eed8;
   background: rgba(8, 6, 4, 0.94);
   border: 1px solid var(--lab-gold);
   border-radius: 4px;
   pointer-events: none;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+}
+
+/* 简介：内联悬停 + 浮动层并用；不再 display:none 把悬停吃掉 */
+.lab-prod-combat .status-chip,
+.lab-prod-combat .tech-chip,
+.lab-prod-combat .swap-btn,
+.lab-prod-combat .assist-btn,
+.lab-prod-combat .card[data-tip] {
+  cursor: help;
 }
 
 /* §30 立绘/条定高槽位（非 prod 战斗页 fallback） */
@@ -2920,6 +3175,16 @@
   box-shadow: 0 0 10px rgba(106, 80, 136, 0.35);
 }
 
+.lab-prod-combat .card.break-momentum {
+  outline: 2px solid rgba(201, 162, 39, 0.95);
+  box-shadow: 0 0 12px rgba(201, 162, 39, 0.4);
+}
+
+.combo-unlock-badge.break-mom {
+  background: rgba(201, 162, 39, 0.9);
+  color: #1a1408;
+}
+
 .combo-unlock-badge {
   position: absolute;
   top: 4px;
@@ -2938,6 +3203,8 @@
   display: flex;
   flex-direction: column;
   overflow: visible;
+  padding-top: 0;
+  justify-content: flex-start;
 }
 
 .lab-res-row-prod {
@@ -2987,6 +3254,15 @@ html.lab-fullscreen #app.lab-root {
   border-radius: 4px;
   background: rgba(180, 140, 60, 0.25);
   border: 1px solid rgba(200, 160, 80, 0.45);
+}
+
+.lab-hand-cap {
+  font-size: 0.72rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  background: rgba(196, 90, 40, 0.12);
+  border: 1px solid rgba(196, 90, 40, 0.35);
+  color: #1a1410;
 }
 
 .lab-aura-muted {
@@ -3119,7 +3395,7 @@ html.lab-fullscreen #app.lab-root {
 .lab-root .lab-intent-seg.unreachable em { text-decoration: line-through; }
 .lab-root .lab-mode-badge {
   cursor: default;
-  font-size: 12px;
+  font-size: 0.72rem;
   font-weight: 700;
   color: #c45a28;
   border-color: #c45a28;
@@ -3136,6 +3412,11 @@ html.lab-fullscreen #app.lab-root {
   color: var(--lab-lantern);
   font-weight: 700;
   margin-top: 0.15rem;
+}
+.lab-prod-combat .lab-name-slot .lab-foe-count,
+.lab-root .lab-prod-combat .lab-foe-count {
+  color: #fff;
+  text-shadow: 0 1px 2px #1a1410, 0 0 8px #1a1410;
 }
 .lab-root .lab-foe-hp-row {
   display: flex;
@@ -3171,13 +3452,73 @@ html.lab-fullscreen #app.lab-root {
 .lab-root .lab-tier-graze { background: #6b5a1e; color: #fff3bf; }
 .lab-root .lab-tier-miss { background: #4a5568; color: #e2e8f0; }
 .lab-root .lab-tier-hit { background: #7f1d1d; color: #fecaca; }
+.lab-root .lab-tier-misc { background: #3d4a3a; color: #e8dcc4; }
+
+.lab-root .lab-seg-ord {
+  position: absolute;
+  top: 0.1rem;
+  left: 0.2rem;
+  font-size: 0.6rem;
+  font-weight: 800;
+  color: var(--lab-muted);
+  line-height: 1;
+}
+
+.lab-seg-meta {
+  display: flex;
+  gap: 0.22rem;
+  align-items: center;
+  font-size: 0.58rem;
+  font-weight: 700;
+  color: var(--lab-muted);
+  line-height: 1.1;
+  margin-top: 0.04rem;
+}
+
+.lab-seg-cost {
+  color: var(--lab-ink);
+  opacity: 0.75;
+}
+
+.lab-intent-seg.will-skip {
+  outline: 1px dashed #64748b;
+  opacity: 0.72;
+}
+
+.lab-root .lab-intent-recap {
+  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--lab-ink);
+  background: rgba(196, 74, 50, 0.2);
+  border-radius: 4px;
+  padding: 0.28rem 0.55rem;
+  margin: 0.08rem auto 0.22rem;
+  max-width: 44rem;
+  line-height: 1.45;
+}
+
+.lab-root .lab-recap-chip {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 0.04rem 0.32rem;
+  border-radius: 3px;
+  margin: 0.08rem 0.12rem 0 0;
+}
+
+.lab-prod-combat .stage-core .lab-intent-band .lab-intent-seg.will-hit {
+  outline: 1px solid rgba(127, 29, 29, 0.4);
+}
+
 /* §31.14 拆招教学行：眼在哪、怎么拆，不悬停也看得见 */
 .lab-root .lab-eye-hint {
   text-align: center;
   font-size: 0.72rem;
-  color: #f0c46c;
+  color: var(--lab-ink);
   padding: 0.12rem 0.5rem;
   line-height: 1.35;
+  font-weight: 650;
 }
 
 /* 对战版：意图条头精简 */
@@ -3186,72 +3527,462 @@ html.lab-fullscreen #app.lab-root {
   font-weight: 600;
 }
 
-/* 拆招版：充能条 + 教学条 */
+/* 拆招版：充能条（铁木格，朱红点亮） */
 .lab-root .lab-break-charge {
   display: flex;
   align-items: center;
   gap: 0.35rem;
   font-size: 0.72rem;
   padding: 0.15rem 0.35rem;
-  border-radius: 4px;
-  background: linear-gradient(90deg, rgba(196, 90, 40, 0.12), rgba(196, 90, 40, 0.04));
-  border: 1px solid rgba(196, 90, 40, 0.35);
+  border-radius: 1px;
+  background: rgba(232, 220, 196, 0.92);
+  border: 1px solid var(--lab-line);
 }
 .lab-root .lab-break-charge-label {
   font-weight: 800;
-  color: #c45a28;
+  color: var(--lab-ink);
   white-space: nowrap;
 }
 .lab-root .lab-break-charge-pips {
   display: inline-flex;
-  gap: 0.12rem;
+  gap: 0.14rem;
 }
 .lab-root .lab-charge-pip {
-  width: 0.55rem;
-  height: 0.55rem;
-  border-radius: 50%;
-  border: 1px solid #c45a28;
-  background: transparent;
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 1px;
+  border: 1px solid #8a7d68;
+  background: #f4ead6;
 }
 .lab-root .lab-charge-pip.on {
-  background: #e8a06a;
-  box-shadow: 0 0 4px rgba(232, 160, 106, 0.6);
+  background: var(--lab-lantern);
+  border-color: var(--lab-lantern);
+  box-shadow: none;
 }
 .lab-root .lab-break-charge-num {
   font-weight: 800;
-  color: #f0c778;
+  color: var(--lab-ink);
 }
 .lab-root .lab-break-anti {
-  color: #9fd08a;
+  color: #3d6b48;
   font-size: 0.68rem;
 }
 .lab-root .lab-break-teach {
   text-align: center;
-  font-size: 0.74rem;
-  color: #ffe1a8;
-  background: rgba(196, 90, 40, 0.18);
-  border: 1px solid rgba(196, 90, 40, 0.4);
-  border-radius: 4px;
-  padding: 0.25rem 0.5rem;
-  margin-bottom: 0.25rem;
+  font-size: 0.82rem;
+  color: var(--lab-ink);
+  background: rgba(232, 220, 196, 0.94);
+  border: 1px solid var(--lab-lantern);
+  border-radius: 1px;
+  padding: 0.28rem 0.7rem;
+  margin: 0.15rem auto 0.2rem;
+  max-width: 42rem;
+  line-height: 1.45;
+  font-weight: 650;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+}
+
+/* —— 战斗 UI 可读性：字号 / 行距 / 手牌 —— */
+.lab-prod-combat .stage-core {
+  gap: 0.35rem;
+  justify-content: center;
+  padding-bottom: 0.35rem;
+}
+
+.lab-prod-combat .stage-core .lab-intent-band .lab-intent-bandhead {
+  font-size: 0.82rem;
+  line-height: 1.45;
+  gap: 0.9rem;
+  margin-bottom: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.lab-prod-combat .stage-core .lab-intent-band .lab-intent-seg {
+  min-width: 5rem;
+  min-height: 2.85rem;
+  padding: 0.35rem 0.6rem;
+}
+
+.lab-prod-combat .stage-core .lab-intent-band .lab-intent-seg b {
+  font-size: 0.98rem;
+  line-height: 1.2;
+}
+
+.lab-prod-combat .stage-core .lab-intent-band .lab-intent-seg em {
+  font-size: 0.86rem;
+  line-height: 1.25;
+}
+
+.lab-prod-combat .stage-core .lab-intent-band .lab-intent-label {
+  font-size: 0.86rem;
+}
+
+.lab-prod-combat .stage-core .lab-intent-band .lab-eye-hint {
+  font-size: 0.88rem;
+  line-height: 1.5;
+  padding: 0.2rem 0.65rem 0.35rem;
+}
+
+.lab-prod-combat .coach {
+  font-size: 0.92rem;
+  line-height: 1.45;
+  padding: 0.28rem 0.7rem;
+  color: var(--lab-ink);
+  background: rgba(232, 220, 196, 0.85);
+  border: 1px solid var(--lab-line);
+}
+
+.lab-prod-combat.has-teach #preview-slot .preview.idle {
+  display: none;
+}
+
+.lab-prod-combat .lab-name-slot {
+  color: #fff;
+}
+
+.lab-prod-combat .lab-name-slot b {
+  font-size: 1.02rem;
+  line-height: 1.25;
+  color: #fff;
+}
+
+.lab-prod-combat .lab-name-slot span {
+  font-size: 0.78rem;
+  line-height: 1.3;
+  margin-top: 0.12rem;
+  color: #fff;
+}
+
+.lab-prod-combat #preview-slot .preview,
+.lab-prod-combat .preview {
+  font-size: 0.92rem;
+  line-height: 1.4;
+  padding: 0.28rem 0.65rem;
+}
+
+.lab-prod-combat .lab-hand-row .hand-scroll {
+  height: 252px;
+  padding-top: 36px;
+}
+
+.lab-prod-combat .lab-hand-row .hand-scroll .hand {
+  height: 214px;
+}
+
+.lab-prod-combat .lab-hand-row .hand-scroll .hand .card {
+  height: 214px;
+  width: 152px;
+  margin-left: -36px;
+}
+
+.lab-prod-combat .lab-hand-row .hand-scroll .hand .card:first-child {
+  margin-left: 0;
+}
+
+.lab-prod-combat .lab-hand-row .hand-scroll .hand .card .art {
+  height: 58px;
+  flex: 0 0 58px;
+}
+
+.lab-prod-combat .lab-hand-row .hand-scroll .hand .card h3 {
+  font-size: 17px;
+  line-height: 1.25;
+  padding: 4px 9px 0;
+}
+
+.lab-prod-combat .lab-hand-row .hand-scroll .hand .card .banner {
+  font-size: 0.72rem;
+  line-height: 1.3;
+}
+
+.lab-prod-combat .lab-hand-row .hand-scroll .hand .card .text {
+  font-size: 13px;
+  line-height: 1.4;
+  padding: 3px 9px 0;
+  -webkit-line-clamp: 6;
+}
+
+.lab-prod-combat .lab-hand-row .hand-scroll .hand .card .flavor {
+  font-size: 11px;
+  line-height: 1.35;
+  padding: 3px 22px 7px 9px;
+}
+
+.lab-prod-combat .lab-action-row .fy-btn,
+.lab-prod-combat .lab-action-row .swap-btn,
+.lab-prod-combat .lab-action-row .assist-btn {
+  font-size: 0.92rem;
+  line-height: 1.35;
+  padding: 0.4rem 0.75rem;
+}
+
+.lab-prod-combat .lab-break-charge {
+  font-size: 0.82rem;
+  line-height: 1.35;
+  padding: 0.22rem 0.65rem;
+}
+
+.lab-prod-combat .status-col,
+.lab-prod-combat .draw-col .pile-card,
+.lab-prod-combat .foe-col .pile-card {
+  font-size: 0.86rem;
   line-height: 1.4;
 }
+
+.lab-root .lab-foe-count {
+  font-size: 0.82rem;
+}
 .lab-root .card.break-charge-card .text {
-  color: #f0c778;
-  font-weight: 600;
+  color: var(--lab-ink);
+  font-weight: 700;
 }
 .lab-root .card.break-charge-card {
-  box-shadow: inset 0 0 0 1px rgba(232, 160, 106, 0.45);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.95);
+}
+.lab-root .combo-unlock-badge.teach-move {
+  background: var(--lab-lantern);
+  color: #fff;
+}
+.lab-root .card.demo-guide-card {
+  box-shadow: inset 0 0 0 2px #fff, 0 0 0 1px #1a1a1a;
+  background: rgba(255, 255, 255, 0.22);
+}
+.gauntlet-path-card.demo-fist-pick {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 3px #1a1a1a, 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+.lab-swap-btn.demo-swap-teach,
+.lab-root .fy-btn.demo-end-teach {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 3px #1a1a1a;
+  animation: demo-swap-pulse 1.2s ease-in-out infinite;
+}
+@keyframes demo-swap-pulse {
+  50% { box-shadow: 0 0 0 3px #fff, 0 0 0 5px #1a1a1a; }
+}
+
+.lab-overlay.demo-foe-debrief {
+  z-index: 40;
+}
+.demo-foe-debrief-panel {
+  max-width: min(28rem, 92vw);
+  text-align: left;
+}
+.demo-foe-debrief-tag {
+  display: block;
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  color: var(--lab-ink);
+  opacity: 0.75;
+  margin-bottom: 0.35rem;
+}
+.demo-foe-debrief-panel h3 {
+  margin: 0 0 0.65rem;
+  font-size: 1.25rem;
+  color: var(--lab-ink);
+}
+.demo-foe-debrief-panel p {
+  margin: 0 0 1.1rem;
+  line-height: 1.65;
+  font-size: 1rem;
+  color: var(--lab-ink);
+}
+
+/* 新手关三帧：铁牌，骨白字 */
+.gauntlet-shell.lab-break-intro {
+  max-width: none;
+  width: 100%;
+  gap: 0;
+}
+.lab-break-intro-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 1.15rem 1.4rem 1.6rem;
+  gap: 1.15rem;
+}
+.lab-break-intro-tag {
+  color: var(--lab-lantern);
+  font-weight: 700;
+  margin: 0;
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.lab-break-intro-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(0.75rem, 2vw, 1.2rem);
+  width: 100%;
+}
+.lab-break-intro-card {
+  border: 2px solid #2a2018;
+  border-top: 3px solid var(--lab-lantern);
+  background: var(--lab-paper);
+  border-radius: 1px;
+  padding: clamp(1.1rem, 2.2vw, 1.6rem) clamp(1rem, 1.8vw, 1.4rem);
+  text-align: left;
+  min-height: 11rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 0.4rem;
+  color: var(--lab-ink);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+}
+.lab-break-intro-card.mini {
+  min-height: 0;
+  padding: 0.7rem 1rem;
+  border-top-width: 2px;
+}
+.lab-break-intro-card.mini p {
+  margin: 0.2rem 0 0;
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+.lab-break-intro-card em {
+  display: block;
+  font-style: normal;
+  font-size: clamp(1.55rem, 2.6vw, 2rem);
+  font-weight: 800;
+  color: var(--lab-lantern);
+  line-height: 1.1;
+}
+.lab-break-intro-card b {
+  display: block;
+  margin: 0;
+  font-size: clamp(1.25rem, 2vw, 1.55rem);
+  letter-spacing: 0.1em;
+  color: var(--lab-ink);
+}
+.lab-break-intro-card p {
+  margin: 0;
+  font-size: clamp(1rem, 1.4vw, 1.12rem);
+  line-height: 1.6;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+.gauntlet-shell.lab-break-intro .gauntlet-wager-actions {
+  gap: 0.85rem;
+  margin-top: 0.35rem;
+}
+.gauntlet-shell.lab-break-intro .gauntlet-wager-actions .lab-btn {
+  font-size: 1.05rem;
+  padding: 0.65rem 1.35rem;
+}
+@media (max-width: 720px) {
+  .lab-break-intro-row { grid-template-columns: 1fr; }
+  .lab-break-intro-card { min-height: 0; }
 }
 
 /* §31.12 预演条上轮回顾态 */
-.lab-root .preview.recap { color: #c9b8a3; }
-.lab-root .preview.recap b { color: #e8a06a; margin-right: 0.3rem; }
+.lab-root .preview.recap { color: #6a5a40; }
+.lab-root .preview.recap b { color: var(--lab-lantern); margin-right: 0.3rem; }
 
 /* §31.12 助战符：点位模式 + 召唤体 */
-.lab-root .cell.summon-pick { outline: 2px dashed #8ec9ff; outline-offset: -2px; cursor: pointer; }
-.lab-root .cell.summon-pick:hover { background: rgba(142,201,255,0.18); }
-.lab-root .fig.summon .summon-glyph { display: inline-flex; flex-direction: column; align-items: center; line-height: 1.1; color: #ffe1a8; font-weight: 700; }
-.lab-root .fig.summon .summon-glyph em { font-style: normal; font-size: 0.62rem; color: #e8a06a; }
-.lab-root .fig.summon .summon-glyph i { font-style: normal; font-size: 0.66rem; color: #9fd08a; }
-.lab-root .summon-hint { color: #8ec9ff; }
+.lab-root .cell.summon-pick { outline: 2px dashed #4a6a8a; outline-offset: -2px; cursor: pointer; }
+.lab-root .cell.summon-pick:hover { background: rgba(74,106,138,0.15); }
+.lab-root .fig.summon .summon-glyph { display: inline-flex; flex-direction: column; align-items: center; line-height: 1.1; color: #7a4a12; font-weight: 700; }
+.lab-root .fig.summon .summon-glyph em { font-style: normal; font-size: 0.62rem; color: #a03a28; }
+.lab-root .fig.summon .summon-glyph i { font-style: normal; font-size: 0.66rem; color: #3d6b48; }
+.lab-root .summon-hint { color: #4a6a8a; }
+
+/* 踢馆卡面：沿用 style.css 宣纸卡面，立绘不动 */
+.lab-root .banner {
+  font-family: inherit;
+  letter-spacing: 0.18em;
+}
+
+/* 战场：米色上栏顶边贴紧棕色工具条底边，中间不留缝、不叠层 */
+.lab-root .fy-combat.lab-prod-combat .fy-top.lab-combat-top {
+  margin-top: 0;
+  padding: 0.28rem 0.75rem;
+  gap: 0.5rem;
+}
+.lab-root .lab-combat-top .fy-btn {
+  font-size: 0.72rem;
+  padding: 0.18rem 0.45rem;
+}
+.lab-root .fy-combat .status-chip {
+  font-size: 0.78rem;
+  padding: 0.12rem 0.35rem;
+  gap: 0.2rem;
+}
+.lab-root .fy-combat .preview {
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+.lab-root .fy-combat .preview.live,
+.lab-root .fy-combat .preview.bad {
+  border-color: var(--lab-lantern);
+  color: #8b2a24;
+}
+.lab-root .pile-card {
+  background: linear-gradient(180deg, #f4ead6, #e8dcc4);
+  border: 2px solid #2a2018;
+  color: var(--lab-ink);
+  box-shadow: 2px 2px 0 #2a201855;
+}
+.lab-root .pile-card:hover {
+  background: #f4ead6;
+  border-color: var(--lab-lantern);
+}
+.lab-root .pile-card em {
+  font-family: inherit;
+  letter-spacing: 0.16em;
+}
+.lab-pile-mask {
+  z-index: 50;
+}
+.lab-pile-sheet {
+  width: min(440px, 88vw);
+  max-height: min(72vh, 560px);
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.lab-pile-sheet .hall-chrome {
+  grid-template-columns: auto 1fr;
+}
+.lab-pile-list {
+  margin: 0;
+  padding: 0.75rem 1.1rem 1.1rem;
+  overflow: auto;
+  list-style: none;
+  flex: 1;
+}
+.lab-pile-list li {
+  margin: 0 0 0.65rem;
+  font-size: 1rem;
+  line-height: 1.45;
+  color: var(--lab-ink);
+}
+.lab-pile-list li b {
+  display: block;
+  font-size: 1.05rem;
+}
+.lab-pile-list li span {
+  display: block;
+  font-size: 0.88rem;
+  color: var(--lab-muted);
+}
+.lab-pile-list li.j-foe b,
+.lab-pile-list li.j-foe span {
+  color: #8b2a24;
+}
+.lab-pile-list li.j-you b {
+  color: var(--lab-lantern);
+}
+
+@media (max-width: 1100px) {
+  .lab-prod-combat .lab-hand-row .hand-scroll .hand .card {
+    margin-left: -36px;
+  }
+  .lab-prod-combat .lab-hand-row .hand-scroll .hand .card:first-child {
+    margin-left: 0;
+  }
+}

@@ -217,7 +217,7 @@ export function renderWikiSheet(book: WikiBook, page: number): string {
 
   return `
     <div class="lab-wiki-mask" id="lab-wiki-mask">
-      <div class="lab-wiki-panel">
+      <div class="lab-wiki-panel lab-iron-sheet">
         <header class="lab-wiki-head">
           <div class="lab-wiki-tabs">
             ${WIKI_BOOKS.map(

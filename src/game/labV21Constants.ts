@@ -1,7 +1,8 @@
-/** §20 道具占位数值 */
-export const ITEM_HEAL_PCT = 0.25;
-export const ITEM_DART_DMG = 6;
-export const ITEM_QI_GAIN = 4;
+/** §20 道具数值（颗数制：一次给 2 颗，用一少一） */
+export const ITEM_GRANT_QTY = 2;
+export const ITEM_HEAL_PCT = 0.32;
+export const ITEM_DART_DMG = 8;
+export const ITEM_QI_GAIN = 6;
 
 export const LAB_ITEM_LABEL: Record<string, string> = {
   jinchuang: "金疮药",
@@ -19,9 +20,9 @@ export const LAB_ITEM_LABEL: Record<string, string> = {
 };
 
 export const LAB_ITEM_TIP: Record<string, string> = {
-  jinchuang: "回 25% 气血",
-  xiujian: "6 点伤害，无视格挡",
-  huiqi: "即时 +4 劲",
+  jinchuang: "回 32% 气血",
+  xiujian: "8 点伤害，无视格挡",
+  huiqi: "即时 +6 劲",
   lianhuan: "本回合积势额外 +1",
   pojin: "本回合绝招无视前置",
   deathSquad: "死士为你挡下本回合第一段攻击并反扑 8；若无人来犯，他收势前主动打 8。用后即走，不占伙伴位",

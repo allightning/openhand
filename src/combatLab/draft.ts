@@ -7,7 +7,8 @@ import type { LabPreset } from "./types";
 
 export function normalizePreset(p: LabPreset): LabPreset {
   const fieldMate = p.fieldMate ?? p.active ?? p.hero ?? "rail";
-  const deckRecipe = uniqueRecipe(p.deckRecipe ?? p.deck ?? []);
+  const rawDeck = p.deckRecipe ?? p.deck ?? [];
+  const deckRecipe = p.mateDeckRecipes ? [...rawDeck] : uniqueRecipe(rawDeck);
   let party = [...(p.party?.length ? p.party : [fieldMate])];
   if (!party.includes(fieldMate)) party = [fieldMate, ...party];
   party = party.slice(0, LAB_PARTY_CAP);
@@ -35,6 +36,7 @@ export function normalizePreset(p: LabPreset): LabPreset {
     party,
     fieldMate,
     deckRecipe,
+    mateDeckRecipes: p.mateDeckRecipes,
     mateWeapons,
     mateTechs,
     mateMinds: p.mateMinds ? { ...p.mateMinds } : undefined,
@@ -42,8 +44,13 @@ export function normalizePreset(p: LabPreset): LabPreset {
     hpMax: p.hpMax,
     extraFoeIds: p.extraFoeIds ? [...p.extraFoeIds] : undefined,
     waveEnemyId: p.waveEnemyId,
+    waveQueue: p.waveQueue ? [...p.waveQueue] : undefined,
+    gauntletStage: p.gauntletStage,
+    hallLaw: p.hallLaw,
+    sceneBg: p.sceneBg,
     statBoostMul: p.statBoostMul,
-    labItems: p.labItems ? [...p.labItems].slice(0, 2) : undefined,
+    labItems: p.labItems ? [...p.labItems] : undefined,
+    labItemCharges: p.labItemCharges ? { ...p.labItemCharges } : undefined,
   };
 }
 
@@ -67,6 +74,12 @@ export function clonePreset(p: LabPreset): LabPreset {
     mateWeapons: { ...n.mateWeapons },
     mateTechs: Object.fromEntries(Object.entries(n.mateTechs).map(([k, v]) => [k, [...v!]])) as LabPreset["mateTechs"],
     extraFoeIds: n.extraFoeIds ? [...n.extraFoeIds] : undefined,
+    waveEnemyId: n.waveEnemyId,
+    waveQueue: n.waveQueue ? [...n.waveQueue] : undefined,
+    gauntletStage: n.gauntletStage,
+    hallLaw: n.hallLaw,
+    sceneBg: n.sceneBg,
     labItems: n.labItems ? [...n.labItems] : undefined,
+    labItemCharges: n.labItemCharges ? { ...n.labItemCharges } : undefined,
   };
 }

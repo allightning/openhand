@@ -584,7 +584,6 @@ img.pal-foreignSand { filter: sepia(0.6) hue-rotate(30deg) saturate(1.15) bright
   filter: grayscale(0.2);
   transform: none;
   z-index: 1;
-  pointer-events: none;
 }
 .card.dead:hover {
   transform: none;

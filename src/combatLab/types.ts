@@ -13,6 +13,8 @@ export interface LabPreset {
   fieldMate: CompanionId;
   /** 配方：最多 20 种不重复。 */
   deckRecipe: CardId[];
+  /** 每人出战牌包（踢馆配装）。 */
+  mateDeckRecipes?: Partial<Record<CompanionId, CardId[]>>;
   /** 每人兵器 id。 */
   mateWeapons: Partial<Record<CompanionId, string>>;
   /** 外功绑定角色，每人最多 3 门。 */
@@ -23,12 +25,21 @@ export interface LabPreset {
   extraFoeIds?: EnemyId[];
   /** §31.17 踢馆轮番：前排倒下后接力上场（单敌开局）。 */
   waveEnemyId?: EnemyId;
+  /** 拆招开踢：waveEnemyId 之后的替补队列。 */
+  waveQueue?: EnemyId[];
+  /** 踢馆馆序，供敌人套件/品阶/诚实蓝条。 */
+  gauntletStage?: number;
+  /** 本馆馆法。 */
+  hallLaw?: "noMove" | "mustMelee" | "earlyEye";
+  /** 本场背景图。 */
+  sceneBg?: string;
   /** §31.17 救命奖励：本局伤害倍率。 */
   statBoostMul?: number;
   hp?: number;
   hpMax?: number;
   /** v2.1 携带道具，最多 2。 */
   labItems?: LabItemId[];
+  labItemCharges?: Partial<Record<LabItemId, number>>;
   /** @deprecated 迁移用 */
   hero?: HeroId;
   active?: CompanionId;

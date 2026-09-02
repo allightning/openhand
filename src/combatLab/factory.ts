@@ -4,18 +4,28 @@ import { sumMindArtBonuses } from "../game/mindArts";
 import { initBattleMateWeapons } from "../game/equippedWeapon";
 import { setLabMode, getLabTuning } from "../game/labTuning";
 import { makeRun } from "../game/run";
-import { applyLabFightScale, battlePace, makeBattle, syncBattleGear } from "../game/sim";
+import { applyLabFightScale, applyLabEnemyKit, battlePace, makeBattle, syncBattleGear } from "../game/sim";
 import { MATES, cardSchool } from "../game/party";
 import { starterGear } from "../game/weapons";
 import type { Battle, CardId, CompanionId, EnemyId, Run, Unit } from "../game/types";
 import { initLabAuditFromPreset } from "./labAudit";
+import { defaultItemCharges } from "../game/labV21";
 import { clonePreset, fieldHero, normalizePreset, primaryWeapon } from "./draft";
 import { expandDeckRecipe } from "./rules";
 import { pruneDeckForWeapon } from "./cardUi";
+import { gearSlotMax } from "./loadout";
 import type { LabPreset } from "./types";
 import { battleEquippedSchool } from "../game/equippedWeapon";
 
 function distributeMateDecks(p: LabPreset, expanded: CardId[]): Partial<Record<CompanionId, CardId[]>> {
+  if (p.mateDeckRecipes) {
+    const out: Partial<Record<CompanionId, CardId[]>> = {};
+    for (const id of p.party) {
+      const own = p.mateDeckRecipes[id];
+      out[id] = own?.length ? [...own] : pruneDeckForWeapon(expanded, p.mateWeapons[id] ?? starterGear(MATES[id].weapon));
+    }
+    return out;
+  }
   const mateDecks: Partial<Record<CompanionId, CardId[]>> = {};
   for (const id of p.party) {
     const gear = p.mateWeapons[id] ?? starterGear(MATES[id].weapon);
@@ -81,8 +91,22 @@ export function startLabBattle(preset: LabPreset, ordered = false, deckMultiplie
     const extras = p.extraFoeIds.map((id) => extraUnit(id, hpScale));
     b = { ...b, foes: [...b.foes, ...extras] };
   }
-  if (p.waveEnemyId) b = { ...b, gauntletWaveEnemy: p.waveEnemyId };
-  if (p.labItems?.length) b = { ...b, labItems: p.labItems.slice(0, 2) };
+  if (p.waveEnemyId) {
+    b = {
+      ...b,
+      gauntletWaveEnemy: p.waveEnemyId,
+      gauntletWaveQueue: p.waveQueue?.length ? [...p.waveQueue] : undefined,
+    };
+  }
+  if (p.labItems?.length) {
+    const cap = p.gauntletStage != null ? gearSlotMax(p.gauntletStage) * 2 : 2;
+    const ids = p.labItems.slice(0, Math.max(2, cap));
+    b = {
+      ...b,
+      labItems: ids,
+      labItemCharges: p.labItemCharges ? { ...p.labItemCharges } : defaultItemCharges(ids),
+    };
+  }
   initBattleMateWeapons(b, p.mateWeapons);
   syncBattleGear(b, p.fieldMate);
   applyLabFightScale();
@@ -104,6 +128,10 @@ export function startLabBattle(preset: LabPreset, ordered = false, deckMultiplie
   const expanded = expandDeckRecipe(p.deckRecipe, mult);
   out.v2FieldSchoolDeckPct = fieldSchoolDeckPct(p, expanded);
   out.v2OpeningPaceBehind = battlePace(out) < out.foePace;
+  out.labGauntletStage = p.gauntletStage;
+  if (p.hallLaw) out.labHallLaw = p.hallLaw;
+  if (p.sceneBg) out.labSceneBg = p.sceneBg;
+  applyLabEnemyKit(out);
   return out;
 }
 

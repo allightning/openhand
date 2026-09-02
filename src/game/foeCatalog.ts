@@ -1,6 +1,5 @@
 import type { EnemyDef, EnemyId, Intent, WeaponId } from "./types";
-
-const WEAPONS: WeaponId[] = ["palm", "saber", "spear", "sword", "staff", "hook"];
+import { GAUNTLET_FOE_IDENTITY, kitCatalogPattern, schoolForGeneratedEnemy } from "./enemyKit";
 
 const FAMILIES: {
   key: string;
@@ -230,12 +229,27 @@ const ELITE_STAMPS: Record<
   },
 };
 
+function remnantFor(id: string, famKey: string, school: WeaponId): EnemyDef["remnant"] {
+  const ident = GAUNTLET_FOE_IDENTITY[id];
+  if (ident?.remnant) return ident.remnant;
+  if (school === "staff") return "hardWall";
+  if (school === "hook") return "tether";
+  if (school === "sword") return "delayGuard";
+  if (school === "saber") return "rebound";
+  if (famKey === "canal") return "tether";
+  if (famKey === "escortBand") return "rebound";
+  if (famKey === "court") return "delayGuard";
+  return "leftover";
+}
+
 function build(): Record<string, EnemyDef> {
   const out: Record<string, EnemyDef> = {};
   for (const fam of FAMILIES) {
     for (let i = 0; i < fam.count; i++) {
       const id = `mob_${fam.key}_${String(i + 1).padStart(2, "0")}` as EnemyId;
-      const name = fam.names[i % fam.names.length] + (i >= fam.names.length ? `·${i + 1}` : "");
+      const ident = GAUNTLET_FOE_IDENTITY[id];
+      const school = schoolForGeneratedEnemy(id, i);
+      const name = ident?.name ?? fam.names[i % fam.names.length] + (i >= fam.names.length ? `·${i + 1}` : "");
       const hp = Math.round((fam.hp + (i % 5) * 2) * 1.18);
       out[id] = {
         id,
@@ -245,11 +259,9 @@ function build(): Record<string, EnemyDef> {
         pos: 4 + (i % 2),
         skill: fam.title,
         pitch: fam.pitch,
-        remnant: fam.key === "canal" ? "tether" : fam.key === "escortBand" ? "rebound" : fam.key === "court" ? "delayGuard" : "leftover",
-        pattern: fam.pattern.map((p) => scaleIntent(p)),
+        remnant: remnantFor(id, fam.key, school),
+        pattern: kitCatalogPattern(id, i).map((p) => scaleIntent(p)),
         pace: fam.pace,
-        // §31.10 长兵器敌：棍僧/禅杖与宫廷长刀隔一格也能打到（拆招的空间博弈对它们不成立白送）。
-        ...(fam.key === "monk" || fam.key === "court" ? { reach: 2 } : {}),
       };
     }
   }
@@ -316,7 +328,11 @@ export const GENERATED_ELITE_ENERGY: Record<string, number> = Object.fromEntries
 );
 
 export const GENERATED_ENEMY_WEAPON: Record<string, WeaponId> = Object.fromEntries(
-  Object.keys(GENERATED_ENEMIES).map((id, i) => [id, WEAPONS[i % WEAPONS.length]]),
+  Object.keys(GENERATED_ENEMIES).map((id, i) => {
+    const fam = /^mob_([a-zA-Z]+)_\d+$/.exec(id);
+    const idx = fam ? Number(id.slice(id.lastIndexOf("_") + 1)) - 1 : i;
+    return [id, schoolForGeneratedEnemy(id, idx)];
+  }),
 );
 
 export function generatedEnemyCount(): number {
