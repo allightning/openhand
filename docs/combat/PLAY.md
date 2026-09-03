@@ -7,7 +7,8 @@
 ## 怎么打开
 
 **在线（不用装环境）：**  
-https://allightning.github.io/openhand/combat-lab.html
+https://allightning.github.io/openhand/  
+（也可 `/combat-lab.html`；根路径已直接进踢馆。）
 
 **本地：** 克隆仓库后 `npm install` && `npm run lab`，浏览器打开终端里提示的地址。
 

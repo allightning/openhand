@@ -8,7 +8,7 @@
 
 | | |
 |---|---|
-| **在线踢馆** | https://allightning.github.io/openhand/combat-lab.html |
+| **在线踢馆** | https://allightning.github.io/openhand/ （根路径；`/combat-lab.html` 亦可） |
 | **怎么玩** | [PLAY.md](./PLAY.md) |
 | **规则详解** | [RULES.md](./RULES.md) |
 

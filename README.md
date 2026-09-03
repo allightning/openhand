@@ -4,7 +4,8 @@
 
 ## 给朋友试玩
 
-**直接打开：** https://allightning.github.io/openhand/combat-lab.html
+**直接打开：** https://allightning.github.io/openhand/  
+（根路径即踢馆；`/combat-lab.html` 仍可用。）
 
 玩法说明：[docs/combat/PLAY.md](./docs/combat/PLAY.md)
 
