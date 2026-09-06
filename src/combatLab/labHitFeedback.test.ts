@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setLabMode, setLabTuning } from "../game/labTuning";
 import { applyBreak, applyGraze, applyBreakMomentumOnAttack } from "../game/labV2";
-import { endTurn, playCard } from "../game/sim";
+import { endTurn, playCard, refreshFoeIntentsIfPending } from "../game/sim";
 import type { Battle } from "../game/types";
 import { startLabBattle } from "./factory";
 import { buildGauntletPreset, createGauntletRun } from "./gauntlet";
 import { setLabRuleset } from "./labRuleset";
-import { renderFxLayer, renderFoeIntentStrip } from "./labV2Ui";
+import { renderFxLayer, renderFoeIntentStrip, formatIntentBroadcast } from "./labV2Ui";
 import { renderProdBattle } from "./prodBattleUi";
 
 function battle(): Battle {
@@ -94,6 +94,7 @@ describe("打击反馈：拆/让/空/打/拆势/劲尽", () => {
     const hp = b.player.hp;
     b = endTurn(b);
     expect(b.player.hp).toBeLessThan(hp);
+    expect(b.v2LastIntentRecap?.some((r) => (r.hpLost ?? 0) > 0)).toBe(true);
     expect(b.v2LastIntentRecap?.some((r) => r.outcome === "打")).toBe(true);
     expect(b.v2FxQueue).toContain("hit");
     expect(renderFxLayer(b)).toContain("打");
@@ -125,17 +126,18 @@ describe("打击反馈：拆/让/空/打/拆势/劲尽", () => {
     expect(renderFxLayer(after)).toMatch(/伤/);
   });
 
-  it("多段飘字叠出，不只留最后一条", () => {
+  it("飘字只亮最新一条，下一条顶替上一条", () => {
     const b = battle();
     b.v2FxQueue = ["break", "graze", "hit"];
     const layer = renderFxLayer(b);
-    expect(layer).toContain("拆！");
-    expect(layer).toContain("让");
     expect(layer).toContain("打");
-    expect(layer.match(/lab-fx-pop/g)?.length).toBe(3);
+    expect(layer).not.toContain("拆！");
+    expect(layer).not.toContain(">让<");
+    expect(layer.match(/lab-fx-pop/g)?.length).toBe(1);
+    expect(layer).toContain("lab-fx-plate");
   });
 
-  it("上息段章带破/让/空/打/劲尽", () => {
+  it("上息回顾改由播报承担，意图条不再叠 recap 条", () => {
     const b = battle();
     b.v2LastIntentRecap = [
       { ord: 1, name: "劈", outcome: "破" },
@@ -145,34 +147,62 @@ describe("打击反馈：拆/让/空/打/拆势/劲尽", () => {
       { ord: 5, name: "劈", outcome: "劲尽" },
     ];
     const strip = renderFoeIntentStrip(b, null);
-    expect(strip).toContain("lab-recap-chip");
-    expect(strip).toContain("破");
-    expect(strip).toContain("让");
-    expect(strip).toContain("空");
-    expect(strip).toContain("打");
-    expect(strip).toContain("劲尽");
+    expect(strip).not.toContain("lab-recap-chip");
+    expect(strip).toContain("敌招");
   });
 
-  it("打空后教练不靠血条也能说清", () => {
+  it("播报文案带名称与数值（含进撤/架/回）", () => {
+    expect(formatIntentBroadcast({ kind: "strike", damage: 8 }, "打", "扑刀")).toBe("扑刀 · 打 8");
+    expect(formatIntentBroadcast({ kind: "retreat", steps: 1 }, "追", "抽步")).toBe("抽步 · 追 · 撤1");
+    expect(formatIntentBroadcast({ kind: "retreat", steps: 2 }, "放", "抽步")).toBe("抽步 · 放 · 撤2");
+    expect(formatIntentBroadcast({ kind: "charge", damage: 9, steps: 2 }, "打", "冲锋")).toBe("冲锋 · 打 9 · 进2");
+    expect(formatIntentBroadcast({ kind: "stake" }, "桩", "立桩")).toBe("立桩 · 桩 1");
+    expect(formatIntentBroadcast({ kind: "mend", heal: 6 }, "回", "金创")).toBe("金创 · 回 6");
+    expect(formatIntentBroadcast({ kind: "guard", block: 8 }, "架", "卸力")).toBe("卸力 · 架 8");
+    expect(formatIntentBroadcast({ kind: "breathe", amount: 3 }, "劲", "吐纳")).toBe("吐纳 · 劲+3");
+    expect(formatIntentBroadcast({ kind: "lunge", damage: 9 }, "破", "抢路")).toBe("抢路 · 破 9");
+  });
+
+  it("readout sits in mid gutter between strip and charge", () => {
+    const b = battle();
+    b.labBreakLesson = true;
+    const page = html(b);
+    const strip = page.indexOf('id="strip"');
+    const gutter = page.indexOf("lab-mid-gutter");
+    const readout = page.indexOf("lab-readout-rail");
+    const charge = page.indexOf("lab-break-charge-rail");
+    expect(strip).toBeGreaterThan(-1);
+    expect(gutter).toBeGreaterThan(strip);
+    expect(readout).toBeGreaterThan(gutter);
+    expect(charge).toBeGreaterThan(readout);
+  });
+
+  it("默认中轴不念教练经", () => {
     const b = battle();
     b.v2LastIntentRecap = [{ ord: 1, name: "劈", outcome: "空" }];
-    expect(html(b)).toMatch(/id="coach">[^<]*打空/);
+    expect(html(b)).toMatch(/coach-empty|coach" hidden/);
   });
 });
 
-describe("意图条：落点 / 打空 / 耗劲 / 跳过", () => {
-  it("每段常驻落点格与耗劲", () => {
+describe("意图条：招名 / 效果 / 跳过", () => {
+  it("每段必有招名与数值效果，进撤明示", () => {
     const b = battle();
-    b.enemyEnergy = 6;
+    b.enemyEnergy = 8;
     b.intents = [
       { kind: "strike", damage: 8 },
       { kind: "guard", block: 6 },
       { kind: "breathe", amount: 3 },
+      { kind: "retreat", steps: 1 },
+      { kind: "charge", damage: 7, steps: 2 },
     ];
     const strip = renderFoeIntentStrip(b, null);
-    expect(strip).toMatch(/劲\s*1/);
-    expect(strip).toMatch(/劲\s*2/);
-    expect(strip).toMatch(/落\d/);
+    expect(strip).toContain("扑刀 · 8");
+    expect(strip).toContain("卸力 · 架6");
+    expect(strip).toContain("吐纳 · 劲+3");
+    expect(strip).toContain("撤1");
+    expect(strip).toMatch(/7\/2/);
+    expect(strip).not.toMatch(/落\d/);
+    expect(strip).not.toMatch(/lab-seg-meta/);
   });
 
   it("劲不够的段标跳过，不标打", () => {
@@ -201,5 +231,27 @@ describe("意图条：落点 / 打空 / 耗劲 / 跳过", () => {
     expect(strip).toContain("金创");
     expect(strip).toMatch(/劲\s*2/);
     expect(strip).toMatch(/劲\s*1/);
+  });
+
+  it("deferIntentRefresh：兑完整队暂不刷下一手，refresh 后才亮新队列", () => {
+    let b = battle();
+    b.player.pos = 1;
+    b.enemy.pos = 4;
+    b.enemyEnergy = 4;
+    const locked = [
+      { kind: "strike" as const, damage: 6 },
+      { kind: "guard" as const, block: 6 },
+    ];
+    b.intents = locked.map((x) => ({ ...x }));
+    b.intent = b.intents[0]!;
+    b = endTurn(b, { deferIntentRefresh: true });
+    expect(b.v2PendingIntentRefresh).toBe(true);
+    expect(b.intents).toHaveLength(2);
+    expect(b.intents[0]).toMatchObject({ kind: "strike", damage: 6 });
+    expect(b.intents[1]).toMatchObject({ kind: "guard", block: 6 });
+    expect(b.v2LastIntentRecap?.length).toBeGreaterThanOrEqual(2);
+    b = refreshFoeIntentsIfPending(b);
+    expect(b.v2PendingIntentRefresh).toBeFalsy();
+    expect(b.intents.length).toBeGreaterThanOrEqual(1);
   });
 });

@@ -64,6 +64,7 @@ import { MOVE_CARD_IDS, planEyeIdx, registerThreatProvider, registerQueueThreatP
 import { SUMMON_DEFS } from "./labSummon";
 import { addStake, adjacentStakePos, enemyPlantHits, playerPlantHits, removeStake, smashHitsForSchool, smashStake, stakeHitsAt } from "./stake";
 import { isBreakAlign } from "../combatLab/labRuleset";
+import { scaleClimbResource } from "../combatLab/climbEconomy";
 import {
   bleedTickDamage,
   clampHandCap,
@@ -127,6 +128,8 @@ function spearBreakAttackBase(b: Battle, def: CardDef): number | null {
   if (def.id !== "thrust" && def.id !== "spearLock") return null;
   const foe = targetFoe(b);
   const dist = foe ? Math.abs(b.player.pos - foe.pos) : 0;
+  /** 贴身拨杆：低伤档，由 apply 另加击退。 */
+  if (dist === 1) return 2;
   return spearReachDamage(dist);
 }
 
@@ -342,6 +345,8 @@ export function makeBattle(
   const energyMax = enemyEnergyMax(enemyId);
   const gearQi = pathSkillMods(battleGearId).qiRegen ?? 0;
   const bonusQi = run.companionBonus?.[active]?.qiMax ?? 0;
+  const climbPool = (n: number) => scaleClimbResource(n, "pool");
+  const climbRegen = (n: number) => scaleClimbResource(n, "regen");
   const battle: Battle = {
     player: {
       id: "you",
@@ -359,14 +364,16 @@ export function makeBattle(
       // §31.9 仙药加成：劲力上限随 playerEnergyBonus 抬高。
       ...(isLabMode() && getLabTuning().enemySegAll
         ? {
-            energy: 5 + getLabTuning().playerEnergyBonus,
-            energyMax: 6 + getLabTuning().playerEnergyBonus,
-            energyRegen: 3 + gearQi,
+            energy: climbRegen(5 + getLabTuning().playerEnergyBonus),
+            energyMax: climbPool(6 + getLabTuning().playerEnergyBonus),
+            energyRegen: climbRegen(3 + gearQi),
           }
         : {
-            energy: Math.min(STARTER.energy + bonusQi, (STARTER.energyStart ?? Math.min(5, STARTER.energy)) + bonusQi),
-            energyMax: STARTER.energy + bonusQi,
-            energyRegen: (STARTER.energyRegen ?? 3) + gearQi,
+            energy: climbRegen(
+              Math.min(STARTER.energy + bonusQi, (STARTER.energyStart ?? Math.min(5, STARTER.energy)) + bonusQi),
+            ),
+            energyMax: climbPool(STARTER.energy + bonusQi),
+            energyRegen: climbRegen((STARTER.energyRegen ?? 3) + gearQi),
           }),
     nextDamage: 0,
     stakes: [],
@@ -463,11 +470,36 @@ export function yourPace(b: Battle): number {
 
 export function seizeOpening(b: Battle): void {
   if (yourPace(b) >= b.foePace) return;
+  weakenLabOpeningQueue(b);
   note(b, "foe", `${b.enemy.name}手先到。`);
   resolveAllIntents(b);
   if (b.phase !== "player") return;
   rollIntent(b);
   note(b, "foe", `${b.enemy.name}亮招：${labelIntent(b.intent)}${b.intents.length > 1 ? `（后手 ${b.intents.length - 1}）` : ""}`);
+}
+
+/** 后手开局只留至多两段、至多一段伤害，避免先手满套路。 */
+export function weakenLabOpeningQueue(b: Battle): void {
+  if (!isLabMode() || yourPace(b) >= b.foePace) return;
+  if (b.v2OpeningWeakened) return;
+  b.v2OpeningWeakened = true;
+  const q = (b.intents.length ? b.intents : [b.intent]).slice();
+  const kept: Intent[] = [];
+  let usedDmg = false;
+  for (const it of q) {
+    if (kept.length >= 2) break;
+    const dmg = "damage" in it ? (it.damage ?? 0) : 0;
+    if (dmg > 0) {
+      if (usedDmg) continue;
+      usedDmg = true;
+      kept.push({ ...it, damage: Math.max(3, Math.floor(dmg * 0.65)) } as Intent);
+    } else {
+      kept.push(it);
+    }
+  }
+  if (!kept.length) kept.push({ kind: "lunge", damage: 6 });
+  b.intents = kept;
+  b.intent = kept[0]!;
 }
 
 function setupBattle(b: Battle): void {
@@ -560,6 +592,13 @@ export function riposteName(kind: RiposteKind): string {
 
 export function livingFoes(b: Battle): Unit[] {
   return (b.foes ?? [b.enemy]).filter((f) => f.hp > 0);
+}
+
+/** 最后一名敌人倒下且没有替补：当场判胜，不必再兑死人招或等收势。 */
+export function isBattleWon(b: Battle): boolean {
+  if (b.phase === "won") return true;
+  if (b.phase === "lost") return false;
+  return livingFoes(b).length === 0 && !b.gauntletWaveEnemy;
 }
 
 function syncFront(b: Battle): void {
@@ -1396,6 +1435,16 @@ function applyCard(b: Battle, defId: CardId): string[] {
     const base = table ?? (def.damage ?? 0) + bonus;
     const notes = hitEnemy(b, strikeDamage(b, base, false, def), def.name + " ");
     if (table != null) addSpearRuler(b, spearRulerGain(dist));
+    if (dist === 1 && isBreakAlign()) {
+      notes.push(...pushEnemy(b, 1));
+      notes.push("拨杆");
+      const after = targetFoe(b);
+      if (after && Math.abs(b.player.pos - after.pos) === 1) {
+        const before = b.player.hp;
+        b.player.hp = Math.max(1, b.player.hp - 2);
+        notes.push(`顶杆反震 ${before - b.player.hp}`);
+      }
+    }
     return notes;
   }
 
@@ -1792,10 +1841,22 @@ function applyCard(b: Battle, defId: CardId): string[] {
   const saberBase = saberBreakAttackBase(b, def);
   const tableBase = spearBase ?? saberBase;
   if (def.damage || tableBase != null) {
+    const foeBefore = targetFoe(b);
+    const distBefore = foeBefore ? Math.abs(b.player.pos - foeBefore.pos) : 0;
     notes.push(...hitEnemy(b, strikeDamage(b, tableBase ?? def.damage ?? 0, false, def), def.name + " "));
     if (spearBase != null) {
       const foe = targetFoe(b);
       addSpearRuler(b, spearRulerGain(foe ? Math.abs(b.player.pos - foe.pos) : 0));
+      if (distBefore === 1 && isBreakAlign() && def.id !== "thrust") {
+        notes.push(...pushEnemy(b, 1));
+        notes.push("拨杆");
+        const after = targetFoe(b);
+        if (after && Math.abs(b.player.pos - after.pos) === 1) {
+          const before = b.player.hp;
+          b.player.hp = Math.max(1, b.player.hp - 2);
+          notes.push(`顶杆反震 ${before - b.player.hp}`);
+        }
+      }
     }
   }
   if (def.block) {
@@ -1995,8 +2056,10 @@ export function canPlay(b: Battle, uid: string): { ok: boolean; reason?: string 
     const foe = targetFoe(b);
     const dist = foe ? Math.abs(foe.pos - b.player.pos) : 0;
     if (foe && isBreakAlign() && school === "spear") {
-      if (spearReachDamage(dist) == null) {
-        return { ok: false, reason: `贴身使不开枪（需 2–4 格，敌在 ${dist} 格）` };
+      if (dist === 1) {
+        /* 贴身拨杆：允许出枪，结算走低伤+击退 */
+      } else if (spearReachDamage(dist) == null) {
+        return { ok: false, reason: `枪够不着（需贴身拨杆或 2–4 格，敌在 ${dist} 格）` };
       }
     } else if (foe && dist > SCHOOL_REACH[school]) {
       const reach = SCHOOL_REACH[school];
@@ -2608,13 +2671,16 @@ function resolveAllIntents(b: Battle): void {
         b.labDeathSquad = false;
         note(b, "you", `死士挡下${intent.damage}，反扑 8`);
         hitEnemy(b, 8, "死士反扑 ");
+        if (livingFoes(b).length === 0) checkWin(b);
         return;
       }
       b.v2ResolveIntentIdx = idx;
       b.enemyEnergy = Math.max(0, b.enemyEnergy - intentCost(intent));
       if (idx > 0) note(b, "foe", `${b.enemy.name}接招：${labelIntent(intent)}`);
       resolveIntent(b);
+      if (livingFoes(b).length === 0) checkWin(b);
     });
+    if (livingFoes(b).length === 0) checkWin(b);
     // 死士在场但没挡到招：收势前主动出手一次。
     if (b.labDeathSquad && b.phase === "player") {
       b.labDeathSquad = false;
@@ -2881,6 +2947,7 @@ export function applyLabEnemyKit(b: Battle, role: "main" | "extra" = "main"): vo
     b.enemy.name = profile.name;
   }
   rollIntent(b);
+  if (yourPace(b) < b.foePace) weakenLabOpeningQueue(b);
 }
 
 function honestifyQueue(b: Battle, planned: Intent[]): Intent[] {
@@ -3246,11 +3313,21 @@ export function applyTurnDamageGovernor(b: Battle, queue: Intent[]): void {
 }
 
 function planFromFirst(b: Battle, first: Intent): void {
+  const savedPos = b.enemy.pos;
+  try {
+    planFromFirstAtPos(b, first);
+  } finally {
+    b.enemy.pos = savedPos;
+  }
+}
+
+function planFromFirstAtPos(b: Battle, first: Intent): void {
   // §31.10 够不着不出贴身招：起手段是近战攻击但距离不够 → 换成抢步逼近（踢馆线）。
   if (isLabMode() && isMeleeIntent(first) && distTo(b) > enemyReach(b)) {
     first = { kind: "lunge", damage: 11 };
   }
   const planned: Intent[] = [first];
+  if (isLabMode()) advanceThreatProjection(b, first);
   const budgetCap = enemyRoundBudgetCap(b);
   let budget = Math.max(0, budgetCap - intentCost(first));
   let last = first;
@@ -3259,9 +3336,12 @@ function planFromFirst(b: Battle, first: Intent): void {
   while (budget > 0 && guard < 8) {
     guard += 1;
     let next = followIntent(b, last);
+    if (isLabMode() && isMeleeIntent(next) && distTo(b) > enemyReach(b)) {
+      next = last.kind === "retreat" ? { kind: "breathe", amount: 3 } : { kind: "lunge", damage: 11 };
+    }
     if (isHeavyIntent(next)) {
       if (heavyUsed) {
-        next = budget >= 1 ? { kind: "strike", damage: 11 } : { kind: "guard", block: 6 };
+        next = budget >= 1 ? (isLabMode() && distTo(b) > enemyReach(b) ? { kind: "lunge", damage: 11 } : { kind: "strike", damage: 11 }) : { kind: "guard", block: 6 };
       } else {
         heavyUsed = true;
       }
@@ -3277,6 +3357,7 @@ function planFromFirst(b: Battle, first: Intent): void {
     planned.push(next);
     budget -= cost;
     last = next;
+    if (isLabMode()) advanceThreatProjection(b, next);
   }
   if (
     isLabMode() &&
@@ -3383,7 +3464,37 @@ function applyTether(b: Battle): void {
   if (notes.length) b.log.push(`纤力：${notes[0]}`);
 }
 
-export function endTurn(b: Battle): Battle {
+export type EndTurnOpts = {
+  /**
+   * true：敌回合整队兑完后暂不刷新下一手意图（意图条仍显示本回合刚打完的队列）。
+   * 播报结束后再调 `refreshFoeIntentsIfPending`。测试默认 false（立即刷新）。
+   */
+  deferIntentRefresh?: boolean;
+};
+
+/** 敌回合播报结束后：刷新「下一手」全套意图。 */
+export function refreshFoeIntentsIfPending(b: Battle): Battle {
+  if (!b.v2PendingIntentRefresh) return b;
+  const next = cloneBattle(b);
+  next.v2PendingIntentRefresh = false;
+  rollIntent(next);
+  if (hasTech(next, "delayGuard") && next.intent.kind === "windup") {
+    next.playerBlock += 3;
+    note(next, "you", "等手，卸了这一息。");
+  }
+  if (hasTech(next, "pikeBrace") && next.intent.kind === "windup") {
+    next.playerBlock += 2;
+    note(next, "you", "拒马，枪尖朝外。");
+  }
+  note(
+    next,
+    "foe",
+    `${next.enemy.name}亮招：${labelIntent(next.intent)}${next.intents.length > 1 ? `（后手隐 ${next.intents.length - 1}）` : ""}`,
+  );
+  return next;
+}
+
+export function endTurn(b: Battle, opts: EndTurnOpts = {}): Battle {
   if (b.phase !== "player") return b;
   if (!canEndPlayerTurn(b).ok) return b;
   const next = cloneBattle(b);
@@ -3541,20 +3652,26 @@ export function endTurn(b: Battle): Battle {
   drawRefill(next);
   // §31.10 弃牌上限按「补牌后的回合开始手牌」定——否则上回合打得越狠，下回合越没弃牌权（甲方实测「全局两次」的根因）。
   if (next.v2Turn) next.v2Turn.turnStartHand = next.hand.length;
-  rollIntent(next);
-  if (hasTech(next, "delayGuard") && next.intent.kind === "windup") {
-    next.playerBlock += 3;
-    note(next, "you", "等手，卸了这一息。");
+  // 整队锁死兑完再刷：defer 时意图条仍是本回合刚打完的全套，播报后再亮下一手。
+  if (opts.deferIntentRefresh) {
+    next.v2PendingIntentRefresh = true;
+  } else {
+    next.v2PendingIntentRefresh = false;
+    rollIntent(next);
+    if (hasTech(next, "delayGuard") && next.intent.kind === "windup") {
+      next.playerBlock += 3;
+      note(next, "you", "等手，卸了这一息。");
+    }
+    if (hasTech(next, "pikeBrace") && next.intent.kind === "windup") {
+      next.playerBlock += 2;
+      note(next, "you", "拒马，枪尖朝外。");
+    }
+    note(
+      next,
+      "foe",
+      `${next.enemy.name}亮招：${labelIntent(next.intent)}${next.intents.length > 1 ? `（后手隐 ${next.intents.length - 1}）` : ""}`,
+    );
   }
-  if (hasTech(next, "pikeBrace") && next.intent.kind === "windup") {
-    next.playerBlock += 2;
-    note(next, "you", "拒马，枪尖朝外。");
-  }
-  note(
-    next,
-    "foe",
-    `${next.enemy.name}亮招：${labelIntent(next.intent)}${next.intents.length > 1 ? `（后手隐 ${next.intents.length - 1}）` : ""}`,
-  );
   return next;
 }
 

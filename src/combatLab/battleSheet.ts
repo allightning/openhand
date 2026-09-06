@@ -6,6 +6,8 @@ export type BattleSheetKind = "draw" | "journal";
 
 export function renderBattleSheet(kind: BattleSheetKind, b: Battle): string {
   if (kind === "draw") {
+    const next = b.drawPile[0];
+    const nextName = next ? (CARDS[next.defId]?.name ?? next.defId) : "无";
     const counts = new Map<string, { name: string; text: string; n: number }>();
     for (const c of b.drawPile) {
       const def = CARDS[c.defId];
@@ -21,17 +23,19 @@ export function renderBattleSheet(kind: BattleSheetKind, b: Battle): string {
           `<li><b>${escapeHtml(row.name)}${row.n > 1 ? ` ×${row.n}` : ""}</b><span>${escapeHtml(row.text)}</span></li>`,
       )
       .join("");
-    return sheet("残谱", `还剩 ${b.drawPile.length} 张`, rows || `<li>空袖。</li>`);
+    return sheet("残谱", `还剩 ${b.drawPile.length} 张 · 下一张 ${nextName}`, rows || `<li>空袖。</li>`);
   }
-  const rows = [...b.journal]
-    .reverse()
-    .slice(0, 48)
-    .map(
-      (j) =>
-        `<li class="j-${j.side}"><b>${j.side === "you" ? "己" : "敌"}</b><span>${escapeHtml(j.text)}</span></li>`,
-    )
-    .join("");
-  return sheet("战记", `${b.journal.length} 条 · 新的在上`, rows || `<li>尚无记录。</li>`);
+  const atk = b.v2AttackPlays ?? 0;
+  const brk = b.v2BreakCount ?? 0;
+  const swaps = b.v2SwapCount ?? 0;
+  const rows = [
+    `<li><b>出刀</b><span>${atk} 张攻击牌</span></li>`,
+    `<li><b>拆招</b><span>${brk} 段</span></li>`,
+    `<li><b>换人</b><span>${swaps} 次</span></li>`,
+    `<li><b>回合</b><span>第 ${b.turn} 息</span></li>`,
+    `<li><b>气血</b><span>${b.player.hp} / ${b.player.maxHp}</span></li>`,
+  ].join("");
+  return sheet("本馆", "这一馆打到现在 · 刚打完的招看中轴播报", rows);
 }
 
 function sheet(title: string, sub: string, rows: string): string {

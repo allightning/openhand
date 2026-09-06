@@ -8,7 +8,7 @@ import { intentFirePlan } from "../game/labEnemyStress";
 import { applyBreak, breakLootFor, counterHitFoe, emptyV2Turn } from "../game/labV2";
 import { setLabMode, setLabTuning } from "../game/labTuning";
 import { SCHOOL_REACH } from "../game/party";
-import { endTurn, playCard } from "../game/sim";
+import { endTurn, playCard, seizeOpening } from "../game/sim";
 import type { Battle, Intent } from "../game/types";
 import { startLabBattle } from "./factory";
 import { buildGauntletPreset, breakRewardCardPool, createGauntletRun } from "./gauntlet";
@@ -123,12 +123,12 @@ describe("C 蓝条 + 数值", () => {
     expect(skippedHeavy).toBe(false);
   });
 
-  it("肉鸽 10 馆 HP/伤梯度拉开", () => {
+  it("肉鸽 10 馆 HP/伤梯度拉开（纯战斗约 18–22 min）", () => {
     const ladder = pathLadder("shaolin");
-    expect(ladder[0]!.hpMul).toBe(1.15);
-    expect(ladder[3]!.hpMul).toBeGreaterThanOrEqual(1.5);
-    expect(ladder[6]!.hpMul).toBeGreaterThanOrEqual(2.2);
-    expect(ladder[9]!.hpMul).toBeGreaterThanOrEqual(2.7);
+    expect(ladder[0]!.hpMul).toBe(1.7);
+    expect(ladder[3]!.hpMul).toBeGreaterThanOrEqual(2.0);
+    expect(ladder[6]!.hpMul).toBeGreaterThanOrEqual(3.0);
+    expect(ladder[9]!.hpMul).toBeGreaterThanOrEqual(3.5);
     expect(ladder[9]!.hpMul - ladder[0]!.hpMul).toBeGreaterThan(1.6);
     expect(ladder[6]!.dmgCoef).toBeGreaterThan(ladder[2]!.dmgCoef + 0.35);
     expect(ladder[9]!.dmgCoef).toBeGreaterThan(ladder[0]!.dmgCoef + 1);
@@ -142,6 +142,67 @@ describe("D 对线 AI + 撤", () => {
     b.enemy.pos = 4;
     const kinds = b.intents.map((i) => i.kind);
     expect(kinds.includes("retreat") || profileFor("mob_road_01", 3).opener.some((i) => i.kind === "retreat")).toBe(true);
+  });
+
+  it("刀后手开局仍出招，且首轮段数削弱", () => {
+    const early = hall("bandit", "saber", 1);
+    expect(early.v2OpeningPaceBehind).toBe(true);
+    expect(early.intents.length).toBeGreaterThan(0);
+    expect(early.intents.some((i) => i.kind !== "guard")).toBe(true);
+    const late = hall("bandit", "saber", 7);
+    expect(late.v2OpeningPaceBehind).toBe(true);
+    expect(late.intents.length).toBeGreaterThan(0);
+    expect(late.intents.length).toBeLessThanOrEqual(2);
+    seizeOpening(early);
+    expect(early.log.some((line) => line.includes("手先到"))).toBe(true);
+    expect(early.intents.length).toBeGreaterThan(0);
+  });
+
+  it("投影后撤步接着的近战够不着时，不排空挥劈砍", () => {
+    const afterRetreat = followFromKit(
+      {
+        dist: 2,
+        reach: 1,
+        energy: 6,
+        energyMax: 8,
+        hpRatio: 0.8,
+        enemyBlock: 0,
+        stage: 3,
+        school: "palm",
+        playerSchool: "saber",
+        turn: 2,
+        foeAtEdge: false,
+        playerAtEdge: false,
+        stakes: 0,
+        grade: "jing",
+        opener: [],
+        sigs: [],
+      },
+      { kind: "retreat", steps: 1 },
+    );
+    expect(["strike", "bleedcut", "barrage", "pestle"]).not.toContain(afterRetreat.kind);
+
+    const b = hall("bandit", "palm", 3);
+    b.player.pos = 3;
+    b.enemy.pos = 4;
+    const saved = b.enemy.pos;
+    for (const it of b.intents) {
+      const d = Math.abs(b.player.pos - b.enemy.pos);
+      const reach = SCHOOL_REACH[ENEMY_WEAPON[b.enemyId]!] ?? 1;
+      if (["strike", "bleedcut", "barrage", "pestle", "seal", "shatter"].includes(it.kind)) {
+        expect(d, `${it.kind} at dist ${d}`).toBeLessThanOrEqual(reach);
+      }
+      if (it.kind === "lunge" && d > 1) {
+        const dir = b.enemy.pos < b.player.pos ? 1 : -1;
+        const step = b.enemy.pos + dir;
+        if (step >= 0 && step <= 6) b.enemy.pos = step;
+      } else if (it.kind === "retreat") {
+        const dir = b.enemy.pos < b.player.pos ? -1 : 1;
+        const step = b.enemy.pos + dir;
+        if (step >= 0 && step <= 6) b.enemy.pos = step;
+      }
+    }
+    b.enemy.pos = saved;
   });
 
   it("馆 1 撤只 1 格", () => {

@@ -17,6 +17,7 @@ import {
   loadGauntletBest,
   starterTip,
   wagerLabel,
+  wagerConfirmLine,
   reviveCost,
   peakPotAnchor,
   gauntletRewardTakeCount,
@@ -34,13 +35,19 @@ import {
   type WagerOffer,
   type GauntletLadderEntry,
 } from "./gauntlet";
-import { GAUNTLET_PATH_BLURB, GAUNTLET_PATH_LABEL, getGauntletFinalStage, type GauntletPath } from "./gauntletPaths";
+import {
+  GAUNTLET_ENDLESS_BLURB,
+  GAUNTLET_PATH_BLURB,
+  GAUNTLET_PATH_LABEL,
+  getGauntletFinalStage,
+  type GauntletPath,
+} from "./gauntletPaths";
 import { isBreakAlign } from "./labRuleset";
 import { isBreakDemoDone, isRookieDemoDone } from "./breakDemo";
 import { breakStarterDeck, rogueLeadId, rogueMate } from "./rogueRoster";
 import { campBattleCardHtml, companionPortraitHtml, companionSkillLine } from "./rewardArt";
-import { campPlaceName } from "./sceneBg";
-import { FINALE_CHOICES, encounterEffectLine, encounterOutcomeTag, eventLead, finaleEffectLine, type EncounterChoice, type EncounterKind } from "./encounter";
+import { climbPlace } from "./climbPlaces";
+import { FINALE_CHOICES, eventLead, formatEncounterRichText, type EncounterChoice, type EncounterKind } from "./encounter";
 import { canStartBattle, deckBounds, fieldDeck, mateDeck } from "./loadout";
 
 export function renderGauntletEntryButton(): string {
@@ -53,58 +60,89 @@ export function renderGauntletEntryButton(): string {
     ${bestLine}`;
 }
 
-/** 踢馆主页：正经门厅。实验台只走顶栏按钮。 */
-export function renderGauntletHome(_devPanelHtml = ""): string {
-  const best = loadGauntletBest();
-  const bestCard = best
-    ? `<div class="gauntlet-best-card" data-tip="存在本机 localStorage">
-        <span class="gauntlet-best-title">本机最佳</span>
-        <b>第 ${best.streak} 馆</b>
-        <span>彩金 ${best.pot ?? 0}</span>
-      </div>`
-    : `<div class="gauntlet-best-card empty"><span class="gauntlet-best-title">本机最佳</span><b>虚位以待</b><span>踢赢第一馆就上榜</span></div>`;
+export function renderGauntletHome(
+  _devPanelHtml = "",
+  continueInfo: { replayLeft: number; stage: number; pot: number } | null = null,
+): string {
+  const best = loadGauntletBest(false);
+  const endlessBest = loadGauntletBest(true);
+  const bestBits = [
+    best ? `正赛第 ${best.streak} 馆 · 彩金 ${best.pot ?? 0}` : null,
+    endlessBest ? `无尽第 ${endlessBest.streak} 馆 · 彩金 ${endlessBest.pot ?? 0}` : null,
+  ].filter(Boolean);
+  const board =
+    bestBits.length > 0 ? `<p class="gauntlet-home-board" data-tip="本机 localStorage">${bestBits.join(" · ")}</p>` : "";
   const demoDone = isBreakDemoDone();
   const rookieDone = isRookieDemoDone();
-  const startBlock = `<div class="gauntlet-home-cta-col">
-        <div class="gauntlet-home-gates">
-        <button type="button" class="hall-gate hall-gate-kick ${demoDone ? "primary" : ""}" id="start-gauntlet"
-          data-tip="正式踢馆：选线 · 选兵器 · 垫资 · 下注托管">
-          <em>正赛主线</em>
-          <b>开 踢</b>
-          <span>十馆 · 彩金</span>
-        </button>
-        <div class="gauntlet-home-lessons">
-        <button type="button" class="hall-gate ${rookieDone ? "" : "primary"}" id="start-rookie-demo"
-          data-tip="${rookieDone ? "再练：出刀 / 格挡 / 走动 / 营地" : "四局：出刀 → 格挡 → 走动 → 营地。不教破招。"}">
-          <em>低阶</em>
-          <b>${rookieDone ? "再练低阶" : "低阶入门"}</b>
-          <span>四局 · 不教破招</span>
-        </button>
-        <button type="button" class="hall-gate ${rookieDone && !demoDone ? "primary" : ""}" id="start-break-demo"
-          data-tip="${demoDone ? "再练：硬破 / 充能 / 让 / 破架 / 破眼 / 换人" : "六局：硬破 → 充能 → 让 → 破架 → 破眼 → 换人"}">
-          <em>高阶</em>
-          <b>${demoDone ? "再学新手关" : "新手关"}</b>
-          <span>六局锁牌学破招</span>
-        </button>
-        <button type="button" class="hall-gate" id="start-training-hall"
-          data-tip="专项课：每课先引导再自由训练，不走彩金">
-          <em>回炉</em>
-          <b>训练馆</b>
-          <span>兵器课 · 营地课</span>
-        </button>
-        </div>
-      </div>
-      <p class="gauntlet-home-cta-hint">${demoDone ? "入门完成 · 开踢、训练馆或再练" : rookieDone ? "低阶过了就可以开踢；高阶课选练" : "建议先低阶入门，再开踢"}</p>
-      </div>`;
+
+  const kickLabel = continueInfo ? "重新开局" : "开踢";
+  const kickTip = continueInfo
+    ? "另开一局十馆：选线选兵器。上一歇营地仍可用续关进。"
+    : "正式踢馆：选线 · 选兵器 · 垫资 · 下注 · 馆间遭遇 · 十馆彩金";
+  const continueBtn = continueInfo
+    ? `<button type="button" class="hall-gate hall-gate-kick primary" id="hall-continue"
+          data-tip="回到上一歇营地：奖励与黑市不重摇。还可再进 ${continueInfo.replayLeft} 次。">
+          <b>续关 · 第 ${continueInfo.stage} 馆 · 余 ${continueInfo.replayLeft}</b>
+        </button>`
+    : `<button type="button" class="hall-gate hall-gate-kick hall-gate-idle" id="hall-continue" disabled
+          data-tip="打过一馆歇脚后，门厅可再进营地两次。">
+          <b>续关</b>
+        </button>`;
+
   return `
     <div class="gauntlet-shell gauntlet-home ritual-screen">
-      <header class="gauntlet-head gauntlet-home-head">
-        <h2>明手：七步石台</h2>
-        <p>十馆爬塔。站位、兵器、选路是正事。</p>
-      </header>
-      <div class="gauntlet-home-stage">
-        ${startBlock}
-        ${bestCard}
+      <div class="gauntlet-home-compose">
+        <header class="gauntlet-home-title">
+          <h2>明手：七步石台</h2>
+        </header>
+
+        <section class="gauntlet-home-kick" aria-label="踢馆">
+          <h3 class="gauntlet-home-section-label gauntlet-home-mode-kick">踢馆</h3>
+          <div class="gauntlet-home-continue">${continueBtn}</div>
+          <button type="button" class="hall-gate hall-gate-kick ${continueInfo ? "" : "primary"}" id="start-gauntlet"
+            data-tip="${escapeAttr(kickTip)}">
+            <b>${kickLabel}</b>
+          </button>
+          <div class="gauntlet-home-subrow">
+            <button type="button" class="hall-gate hall-gate-compact ${rookieDone ? "" : "primary"}" id="start-rookie-demo"
+              data-tip="${rookieDone ? "再练：出刀 / 格挡 / 走动 / 营地" : "四局：出刀 → 格挡 → 走动 → 营地。不教破招。"}">
+              <b>${rookieDone ? "再练低阶" : "低阶"}</b>
+            </button>
+          </div>
+        </section>
+
+        ${board}
+
+        <aside class="gauntlet-home-endless" aria-labelledby="home-mode-endless">
+          <h3 class="gauntlet-home-section-label" id="home-mode-endless">无尽</h3>
+          <button type="button" class="hall-gate hall-gate-kick" id="start-gauntlet-endless"
+            data-tip="更楼爬塔：无遭遇、无歇脚剧情；比馆数，同馆比彩金。">
+            <b>无尽</b>
+          </button>
+        </aside>
+
+        <aside class="gauntlet-home-read-rail" aria-labelledby="home-mode-read">
+          <h3 class="gauntlet-home-section-label gauntlet-home-mode-read" id="home-mode-read">读招</h3>
+          <div class="gauntlet-home-subrow">
+            <button type="button" class="hall-gate hall-gate-compact primary" id="start-break-campaign"
+              data-tip="九关短拍谜题 · 先讲气力/气势/墨痕，再用闪和分格 · 拆错或超时即败">
+              <b>读招战役</b>
+            </button>
+            <button type="button" class="hall-gate hall-gate-compact ${rookieDone && !demoDone ? "primary" : ""}" id="start-break-demo"
+              data-tip="${demoDone ? "再练：硬破 / 充能 / 让 / 破架 / 破眼 / 换人" : "六局：硬破 → 充能 → 让 → 破架 → 破眼 → 换人"}">
+              <b>${demoDone ? "再学新手关" : "新手关"}</b>
+            </button>
+            <button type="button" class="hall-gate hall-gate-compact" id="start-training-hall"
+              data-tip="专项课：每课先引导再自由训练，不走彩金">
+              <b>训练馆</b>
+            </button>
+            <button type="button" class="hall-gate hall-gate-compact hall-gate-soon" id="start-break-weekly" disabled
+              data-tip="制作中：周种子关 · 连破 / 受击 / 用时打榜">
+              <b>周挑战</b>
+              <span>即将开放</span>
+            </button>
+          </div>
+        </aside>
       </div>
     </div>`;
 }
@@ -142,6 +180,11 @@ export function renderGauntletWager(run: GauntletRun, offers: WagerOffer[], selK
   const stakeChips = chips.join("") + custom;
   const revive = reviveCost(run.stage);
   const canFight = selKind != null && selStake != null && selStake > 0;
+  const offer = selKind ? offers.find((o) => o.kind === selKind) : undefined;
+  const confirm =
+    canFight && offer
+      ? `<p class="gauntlet-wager-confirm">${escapeHtml(wagerConfirmLine(selKind!, selStake!, offer.odds))}</p>`
+      : `<p class="gauntlet-wager-confirm muted">先选盘口再落注额。开打后局内会一直显示这笔注。</p>`;
   const foeCount = 1 + (entry.extraEnemyIds?.length ?? 0);
   const foeNames = [entry.enemyId, ...(entry.extraEnemyIds ?? [])]
     .map((id) => ENEMIES[id]?.name ?? id)
@@ -154,8 +197,9 @@ export function renderGauntletWager(run: GauntletRun, offers: WagerOffer[], selK
       : `下一馆：${foeNames} · ${foeCount}人 · 难度 ${tierLabel} · 血量 ×${entry.hpMul.toFixed(2)}`;
   const nextLine = intel ? `${nextInfo} · 暗桩：${intel}` : nextInfo;
   const fightLabel = canFight ? "下 注 开 打" : selKind == null ? "先 选 盘 口" : "再 落 注 额";
+  const loc = climbPlace(run.path, run.stage);
   const wagerTitle = isBreakAlign() ? "赌馆" : `${escapeHtml(entry.label)} · 开擂前`;
-  const wagerPager = isBreakAlign() ? `<p class="gauntlet-pager">赌馆 · 2 / 2</p>` : "";
+  const wagerPager = `<p class="gauntlet-pager">${escapeHtml(loc.name)} · 赌馆</p>`;
   return `
     <div class="gauntlet-shell gauntlet-wager">
       <header class="gauntlet-head">
@@ -165,29 +209,36 @@ export function renderGauntletWager(run: GauntletRun, offers: WagerOffer[], selK
           连胜 ${run.streak} · 彩金 <b class="gauntlet-pot">${run.pot}</b>${run.bankruptUsed ? " · 已用过赊账" : ""}
         </p>
         <p class="gauntlet-next-info">${escapeHtml(nextLine)}</p>
+        ${run.lastEncounterNote ? `<p class="gauntlet-event-lead">${escapeHtml(run.lastEncounterNote)}</p>` : ""}
       </header>
       <div class="gauntlet-wager-row">${cards}</div>
+      <div class="gauntlet-wager-dock">
       <div class="gauntlet-stake-row"><span class="gauntlet-stake-label">注额</span>${stakeChips}</div>
+      ${confirm}
       <div class="gauntlet-wager-actions">
         <button type="button" class="lab-btn primary large" id="wager-fight" ${canFight ? "" : "disabled"}>${fightLabel}</button>
         <button type="button" class="lab-btn" id="wager-skip">不押 · 直接打</button>
       </div>
+      </div>
     </div>`;
 }
 
-export function renderGauntletPathPick(): string {
+export function renderGauntletPathPick(endless = false): string {
   const paths: GauntletPath[] = ["shaolin", "bandit", "court"];
   const final = getGauntletFinalStage();
   const mid = Math.ceil(final / 2);
-  const meta = isBreakAlign()
-    ? `${final} 馆 · 前两关入门 · 同道 3/7 · 期末第 ${final} 馆`
-    : `${final} 关 · 期中第 ${mid} 关 · 期末第 ${final} 关 · 可无尽`;
+  const blurbs = endless ? GAUNTLET_ENDLESS_BLURB : GAUNTLET_PATH_BLURB;
+  const meta = endless
+    ? "爬塔打榜 · 一层一馆 · 不进城殿"
+    : isBreakAlign()
+      ? `${final} 馆 · 前两关入门 · 同道 3/7 · 期末第 ${final} 馆`
+      : `${final} 关 · 期中第 ${mid} 关 · 期末第 ${final} 关`;
   const cards = paths
     .map(
       (path) => `
-      <button type="button" class="gauntlet-path-card" data-gauntlet-path="${path}" data-tip="${escapeAttr(GAUNTLET_PATH_BLURB[path])}">
+      <button type="button" class="gauntlet-path-card" data-gauntlet-path="${path}" data-tip="${escapeAttr(blurbs[path])}">
         <b>${escapeHtml(GAUNTLET_PATH_LABEL[path])}</b>
-        <em>${escapeHtml(GAUNTLET_PATH_BLURB[path])}</em>
+        <em>${escapeHtml(blurbs[path])}</em>
         <span class="gauntlet-school-meta">${meta}</span>
       </button>`,
     )
@@ -197,8 +248,8 @@ export function renderGauntletPathPick(): string {
       <header class="hall-chrome">
         <button type="button" class="lab-btn hall-back" id="gauntlet-exit-path">回门厅</button>
         <div class="hall-chrome-title">
-          <h2>选踢馆线</h2>
-          <p>三条线数值相近，敌人主题与招式不同。</p>
+          <h2>${endless ? "选爬塔线" : "选踢馆线"}</h2>
+          <p>${endless ? "三条塔只换兵器主题，没有城殿、岔路、同道。" : "三条线数值相近，敌人主题与招式不同。"}</p>
         </div>
       </header>
       <div class="gauntlet-school-row">${cards}</div>
@@ -246,7 +297,9 @@ export function renderGauntletBadge(run: GauntletRun): string {
   const entry = ladderEntryForRun(run);
   const final = getGauntletFinalStage();
   const w = run.wager;
-  const wager = w ? ` · 已押「${wagerLabel(w.kind)}」${w.stake}` : "";
+  const wager = w
+    ? ` · 注 ${wagerLabel(w.kind)} ${w.stake}（×${w.odds} 中则 +${Math.round(w.stake * w.odds)}）`
+    : "";
   const stageTag = isBreakAlign()
     ? `第 ${run.stage}/${final} 馆`
     : `第 ${run.stage}/${final} 馆`;
@@ -324,12 +377,12 @@ export function renderGauntletRewardPick(
       : "";
   const potLine = run.lastPotText ? ` · ${run.lastPotText}` : "";
   const cashout =
-    isGauntletEndless() && run.stage > getGauntletFinalStage()
+    isGauntletEndless(run) && run.stage > getGauntletFinalStage()
       ? `<button type="button" class="lab-btn gauntlet-cashout" id="gauntlet-cashout" data-tip="见好就收：带着 ${run.pot} 彩金上榜走人（再继续，输了就清零）">见好就收 · 揣走 ${run.pot} 彩金</button>`
       : "";
-  const place = campPlaceName(run.path);
-  const campTitle = isBreakAlign() ? place.title : `${escapeHtml(cleared.label)} 告捷`;
-  const pager = isBreakAlign() ? `<p class="gauntlet-pager">${place.pager}</p>` : "";
+  const loc = climbPlace(run.path, Math.max(1, run.stage - 1));
+  const campTitle = loc.rest;
+  const pager = `<p class="gauntlet-pager">${escapeHtml(loc.name)} · 歇脚 · 选完免费奖励后再点继续</p>`;
   const subHead = isBreakAlign()
     ? `${escapeHtml(cleared.label)} 告捷 · 连胜 ${run.streak} · 彩金 <b class="gauntlet-pot">${run.pot}</b>${escapeHtml(potLine)}${escapeHtml(pickLine)}`
     : `连胜 ${run.streak} · 彩金 <b class="gauntlet-pot">${run.pot}</b>${escapeHtml(potLine)}${escapeHtml(pickLine)} · 下一战 ${escapeHtml(next.label)}（${GAUNTLET_TIER_LABEL[next.tier]}）`;
@@ -338,6 +391,8 @@ export function renderGauntletRewardPick(
   const n = fieldDeck(run).length;
   const continueBtn = `<button type="button" class="lab-btn primary large" id="gauntlet-camp-continue" data-tip="确认离开营地，进入下注或下一馆" ${picksDone && packOk ? "" : "disabled"}>${!picksDone ? `先领完免费奖励（${taken}/${takeNeed}）` : packOk ? "继续下一程" : `出战牌 ${n} 张，须 ${bounds.min}～${bounds.max}`}</button>`;
   const loadoutBtn = `<button type="button" class="lab-btn large" id="gauntlet-open-loadout" data-tip="每人牌包、仓库、半价卖掉多余的">配装 · ${n}/${bounds.max}</button>`;
+  const bookBtn = `<button type="button" class="lab-btn large" id="route-book-open" data-tip="本线落过的城、殿与选择">路程小本</button>`;
+  const saveHint = `<p class="gauntlet-camp-savehint">本营已记下。门厅可对这一歇再进两次，奖励与黑市不重摇。</p>`;
   return `
     <div class="gauntlet-shell gauntlet-reward work-screen">
       <header class="gauntlet-head">
@@ -347,10 +402,13 @@ export function renderGauntletRewardPick(
           ${subHead}
         </p>
         ${intelReport(run) ? `<p class="gauntlet-event-lead">暗桩：${escapeHtml(intelReport(run))}</p>` : ""}
+        ${run.lastEncounterNote ? `<p class="gauntlet-event-lead">${escapeHtml(run.lastEncounterNote)}</p>` : ""}
+        <p class="gauntlet-place-blurb">${escapeHtml(loc.blurb)}</p>
       </header>
       <div class="gauntlet-reward-row">${cards || `<p class="gauntlet-reward-sub">免费奖励已领完，黑市仍可买。</p>`}</div>
       ${marketRow}
-      <div class="gauntlet-camp-foot">${loadoutBtn}${continueBtn}${cashout}</div>
+      <div class="gauntlet-camp-foot">${loadoutBtn}${bookBtn}${continueBtn}${cashout}</div>
+      ${run.endless ? "" : saveHint}
     </div>`;
 }
 
@@ -389,6 +447,31 @@ export function renderGauntletLifeline(run: GauntletRun): string {
         <p>付复活费 <b>${cost}</b> 彩金（非全赔），满血重打本馆。整局仅此一次。</p>
       </header>
       <div class="gauntlet-wager-row">${cards}</div>
+    </div>`;
+}
+
+export function renderWagerPlate(run: GauntletRun): string {
+  const w = run.wager;
+  if (!w) return "";
+  const winPay = Math.round(w.stake * w.odds);
+  return `<div class="lab-wager-plate" data-tip="本馆赌约一直挂着，不靠角标小字">本馆注：${escapeHtml(wagerLabel(w.kind))} · 押 ${w.stake} · 赔 ×${w.odds} · 中则 +${winPay}</div>`;
+}
+
+export function renderGauntletSettle(run: GauntletRun, texts: string[]): string {
+  const place = climbPlace(run.path, Math.max(1, run.stage - 1));
+  const lines = texts.filter(Boolean).map((t) => `<li>${escapeHtml(t)}</li>`).join("");
+  return `
+    <div class="gauntlet-shell gauntlet-settle">
+      <header class="gauntlet-head">
+        <h2>本馆告捷</h2>
+        <p class="gauntlet-pager">${escapeHtml(place.name)} · ${escapeHtml(place.rest)}</p>
+        <p class="gauntlet-reward-sub">底彩与赌约先结清，再进营地领赏。</p>
+        <ul class="gauntlet-settle-list">${lines || `<li>本馆无额外彩金变动</li>`}</ul>
+        <p class="gauntlet-settle-pot">现有彩金 <b class="gauntlet-pot">${run.pot}</b></p>
+        <div class="gauntlet-wager-actions">
+          <button type="button" class="lab-btn primary large" id="gauntlet-settle-take">领赏进营地</button>
+        </div>
+      </header>
     </div>`;
 }
 
@@ -514,15 +597,15 @@ export function renderGauntletLoadout(run: GauntletRun, focusMate?: CompanionId)
       <div class="gauntlet-loadout-main">
         <header class="gauntlet-loadout-head">
           <h2>配装 · ${escapeHtml(MATES[focus]?.name ?? "")}</h2>
-          <p>点牌卸进仓库 · 点仓库装给左侧所选 · 半价卖 · 彩金 <b class="gauntlet-pot">${run.pot}</b></p>
+          <p>点牌卸进下方仓库 · 点仓库装给左侧所选 · 半价卖 · 彩金 <b class="gauntlet-pot">${run.pot}</b></p>
           ${warn}
         </header>
         <div class="gauntlet-loadout-deck">${deckHtml || `<p class="gauntlet-reward-sub">（空）</p>`}</div>
       </div>
-      <aside class="gauntlet-loadout-rail gauntlet-loadout-stash">
+      <section class="gauntlet-loadout-stash">
         <h3>仓库</h3>
         <div class="gauntlet-loadout-stash-list">${stashHtml || `<p class="gauntlet-reward-sub">（空）</p>`}</div>
-      </aside>
+      </section>
     </div>`;
 }
 
@@ -542,6 +625,7 @@ export function renderGauntletOverlay(
     | "market"
     | "graduate"
     | "event"
+    | "settle"
     | "finale"
     | "scar",
   inner: string,
@@ -606,14 +690,11 @@ const EVENT_KIND_TITLE: Record<EncounterKind, string> = {
 export function renderGauntletEvent(run: GauntletRun, kind: EncounterKind, choices: EncounterChoice[]): string {
   const cards = choices
     .map((c, i) => {
-      const tag = encounterOutcomeTag(c);
-      const fx = encounterEffectLine(c);
       const art = c.companionId ? companionPortraitHtml(c.companionId) : "";
-      return `<button type="button" class="gauntlet-reward-card${c.companionId ? " gauntlet-companion-card has-art" : ""}" data-event-idx="${i}" data-tip="${escapeAttr(`${fx}\n${c.blurb}`)}">
+      return `<button type="button" class="gauntlet-reward-card${c.companionId ? " gauntlet-companion-card has-art" : ""}" data-event-idx="${i}" data-tip="${escapeAttr(c.blurb.replace(/\*\*/g, ""))}">
         ${art}
-        <em>${tag}</em><b>${escapeHtml(c.title)}</b>
-        <p class="gauntlet-event-fx">${escapeHtml(fx)}</p>
-        <p class="gauntlet-reward-desc">${escapeHtml(c.blurb)}</p>
+        <b>${escapeHtml(c.title)}</b>
+        <p class="gauntlet-reward-desc">${formatEncounterRichText(c.blurb)}</p>
       </button>`;
     })
     .join("");
@@ -625,7 +706,7 @@ export function renderGauntletEvent(run: GauntletRun, kind: EncounterKind, choic
         <h2>${EVENT_KIND_TITLE[kind]}</h2>
         <p class="gauntlet-event-lead">${escapeHtml(lead)}</p>
         ${intel ? `<p class="gauntlet-event-lead">暗桩：${escapeHtml(intel)}</p>` : ""}
-        <p>墨底是效果：绕道、彩金、入伙、下场人数。口味在下面。不占馆号。彩金 ${run.pot}</p>
+        <p>馆间岔路不占馆号。彩金 ${run.pot}</p>
       </header>
       <div class="gauntlet-wager-row">${cards}</div>
     </div>`;
@@ -633,11 +714,9 @@ export function renderGauntletEvent(run: GauntletRun, kind: EncounterKind, choic
 
 export function renderGauntletFinale(run: GauntletRun): string {
   const cards = FINALE_CHOICES.map((c) => {
-    const fx = finaleEffectLine(c.id, (run.scars ?? 0) > 0);
-    return `<button type="button" class="gauntlet-reward-card" data-finale="${c.id}" data-tip="${escapeAttr(`${fx}\n${c.blurb}`)}">
-      <em>终馆</em><b>${escapeHtml(c.title)}</b>
-      <p class="gauntlet-event-fx">${escapeHtml(fx)}</p>
-      <p class="gauntlet-reward-desc">${escapeHtml(c.blurb)}</p>
+    return `<button type="button" class="gauntlet-reward-card" data-finale="${c.id}" data-tip="${escapeAttr(c.blurb.replace(/\*\*/g, ""))}">
+      <b>${escapeHtml(c.title)}</b>
+      <p class="gauntlet-reward-desc">${formatEncounterRichText(c.blurb)}</p>
     </button>`;
   }).join("");
   return `

@@ -18,6 +18,7 @@ import { startLabBattle } from "./factory";
 import { labSwapFighter } from "./labCombat";
 import { computeAuras } from "../game/labV21";
 import { BUILTIN_PRESETS } from "./presets";
+import { setLabRuleset } from "./labRuleset";
 
 function v2Battle(enemyId: "catcher" | "escort" = "catcher") {
   setLabMode(true);
@@ -26,6 +27,7 @@ function v2Battle(enemyId: "catcher" | "escort" = "catcher") {
 }
 
 beforeEach(() => {
+  setLabRuleset("break");
   setLabMode(true);
   setLabTuning({ rulesV2: true });
 });

@@ -6,10 +6,12 @@ import { MIND_ARTS, sumMindArtBonuses } from "../game/mindArts";
 import type { TechniqueId, WeaponId } from "../game/types";
 import { startLabBattle } from "./factory";
 import { buildGauntletPreset, createGauntletRun } from "./gauntlet";
+import { setLabRuleset } from "./labRuleset";
 
 const SCHOOLS: WeaponId[] = ["palm", "saber", "spear", "sword", "staff", "hook"];
 
 beforeEach(() => {
+  setLabRuleset("break");
   setLabMode(true);
   setLabTuning({ rulesV2: true, v2Fx: false });
 });

@@ -30,6 +30,9 @@ import { tryAppendStressIntent } from "../game/labEnemyStress";
 import { setLabRuleset } from "./labRuleset";
 import { CARDS } from "../game/content";
 import { breakStarterDeck } from "../game/rogueCards";
+import { startLabBattle } from "./factory";
+import { livingFoes } from "../game/sim";
+import { setLabMode } from "../game/labTuning";
 
 describe("§31 连胜踢馆", () => {
   beforeEach(() => {
@@ -113,6 +116,18 @@ describe("§31 连胜踢馆", () => {
     expect(p.extraFoeIds).toBeUndefined();
     expect(p.waveEnemyId).toBeTruthy();
     expect(p.waveQueue).toHaveLength(1);
+  });
+
+  it("爬塔第4馆轮番：第二人进替补，石台上只有一人", () => {
+    setLabRuleset("climb");
+    setLabMode(true);
+    const run = { ...createGauntletRun("bandit", "saber"), stage: 4 };
+    const p = buildGauntletPreset(run);
+    expect(p.extraFoeIds).toBeUndefined();
+    expect(p.waveEnemyId).toBeTruthy();
+    const b = startLabBattle(p, false, 1);
+    expect(livingFoes(b)).toHaveLength(1);
+    expect(b.gauntletWaveEnemy).toBe(p.waveEnemyId);
   });
 
   it("拆招入伙：同系光环卡、异系融合卡注入牌池", () => {
@@ -391,5 +406,24 @@ describe("拆招 1–2 馆无应激", () => {
     expect(b.v2PendingStress ?? []).toEqual([]);
     applyStageTuning(pathLadder("bandit")[2]!);
     expect(getLabTuning().enemyStressCap).toBe(DEFAULT_LAB_TUNING.enemyStressCap);
+  });
+});
+
+describe("爬塔 climb：奖励仍出谱，不跟读招规则集", () => {
+  beforeEach(() => {
+    setLabRuleset("climb");
+    try {
+      localStorage.clear();
+    } catch {
+      /* ignore */
+    }
+    setLabRuleset("climb");
+  });
+
+  it("馆 1 奖励 4 项且含谱", () => {
+    const run = createGauntletRun("bandit", "saber");
+    const opts = rollGauntletRewards(run, () => 0.1);
+    expect(opts).toHaveLength(4);
+    expect(opts.some((o) => o.kind === "card")).toBe(true);
   });
 });

@@ -20,6 +20,7 @@
 
 | 文件 | 读者 | 内容 |
 |------|------|------|
+| [LAUNCH_ROADMAP.md](./LAUNCH_ROADMAP.md) | 策划 / 发行 | **从现在到上架的完整路线与内容清单（双模式）** |
 | [PLAY.md](./PLAY.md) | 测试玩家 | 开局流程、战斗要点、反馈清单 |
 | [RULES.md](./RULES.md) | 玩家 / 策划 / 程序 | 拆招四档、破法表、应激、势、总督 |
 | [CHANGELOG.md](./CHANGELOG.md) | 开发 | 版本迭代记录 |

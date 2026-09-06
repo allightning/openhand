@@ -4,17 +4,20 @@ import {
   battleHandCap,
   canEndPlayerTurn,
   endTurn,
+  refreshFoeIntentsIfPending,
   labCanCycle,
   labCycleCard,
   labDiscardCard,
   legalSummonCells,
-  livingFoes,
+  isBattleWon,
   needsDiscardToHandCap,
   playCard,
   previewCard,
+  seizeOpening,
+  yourPace,
 } from "../game/sim";
 import { handRefillAmount } from "./rogueRoster";
-import { isBreakAlign } from "./labRuleset";
+import { isBreakAlign, setLabRuleset } from "./labRuleset";
 import { getLabTuning, isLabV2, setLabMode, setLabTuning } from "../game/labTuning";
 import { computeResonance, grantLabItem, itemChargeCount, labCanUseItem, useLabItem } from "../game/labV21";
 import { isSummonItem } from "../game/labSummon";
@@ -63,20 +66,39 @@ import {
   type PickFocus,
 } from "./setupUi";
 import { renderProdBattle, renderProdBoard } from "./prodBattleUi";
-import { battleFxClasses, threatCellsForHover } from "./labV2Ui";
+import { moveGhostPreview } from "./moveGhost";
+import { recapDisplayAfter, recapDisplayStart, skipFoeRecap, type RecapDisplay } from "./foePlayback";
+import { clearClimbContinue, consumeClimbContinue, peekClimbContinue, touchClimbCamp } from "./climbContinue";
+import { battleFxClasses, formatIntentBroadcast, formatIntentCue, threatCellsForHover } from "./labV2Ui";
 import { renderWeaponSheet } from "./weaponSheet";
 import { bindLabTooltips } from "./labTooltip";
 import {
   bgmPlaying,
+  BGM_CAMP_VOL_SCALE,
+  BGM_FADE_IN_COMBAT_MS,
+  BGM_FADE_TO_CAMP_MS,
+  BGM_FADE_BETWEEN_HALL_MS,
+  campBgmId,
+  combatBgmId,
+  cycleHallTrack,
   debugAudioState,
   ensureBgm,
+  getBgmPlayback,
+  getBgmPlayMode,
   getBgmVolume,
   getSfxVolume,
+  HALL_PLAYLIST,
   playFxSfx,
+  playFoeResolveSfx,
   playSfx,
+  playSting,
+  stopSting,
+  seekBgm,
+  selectHallTrack,
+  setBgmPlayMode,
   setBgmVolume,
   setSfxVolume,
-  stopBgm,
+  toggleBgmPause,
   unlockAudio,
 } from "./labAudio";
 import { battleEquippedSchool } from "../game/equippedWeapon";
@@ -133,7 +155,8 @@ import {
   type WagerKind,
   type WagerOffer,
 } from "./gauntlet";
-import { isCompanionMilestone, maxCompanions, type GauntletPath } from "./gauntletPaths";
+import { isCompanionMilestone, maxCompanions, type GauntletPath, GAUNTLET_PATH_LABEL } from "./gauntletPaths";
+import { climbPlace, renderRouteBook, upsertRouteLog } from "./climbPlaces";
 import {
   applyEncounterChoice,
   applyFinale,
@@ -197,6 +220,37 @@ import {
   type HallRun,
 } from "./trainingHall";
 import { hallBadge, renderHallCleared, renderHallRetry, renderTrainingHallCatalog } from "./trainingHallUi";
+import {
+  afterCampaignEndTurn,
+  afterCampaignPlayCard,
+  afterCampaignSwap,
+  applyCampaignBattle,
+  advanceCampaignAfterClear,
+  buildCampaignPreset,
+  campaignAllowsCard,
+  campaignAllowsEndTurn,
+  campaignAllowsSwap,
+  campaignBadge,
+  campaignLessonDone,
+  campaignStageCount,
+  createBreakCampaignRun,
+  createQiFightFromStage,
+  currentCampaignLesson,
+  currentCampaignStage,
+  dismissCampaignFoeDebrief,
+  markBreakCampaignCleared,
+  readCampaignResolveStats,
+  readQiResolveStats,
+  recordCampaignClear,
+  refreshCampaignIntents,
+  syncCampaignBattle,
+  syncCampaignLesson,
+  tickCampaignAfterResolve,
+  type BreakCampaignRun,
+} from "./breakCampaign";
+import { renderCampaignCleared, renderCampaignRetry } from "./breakCampaignUi";
+import { renderQiCommitBattle } from "./qiCommitUi";
+import { assignToSegment, playAttackFree, playPass, playStep, playUlt, resolveTurn, selectCard, QI_CARDS, type QiFight } from "./qiCommit";
 import { renderBattleSheet, type BattleSheetKind } from "./battleSheet";
 import {
   renderGauntletBadge,
@@ -215,6 +269,8 @@ import {
   renderGauntletEvent,
   renderGauntletFinale,
   renderGauntletScar,
+  renderGauntletSettle,
+  renderWagerPlate,
 } from "./gauntletUi";
 import type { WeaponId } from "../game/types";
 import "../style.css";
@@ -258,6 +314,193 @@ let demoScreen: DemoShellScreen | "retry" | null = null;
 let demoMarketBought: Set<string> = new Set();
 let hallRun: HallRun | null = null;
 let hallScreen: "catalog" | "cleared" | "retry" | null = null;
+let campaignRun: BreakCampaignRun | null = null;
+let qiFight: QiFight | null = null;
+let campaignScreen: "cleared" | "retry" | null = null;
+let campaignChapterDone = false;
+/** 敌招逐段播报中：锁操作，0.8s 一段 */
+let foePlaybackBusy = false;
+let foePlaybackTimer: number | null = null;
+let fxClearTimer: number | null = null;
+/** 收势前意图快照，供逐段详细播报 */
+let foePlaybackIntents: import("../game/types").Intent[] = [];
+
+const FOE_SEG_GAP_MS = 1500;
+const FOE_WINDUP_MS = 420;
+const FX_HOLD_MS = 1000;
+/** 敌先机开局：先亮场再动手，给玩家读招时间 */
+const FOE_FIRST_HOLD_MS = 1500;
+/** 立绘逐步演出：windup / resolve 类名 */
+let foeSegAnim: "windup" | "break" | "hit" | "graze" | "miss" | "skip" | null = null;
+let foePlaybackSegIdx = -1;
+let foeFirstHoldTimer: number | null = null;
+let playbackShow: RecapDisplay | null = null;
+let youPlayAnim: "swing" | "step" | "cast" | null = null;
+let youPlayAnimTimer: number | null = null;
+let pendingWin: { foughtStage: number; texts: string[] } | null = null;
+let routeBookOpen = false;
+
+function clearFoeFirstHold(): void {
+  if (foeFirstHoldTimer != null) {
+    window.clearTimeout(foeFirstHoldTimer);
+    foeFirstHoldTimer = null;
+  }
+}
+
+/** 敌先机时进战停顿 ~1.5s，再真正出手（削弱后的首轮），然后亮下一手。 */
+function scheduleFoeFirstHold(): void {
+  clearFoeFirstHold();
+  if (!battle || yourPace(battle) >= battle.foePace) return;
+  foePlaybackBusy = true;
+  battle = {
+    ...battle,
+    lastHitRead: `${battle.enemy.name}先机在握……`,
+  };
+  foeFirstHoldTimer = window.setTimeout(() => {
+    foeFirstHoldTimer = null;
+    if (!battle || phase !== "battle") {
+      foePlaybackBusy = false;
+      return;
+    }
+    foePlaybackIntents = battle.intents.length ? battle.intents.map((x) => ({ ...x })) : [{ ...battle.intent }];
+    seizeOpening(battle);
+    if (battle.player.hp <= 0) {
+      foePlaybackBusy = false;
+      endBattle("loss");
+      return;
+    }
+    playFoeRecapThen(() => {
+      if (!battle) return;
+      if (battle.player.hp <= 0) {
+        endBattle("loss");
+        return;
+      }
+      resetTurnTimer();
+      render();
+    });
+  }, FOE_FIRST_HOLD_MS);
+}
+
+/** 肉鸽爬塔：破招播报保留，声效/气势压低；读招战役 / 训练馆仍用满分量。 */
+function climbBreakLight(): boolean {
+  return gauntletRun != null && campaignRun == null && breakDemoRun == null && hallRun == null;
+}
+
+function outcomeToFxKind(outcome: string): string {
+  if (outcome === "破" || outcome === "追") return "break";
+  if (outcome === "让") return "graze";
+  if (outcome === "空" || outcome === "放" || outcome === "躲") return "miss";
+  if (outcome === "打") return "hit";
+  // 劲尽/晕/散：仍占一段演出，听感按躲过/落空，不另开「补招」
+  if (outcome === "劲尽" || outcome === "晕" || outcome === "散") return "miss";
+  return "hit";
+}
+
+function clearFoePlaybackTimer(): void {
+  if (foePlaybackTimer != null) {
+    window.clearTimeout(foePlaybackTimer);
+    foePlaybackTimer = null;
+  }
+}
+
+function scheduleFxClear(ms = FX_HOLD_MS): void {
+  if (fxClearTimer != null) window.clearTimeout(fxClearTimer);
+  fxClearTimer = window.setTimeout(() => {
+    fxClearTimer = null;
+    if (foePlaybackBusy || !battle) return;
+    if ((battle.v2FxQueue?.length ?? 0) > 0 || battle.lastHitRead) {
+      battle = { ...battle, v2FxQueue: [], lastHitRead: undefined };
+      render();
+    }
+  }, ms);
+}
+
+/** 收势后按 recap 逐段播报：先起手（立绘+挥刀声），再结算（特效+结果声），总间隔约 1.2s */
+function playFoeRecapThen(onDone: () => void): void {
+  clearFoePlaybackTimer();
+  if (!battle) {
+    onDone();
+    return;
+  }
+  const recap = [...(battle.v2LastIntentRecap ?? [])];
+  if (!recap.length) {
+    onDone();
+    return;
+  }
+  foePlaybackBusy = true;
+  playbackShow = recapDisplayStart(battle.player.hp, battle.playerBlock, recap);
+  let i = 0;
+  const finishAll = (): void => {
+    playbackShow = null;
+    foePlaybackTimer = window.setTimeout(() => {
+      foePlaybackTimer = null;
+      foePlaybackBusy = false;
+      foeSegAnim = null;
+      foePlaybackSegIdx = -1;
+      onDone();
+    }, FX_HOLD_MS);
+  };
+  const resolveStep = (): void => {
+    if (!battle) {
+      foePlaybackBusy = false;
+      foeSegAnim = null;
+      foePlaybackSegIdx = -1;
+      playbackShow = null;
+      onDone();
+      return;
+    }
+    const r = recap[i]!;
+    const intent = foePlaybackIntents[i];
+    const kind = outcomeToFxKind(r.outcome);
+    const anim =
+      kind === "break"
+        ? "break"
+        : kind === "hit"
+          ? "hit"
+          : kind === "graze"
+            ? "graze"
+            : kind === "miss"
+              ? "miss"
+              : "skip";
+    foeSegAnim = anim;
+    foePlaybackSegIdx = i;
+    if (playbackShow) playbackShow = recapDisplayAfter(playbackShow, r);
+    battle = {
+      ...battle,
+      v2FxQueue: [kind],
+      lastHitRead: formatIntentBroadcast(intent, r.outcome, r.name),
+    };
+    playFoeResolveSfx(kind, climbBreakLight() ? "light" : "full");
+    render();
+    i += 1;
+    if (i >= recap.length) {
+      finishAll();
+      return;
+    }
+    foePlaybackTimer = window.setTimeout(windupStep, Math.max(200, FOE_SEG_GAP_MS - FOE_WINDUP_MS));
+  };
+  const windupStep = (): void => {
+    if (!battle) {
+      foePlaybackBusy = false;
+      playbackShow = null;
+      onDone();
+      return;
+    }
+    const r = recap[i]!;
+    const intent = foePlaybackIntents[i];
+    foeSegAnim = "windup";
+    foePlaybackSegIdx = i;
+    battle = {
+      ...battle,
+      v2FxQueue: [],
+      lastHitRead: formatIntentCue(battle, intent, r.name),
+    };
+    playSfx("swing", climbBreakLight() ? 0.55 : 0.85);
+    render();
+    foePlaybackTimer = window.setTimeout(resolveStep, FOE_WINDUP_MS);
+  };
+  windupStep();
+}
 let hallCab: HallCabinet = "break";
 let hallFocus: HallCourseId = "hard";
 let battleSheet: BattleSheetKind | null = null;
@@ -267,6 +510,8 @@ let gauntletRewardTakes = 0;
 let gauntletCompanions: CompanionId[] = [];
 let gauntletBossRotation: EnemyId = "usurper";
 let gauntletPath: GauntletPath | null = null;
+/** 门厅点「无尽」后，开踢时写入 run.endless */
+let gauntletWantEndless = false;
 /** §31.13 下注屏选择状态 */
 let wagerKind: WagerKind | null = null;
 let wagerStake: number | null = null;
@@ -299,20 +544,71 @@ function paintGauntletOverlay(
   inner: string,
 ): string {
   if (!gauntletRun) return renderGauntletOverlay(screen, inner, staticOverlayBg(screen));
-  const key =
-    screen === "reward" || screen === "loadout" || screen === "wager" || screen === "rewardTarget"
-      ? `camp:${gauntletRun.stage}`
-      : screen === "event" || screen === "companion" || screen === "finale" || screen === "scar"
-        ? `event:${gauntletRun.stage}:${screen}`
-        : `lobby:${screen}`;
-  const pool = overlayPoolFor(screen, gauntletRun.path);
+  const placeStage =
+    screen === "wager" || screen === "lifeline" || screen === "finale" || screen === "scar"
+      ? gauntletRun.stage
+      : Math.max(1, gauntletRun.stage - (screen === "path" || screen === "pick" || screen === "banker" || screen === "intro" ? 0 : 1));
+  const key = `${screen}:${gauntletRun.path}:${placeStage}`;
+  const pool = overlayPoolFor(screen, gauntletRun.path, gauntletEventKind ?? undefined, placeStage);
   const t = takeSceneBg(gauntletRun, key, pool);
   gauntletRun = t.run;
   return renderGauntletOverlay(screen, inner, t.url);
 }
 
+function persistCampContinue(): void {
+  if (!gauntletRun || gauntletRun.endless) return;
+  touchClimbCamp({
+    run: gauntletRun,
+    rewards: gauntletRewards,
+    market: gauntletMarket,
+    marketBought: [...gauntletMarketBought],
+    rewardTakes: gauntletRewardTakes,
+    marketRefreshN: gauntletMarketRefreshN,
+    rewardsAreSuper: gauntletRewardsAreSuper,
+  });
+}
+
+function restoreClimbCamp(): boolean {
+  const snap = consumeClimbContinue();
+  if (!snap) return false;
+  campaignRun = null;
+  qiFight = null;
+  setLabRuleset("climb");
+  enterGauntletTuning();
+  gauntletRun = snap.run;
+  gauntletPath = snap.run.path;
+  gauntletRewards = snap.rewards;
+  gauntletMarket = snap.market;
+  gauntletMarketBought = new Set(snap.marketBought);
+  gauntletRewardTakes = snap.rewardTakes;
+  gauntletMarketRefreshN = snap.marketRefreshN;
+  gauntletRewardsAreSuper = snap.rewardsAreSuper;
+  gauntletScreen = "reward";
+  battle = null;
+  phase = "setup";
+  render();
+  return true;
+}
+
+function stampRoutePlace(foughtStage: number): void {
+  if (!gauntletRun) return;
+  const loc = climbPlace(gauntletRun.path, foughtStage);
+  gauntletRun = {
+    ...gauntletRun,
+    routeLog: upsertRouteLog(gauntletRun.routeLog, {
+      stage: foughtStage,
+      placeId: loc.id,
+      placeName: loc.name,
+      rest: loc.rest,
+      note: gauntletRun.lastEncounterNote,
+    }),
+  };
+}
+
 function openGauntletCamp(foughtStage: number): void {
   if (!gauntletRun) return;
+  stopSting();
+  stampRoutePlace(foughtStage);
   if (isMidtermSuperFought(foughtStage)) {
     gauntletRewards = rollSuperRewards(gauntletRun);
     gauntletRewardsAreSuper = true;
@@ -323,6 +619,7 @@ function openGauntletCamp(foughtStage: number): void {
   gauntletRewardTakes = 0;
   rollGauntletMarket();
   gauntletScreen = "reward";
+  persistCampContinue();
   render();
 }
 let discardMode = false;
@@ -372,6 +669,9 @@ function renderOverlays(): string {
   if (wikiOpen) parts.push(renderWikiSheet(wikiOpen, wikiPage));
   if (devPanelOpen) parts.push(renderDevPanelModal());
   if (battleSheet && battle) parts.push(renderBattleSheet(battleSheet, battle));
+  if (routeBookOpen && gauntletRun) {
+    parts.push(renderRouteBook(gauntletRun.routeLog ?? [], GAUNTLET_PATH_LABEL[gauntletRun.path]));
+  }
   return parts.join("");
 }
 
@@ -381,8 +681,20 @@ function renderOverlays(): string {
  */
 let settingsHost: HTMLElement | null = null;
 let sfxPreviewAt = 0;
+let settingsBgmPoll: ReturnType<typeof setInterval> | null = null;
+let settingsSeekDragging = false;
 
 function renderSettingsSheet(): string {
+  const pb = getBgmPlayback();
+  const max = pb.duration > 0 ? pb.duration : 1;
+  const pos = pb.duration > 0 ? pb.current : 0;
+  const mode = getBgmPlayMode();
+  const modeBtn = (id: "single" | "random" | "sequence", label: string) =>
+    `<button type="button" class="lab-btn lab-music-mode${mode === id ? " primary" : ""}" data-bgm-mode="${id}">${label}</button>`;
+  const tracks = HALL_PLAYLIST.map(
+    (t, i) =>
+      `<button type="button" class="lab-music-pick${pb.hallIndex === i ? " is-on" : ""}" data-hall-pick="${i}">${t.label}</button>`,
+  ).join("");
   return `<div class="lab-overlay lab-settings-mask" id="lab-settings-mask">
     <div class="lab-overlay-panel lab-settings-panel" role="dialog" aria-label="设置">
       <h3>设置</h3>
@@ -390,9 +702,58 @@ function renderSettingsSheet(): string {
         <input type="range" id="sl-sfx" min="0" max="100" step="1" value="${getSfxVolume()}"/></div>
       <div class="lab-slider-row"><label><span>乐音音量</span><span id="val-bgm">${getBgmVolume()}</span></label>
         <input type="range" id="sl-bgm" min="0" max="100" step="1" value="${getBgmVolume()}"/></div>
+      <div class="lab-music-block">
+        <div class="lab-music-head">
+          <span class="lab-music-kicker">歌单</span>
+          <span class="lab-music-title" id="lab-music-title">${pb.label}</span>
+        </div>
+        <div class="lab-music-transport">
+          <button type="button" class="lab-btn lab-music-nav" id="lab-music-prev" aria-label="上一曲">上一曲</button>
+          <button type="button" class="lab-btn lab-music-nav" id="lab-music-pause">${pb.paused || !pb.playing ? "播放" : "暂停"}</button>
+          <button type="button" class="lab-btn lab-music-nav" id="lab-music-next" aria-label="下一曲">下一曲</button>
+        </div>
+        <div class="lab-music-modes">
+          ${modeBtn("single", "单曲循环")}
+          ${modeBtn("random", "随机")}
+          ${modeBtn("sequence", "顺序循环")}
+        </div>
+        <div class="lab-music-picks" id="lab-music-picks">${tracks}</div>
+        <div class="lab-slider-row lab-music-seek">
+          <label><span id="lab-music-cur">${pb.currentText}</span><span id="lab-music-dur">${pb.durationText}</span></label>
+          <input type="range" id="sl-music-seek" min="0" max="${max}" step="0.1" value="${pos}" aria-label="音乐进度"/>
+        </div>
+        <p class="lab-music-hint">点歌写入偏好；暂停不换曲。单曲循环 / 随机 / 顺序循环三种模式。</p>
+      </div>
       <button type="button" class="lab-btn primary" id="lab-settings-close">好了</button>
     </div>
   </div>`;
+}
+
+function paintSettingsMusic(): void {
+  if (!settingsHost || settingsSeekDragging) return;
+  const pb = getBgmPlayback();
+  const title = settingsHost.querySelector("#lab-music-title");
+  if (title) title.textContent = pb.label;
+  const cur = settingsHost.querySelector("#lab-music-cur");
+  if (cur) cur.textContent = pb.currentText;
+  const dur = settingsHost.querySelector("#lab-music-dur");
+  if (dur) dur.textContent = pb.durationText;
+  const pause = settingsHost.querySelector("#lab-music-pause");
+  if (pause) pause.textContent = pb.paused || !pb.playing ? "播放" : "暂停";
+  settingsHost.querySelectorAll("[data-hall-pick]").forEach((el) => {
+    const i = Number((el as HTMLElement).dataset.hallPick);
+    el.classList.toggle("is-on", i === pb.hallIndex);
+  });
+  settingsHost.querySelectorAll("[data-bgm-mode]").forEach((el) => {
+    const m = (el as HTMLElement).dataset.bgmMode;
+    el.classList.toggle("primary", m === pb.playMode);
+  });
+  const seek = settingsHost.querySelector<HTMLInputElement>("#sl-music-seek");
+  if (seek) {
+    const max = pb.duration > 0 ? pb.duration : 1;
+    if (Number(seek.max) !== max) seek.max = String(max);
+    seek.value = String(pb.duration > 0 ? pb.current : 0);
+  }
 }
 
 function openSettings(): void {
@@ -401,6 +762,7 @@ function openSettings(): void {
   settingsHost.id = "lab-settings-root";
   settingsHost.innerHTML = renderSettingsSheet();
   document.body.appendChild(settingsHost);
+  settingsSeekDragging = false;
 
   settingsHost.querySelector("#lab-settings-close")?.addEventListener("click", closeSettings);
   settingsHost.querySelector("#lab-settings-mask")?.addEventListener("click", (e) => {
@@ -428,9 +790,67 @@ function openSettings(): void {
     if (label) label.textContent = String(v);
     if (!bgmPlaying()) ensureBgm();
   });
+
+  const onCycle = (dir: 1 | -1) => {
+    unlockAudio();
+    cycleHallTrack(dir);
+    paintSettingsMusic();
+  };
+  settingsHost.querySelector("#lab-music-prev")?.addEventListener("click", () => onCycle(-1));
+  settingsHost.querySelector("#lab-music-next")?.addEventListener("click", () => onCycle(1));
+  settingsHost.querySelector("#lab-music-pause")?.addEventListener("click", () => {
+    unlockAudio();
+    toggleBgmPause();
+    paintSettingsMusic();
+  });
+  settingsHost.querySelectorAll("[data-hall-pick]").forEach((el) => {
+    el.addEventListener("click", () => {
+      unlockAudio();
+      selectHallTrack(Number((el as HTMLElement).dataset.hallPick));
+      paintSettingsMusic();
+    });
+  });
+  settingsHost.querySelectorAll("[data-bgm-mode]").forEach((el) => {
+    el.addEventListener("click", () => {
+      const m = (el as HTMLElement).dataset.bgmMode;
+      if (m === "single" || m === "random" || m === "sequence") setBgmPlayMode(m);
+      paintSettingsMusic();
+    });
+  });
+
+  const seek = settingsHost.querySelector<HTMLInputElement>("#sl-music-seek");
+  seek?.addEventListener("pointerdown", () => {
+    settingsSeekDragging = true;
+  });
+  const endSeek = () => {
+    if (!settingsSeekDragging) return;
+    settingsSeekDragging = false;
+    paintSettingsMusic();
+  };
+  seek?.addEventListener("pointerup", endSeek);
+  seek?.addEventListener("pointercancel", endSeek);
+  seek?.addEventListener("change", endSeek);
+  seek?.addEventListener("input", () => {
+    if (!seek) return;
+    unlockAudio();
+    if (!bgmPlaying()) ensureBgm();
+    seekBgm(Number(seek.value));
+    const pb = getBgmPlayback();
+    const cur = settingsHost?.querySelector("#lab-music-cur");
+    if (cur) cur.textContent = pb.currentText;
+  });
+
+  if (settingsBgmPoll) clearInterval(settingsBgmPoll);
+  settingsBgmPoll = setInterval(paintSettingsMusic, 250);
+  paintSettingsMusic();
 }
 
 function closeSettings(): void {
+  if (settingsBgmPoll) {
+    clearInterval(settingsBgmPoll);
+    settingsBgmPoll = null;
+  }
+  settingsSeekDragging = false;
   if (!settingsHost) return;
   settingsHost.remove();
   settingsHost = null;
@@ -442,6 +862,8 @@ function syncBattleAudio(next: Battle | null): void {
   const prev = audioPrevBattle;
   audioPrevBattle = next;
   if (!next || !prev || prev === next) return;
+  // 敌招逐步回放时由 playFoeRecapThen 点名播，避免叠响
+  if (foePlaybackBusy) return;
   const fx = next.v2FxQueue ?? [];
   const pfx = prev.v2FxQueue ?? [];
   if (fx.length > pfx.length) {
@@ -453,15 +875,17 @@ function syncBattleAudio(next: Battle | null): void {
 
 function renderHeader(): string {
   const fsLabel = labFullscreen ? "退出全屏" : "全屏";
-  const inGauntlet = gauntletRun != null || breakDemoRun != null || hallRun != null;
+  const inGauntlet = gauntletRun != null || breakDemoRun != null || hallRun != null || campaignRun != null;
   const subLine = breakDemoRun
     ? "训练营 ·"
     : hallRun
       ? "训练馆 ·"
-      : "十馆肉鸽 · 破招是上限不是通关门槛 ·";
+        : campaignRun
+        ? "读招战役 ·"
+      : "十馆肉鸽 · 石台两种玩法 ·";
   const backBtn =
     phase === "battle" && inGauntlet
-      ? `<button type="button" class="lab-btn" id="gauntlet-exit-battle">${breakDemoRun ? "退出示范" : hallRun ? "退出训练馆" : "退出踢馆"}</button>`
+      ? `<button type="button" class="lab-btn" id="gauntlet-exit-battle">${breakDemoRun ? "退出示范" : hallRun ? "退出训练馆" : campaignRun ? "退出战役" : "退出踢馆"}</button>`
       : phase !== "setup" && !inGauntlet
         ? `<button type="button" class="lab-btn" id="lab-back-setup">回装配</button>`
         : "";
@@ -495,6 +919,12 @@ function renderSetup(): string {
   if (hallScreen === "retry" && hallRun) {
     return `${renderHeader()}${renderGauntletOverlay("result", renderHallRetry(hallRun), staticOverlayBg("result"))}`;
   }
+  if (campaignScreen === "cleared" && campaignRun) {
+    return `${renderHeader()}${renderGauntletOverlay("result", renderCampaignCleared(campaignRun, campaignChapterDone), staticOverlayBg("result"))}`;
+  }
+  if (campaignScreen === "retry" && campaignRun) {
+    return `${renderHeader()}${renderGauntletOverlay("result", renderCampaignRetry(campaignRun), staticOverlayBg("result"))}`;
+  }
   if (demoScreen && breakDemoRun) {
     if (demoScreen === "retry") {
       return `${renderHeader()}${renderGauntletOverlay(
@@ -510,10 +940,13 @@ function renderSetup(): string {
     return `${renderHeader()}${renderGauntletOverlay(demoScreen, renderDemoShell(demoScreen, breakDemoRun, demoMarketBought))}`;
   }
   if (gauntletScreen === "path") {
-    return `${renderHeader()}${paintGauntletOverlay("path", renderGauntletPathPick())}`;
+    return `${renderHeader()}${paintGauntletOverlay("path", renderGauntletPathPick(gauntletWantEndless))}`;
   }
   if (gauntletScreen === "pick") {
     return `${renderHeader()}${paintGauntletOverlay("pick", renderGauntletSchoolPick(gauntletPath ?? "bandit", gauntletError))}`;
+  }
+  if (gauntletScreen === "settle" && gauntletRun && pendingWin) {
+    return `${renderHeader()}${paintGauntletOverlay("settle", renderGauntletSettle(gauntletRun, pendingWin.texts))}`;
   }
   if (gauntletScreen === "event" && gauntletRun && gauntletEventKind) {
     return `${renderHeader()}${paintGauntletOverlay("event", renderGauntletEvent(gauntletRun, gauntletEventKind, gauntletEventChoices))}`;
@@ -553,7 +986,7 @@ function renderSetup(): string {
       (gauntletRun.bankruptUsed ? "本局已用过赊账" : gauntletRun.pot < reviveCost(gauntletRun.stage) ? "彩金不足破产线" : "");
     return `${renderHeader()}${paintGauntletOverlay("result", renderGauntletResult(gauntletRun, elapsed, note))}`;
   }
-  return `${renderHeader()}${renderGauntletOverlay("intro", renderGauntletHome(), `/${HOME_BG}`)}`;
+  return `${renderHeader()}${renderGauntletOverlay("intro", renderGauntletHome("", peekClimbContinue()), `/${HOME_BG}`)}`;
 }
 
 function renderSliders(enabled: boolean): string {
@@ -589,9 +1022,47 @@ function renderSliders(enabled: boolean): string {
     </div>`;
 }
 
+/** 胜/负短句去重：同一结算屏不因重渲反复播。现行短句已停用。 */
+let lastStingKey = "";
+
+let lastBgmScene: "battle" | "lounge" | null = null;
+
 function syncBgmWithScreen(): void {
-  if (phase === "battle") ensureBgm();
-  else stopBgm();
+  const scene: "battle" | "lounge" = phase === "battle" ? "battle" : "lounge";
+  const prev = lastBgmScene;
+  const crossed = prev != null && prev !== scene;
+  const leavingBattle = prev === "battle";
+  lastBgmScene = scene;
+
+  if (phase === "battle") {
+    lastStingKey = "";
+    const hallFade = crossed ? BGM_FADE_BETWEEN_HALL_MS : BGM_FADE_IN_COMBAT_MS;
+    if (campaignRun) {
+      ensureBgm("break", { volScale: 1, fadeMs: hallFade, forceCrossfade: crossed });
+      return;
+    }
+    if (gauntletRun) {
+      const entry = ladderEntryForRun(gauntletRun);
+      ensureBgm(combatBgmId(gauntletRun.path, gauntletRun.stage, entry.tier), {
+        volScale: 1,
+        fadeMs: hallFade,
+        forceCrossfade: crossed,
+      });
+      return;
+    }
+    ensureBgm("jianghu_normal", { volScale: 1, fadeMs: hallFade, forceCrossfade: crossed });
+    return;
+  }
+
+  lastStingKey = "";
+
+  // 门厅/垫资/下注/营地同一首就接着放，不要 seek 回 0、不要交叉淡入。
+  ensureBgm(campBgmId(gauntletRun?.path), {
+    volScale: BGM_CAMP_VOL_SCALE,
+    seekSec: leavingBattle ? null : undefined,
+    fadeMs: leavingBattle ? BGM_FADE_TO_CAMP_MS : 0,
+    forceCrossfade: false,
+  });
 }
 
 function render(): void {
@@ -605,27 +1076,29 @@ function render(): void {
   else if (phase === "battle") root.innerHTML = renderBattle() + overlays;
   else root.innerHTML = renderReport() + overlays;
   bindEvents();
-  if (phase === "battle" && battle?.v2FxQueue?.length) {
-    window.setTimeout(() => {
-      if (battle?.v2FxQueue?.length) {
-        battle = { ...battle, v2FxQueue: [] };
-        render();
-      }
-    }, 450);
+  if (phase === "battle" && battle?.v2FxQueue?.length && !foePlaybackBusy) {
+    scheduleFxClear(FX_HOLD_MS);
   }
   resetTurnTimer();
 }
 
 function exitGauntlet(): void {
+  stopSting();
+  routeBookOpen = false;
   gauntletRun = null;
   gauntletScreen = null;
   breakDemoRun = null;
   demoScreen = null;
   hallRun = null;
   hallScreen = null;
+  campaignRun = null;
+  qiFight = null;
+  campaignScreen = null;
+  campaignChapterDone = false;
   battleSheet = null;
   demoMarketBought = new Set();
   gauntletPath = null;
+  gauntletWantEndless = false;
   gauntletRewards = [];
   gauntletRewardsAreSuper = false;
   gauntletCompanions = [];
@@ -678,6 +1151,7 @@ function beginHallBattle(): void {
     hoverUid = null;
     hoverIntentIdx = null;
     weaponOpen = null;
+    scheduleFoeFirstHold();
     render();
   } catch (err) {
     console.error("[training-hall] beginHallBattle failed", err);
@@ -723,6 +1197,7 @@ function beginDemoBattle(): void {
     hoverUid = null;
     hoverIntentIdx = null;
     weaponOpen = null;
+    scheduleFoeFirstHold();
     render();
   } catch (err) {
     console.error("[break-demo] beginDemoBattle failed", err);
@@ -749,6 +1224,118 @@ function finishHallBattle(outcome: "win" | "loss"): void {
   endLabMode();
   hallScreen = outcome === "win" ? "cleared" : "retry";
   render();
+}
+
+function beginCampaignBattle(): void {
+  if (!campaignRun) return;
+  try {
+    enterGauntletTuning();
+    setLabRuleset("break");
+    setLabMode(true);
+    setLabTuning({
+      rulesV2: true,
+      v2Fx: true,
+      rulesCombo: false,
+    });
+    applyLabFightScale();
+    paused = false;
+    hoverUid = null;
+    weaponOpen = null;
+    campaignRun = syncCampaignLesson({
+      ...campaignRun,
+      foeDebrief: null,
+    });
+    const preset = buildCampaignPreset(campaignRun);
+    telemetry = startTelemetry(preset.id, preset.name);
+    battle = applyCampaignBattle(startLabBattle(preset, false, 1), campaignRun);
+    qiFight = createQiFightFromStage(currentCampaignStage(campaignRun));
+    if (telemetry) {
+      telemetry = {
+        ...telemetry,
+        presetId: `break-campaign-${campaignRun.stageId}`,
+        presetName: campaignBadge(campaignRun),
+      };
+    }
+    phase = "battle";
+    campaignScreen = null;
+    campaignChapterDone = false;
+    gauntletScreen = null;
+    demoScreen = null;
+    hallScreen = null;
+    scheduleFoeFirstHold();
+    render();
+  } catch (err) {
+    console.error("[break-campaign] beginCampaignBattle failed", err);
+    gauntletError = `读招开战失败：${err instanceof Error ? err.message : String(err)}`;
+    campaignScreen = "retry";
+    phase = "setup";
+    render();
+  }
+}
+
+function startBreakCampaign(): void {
+  enterGauntletTuning();
+  gauntletRun = null;
+  gauntletScreen = null;
+  breakDemoRun = null;
+  demoScreen = null;
+  hallRun = null;
+  hallScreen = null;
+  qiFight = null;
+  setLabRuleset("break");
+  campaignRun = createBreakCampaignRun();
+  campaignScreen = null;
+  campaignChapterDone = false;
+  gauntletScreen = null;
+  demoScreen = null;
+  hallScreen = null;
+  breakDemoRun = null;
+  hallRun = null;
+  beginCampaignBattle();
+}
+
+function finishCampaignBattle(outcome: "win" | "loss"): void {
+  if (!campaignRun) return;
+  if (outcome === "win") {
+    const hp = qiFight?.playerHp ?? battle?.player.hp ?? campaignRun.hp;
+    campaignRun = recordCampaignClear(
+      campaignRun,
+      campaignRun.sessionHardBreaks + campaignRun.sessionChases,
+      hp,
+    );
+    campaignChapterDone = campaignRun.stageIndex >= campaignStageCount() - 1;
+    battle = null;
+    phase = "setup";
+    endLabMode();
+    campaignScreen = "cleared";
+    if (campaignChapterDone) markBreakCampaignCleared();
+    render();
+    return;
+  }
+  if (!campaignRun.lastFailTip) {
+    campaignRun = {
+      ...campaignRun,
+      lastFailTip: campaignRun.lastFailTip || "拆错或挨打——看本关目标再试。",
+    };
+  }
+  battle = null;
+  phase = "setup";
+  endLabMode();
+  campaignScreen = "retry";
+  render();
+}
+
+function finishCampaignFromTick(tick: ReturnType<typeof tickCampaignAfterResolve>): void {
+  if (!campaignRun) return;
+  campaignRun = tick.run;
+  if (tick.kind === "win") {
+    finishCampaignBattle("win");
+    return;
+  }
+  if (tick.kind === "lose") {
+    campaignRun = { ...campaignRun, lastFailTip: tick.tip };
+    finishCampaignBattle("loss");
+  }
 }
 
 function finishDemoBattle(outcome: "win" | "loss"): void {
@@ -883,6 +1470,7 @@ function beginGauntletBattle(): void {
     hoverUid = null;
     hoverIntentIdx = null;
     weaponOpen = null;
+    scheduleFoeFirstHold();
     render();
   } catch (err) {
     console.error("[gauntlet] beginGauntletBattle failed", err);
@@ -934,6 +1522,7 @@ function beginSkirmishBattle(): void {
     hoverUid = null;
     hoverIntentIdx = null;
     weaponOpen = null;
+    scheduleFoeFirstHold();
     render();
   } catch (err) {
     console.error("[gauntlet] beginSkirmishBattle failed", err);
@@ -956,6 +1545,7 @@ function finishGauntletRewardPick(): void {
   }
   gauntletRewardTakes += 1;
   gauntletScreen = "reward";
+  persistCampContinue();
   render();
 }
 
@@ -968,7 +1558,7 @@ function leaveGauntletCamp(): void {
   gauntletRewardsAreSuper = false;
   gauntletRewardTakes = 0;
   gauntletRun = consumeCampMods(gauntletRun);
-  if (gauntletRun.streak >= getGauntletFinalStage() && !isGauntletEndless()) {
+  if (gauntletRun.streak >= getGauntletFinalStage() && !isGauntletEndless(gauntletRun)) {
     gauntletEndedByLoss = false;
     gauntletResultNote = "通关 · 拆招短局结业";
     saveGauntletBest(gauntletRun);
@@ -1006,12 +1596,22 @@ function goToWagerOrBattle(): void {
 }
 
 function startGauntletSchool(school: WeaponId): void {
+  campaignRun = null;
+  qiFight = null;
+  campaignScreen = null;
+  campaignChapterDone = false;
+  breakDemoRun = null;
+  demoScreen = null;
+  hallRun = null;
+  hallScreen = null;
+  setLabRuleset("climb");
   const path = gauntletPath ?? "bandit";
   gauntletPath = path;
   gauntletError = "";
   enterGauntletTuning();
   try {
-    gauntletRun = createGauntletRun(path, school, gauntletBossRotation);
+    if (!gauntletWantEndless) clearClimbContinue();
+    gauntletRun = createGauntletRun(path, school, gauntletBossRotation, { endless: gauntletWantEndless });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     gauntletError = `开踢失败：${msg}`;
@@ -1030,10 +1630,32 @@ function finishGauntletBattle(outcome: "win" | "loss"): void {
   if (gauntletRun.skirmishActive) {
     const fought = Math.max(1, gauntletRun.stage - 1);
     const recruit = gauntletRun.pendingRecruit;
-    gauntletRun = { ...gauntletRun, skirmishActive: false, pendingSkirmish: undefined, pendingRecruit: undefined };
+    const side = gauntletRun.pendingSkirmish === "side";
+    const sideLabel = gauntletRun.pendingSideLabel;
+    gauntletRun = {
+      ...gauntletRun,
+      skirmishActive: false,
+      pendingSkirmish: undefined,
+      pendingRecruit: undefined,
+      pendingSideLabel: undefined,
+    };
     battle = null;
     phase = "setup";
     if (outcome === "win" && recruit) gauntletRun = applyCompanion(gauntletRun, recruit);
+    if (outcome === "win" && side) {
+      gauntletRun = {
+        ...gauntletRun,
+        pot: gauntletRun.pot + 22,
+        pendingRewardBonus: (gauntletRun.pendingRewardBonus ?? 0) + 1,
+        lastPotText: `支线 ${sideLabel ?? ""} 告捷 +22`,
+      };
+    } else if (outcome !== "win" && side) {
+      gauntletRun = {
+        ...gauntletRun,
+        pot: Math.max(0, gauntletRun.pot - 10),
+        lastPotText: `支线 ${sideLabel ?? ""} 失利 −10`,
+      };
+    }
     openGauntletCamp(fought);
     return;
   }
@@ -1054,21 +1676,9 @@ function finishGauntletBattle(outcome: "win" | "loss"): void {
     gauntletRun = consumeHallPotMods(gauntletRun);
     battle = null;
     phase = "setup";
-    const kind = eventAfterFought(foughtStage);
-    if (kind) {
-      gauntletEventKind = kind;
-      gauntletEventChoices = rollEventChoices(gauntletRun, kind);
-      gauntletScreen = "event";
-      render();
-      return;
-    }
-    if (isCompanionMilestone(foughtStage) && runCompanions(gauntletRun).length < maxCompanions() && !gauntletRun.skipCompanionPick) {
-      gauntletCompanions = rollCompanionChoices(gauntletRun);
-      gauntletScreen = "companion";
-      render();
-      return;
-    }
-    openGauntletCamp(foughtStage);
+    pendingWin = { foughtStage, texts };
+    gauntletScreen = "settle";
+    render();
     return;
   }
   gauntletRun = { ...afterGauntletLoss({ ...gauntletRun, pot, items: [...(battle.labItems ?? [])], itemCharges: { ...(battle.labItemCharges ?? {}) } }, breaks), wager: null, lastPotText: texts.filter(Boolean).join(" · ") };
@@ -1096,27 +1706,63 @@ function finishGauntletBattle(outcome: "win" | "loss"): void {
   render();
 }
 
+function continueAfterWinSettle(): void {
+  stopSting();
+  if (!gauntletRun || !pendingWin) return;
+  const foughtStage = pendingWin.foughtStage;
+  pendingWin = null;
+  const kind = eventAfterFought(foughtStage);
+  if (kind && !gauntletRun.endless) {
+    gauntletEventKind = kind;
+    gauntletEventChoices = rollEventChoices(gauntletRun, kind);
+    gauntletScreen = "event";
+    render();
+    return;
+  }
+  if (isCompanionMilestone(foughtStage) && runCompanions(gauntletRun).length < maxCompanions() && !gauntletRun.skipCompanionPick) {
+    gauntletCompanions = rollCompanionChoices(gauntletRun);
+    gauntletScreen = "companion";
+    render();
+    return;
+  }
+  openGauntletCamp(foughtStage);
+}
+
 function renderBattle(): string {
+  if (campaignRun && qiFight && !gauntletRun) {
+    return `${renderHeader()}${renderQiCommitBattle(qiFight, campaignRun)}`;
+  }
   if (!battle) return renderSetup();
-  const b = battle;
   const inDemo = breakDemoRun != null;
   const inHall = hallRun != null;
+  const inCampaign = campaignRun != null;
   const inHallGuide = Boolean(hallRun && hallIsGuided(hallRun));
+  const inCampGuide = Boolean(campaignRun && !campaignLessonDone(campaignRun));
   const inGauntlet = gauntletRun != null;
-  const prev = hoverUid ? previewCard(b, hoverUid) : null;
+  let b = battle;
+  if (playbackShow) {
+    b = { ...b, player: { ...b.player, hp: playbackShow.hp }, playerBlock: playbackShow.block };
+  }
+  const prev = moveGhostPreview(b, hoverUid);
   const swapCost = labSwapCost();
   const partyMode = inDemo
     ? Boolean(breakDemoRun!.companion)
     : inHall
       ? Boolean(hallRun!.companion)
+      : inCampaign
+        ? false
       : !inGauntlet || Boolean(runCompanions(gauntletRun!).length || gauntletRun?.lifelineCompanion);
   const hallSwapStep = inHallGuide && currentHallLesson(hallRun!)?.kind === "swap" && hallRun!.foeDebrief == null;
+  const campSwapStep =
+    inCampGuide && currentCampaignLesson(campaignRun!).kind === "swap" && campaignRun!.foeDebrief == null;
   const swapTeach =
     (inDemo && breakDemoRun!.foeDebrief == null && currentDemoLesson(breakDemoRun!).kind === "swap") ||
-    hallSwapStep;
+    hallSwapStep ||
+    campSwapStep;
   const endTeach =
     (inDemo && currentDemoLesson(breakDemoRun!).kind === "end" && !breakDemoRun!.foeDebrief) ||
-    (inHallGuide && currentHallLesson(hallRun!)?.kind === "end" && !hallRun!.foeDebrief);
+    (inHallGuide && currentHallLesson(hallRun!)?.kind === "end" && !hallRun!.foeDebrief) ||
+    (inCampGuide && currentCampaignLesson(campaignRun!).kind === "end" && !campaignRun!.foeDebrief);
   const swaps = !partyMode
     ? ""
     : b.bench
@@ -1126,6 +1772,8 @@ function renderBattle(): string {
             ? demoAllowsSwap(breakDemoRun!, m.id)
             : inHallGuide
               ? hallAllowsSwap(hallRun!, m.id)
+              : inCampGuide
+                ? campaignAllowsSwap(campaignRun!, m.id)
               : true;
           const gate = !demoOk
             ? { ok: false as const, reason: "本步请换同伴上场" }
@@ -1240,7 +1888,8 @@ function renderBattle(): string {
     b.phase === "player" &&
     canEndPlayerTurn(b).ok &&
     (!inDemo || demoAllowsEndTurn(breakDemoRun!)) &&
-    (!inHallGuide || hallAllowsEndTurn(hallRun!));
+    (!inHallGuide || hallAllowsEndTurn(hallRun!)) &&
+    (!inCampaign || campaignAllowsEndTurn(campaignRun!));
   const endBtnClass = `endturn fy-btn ${endTeach ? "demo-end-teach" : ""}`;
   const endTip = overCap
     ? `手牌 ${b.hand.length}/${handCap}，请先弃到上限再收势`
@@ -1252,7 +1901,7 @@ function renderBattle(): string {
   const handCapChip = isBreakAlign()
     ? `<span class="lab-hand-cap" data-tip="手牌上限；收势摸 ⌈上限/2⌉；超过须先弃">手牌 ${b.hand.length}/${handCap} · 收势摸 ${refillN}</span>`
     : "";
-  const actionRowHtml = inGauntlet || inDemo || inHall
+  const actionRowHtml = inGauntlet || inDemo || inHall || inCampaign
     ? `
     ${partyMode ? `<span class="lab-action-group lab-action-swap">${swaps || `<span class="lab-action-muted" data-tip="后场无人可换">无后场</span>`}</span>` : ""}
     ${partyMode && assists ? `<span class="lab-action-group lab-action-assist">${assists}</span>` : ""}
@@ -1300,6 +1949,8 @@ function renderBattle(): string {
       ? renderDemoFoeDebrief(breakDemoRun.foeDebrief)
       : hallRun?.foeDebrief != null
         ? renderDemoFoeDebrief(hallRun.foeDebrief)
+        : campaignRun?.foeDebrief != null
+          ? renderDemoFoeDebrief(campaignRun.foeDebrief)
         : "";
   return `${renderHeader()}${renderProdBattle({
     b,
@@ -1318,6 +1969,9 @@ function renderBattle(): string {
       if (inHallGuide && !hallAllowsCard(hallRun!, card.defId)) {
         return { ok: false, reason: "本步请打高亮牌（系统指定）" };
       }
+      if (inCampaign && !campaignAllowsCard(campaignRun!, card.defId)) {
+        return { ok: false, reason: "本步请打高亮牌（系统指定）" };
+      }
       return base;
     },
     discardMode: discardMode || cycleMode,
@@ -1331,10 +1985,12 @@ function renderBattle(): string {
       ? demoBadge(breakDemoRun.stage, breakDemoRun.track ?? "break")
       : hallRun
         ? hallBadge(hallRun)
+        : campaignRun
+          ? campaignBadge(campaignRun)
         : gauntletRun
           ? renderGauntletBadge(gauntletRun)
           : "",
-    gauntletStage: breakDemoRun?.stage ?? hallRun?.bout ?? gauntletRun?.stage,
+    gauntletStage: breakDemoRun?.stage ?? hallRun?.bout ?? campaignRun?.stageIndex ?? gauntletRun?.stage,
     demoGuide: breakDemoRun
       ? {
           cardIds: breakDemoRun.guideCardIds,
@@ -1351,8 +2007,31 @@ function renderBattle(): string {
             stage: hallRun.bout,
             lockOthers: inHallGuide && currentHallLesson(hallRun)?.kind === "play",
           }
+        : campaignRun
+          ? {
+              cardIds: campaignRun.guideCardIds,
+              coach: "",
+              teach: "",
+              stage: campaignRun.stageIndex + 1,
+              lockOthers: false,
+            }
         : undefined,
     weaponSheetHtml: weaponOpen ? renderWeaponSheet(weaponOpen) : "",
+    combatMode: campaignRun
+      ? { label: "读招谜题", tip: "硬核短拍：拆错或挨打即败；过关不靠砍血。" }
+      : breakDemoRun
+        ? {
+            label: (breakDemoRun.track ?? "break") === "rookie" ? "低阶入门" : "新手关",
+            tip: "预习破招规则；正式硬核在读招战役。",
+          }
+        : hallRun
+          ? { label: "训练馆", tip: "专项回炉；引导锁牌，训练自由打。" }
+          : { label: "肉鸽踢馆", tip: "不破也能爬。读招另有硬核谜题入口。" },
+    foeResolving: foePlaybackBusy,
+    foeSegAnim,
+    foePlaybackSegIdx,
+    youPlayAnim,
+    wagerHud: gauntletRun ? renderWagerPlate(gauntletRun) : "",
   })}`;
 }
 
@@ -1409,10 +2088,12 @@ function beginBattle(): void {
   paused = false;
   hoverUid = null;
   weaponOpen = null;
+  scheduleFoeFirstHold();
   render();
 }
 
 function endBattle(outcome: LabTelemetry["outcome"]): void {
+  if (outcome === "win" || outcome === "loss") playSting(outcome === "win" ? "win" : "lose");
   if (telemetry && battle) {
     telemetry = finishTelemetry(telemetry, outcome, detectStallTurn(battle), battle);
     pushReport(telemetry);
@@ -1430,6 +2111,11 @@ function endBattle(outcome: LabTelemetry["outcome"]): void {
   if (hallRun) {
     if (outcome === "win") finishHallBattle("win");
     else finishHallBattle("loss");
+    return;
+  }
+  if (campaignRun) {
+    if (outcome === "win") finishCampaignBattle("win");
+    else finishCampaignBattle("loss");
     return;
   }
   phase = "report";
@@ -1582,7 +2268,122 @@ function bindCardPanelEvents(): void {
   }
 }
 
+function bindQiCommitEvents(): void {
+  if (!qiFight || !campaignRun) return;
+  const paint = (): void => {
+    render();
+  };
+  for (const el of root.querySelectorAll<HTMLButtonElement>("[data-qi-card]")) {
+    el.addEventListener("click", () => {
+      if (!qiFight) return;
+      const uid = el.dataset.qiCard!;
+      const card = qiFight.hand.find((c) => c.uid === uid);
+      if (card && QI_CARDS[card.defId].kind === "step") {
+        try {
+          qiFight = playStep(selectCard(qiFight, uid));
+        } catch {
+          return;
+        }
+        paint();
+        return;
+      }
+      qiFight = selectCard(qiFight, uid);
+      paint();
+    });
+  }
+  for (const el of root.querySelectorAll<HTMLButtonElement>("[data-qi-seg]")) {
+    el.addEventListener("click", () => {
+      if (!qiFight) return;
+      try {
+        qiFight = assignToSegment(qiFight, Number(el.dataset.qiSeg));
+      } catch {
+        return;
+      }
+      paint();
+    });
+  }
+  root.querySelector("#qi-pass")?.addEventListener("click", () => {
+    if (!qiFight) return;
+    try {
+      qiFight = playPass(qiFight);
+    } catch {
+      return;
+    }
+    paint();
+  });
+  root.querySelector("#qi-atk-free")?.addEventListener("click", () => {
+    if (!qiFight) return;
+    try {
+      qiFight = playAttackFree(qiFight);
+    } catch {
+      return;
+    }
+    paint();
+  });
+  root.querySelector("#qi-ult")?.addEventListener("click", () => {
+    if (!qiFight) return;
+    const idx = qiFight.queue.findIndex((s) => !s.commit);
+    if (idx < 0) return;
+    try {
+      qiFight = playUlt(qiFight, idx);
+    } catch {
+      return;
+    }
+    paint();
+  });
+  root.querySelector("#qi-end")?.addEventListener("click", () => {
+    if (!qiFight || !campaignRun) return;
+    qiFight = resolveTurn(qiFight);
+    if (battle) {
+      battle = {
+        ...battle,
+        player: { ...battle.player, hp: qiFight.playerHp },
+        enemy: { ...battle.enemy, hp: qiFight.enemyHp },
+      };
+    }
+    if (qiFight.phase === "lost") {
+      finishCampaignFromTick({
+        kind: "lose",
+        tip: currentCampaignStage(campaignRun).failTip,
+        run: { ...campaignRun, lastFailTip: currentCampaignStage(campaignRun).failTip },
+      });
+      return;
+    }
+    const tick = tickCampaignAfterResolve(campaignRun, readQiResolveStats(qiFight));
+    if (tick.kind === "win" || tick.kind === "lose") {
+      finishCampaignFromTick(tick);
+      return;
+    }
+    campaignRun = tick.run;
+    paint();
+  });
+}
+
+function paintHoverBoard(): void {
+  if (phase !== "battle" || !battle) return;
+  const slot = root.querySelector("#strip");
+  if (!slot) return;
+  let b = battle;
+  if (playbackShow) {
+    b = { ...b, player: { ...b.player, hp: playbackShow.hp }, playerBlock: playbackShow.block };
+  }
+  slot.innerHTML = renderProdBoard(
+    b,
+    moveGhostPreview(b, hoverUid),
+    threatCellsForHover(b, hoverIntentIdx),
+    summonPending && battle ? legalSummonCells(battle) : [],
+    {
+      youAnim: youPlayAnim
+        ? `board-anim-${youPlayAnim === "swing" ? "hit" : youPlayAnim === "step" ? "windup" : "break"}`
+        : undefined,
+      foeAnim: youPlayAnim === "swing" ? "board-anim-hit" : foeSegAnim ? `board-anim-${foeSegAnim}` : undefined,
+      slashTick: youPlayAnim === "swing" ? 1 : foePlaybackSegIdx >= 0 ? foePlaybackSegIdx : 0,
+    },
+  );
+}
+
 function bindEvents(): void {
+  bindQiCommitEvents();
   root.querySelector("#lab-fullscreen")?.addEventListener("click", async () => {
     try {
       if (!document.fullscreenElement) {
@@ -1618,14 +2419,17 @@ function bindEvents(): void {
     playSfx("page");
     render();
   });
-  root.querySelector("#lab-settings-open")?.addEventListener("click", () => {
+  root.querySelector("#lab-settings-open")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     const needRender = guideOpen || devPanelOpen || wikiOpen != null;
     guideOpen = false;
     devPanelOpen = false;
     wikiOpen = null;
     playSfx("page");
     if (needRender) render();
-    openSettings();
+    // 晚一帧挂设置层，避免与 render 抢同一次 DOM 刷新
+    queueMicrotask(() => openSettings());
   });
   root.querySelector("#lab-guide-close")?.addEventListener("click", () => {
     guideOpen = false;
@@ -1795,7 +2599,17 @@ function bindEvents(): void {
   root.querySelector("#start-battle")?.addEventListener("click", beginBattle);
   root.querySelector("#start-gauntlet")?.addEventListener("click", () => {
     gauntletPath = null;
+    gauntletWantEndless = false;
     // 开踢 = 正式选线；新手关另有入口，不再塞进开踢
+    gauntletScreen = "path";
+    render();
+  });
+  root.querySelector("#hall-continue")?.addEventListener("click", () => {
+    restoreClimbCamp();
+  });
+  root.querySelector("#start-gauntlet-endless")?.addEventListener("click", () => {
+    gauntletPath = null;
+    gauntletWantEndless = true;
     gauntletScreen = "path";
     render();
   });
@@ -1816,6 +2630,57 @@ function bindEvents(): void {
     hallRun = null;
     render();
   });
+  root.querySelector("#start-break-campaign")?.addEventListener("click", () => {
+    if (!isBreakAlign()) return;
+    startBreakCampaign();
+  });
+  root.querySelector("#campaign-retry")?.addEventListener("click", () => {
+    if (!campaignRun) return;
+    campaignScreen = null;
+    campaignChapterDone = false;
+    beginCampaignBattle();
+  });
+  root.querySelector("#campaign-next")?.addEventListener("click", () => {
+    if (!campaignRun) return;
+    const stepped = advanceCampaignAfterClear(campaignRun);
+    if (stepped.done) {
+      markBreakCampaignCleared();
+      campaignChapterDone = true;
+      campaignScreen = "cleared";
+      render();
+      return;
+    }
+    campaignRun = stepped.run;
+    campaignScreen = null;
+    campaignChapterDone = false;
+    beginCampaignBattle();
+  });
+  root.querySelector("#campaign-restart")?.addEventListener("click", () => {
+    startBreakCampaign();
+  });
+  root.querySelector("#campaign-back-home")?.addEventListener("click", () => {
+    campaignRun = null;
+    qiFight = null;
+    campaignScreen = null;
+    campaignChapterDone = false;
+    battle = null;
+    phase = "setup";
+    endLabMode();
+    exitGauntletTuning();
+    render();
+  });
+  for (const el of root.querySelectorAll<HTMLButtonElement>("[data-campaign-home]")) {
+    el.addEventListener("click", () => {
+      campaignRun = null;
+      campaignScreen = null;
+      campaignChapterDone = false;
+      battle = null;
+      phase = "setup";
+      endLabMode();
+      exitGauntletTuning();
+      render();
+    });
+  }
   for (const el of root.querySelectorAll<HTMLButtonElement>("[data-hall-cab]")) {
     el.addEventListener("click", () => {
       const next = el.dataset.hallCab as HallCabinet;
@@ -1963,6 +2828,8 @@ function bindEvents(): void {
   });
   root.querySelector("#gauntlet-retry")?.addEventListener("click", () => {
     if (!gauntletRun) return;
+    stopSting();
+    routeBookOpen = false;
     const school = gauntletRun.school;
     const path = gauntletRun.path;
     gauntletRun = null;
@@ -2072,6 +2939,7 @@ function bindEvents(): void {
       if (!next) return;
       gauntletRun = next;
       gauntletMarketBought = new Set(gauntletMarketBought).add(id);
+      persistCampContinue();
       render();
     });
   }
@@ -2083,7 +2951,23 @@ function bindEvents(): void {
     gauntletMarket = marketOffers(gauntletRun);
     gauntletMarketBought = new Set();
     gauntletMarketRefreshN += 1;
+    persistCampContinue();
     render();
+  });
+  root.querySelector("#gauntlet-settle-take")?.addEventListener("click", () => continueAfterWinSettle());
+  root.querySelector("#route-book-open")?.addEventListener("click", () => {
+    routeBookOpen = true;
+    render();
+  });
+  root.querySelector("#route-book-close")?.addEventListener("click", () => {
+    routeBookOpen = false;
+    render();
+  });
+  root.querySelector("#route-book-mask")?.addEventListener("click", (e) => {
+    if ((e.target as HTMLElement).id === "route-book-mask") {
+      routeBookOpen = false;
+      render();
+    }
   });
   root.querySelector("#gauntlet-camp-continue")?.addEventListener("click", () => {
     leaveGauntletCamp();
@@ -2160,6 +3044,7 @@ function bindEvents(): void {
       gauntletRewardTakes = 0;
       rollGauntletMarket();
       gauntletScreen = "reward";
+      persistCampContinue();
       render();
     });
   }
@@ -2242,13 +3127,15 @@ function bindEvents(): void {
       for (const c of root.querySelectorAll<HTMLButtonElement>(".card[data-uid]")) {
         c.classList.toggle("hot", c.dataset.uid === hoverUid);
       }
+      paintHoverBoard();
     });
     el.addEventListener("mouseleave", () => {
       hoverUid = null;
       el.classList.remove("hot");
+      paintHoverBoard();
     });
     el.addEventListener("click", () => {
-      if (!battle || battle.phase !== "player" || paused) return;
+      if (!battle || battle.phase !== "player" || paused || foePlaybackBusy) return;
       const uid = el.dataset.uid!;
       // 弃牌/置换：须先点按钮，超上限不会自动改点牌为弃牌
       if (discardMode && needsDiscardToHandCap(battle)) {
@@ -2275,6 +3162,10 @@ function bindEvents(): void {
         const cardCheck = battle.hand.find((c) => c.uid === uid);
         if (cardCheck && !hallAllowsCard(hallRun, cardCheck.defId)) return;
       }
+      if (campaignRun) {
+        const cardCheck = battle.hand.find((c) => c.uid === uid);
+        if (cardCheck && !campaignAllowsCard(campaignRun, cardCheck.defId)) return;
+      }
       const card = battle.hand.find((c) => c.uid === uid);
       const ms = Math.round(performance.now() - turnStartedAt);
       const before = battle;
@@ -2282,6 +3173,9 @@ function bindEvents(): void {
       if (card) playSfx(CARDS[card.defId]?.type === "attack" ? "swing" : "drop");
       const matched = previewMatchesPlay(before, uid, after);
       battle = after;
+      if (battle.v2FxQueue && battle.v2FxQueue.length > 1) {
+        battle = { ...battle, v2FxQueue: [battle.v2FxQueue[battle.v2FxQueue.length - 1]!] };
+      }
       if (breakDemoRun && card) {
         breakDemoRun = afterDemoPlayCard(breakDemoRun, card.defId);
         battle = syncBreakDemoBattle(battle, breakDemoRun);
@@ -2289,6 +3183,10 @@ function bindEvents(): void {
       if (hallRun && card && hallIsGuided(hallRun)) {
         hallRun = afterHallPlayCard(hallRun, card.defId);
         battle = syncHallBattle(battle, hallRun);
+      }
+      if (campaignRun && card) {
+        campaignRun = afterCampaignPlayCard(campaignRun, card.defId);
+        // 不 sync 手牌——每拍开局才重发窄牌
       }
       if (telemetry) {
         telemetry = recordPlayerTurn(
@@ -2301,9 +3199,20 @@ function bindEvents(): void {
         );
       }
       hoverUid = null;
+      if (card) {
+        const def = CARDS[card.defId];
+        youPlayAnim = def?.type === "attack" ? "swing" : def?.steps ? "step" : "cast";
+        if (youPlayAnimTimer != null) window.clearTimeout(youPlayAnimTimer);
+        youPlayAnimTimer = window.setTimeout(() => {
+          youPlayAnim = null;
+          youPlayAnimTimer = null;
+          if (phase === "battle") render();
+        }, 420);
+      }
       // 敌全灭即胜——不管教案走到哪一步。否则 checkWin 已把 phase 置 "won"，
       // 收势闸（phase==="player"）会把玩家永久锁死在场上。
-      if (after.enemy.hp <= 0 || livingFoes(after).every((f) => f.hp <= 0)) {
+      // 读招谜题例外：过关只看破法谓词，不靠击杀。
+      if (!campaignRun && isBattleWon(after)) {
         endBattle("win");
         return;
       }
@@ -2321,10 +3230,11 @@ function bindEvents(): void {
   });
   for (const el of root.querySelectorAll<HTMLButtonElement>("[data-swap]")) {
     el.addEventListener("click", () => {
-      if (!battle) return;
+      if (!battle || foePlaybackBusy) return;
       const id = el.dataset.swap as CompanionId;
       if (breakDemoRun && !demoAllowsSwap(breakDemoRun, id)) return;
       if (hallRun && !hallAllowsSwap(hallRun, id)) return;
+      if (campaignRun && !campaignAllowsSwap(campaignRun, id)) return;
       battle = labSwapFighter(battle, id);
       if (breakDemoRun) {
         breakDemoRun = afterDemoSwap(breakDemoRun, id);
@@ -2333,6 +3243,10 @@ function bindEvents(): void {
       if (hallRun && hallIsGuided(hallRun)) {
         hallRun = afterHallSwap(hallRun, id);
         battle = syncHallBattle(battle, hallRun);
+      }
+      if (campaignRun) {
+        campaignRun = afterCampaignSwap(campaignRun);
+        battle = syncCampaignBattle(battle, campaignRun);
       }
       render();
     });
@@ -2393,22 +3307,33 @@ function bindEvents(): void {
     render();
   });
   root.querySelector("#btn-end")?.addEventListener("click", () => {
-    if (!battle || battle.phase !== "player" || paused) return;
+    if (!battle || battle.phase !== "player" || paused || foePlaybackBusy) return;
+    if (!campaignRun && isBattleWon(battle)) {
+      endBattle("win");
+      return;
+    }
     if (!canEndPlayerTurn(battle).ok) return;
     if (breakDemoRun && !demoAllowsEndTurn(breakDemoRun)) return;
     if (hallRun && !hallAllowsEndTurn(hallRun)) return;
+    if (campaignRun && !campaignAllowsEndTurn(campaignRun)) return;
     discardMode = false;
     cycleMode = false;
     const ms = Math.round(performance.now() - turnStartedAt);
     if (telemetry) telemetry = recordPlayerTurn(telemetry, battle, "收势", ms, true);
     playSfx("drop");
-    battle = endTurn(battle);
+    const campBreaksBefore = campaignRun ? (battle.v2BreakCount ?? 0) : 0;
+    foePlaybackIntents = battle.intents.length ? battle.intents.map((x) => ({ ...x })) : [{ ...battle.intent }];
+    // 先兑完整队、暂不刷下一手；播报完再亮下回合全套意图
+    battle = endTurn(battle, { deferIntentRefresh: true });
+    if (!campaignRun && skipFoeRecap(battle)) {
+      endBattle("win");
+      return;
+    }
     if (telemetry) telemetry = recordFoeTurn(telemetry, battle, intentLabel(battle.intent));
     if (breakDemoRun) {
       const you = battle.player.pos;
       const foe = battle.enemy.pos;
       breakDemoRun = afterDemoEndTurn(breakDemoRun);
-      // 教案走完后进入自由打：不再钉站位/锁敌招，让收尾战真打
       if (!demoLessonDone(breakDemoRun)) lockDemoAfterFoeTurn(battle, you, foe);
       battle = syncBreakDemoBattle(battle, breakDemoRun);
     }
@@ -2419,16 +3344,32 @@ function bindEvents(): void {
       lockHallAfterFoeTurn(battle, hallRun, you, foe);
       battle = syncHallBattle(battle, hallRun);
     }
-    if (battle.player.hp <= 0) {
-      endBattle("loss");
-      return;
-    }
-    if (battle.enemy.hp <= 0 || livingFoes(battle).every((f) => f.hp <= 0)) {
-      endBattle("win");
-      return;
-    }
-    resetTurnTimer();
-    render();
+    const afterPlayback = (): void => {
+      if (!battle) return;
+      battle = refreshFoeIntentsIfPending(battle);
+      if (campaignRun) {
+        const stats = readCampaignResolveStats(battle, campBreaksBefore);
+        const tick = tickCampaignAfterResolve(campaignRun, stats);
+        if (tick.kind === "win" || tick.kind === "lose") {
+          finishCampaignFromTick(tick);
+          return;
+        }
+        campaignRun = tick.run;
+        refreshCampaignIntents(battle, campaignRun);
+        battle = syncCampaignBattle(battle, campaignRun);
+      }
+      if (battle.player.hp <= 0) {
+        endBattle("loss");
+        return;
+      }
+      if (!campaignRun && isBattleWon(battle)) {
+        endBattle("win");
+        return;
+      }
+      resetTurnTimer();
+      render();
+    };
+    playFoeRecapThen(afterPlayback);
   });
   root.querySelector("#demo-foe-debrief-ok")?.addEventListener("click", () => {
     if (breakDemoRun && battle) {
@@ -2441,6 +3382,12 @@ function bindEvents(): void {
       hallRun = dismissHallFoeDebrief(hallRun);
       battle = syncHallBattle(battle, hallRun);
       render();
+      return;
+    }
+    if (campaignRun && battle) {
+      campaignRun = dismissCampaignFoeDebrief(campaignRun);
+      battle = syncCampaignBattle(battle, campaignRun);
+      render();
     }
   });
   for (const el of root.querySelectorAll<HTMLButtonElement>(".lab-intent-seg[data-intent-idx]")) {
@@ -2448,7 +3395,7 @@ function bindEvents(): void {
       hoverIntentIdx = Number(el.dataset.intentIdx);
       const slot = root.querySelector("#strip");
       if (slot && battle) {
-        const prev = hoverUid ? previewCard(battle, hoverUid) : null;
+        const prev = moveGhostPreview(battle, hoverUid);
         slot.innerHTML = renderProdBoard(battle, prev, threatCellsForHover(battle, hoverIntentIdx));
       }
     });
@@ -2456,7 +3403,7 @@ function bindEvents(): void {
       hoverIntentIdx = null;
       const slot = root.querySelector("#strip");
       if (slot && battle) {
-        const prev = hoverUid ? previewCard(battle, hoverUid) : null;
+        const prev = moveGhostPreview(battle, hoverUid);
         slot.innerHTML = renderProdBoard(battle, prev, []);
       }
     });

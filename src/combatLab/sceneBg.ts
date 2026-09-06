@@ -1,4 +1,7 @@
-export const SCENE_BG_CAP = 2;
+import { climbPlace, loadoutBgFor, wagerBgFor } from "./climbPlaces";
+import type { GauntletPath } from "./gauntletPaths";
+
+export const SCENE_BG_CAP = 1;
 
 export type CombatPathId = "shaolin" | "bandit" | "court";
 
@@ -9,6 +12,11 @@ export const COMBAT_BG_SHAOLIN = [
   "art/scenes/scene-fight-shaolin-abbot.png",
   "art/scenes/scene-shaolin.png",
   "art/scenes/scene-teahouse.png",
+  "art/scenes/scene-place-sl-zangjing.png",
+  "art/scenes/scene-place-sl-damo.png",
+  "art/scenes/scene-quiet-shaolin.png",
+  "art/scenes/scene-quiet-tea.png",
+  "art/scenes/scene-quiet-harbor.png",
 ];
 
 /** 江湖：野路昼 → 河岸伏 → 寨堂夜。 */
@@ -18,6 +26,11 @@ export const COMBAT_BG_BANDIT = [
   "art/scenes/scene-fight-jianghu-hall.png",
   "art/scenes/scene-inn-yard.png",
   "art/scenes/scene-night-market.png",
+  "art/scenes/scene-place-jh-yangzhou.png",
+  "art/scenes/scene-place-jh-jinling.png",
+  "art/scenes/scene-quiet-inn.png",
+  "art/scenes/scene-quiet-lane.png",
+  "art/scenes/scene-moon-bridge.png",
 ];
 
 /** 朝廷：衙门昼 → 内廷廊 → 殿前夜。 */
@@ -27,6 +40,11 @@ export const COMBAT_BG_COURT = [
   "art/scenes/scene-fight-court-night.png",
   "art/scenes/scene-yamen.png",
   "art/scenes/scene-home-gate.png",
+  "art/scenes/scene-place-court-tianjie.png",
+  "art/scenes/scene-place-court-jinming.png",
+  "art/scenes/scene-quiet-yamen.png",
+  "art/scenes/scene-quiet-yard.png",
+  "art/scenes/scene-quiet-harbor.png",
 ];
 
 /** 旧入口：无路线时的并集，优先不再用码头一张打天下。 */
@@ -36,11 +54,9 @@ export const COMBAT_BG_POOL = [...new Set([...COMBAT_BG_SHAOLIN, ...COMBAT_BG_BA
 export function combatBgPool(path: CombatPathId, stage: number): string[] {
   const files =
     path === "shaolin" ? COMBAT_BG_SHAOLIN : path === "court" ? COMBAT_BG_COURT : COMBAT_BG_BANDIT;
-  const [early, mid, late, quietA, quietB] = files;
-  if (stage >= 7) return [late, quietB, mid, quietA, early];
-  if (stage >= 5) return [mid, late, quietB, quietA, early];
-  if (stage >= 3) return [mid, early, quietA, late, quietB];
-  return [early, quietA, mid, quietB, late];
+  const i = Math.max(0, Math.min(files.length - 1, stage - 1));
+  const head = files[i]!;
+  return [head, ...files.filter((f) => f !== head)];
 }
 
 export const HOME_BG = "art/scenes/scene-quiet-gate.png";
@@ -58,6 +74,24 @@ export const CAMP_BG_SHAOLIN = [
 export const CAMP_BG_COURT = [
   "art/scenes/scene-quiet-yamen.png",
   "art/scenes/scene-quiet-yard.png",
+];
+
+export const PLACE_BG_EXTRA = [
+  "art/scenes/scene-wager-jianghu.png",
+  "art/scenes/scene-wager-shaolin.png",
+  "art/scenes/scene-wager-court.png",
+  "art/scenes/scene-loadout-jianghu.png",
+  "art/scenes/scene-loadout-shaolin.png",
+  "art/scenes/scene-loadout-court.png",
+  "art/scenes/scene-place-jh-yangzhou.png",
+  "art/scenes/scene-place-jh-jinling.png",
+  "art/scenes/scene-place-sl-zangjing.png",
+  "art/scenes/scene-place-sl-damo.png",
+  "art/scenes/scene-place-court-tianjie.png",
+  "art/scenes/scene-place-court-jinming.png",
+  "art/scenes/scene-moon-bridge.png",
+  "art/scenes/scene-fork.png",
+  "art/scenes/scene-quiet-harbor.png",
 ];
 
 export const EVENT_BG_POOL = ["art/scenes/scene-quiet-fork.png"];
@@ -81,6 +115,7 @@ export const OVERLAY_BG_POOL = [
     ...CAMP_BG_COURT,
     ...EVENT_BG_POOL,
     ...LOBBY_BG_POOL,
+    ...PLACE_BG_EXTRA,
   ]),
 ];
 
@@ -99,21 +134,42 @@ export type OverlayScreenKind =
   | "market"
   | "graduate"
   | "event"
+  | "settle"
   | "finale"
   | "scar";
 
-export function campPlaceName(path: string): { title: string; pager: string } {
-  if (path === "shaolin") return { title: "禅院歇脚", pager: "禅院营地 · 选完免费奖励后再点继续" };
-  if (path === "court") return { title: "官驿歇脚", pager: "官驿营地 · 选完免费奖励后再点继续" };
-  return { title: "酒楼歇脚", pager: "酒楼营地 · 选完免费奖励后再点继续" };
+export function campPlaceName(path: string, stage = 1): { title: string; pager: string } {
+  const p = climbPlace((path === "shaolin" || path === "court" ? path : "bandit") as GauntletPath, stage);
+  return { title: p.rest, pager: `${p.name} · 歇脚 · 选完免费奖励后再点继续` };
 }
 
-export function overlayPoolFor(screen: OverlayScreenKind, path = "bandit"): string[] {
+export function eventBgPool(kind?: string): string[] {
+  if (kind === "inn") return ["art/scenes/scene-quiet-inn.png", ...EVENT_BG_POOL];
+  if (kind === "fork") return ["art/scenes/scene-fork.png", "art/scenes/scene-quiet-fork.png"];
+  if (kind === "ambush") return ["art/scenes/scene-fight-jianghu-ambush.png", ...EVENT_BG_POOL];
+  if (kind === "stall") return ["art/scenes/scene-quiet-lane.png", ...EVENT_BG_POOL];
+  if (kind === "companion") return ["art/scenes/scene-quiet-tea.png", ...EVENT_BG_POOL];
+  if (kind === "finaleHint") return ["art/scenes/scene-moon-bridge.png", ...EVENT_BG_POOL];
+  return EVENT_BG_POOL;
+}
+
+export function overlayPoolFor(
+  screen: OverlayScreenKind,
+  path: string = "bandit",
+  eventKind?: string,
+  stage = 1,
+): string[] {
+  const line = (path === "shaolin" || path === "court" ? path : "bandit") as GauntletPath;
+  const place = climbPlace(line, stage);
   let preferred: string[];
-  if (screen === "reward" || screen === "loadout" || screen === "wager" || screen === "rewardTarget") {
-    preferred = path === "shaolin" ? CAMP_BG_SHAOLIN : path === "court" ? CAMP_BG_COURT : CAMP_BG_BANDIT;
+  if (screen === "wager") {
+    preferred = [wagerBgFor(line), place.restBg];
+  } else if (screen === "loadout" || screen === "rewardTarget") {
+    preferred = [loadoutBgFor(line), place.restBg];
+  } else if (screen === "reward" || screen === "settle") {
+    preferred = [place.restBg, ...(line === "shaolin" ? CAMP_BG_SHAOLIN : line === "court" ? CAMP_BG_COURT : CAMP_BG_BANDIT)];
   } else if (screen === "event" || screen === "companion" || screen === "finale" || screen === "scar") {
-    preferred = EVENT_BG_POOL;
+    preferred = eventBgPool(eventKind);
   } else {
     preferred = LOBBY_BG_POOL;
   }
@@ -130,14 +186,16 @@ function publicUrl(file: string): string {
   return file.startsWith("/") ? file : `/${file}`;
 }
 
-function pickFile(uses: Record<string, number>, preferred: string[], fallback: string[]): string {
-  for (const file of [...preferred, ...fallback]) {
+function pickFile(_uses: Record<string, number>, preferred: string[], fallback: string[]): string {
+  const canon = preferred[0];
+  if (canon) return canon;
+  for (const file of fallback) {
     if ((uses[file] ?? 0) < SCENE_BG_CAP) return file;
   }
-  return preferred[0] ?? fallback[0] ?? COMBAT_BG_POOL[0]!;
+  return fallback[0] ?? COMBAT_BG_POOL[0]!;
 }
 
-/** 同一 scene key 固定一张图；全局每张文件最多占用两个 key。 */
+/** 同一 scene key 固定一张图；每张文件整局只用一次。 */
 export function assignSceneBg(
   state: SceneBgState,
   key: string,

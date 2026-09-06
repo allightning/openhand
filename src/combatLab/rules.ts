@@ -67,8 +67,8 @@ export function tryAddToRecipe(
   id: CardId,
   weaponId: string,
 ): { ok: true; recipe: CardId[] } | { ok: false; reason: string } {
-  if (recipe.includes(id)) return { ok: false, reason: "该谱已在配方中（每种仅 1 张）" };
-  if (recipe.length >= LAB_DECK_TYPE_CAP) return { ok: false, reason: `配方已满 ${LAB_DECK_TYPE_CAP} 种` };
+  if (recipe.filter((x) => x === id).length >= 3) return { ok: false, reason: "同谱最多 3 张" };
+  if (recipe.length >= LAB_DECK_TYPE_CAP + 6) return { ok: false, reason: `配方张数已满` };
   if (!isCardAllowedForWeapon(id, weaponId)) return { ok: false, reason: "非本门或通用谱，不可装入配方" };
   return { ok: true, recipe: [...recipe, id] };
 }

@@ -120,11 +120,19 @@ export function replaceOwnedCard<T extends LoadoutRun>(run: T, from: CardId, to:
   return run;
 }
 
+function countCardCopies(run: LoadoutRun, id: CardId): number {
+  const hero = loadoutHero(run.school);
+  const deck = mateDeck(run, hero);
+  const stash = run.stashCards ?? [];
+  return deck.filter((x) => x === id).length + stash.filter((x) => x === id).length;
+}
+
+/** 同谱最多 3 张；满 3 再摸才尝试换页。 */
 export function grantCardToLoadout<T extends LoadoutRun>(run: T, id: CardId): T {
-  const owned = ownedCardIds(run);
-  if (owned.has(id)) {
+  const copies = countCardCopies(run, id);
+  if (copies >= 3) {
     const up = breakCardUpgrade(id);
-    if (up && !owned.has(up)) return replaceOwnedCard(run, id, up);
+    if (up && countCardCopies(run, up) === 0) return replaceOwnedCard(run, id, up);
     return run;
   }
   const hero = loadoutHero(run.school);

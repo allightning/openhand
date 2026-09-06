@@ -71,11 +71,12 @@ describe("Combat Lab assembly rules", () => {
     expect(fieldDeck.length).toBeLessThanOrEqual(recipe.length * 3);
   });
 
-  it("rejects duplicate recipe entries", () => {
+  it("caps same recipe id at 3 copies", () => {
     const id = BUILTIN_PRESETS[0]!.deckRecipe[0]!;
     const weapon = runFromPreset(BUILTIN_PRESETS[0]!).weapon;
-    const gate = tryAddToRecipe([id], id, weapon);
-    expect(gate.ok).toBe(false);
+    expect(tryAddToRecipe([id], id, weapon).ok).toBe(true);
+    expect(tryAddToRecipe([id, id], id, weapon).ok).toBe(true);
+    expect(tryAddToRecipe([id, id, id], id, weapon).ok).toBe(false);
   });
 
   it("caps tech per mate at 3", () => {

@@ -12,6 +12,7 @@ import { CARDS } from "../game/content";
 import type { Battle } from "../game/types";
 import { startLabBattle } from "./factory";
 import { buildGauntletPreset, createGauntletRun } from "./gauntlet";
+import { setLabRuleset } from "./labRuleset";
 
 function v2Battle(): Battle {
   const b = startLabBattle(buildGauntletPreset(createGauntletRun("bandit", "palm")), true, 1);
@@ -21,6 +22,7 @@ function v2Battle(): Battle {
 }
 
 beforeEach(() => {
+  setLabRuleset("break");
   setLabMode(true);
   setLabTuning({ rulesV2: true, v2Fx: false });
 });

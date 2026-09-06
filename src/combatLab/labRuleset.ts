@@ -1,28 +1,31 @@
-export type LabRuleset = "break";
+export type LabRuleset = "climb" | "break";
 
 const KEY = "openhand-lab-ruleset";
+let current: LabRuleset = "climb";
 
-/** 产品只留肉鸽踢馆。旧 localStorage `classic` 读到也当 break。 */
 export function getLabRuleset(): LabRuleset {
   try {
-    localStorage.setItem(KEY, "break");
+    const v = globalThis.localStorage?.getItem(KEY);
+    if (v === "break") current = "break";
+    else if (v === "climb" || v === "classic") current = "climb";
   } catch {
     /* vitest / private mode */
   }
-  return "break";
+  return current;
 }
 
-/** 保留调用点；对战版已删除，写入一律 break。 */
-export function setLabRuleset(_r?: string): void {
+export function setLabRuleset(r?: string): void {
+  current = r === "break" ? "break" : "climb";
   try {
-    localStorage.setItem(KEY, "break");
+    globalThis.localStorage?.setItem(KEY, current);
   } catch {
     /* ignore */
   }
 }
 
+/** 读招战役 / 训练馆 / 示范：气力承诺或旧空间拆招。踢馆爬塔为 false。 */
 export function isBreakAlign(): boolean {
-  return true;
+  return getLabRuleset() === "break";
 }
 
 /** 学堂/新手关才铺将破将让；正式开踢只留打/空/跳过。 */

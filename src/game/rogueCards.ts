@@ -60,6 +60,10 @@ export function statusCardId(school: WeaponId): RogueCardId {
   return `status${SCHOOL_CAP[school]}`;
 }
 
+export function statusCardId2(school: WeaponId): RogueCardId {
+  return `status${SCHOOL_CAP[school]}2`;
+}
+
 export function stepCardId(school: WeaponId): RogueCardId {
   return `step${SCHOOL_CAP[school]}`;
 }
@@ -179,6 +183,22 @@ function statusDef(school: WeaponId): CardDef {
   return { id, cost: school === "staff" ? 2 : 1, type: "skill", school, ...pack[school] };
 }
 
+function statusDef2(school: WeaponId): CardDef {
+  const id = statusCardId2(school);
+  const pack: Record<
+    WeaponId,
+    Pick<CardDef, "name" | "text" | "flavor" | "heal" | "block" | "expose" | "energyNext" | "frail" | "bleed" | "pullEnemy">
+  > = {
+    palm: { name: "聚气", text: "回复 6 点生命。立刻回劲 2。", flavor: "掌心一捂，劲力跟着血气回来。", heal: 6, energyNext: 2 },
+    saber: { name: "血口", text: "裂创 +2。格挡 3。", flavor: "刀口先开口子，再拿刀背挡一下。", bleed: 2, block: 3 },
+    sword: { name: "锁脉", text: "敌破绽 +2。滞手 +1。", flavor: "剑意锁住脉口，他下一招发不干脆。", expose: 2, frail: 1 },
+    spear: { name: "蓄杆", text: "格挡 5。立刻回劲 3。", flavor: "枪杆一沉，先把距离和劲攒住。", block: 5, energyNext: 3 },
+    staff: { name: "铁桩", text: "获得 12 点格挡。", flavor: "人桩立住，这一息砸不垮。", block: 12 },
+    hook: { name: "锁喉丝", text: "拉近 1。滞手 +2。", flavor: "钩丝绕喉，人过来、手也滞。", pullEnemy: 1, frail: 2 },
+  };
+  return { id, cost: school === "staff" || school === "spear" ? 2 : 1, type: "skill", school, ...pack[school] };
+}
+
 function stepDef(school: WeaponId): CardDef {
   const id = stepCardId(school);
   const pack: Record<WeaponId, Pick<CardDef, "name" | "text" | "flavor" | "steps" | "block">> = {
@@ -224,6 +244,7 @@ function buildRogueCardDefs(): Record<RogueCardId, CardDef> {
     out[auraCardId(s)] = auraDef(s);
     out[hitCardId(s)] = hitDef(s);
     out[statusCardId(s)] = statusDef(s);
+    out[statusCardId2(s)] = statusDef2(s);
     out[stepCardId(s)] = stepDef(s);
   }
   for (let i = 0; i < ROGUE_SCHOOLS.length; i++) {
@@ -312,6 +333,14 @@ export const SCHOOL_EXTRA_STATUS: Record<WeaponId, CardId> = {
   spear: "statusSpear",
   staff: "statusStaff",
   hook: "statusHook",
+};
+export const SCHOOL_EXTRA_STATUS2: Record<WeaponId, CardId> = {
+  palm: "statusPalm2",
+  saber: "statusSaber2",
+  sword: "statusSword2",
+  spear: "statusSpear2",
+  staff: "statusStaff2",
+  hook: "statusHook2",
 };
 export const SCHOOL_SCHOOL_STEP: Record<WeaponId, CardId> = {
   palm: "stepPalm",

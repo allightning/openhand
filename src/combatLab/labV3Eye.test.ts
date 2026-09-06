@@ -6,6 +6,7 @@ import { simV2ResolveIntentQueue, simV2StrikeDamage } from "../game/simV2Hooks";
 import type { Battle, Intent } from "../game/types";
 import { startLabBattle } from "./factory";
 import { BUILTIN_PRESETS } from "./presets";
+import { setLabRuleset } from "./labRuleset";
 
 function v2Battle(): Battle {
   setLabMode(true);
@@ -13,7 +14,10 @@ function v2Battle(): Battle {
   return startLabBattle({ ...BUILTIN_PRESETS[0]!, enemyId: "catcher" }, true);
 }
 
-beforeEach(() => setLabMode(true));
+beforeEach(() => {
+  setLabRuleset("break");
+  setLabMode(true);
+});
 afterEach(() => setLabMode(false));
 
 describe("§31.8 v3 招眼/破让分级", () => {

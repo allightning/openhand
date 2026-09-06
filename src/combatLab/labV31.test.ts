@@ -46,7 +46,7 @@ describe("§31.11 距离与先机", () => {
     expect(WEAPON_PACE.staff).toBeGreaterThan(WEAPON_PACE.saber);
   });
 
-  it("拳掌贴身才打得到；拆招枪禁贴身、2–4 可戳", () => {
+  it("拳掌贴身才打得到；拆招枪贴身可拨杆、2–4 可戳", () => {
     const palm = withCard(schoolBattle("palm"), "strike");
     palm.enemy.pos = palm.player.pos + 3;
     expect(canPlay(palm, "t1").ok).toBe(false);
@@ -56,8 +56,7 @@ describe("§31.11 距离与先机", () => {
 
     const spear = withCard(schoolBattle("spear"), "thrust");
     spear.enemy.pos = spear.player.pos + 1;
-    expect(canPlay(spear, "t1").ok).toBe(false);
-    expect(canPlay(spear, "t1").reason).toContain("贴身使不开枪");
+    expect(canPlay(spear, "t1").ok).toBe(true);
     spear.enemy.pos = spear.player.pos + 3;
     expect(canPlay(spear, "t1").ok).toBe(true);
     spear.enemy.pos = spear.player.pos + 4;

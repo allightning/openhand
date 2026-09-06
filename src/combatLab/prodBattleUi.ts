@@ -11,7 +11,7 @@ import { ENEMY_GEAR_GRADE_LABEL } from "../game/enemyGear";
 import { labCard } from "../game/labContent";
 import { ENEMIES, ENEMY_WEAPON, TECHNIQUES } from "../game/content";
 import { cardDisplayText } from "../game/cardTextV2";
-import { variantActiveLabel, variantBranch } from "../game/labV21";
+import { variantActiveLabel, variantBranch, labV21EffectiveCost } from "../game/labV21";
 import { ROLE_LABEL } from "../game/labV25Constants";
 import { isLabV2 } from "../game/labTuning";
 import { MOVE_CARD_IDS } from "../game/intentWeakness";
@@ -50,12 +50,12 @@ function foeArt(id: EnemyId, kind = "board"): string {
   return constableInk();
 }
 
-/** 最新一条演出事件对应的刀光层（随 fx 队列更新，动画结束自隐）。 */
-function slashOverlay(b: Battle, side: "you" | "foe"): string {
+/** 最新一条演出事件对应的刀光层（随 fx 队列更新；tick 强制重挂以逐步重播动画）。 */
+function slashOverlay(b: Battle, side: "you" | "foe", tick = 0): string {
   const fx = b.v2FxQueue ?? [];
   const vfx = slashForFx(fx[fx.length - 1], side);
   if (!vfx) return "";
-  return `<img class="lab-slash-overlay" src="${vfxUrl(vfx)}" alt="" draggable="false">`;
+  return `<img class="lab-slash-overlay lab-slash-board" src="${vfxUrl(vfx)}" data-tick="${tick}" alt="" draggable="false">`;
 }
 
 function foeWeaponId(id: EnemyId): string {
@@ -115,6 +115,11 @@ export function renderProdBoard(
   prev: Preview | null,
   threatHighlight: number[] = [],
   summonPickCells: number[] = [],
+  boardFx?: {
+    youAnim?: string;
+    foeAnim?: string;
+    slashTick?: number;
+  },
 ): string {
   const danger = dangerCells(b);
   // §31.10 兵刃威胁圈：敌当前位置 ±reach 的格常亮淡红——「退一步是否还挨刀」一眼可查。
@@ -131,8 +136,8 @@ export function renderProdBoard(
     const isPlayer = b.player.hp > 0 && b.player.pos === i;
     const isEnemy = livingFoes(b).some((f) => f.pos === i);
     const isSummon = Boolean(summon && summon.hp > 0 && summon.pos === i);
-    const ghostEnemy = Boolean(prev && prev.legal && prev.enemyPos === i && prev.enemyPos !== b.enemy.pos);
-    const ghostYou = Boolean(prev && prev.legal && prev.playerPos === i && prev.playerPos !== b.player.pos);
+    const ghostEnemy = Boolean(prev && prev.enemyPos === i && prev.enemyPos !== b.enemy.pos);
+    const ghostYou = Boolean(prev && prev.playerPos === i && prev.playerPos !== b.player.pos);
     const pickable = summonPickCells.includes(i);
     const classes = [
       "cell",
@@ -159,7 +164,8 @@ export function renderProdBoard(
     }
     if (isPlayer) {
       const youFigTip = `${b.player.name} · 你的落脚`;
-      body += `<div class="fig you" data-tip="${escapeAttr(youFigTip)}">${mateArt(b.active, "board")}<span>${b.player.name}</span></div>`;
+      const anim = boardFx?.youAnim ? ` ${boardFx.youAnim}` : "";
+      body += `<div class="fig you${anim}" data-tip="${escapeAttr(youFigTip)}">${mateArt(b.active, "board")}${slashOverlay(b, "you", boardFx?.slashTick ?? 0)}<span>${b.player.name}</span></div>`;
     } else if (isSummon && summon) {
       // §31.12 助战符召唤体：客座好手，一回合即走
       const smTip = `${summon.name} · 助战 ${summon.hp}/${summon.maxHp}${summon.taunt ? " · 吸仇中（敌下段攻击打他，算你拆）" : ""} · 你下回合开始时离场`;
@@ -170,7 +176,8 @@ export function renderProdBoard(
     } else if (isEnemy) {
       const foe = livingFoes(b).find((f) => f.pos === i)!;
       const artId = (foe.id === "shadow" ? "twin" : foe.id === "twin" ? "twin" : b.enemyId) as EnemyId;
-      body += `<div class="fig foe" data-tip="${escapeAttr(`${foe.name} · 对手落脚`)}">${foeArt(artId, "board")}<span>${foe.name}</span></div>`;
+      const anim = boardFx?.foeAnim ? ` ${boardFx.foeAnim}` : "";
+      body += `<div class="fig foe${anim}" data-tip="${escapeAttr(`${foe.name} · 对手落脚`)}">${foeArt(artId, "board")}${slashOverlay(b, "foe", boardFx?.slashTick ?? 0)}<span>${foe.name}</span></div>`;
     } else if (ghostEnemy) {
       body += `<div class="fig ghost">${ghostInk()}<span>将被推到这</span></div>`;
     } else if (ghostYou) {
@@ -202,61 +209,15 @@ function renderBreakChargeHud(b: Battle): string {
   </div>`;
 }
 
-function renderBreakTeachingBanner(stage: number | undefined, override?: string): string {
-  if (override) return `<div class="lab-break-teach">${escapeHtml(override)}</div>`;
-  if (!isBreakAlign() || !stage || stage > 2) return "";
-  const copy =
-    stage === 1
-      ? "红格是他要落的步。走开或卸力。刀贴身打得重，枪要拉开。"
-      : "格挡能扛一段。先站稳，再找空档出刀。";
-  return `<div class="lab-break-teach">${escapeHtml(copy)}</div>`;
+function renderBreakTeachingBanner(_stage: number | undefined, override?: string): string {
+  // 中轴不再塞默认教学条；仅严格教案显式传入时显示
+  if (!override?.trim()) return "";
+  return `<div class="lab-break-teach">${escapeHtml(override)}</div>`;
 }
 
-function labCoachText(b: Battle, prev: Preview | null, gauntletStage?: number, coachOverride?: string): string {
-  if (coachOverride) return coachOverride;
-  const lesson = isBreakLesson(b);
-  if (lesson && gauntletStage === 1) {
-    if ((b.v2BreakCount ?? 0) >= 1 && !prev) return "这就是硬拆——他的招打空，你反打了。继续拆，或进攻收官。";
-    if (!prev && (b.v2Turn?.moveCharges ?? 0) > 0) return "充能有了。确认已离开红格落点，点「收势」拆他的招。";
-    if (!prev) return "你正站在他的落点上。打「撤步」离开红格攒充能——破招是躲开落点，不是迎上去。";
-  }
-  if (lesson && gauntletStage === 2 && !prev) {
-    return "先卸力堆格挡「让」半伤；有充能再硬拆高伤段。";
-  }
-  if (lesson && !prev) {
-    const outcomes = (b.v2LastIntentRecap ?? []).map((r) => r.outcome);
-    if (outcomes.includes("劲尽")) return "他劲尽了，这段没出来。";
-    if (outcomes.includes("追") && !outcomes.includes("破")) return "追上了。他仍撤，你得了拆势。";
-    if (outcomes.includes("放") && !outcomes.includes("破") && !outcomes.includes("追")) return "没追：他撤了，不算拆。";
-    if (outcomes.includes("空") && !outcomes.includes("破")) return "打空了——开局不在红格，不算拆。";
-    if (outcomes.includes("让") && !outcomes.includes("破")) return "让开一半。高伤段再用充能硬拆。";
-    if (outcomes.includes("打") && !outcomes.includes("破") && !outcomes.includes("让")) return "挨实了。下回合看红格再拆。";
-  }
-  if (isBreakAlign() && !lesson && !prev) {
-    if (gauntletStage === 1) return "看红格落点。走开或堆挡。";
-    if (gauntletStage === 2) return "格挡能扛一段。再找空档打他。";
-    const outcomes = (b.v2LastIntentRecap ?? []).map((r) => r.outcome);
-    if (outcomes.includes("劲尽")) return "他这段没出来。";
-    if (outcomes.includes("空")) return "这段打空了。";
-    if (outcomes.includes("打")) return "挨了一下。看下一段落点。";
-  }
-  if (prev && prev.legal && prev.enemyDies) return "他要撑不住了。";
-  if (b.energy === 0) return lesson ? "劲尽了。收势，看他下一招——想想怎么拆。" : "劲尽了。收势，看他下一招。";
-  const intent = b.intent;
-  if (isLabV2() && (b.qi ?? 0) > 0 && !(lesson && (gauntletStage ?? 99) <= 2)) {
-    return lesson
-      ? `势 ${b.qi}。硬拆叠势后爆打，或先拆再收势反打。`
-      : `势 ${b.qi}。积势还是爆势，这一息要想清。`;
-  }
-  if (lesson && isLabV2()) {
-    const charges = b.v2Turn?.moveCharges ?? 0;
-    if (charges > 0) return `位移 ${charges}。走开红格再收势。`;
-    return "打位移牌攒充能，或卸力让拆。红格是他要落的步。";
-  }
-  if (intent.kind === "strike") return "红格是他要落的步。卸力，或进步躲开。";
-  if (intent.kind === "charge") return "他要冲过来。让开红格，或用推宫撞他。";
-  if (intent.kind === "guard") return "他架着。破架或推开再出掌。";
-  return ENEMIES[b.enemyId].pitch;
+function labCoachText(_b: Battle, _prev: Preview | null, _gauntletStage?: number, coachOverride?: string): string {
+  // 默认不念经；只在教案显式传入 coach 时显示
+  return coachOverride?.trim() ?? "";
 }
 
 function weaponPlate(id: string, side: "you" | "foe"): string {
@@ -297,6 +258,17 @@ export interface ProdBattleOpts {
     /** 严格步：非引导牌显示禁用样式 */
     lockOthers?: boolean;
   };
+  /** 局内模式角标（踢馆 / 读招谜题 / 训练营…） */
+  combatMode?: { label: string; tip: string };
+  /** 敌方出招播报中：锁手牌、中轴提示 */
+  foeResolving?: boolean;
+  /** 立绘逐步演出 */
+  foeSegAnim?: "windup" | "break" | "hit" | "graze" | "miss" | "skip" | null;
+  /** 当前回放段，高亮意图 */
+  foePlaybackSegIdx?: number;
+  /** 打出己牌时石台小人/刀光 demo */
+  youPlayAnim?: "swing" | "step" | "cast" | null;
+  wagerHud?: string;
 }
 
 export function renderProdBattle(opts: ProdBattleOpts): string {
@@ -318,7 +290,17 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
     weaponSheetHtml,
     gauntletStage,
     demoGuide,
+    combatMode,
+    foeResolving,
+    foeSegAnim,
+    foePlaybackSegIdx,
+    youPlayAnim,
+    wagerHud,
   } = opts;
+  const mode = combatMode ?? {
+    label: "肉鸽踢馆",
+    tip: "踢馆肉鸽：不破也能爬。读招另有硬核谜题入口。",
+  };
   const breakAlign = isBreakAlign();
   const guideSet = new Set(demoGuide?.cardIds ?? []);
   const teachStage = demoGuide?.stage ?? gauntletStage;
@@ -392,7 +374,7 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
       return `
         <button class="card ${def.type} ${active ? "hot" : ""} ${playGate.ok ? "" : "dead"} ${comboUnlock ? "combo-unlock" : ""} ${vClass} ${chargeCard} ${momClass} ${guided ? "demo-guide-card" : ""}"
           data-uid="${c.uid}" data-tip="${escapeAttr(cardTip)}" style="--i:${idx}" ${playGate.ok ? "" : "disabled"}>
-          <span class="cost">${def.cost}</span>
+          <span class="cost">${labV21EffectiveCost(b, def)}</span>
           ${teachBadge}${comboBadge}${vBadge}${momBadge}
           <div class="art">${cardArt(def.id)}</div>
           <div class="banner">${typeLabel(def.type)} · ${schoolLabel(c.defId)}${def.tags?.includes("组合") ? " · 组合" : ""}</div>
@@ -408,33 +390,55 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
   const foeTip = foeSideTip(b, foeHp, foeMax);
   const matePassive = MATE_PASSIVE[b.active];
   const passive = matePassive ? ` · ${matePassive.name}：${matePassive.text}` : "";
+  const intentHover = foeResolving && foePlaybackSegIdx != null && foePlaybackSegIdx >= 0 ? foePlaybackSegIdx : hoverIntentIdx;
+  // 大立绘只表明身份；受击/刀光/段演出挂石台格内小立绘
+  const foeBoardAnim = youPlayAnim === "swing"
+    ? "board-anim-hit"
+    : foeSegAnim
+      ? `board-anim-${foeSegAnim}`
+      : "";
+  const youBoardAnim = youPlayAnim
+    ? `board-anim-${youPlayAnim === "swing" ? "hit" : youPlayAnim === "step" ? "windup" : "break"}`
+    : foeSegAnim === "hit" || foeSegAnim === "graze"
+      ? `board-anim-${foeSegAnim}`
+      : foeSegAnim === "break"
+        ? "board-anim-break"
+        : "";
+  const boardHtml = renderProdBoard(b, prev, threatHighlight, summonPickCells ?? [], {
+    youAnim: youBoardAnim,
+    foeAnim: foeBoardAnim,
+    slashTick: youPlayAnim === "swing" ? 1 : foePlaybackSegIdx ?? 0,
+  });
+
   const teachHtml = renderBreakTeachingBanner(teachStage, demoGuide?.teach);
+  const coachText = labCoachText(b, prev, teachStage, demoGuide?.coach);
   const hasTeach = Boolean(teachHtml);
 
   return `
-    <div class="lab-battle-shell ${fxClass}">
+    <div class="lab-battle-shell ${fxClass}${foeResolving ? " foe-resolving" : ""}">
       ${renderGrudgeBadge(b)}
-      ${renderFxLayer(b)}
-      <section class="combat fy-combat ink-combat lab-prod-combat${hasTeach ? " has-teach" : ""}" style="background-image:url('${b.labSceneBg ?? combatBg("wharf")}')">
+      <section class="combat fy-combat ink-combat lab-prod-combat${hasTeach ? " has-teach" : ""}${foeResolving ? " is-foe-turn" : ""}" style="background-image:url('${b.labSceneBg ?? combatBg("wharf")}')">
+        ${foeResolving ? `<div class="lab-foe-lock" aria-live="assertive"><b>敌方出招</b><span>这一息看招</span></div>` : ""}
         <header class="fy-top lab-combat-top">
           <div class="fy-place">
-            <b>肉鸽踢馆</b>
+            <b>${escapeHtml(mode.label)}</b>
           </div>
           <h1 class="fy-ink">七步石台</h1>
           <div class="fy-stats lab-combat-tools">
             ${toolbarExtra}
-            ${`<span class="fy-btn lab-mode-badge" data-tip="十馆爬塔。站位和兵器是正事。">肉鸽踢馆</span>`}
+            <span class="fy-btn lab-mode-badge" data-tip="${escapeAttr(mode.tip)}">${escapeHtml(mode.label)}</span>
             <span class="fy-btn hp" data-tip="当前回合">回合 ${b.turn}</span>
             <span class="fy-btn" data-tip="先机对比">先机 ${yourPace(b)}/${b.foePace}</span>
           </div>
         </header>
+        ${wagerHud ?? ""}
 
         <div class="lab-battlefield-band">
           <div class="arena">
             <aside class="fighter you-side">
               <div class="lab-aside-head" aria-hidden="true"></div>
               <div class="lab-stand-slot" data-tip="${escapeAttr(youTip)}">
-                <div class="fy-stand-wrap you ink-frame">${mateArt(b.active, "side")}${slashOverlay(b, "you")}</div>
+                <div class="fy-stand-wrap you ink-frame">${mateArt(b.active, "side")}</div>
               </div>
               <div class="lab-name-slot" data-tip="${escapeAttr(youTip + passive)}">
                 <b>${mate.name}</b>
@@ -449,26 +453,32 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
             </aside>
 
             <div class="stage-core">
-              <div class="lab-intent-band">${renderFoeIntentStrip(b, hoverIntentIdx)}</div>
+              <div class="lab-intent-band">${renderFoeIntentStrip(b, intentHover)}</div>
               ${teachHtml}
-              <div class="strip" id="strip">${renderProdBoard(b, prev, threatHighlight, summonPickCells ?? [])}</div>
-              <div class="coach" id="coach">${labCoachText(b, prev, teachStage, demoGuide?.coach)}</div>
+              <div class="strip" id="strip">${boardHtml}</div>
+              ${coachText ? `<div class="coach" id="coach">${escapeHtml(coachText)}</div>` : `<div class="coach coach-empty" id="coach" hidden></div>`}
             </div>
 
             <aside class="fighter foe-side">
               <div class="lab-aside-head" aria-hidden="true"></div>
               <div class="lab-stand-slot" data-tip="${escapeAttr(foeTip)}">
-                <div class="fy-stand-wrap foe ink-frame">${foeArt(b.enemyId, "side")}${slashOverlay(b, "foe")}</div>
+                <div class="fy-stand-wrap foe ink-frame">${foeArt(b.enemyId, "side")}</div>
               </div>
               <div class="lab-name-slot" data-tip="${escapeAttr(foeTip)}">
                 <b>${b.enemy.name}${live.length > 1 ? ` · ${live.length}人` : ""}</b>
                 <span>${b.labEnemyGrade ? `${ENEMY_GEAR_GRADE_LABEL[b.labEnemyGrade]} · ` : ""}${b.enemy.title} · ${WEAPON_NAME[ENEMY_WEAPON[b.enemyId]]}</span>
-                <span class="lab-foe-count" data-tip="${escapeAttr(foeRemainTip)}">敌方剩 ${foeRemain} 人${waiting ? "（含替补）" : ""}</span>
               </div>
-              <div class="lab-bar-slot">${foeBars}</div>
+              <div class="lab-bar-slot lab-bar-slot-hp">
+                <span class="lab-foe-count" data-tip="${escapeAttr(foeRemainTip)}">敌方剩 ${foeRemain} 人${waiting ? "（含替补）" : ""}</span>
+                ${foeBars}
+              </div>
               <div class="lab-bar-slot">${qiBar(b.enemyEnergy, b.enemyEnergyMax)}</div>
             </aside>
           </div>
+        </div>
+
+        <div class="lab-mid-gutter">
+          <div class="lab-readout-rail" aria-live="polite">${renderFxLayer(b)}</div>
         </div>
 
         ${
@@ -482,7 +492,7 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
           <div class="lab-hand-row">
             <div class="draw-col lab-pile-col">
               ${weaponPlate(gearId, "you")}
-              <button type="button" class="pile-card" data-pile="draw" data-tip="抽牌堆 · 残谱 ${b.drawPile.length} 张">
+              <button type="button" class="pile-card" data-pile="draw" data-tip="抽牌堆 · 下一张可查 · 残谱 ${b.drawPile.length} 张">
                 <em>残谱</em>
                 <b>${b.drawPile.length}</b>
               </button>
@@ -492,8 +502,8 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
             ${renderStatusCol(b, "foe")}
             <div class="foe-col lab-pile-col">
               ${weaponPlate(foeWeaponId(b.enemyId), "foe")}
-              <button type="button" class="pile-card discard" data-pile="discard" data-tip="战记 ${b.journal.length} 条">
-                <em>战记</em>
+              <button type="button" class="pile-card discard" data-pile="discard" data-tip="本馆战绩 · 出刀 ${b.v2AttackPlays ?? 0} · 拆 ${b.v2BreakCount ?? 0}">
+                <em>本馆</em>
                 <b>${b.journal.length}</b>
               </button>
             </div>

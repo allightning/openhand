@@ -168,6 +168,7 @@ export type RogueCardId =
   | `fuse${SchoolCap}${SchoolCap}`
   | `hit${SchoolCap}`
   | `status${SchoolCap}`
+  | `status${SchoolCap}2`
   | `step${SchoolCap}`;
 
 export type CardType = "attack" | "skill";
@@ -597,7 +598,12 @@ export interface Battle {
   /** 拆势真伤池：打出时按层均分。 */
   v2BreakMomentumTrue?: number;
   /** 上一敌回合意图结算回顾（新队列亮出后仍可读）。 */
-  v2LastIntentRecap?: { ord: number; name: string; outcome: string }[];
+  v2LastIntentRecap?: { ord: number; name: string; outcome: string; hpLost?: number; blockLost?: number }[];
+  /**
+   * 敌回合队列已兑完，下一手意图尚未刷新。
+   * UI 播报期为 true：意图条仍显示刚打完的整队；玩家回合真正开始时再 roll。
+   */
+  v2PendingIntentRefresh?: boolean;
   v2VariantTriggers?: number;
   v2SwapCount?: number;
   v2ResonanceCount?: number;
@@ -647,6 +653,8 @@ export interface Battle {
   /** §24 死穴审计计数器（Lab 埋点）。 */
   v2SecondaryWeaponEquip?: number;
   v2OpeningPaceBehind?: boolean;
+  /** 踢馆：后手首轮已压过段数/伤害，避免先手秒人 */
+  v2OpeningWeakened?: boolean;
   v2OpeningHp?: number;
   v2OpeningDamage?: number;
   v2OpeningDamageRecorded?: boolean;

@@ -5,9 +5,11 @@ import {
   ROGUE_SCHOOLS,
   SCHOOL_EXTRA_HIT,
   SCHOOL_EXTRA_STATUS,
+  SCHOOL_EXTRA_STATUS2,
   SCHOOL_SCHOOL_STEP,
   hitCardId,
   statusCardId,
+  statusCardId2,
   stepCardId,
 } from "../game/rogueCards";
 import { playCard } from "../game/sim";
@@ -25,8 +27,13 @@ describe("六系增补：状态 / 攻击 / 本系进退", () => {
       const step = stepCardId(school);
       expect(CARDS[hit]?.type).toBe("attack");
       expect(CARDS[hit]?.school).toBe(school);
+      const buff2 = statusCardId2(school);
       expect(CARDS[buff]?.type).toBe("skill");
       expect(CARDS[buff]?.school).toBe(school);
+      expect(CARDS[buff2]?.type).toBe("skill");
+      expect(CARDS[buff2]?.school).toBe(school);
+      expect(SCHOOL_EXTRA_STATUS[school]).toBe(buff);
+      expect(SCHOOL_EXTRA_STATUS2[school]).toBe(buff2);
       expect(CARDS[step]?.type).toBe("skill");
       expect(CARDS[step]?.school).toBe(school);
       expect(CARDS[step]?.steps).not.toBe(0);
@@ -50,6 +57,7 @@ describe("六系增补：状态 / 攻击 / 本系进退", () => {
       const run = createGauntletRun("shaolin", school);
       const pool = breakRewardCardPool(run);
       expect(pool).toContain(statusCardId(school));
+      expect(pool).toContain(statusCardId2(school));
       expect(pool).toContain(stepCardId(school));
       expect(run.deckRecipe.includes(hitCardId(school)) || pool.includes(hitCardId(school))).toBe(true);
     }
@@ -61,6 +69,7 @@ describe("六系增补：状态 / 攻击 / 本系进退", () => {
     const html = renderDevPanelModal();
     expect(html).toContain("hitPalm");
     expect(html).toContain("statusSaber");
+    expect(html).toContain("statusPalm2");
     expect(html).toContain("stepSword");
     expect(html).toContain("生效");
   });

@@ -94,9 +94,34 @@ export function campBattleCardHtml(opts: CampCardOpts): string {
   </button>`;
 }
 
+/** 花名册外同道（江晚涛/石岸/颜牙等）映射到已有立绘，避免三张都落 twinpalm。 */
+const COMPANION_ART_ALIAS: Partial<Record<CompanionId, string>> = {
+  blade: "lvchifeng",
+  hooker: "moqiwan",
+  salter: "ananhuo",
+  pilgrim: "huochangchuan",
+  hermit: "baimenghe",
+  porter: "shiwanshan",
+  guard: "zhangshoushan",
+  scribe: "wenrensheng",
+  bard: "zhounuanxiang",
+  weaver: "chenchenlan",
+  rail: "lishuangxing",
+  seer: "wenrensheng",
+  sapper: "fubishan",
+  boat: "huochangchuan",
+};
+
+export function companionArtId(id: CompanionId): string {
+  if (hasCharArt(id)) return id;
+  const alias = COMPANION_ART_ALIAS[id];
+  if (alias && hasCharArt(alias)) return alias;
+  return "watch";
+}
+
 export function companionPortraitHtml(id: CompanionId): string {
-  if (hasCharArt(id)) return `<div class="gauntlet-comp-art">${charArt(id, "full")}</div>`;
-  return `<div class="gauntlet-comp-art gauntlet-comp-fallback"><div class="art">${cardArt("twinpalm")}</div></div>`;
+  const artId = companionArtId(id);
+  return `<div class="gauntlet-comp-art">${charArt(artId, "full")}</div>`;
 }
 
 export function companionSkillLine(id: CompanionId): string {

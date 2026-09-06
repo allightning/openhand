@@ -4,10 +4,10 @@ import { playCard } from "../game/sim";
 import { setLabMode } from "../game/labTuning";
 import { setLabRuleset } from "./labRuleset";
 import { applyGauntletReward, breakRewardCardPool, buildGauntletPreset, createGauntletRun } from "./gauntlet";
-import { grantCardToLoadout, ownedCardIds } from "./loadout";
+import { grantCardToLoadout } from "./loadout";
 import { startLabBattle } from "./factory";
 
-describe("谱不重复 + 换页有新机制", () => {
+describe("谱可重复至 3 + 换页机制仍在", () => {
   beforeEach(() => {
     setLabRuleset("break");
     setLabMode(true);
@@ -18,29 +18,29 @@ describe("谱不重复 + 换页有新机制", () => {
     expect(new Set(run.deckRecipe).size).toBe(run.deckRecipe.length);
   });
 
-  it("已有谱再发同一张会换成换页，不会叠第二张", () => {
-    let run = createGauntletRun("bandit", "saber");
+  it("已有谱再发同一张可叠到 3 张", () => {
+    let run = { ...createGauntletRun("bandit", "saber"), stage: 8 };
     expect(run.deckRecipe.filter((id) => id === "defend").length).toBe(1);
     run = grantCardToLoadout(run, "defend");
-    expect(run.deckRecipe.filter((id) => id === "defend").length).toBe(0);
-    expect(run.deckRecipe).toContain("defend2");
-    expect(ownedCardIds(run).has("defend")).toBe(false);
+    expect(run.deckRecipe.filter((id) => id === "defend").length).toBe(2);
+    run = grantCardToLoadout(run, "defend");
+    expect(run.deckRecipe.filter((id) => id === "defend").length).toBe(3);
   });
 
-  it("奖励池不含已拥有（含仓库）的 id", () => {
+  it("奖励池仍含已拥有的 id（可重复摸）", () => {
     let run = createGauntletRun("bandit", "saber");
     run = grantCardToLoadout(run, "saberBleed");
     const pool = breakRewardCardPool(run);
-    expect(pool).not.toContain("saberBleed");
+    expect(pool).toContain("saberBleed");
     expect(pool.length).toBeGreaterThanOrEqual(3);
   });
 
-  it("apply 谱奖励也不会塞进第二张拖刀创", () => {
+  it("apply 谱奖励可塞进第二张拖刀创", () => {
     let run = createGauntletRun("bandit", "saber");
     run = applyGauntletReward(run, { kind: "card", id: "saberBleed", title: "拖刀创", tip: "" });
     run = applyGauntletReward(run, { kind: "card", id: "saberBleed", title: "拖刀创", tip: "" });
     const ids = [...run.deckRecipe, ...(run.stashCards ?? [])];
-    expect(ids.filter((id) => id === "saberBleed").length).toBeLessThanOrEqual(1);
+    expect(ids.filter((id) => id === "saberBleed").length).toBe(2);
   });
 
   it("卸力换页会抽牌，吐纳换页清裂创，开山掌会击退", () => {

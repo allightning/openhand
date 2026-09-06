@@ -68,7 +68,7 @@ describe("ROGUE_GRADIENT 手牌 / 流血 / 枪距", () => {
     expect(bleedTickDamage(4)).toBe(7);
   });
 
-  it("枪：1 格打不出；2/3/4 伤 3/5/8", () => {
+  it("枪：远距表 2/3/4 → 3/5/8；贴身无远距档（拨杆另算）", () => {
     expect(spearReachDamage(1)).toBeNull();
     expect(spearReachDamage(0)).toBeNull();
     expect(spearReachDamage(2)).toBe(3);

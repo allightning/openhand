@@ -17,6 +17,7 @@ import {
   encounterEffectLine,
   encounterOutcomeTag,
   eventAfterFought,
+  formatEncounterRichText,
   rollEventChoices,
   shouldShowFinale,
 } from "./encounter";
@@ -24,10 +25,32 @@ import { startLabBattle } from "./factory";
 import { setLabMode } from "../game/labTuning";
 import { canPlay } from "../game/sim";
 
+function findChoice(
+  run: ReturnType<typeof createGauntletRun>,
+  kind: Parameters<typeof rollEventChoices>[1],
+  pred: (c: ReturnType<typeof rollEventChoices>[number]) => boolean,
+) {
+  for (let i = 0; i < 24; i++) {
+    const hit = rollEventChoices(run, kind, () => (i * 0.11) % 1).find(pred);
+    if (hit) return hit;
+  }
+  return undefined;
+}
+
 describe("馆间遭遇 / 终局 / 带伤过馆", () => {
   beforeEach(() => {
     setLabRuleset("break");
     setLabMode(true);
+  });
+
+  it("机制关键句加黑：整句同字号，不拆关键字", () => {
+    const rest = formatEncounterRichText("差役换班与你无关。**袋里多几文彩金**。");
+    expect(rest).toContain('<span class="gauntlet-hint">袋里多几文彩金</span>');
+    expect(rest).not.toContain("<b ");
+    const ask = formatEncounterRichText("你丢几文打点，**下一站官驿多抽一张**。");
+    expect(ask).toContain('<span class="gauntlet-hint">下一站官驿多抽一张</span>');
+    const plain = formatEncounterRichText("讨债的人堵在柜上。");
+    expect(plain).not.toContain("gauntlet-hint");
   });
 
   it("拓扑：1 客栈、2/4/8 岔路、3/7 同道、5 伏击、6 赌摊、9 情报", () => {
@@ -44,7 +67,7 @@ describe("馆间遭遇 / 终局 / 带伤过馆", () => {
 
   it("险枝给下一馆加替补", () => {
     let run = { ...createGauntletRun("bandit", "saber"), stage: 3 };
-    const danger = rollEventChoices(run, "fork", () => 0).find((c) => c.risk === "danger");
+    const danger = findChoice(run, "fork", (c) => c.risk === "danger" && Boolean(c.extraWaves));
     expect(danger).toBeTruthy();
     run = applyEncounterChoice(run, danger!);
     expect(run.pendingExtraWaves).toBeGreaterThanOrEqual(1);
@@ -57,7 +80,8 @@ describe("馆间遭遇 / 终局 / 带伤过馆", () => {
 
   it("肥枝让营地多抽 1", () => {
     let run = { ...createGauntletRun("bandit", "saber"), stage: 3 };
-    const rich = rollEventChoices(run, "fork", () => 0.9).find((c) => c.risk === "rich")!;
+    const rich = findChoice(run, "fork", (c) => c.risk === "rich" && Boolean(c.rewardBonus))!;
+    expect(rich).toBeTruthy();
     run = applyEncounterChoice(run, rich);
     expect(run.pendingRewardBonus).toBeGreaterThanOrEqual(1);
     const base = gauntletRewardTakeCount({ ...createGauntletRun("bandit", "saber"), stage: 3 });
@@ -120,18 +144,18 @@ describe("馆间遭遇 / 终局 / 带伤过馆", () => {
     expect(applyEncounterChoice(run, small, () => 0.9).pot).toBe(66);
   });
 
-  it("路过同道不把第二次入伙关掉", () => {
+  it("同道四具名必选一人；无路过空过", () => {
     const run = { ...createGauntletRun("bandit", "saber"), stage: 4 };
-    const refuse = rollEventChoices(run, "companion", () => 0).find((c) => c.skipCompanion)!;
-    const after = applyEncounterChoice(run, refuse);
-    expect(after.skipCompanionPick).toBeFalsy();
-    expect(after.pendingRecruit).toBeUndefined();
+    const mates = rollEventChoices(run, "companion", () => 0);
+    expect(mates).toHaveLength(4);
+    expect(mates.every((c) => c.companionId)).toBe(true);
+    expect(mates.some((c) => c.skipCompanion)).toBe(false);
   });
 
   it("同道选项带人名；买情报能读下两馆；跨线塞外路敌人", () => {
     const run = { ...createGauntletRun("bandit", "saber"), stage: 4 };
     const mates = rollEventChoices(run, "companion", () => 0);
-    expect(mates.filter((c) => c.companionId).length).toBe(3);
+    expect(mates.filter((c) => c.companionId).length).toBe(4);
     const intel = rollEventChoices(run, "inn", () => 0).find((c) => c.intel)!;
     const peeked = applyEncounterChoice(run, intel);
     expect(peeked.pendingIntel).toBe(true);
@@ -164,19 +188,19 @@ describe("馆间遭遇 / 终局 / 带伤过馆", () => {
 
   it("效果字段能分清绕道、进账、入伙、添人、开盅", () => {
     const run = createGauntletRun("bandit", "saber");
-    const rest = rollEventChoices(run, "inn", () => 0).find((c) => c.id.endsWith("-rest"))!;
+    const rest = findChoice(run, "inn", (c) => c.id.endsWith("-rest"))!;
     expect(encounterOutcomeTag(rest)).toBe("进账");
     expect(encounterEffectLine(rest)).toMatch(/彩金 \+8/);
 
-    const forkSafe = rollEventChoices({ ...run, stage: 3 }, "fork", () => 0).find((c) => c.risk === "safe" && !c.skipMarket)!;
+    const forkSafe = findChoice({ ...run, stage: 3 }, "fork", (c) => c.risk === "safe" && !c.skipMarket)!;
     expect(encounterOutcomeTag(forkSafe)).toBe("绕道");
     expect(encounterEffectLine(forkSafe)).toMatch(/下场照旧/);
 
-    const danger = rollEventChoices({ ...run, stage: 3 }, "fork", () => 0).find((c) => c.extraWaves)!;
+    const danger = findChoice({ ...run, stage: 3 }, "fork", (c) => Boolean(c.extraWaves))!;
     expect(encounterOutcomeTag(danger)).toBe("添人");
     expect(encounterEffectLine(danger)).toMatch(/下场多 1 人/);
 
-    const rich = rollEventChoices({ ...run, stage: 3 }, "fork", () => 0.9).find((c) => c.rewardBonus && !c.guestEnemy)!;
+    const rich = findChoice({ ...run, stage: 3 }, "fork", (c) => Boolean(c.rewardBonus) && !c.guestEnemy)!;
     expect(encounterOutcomeTag(rich)).toBe("多抽");
     expect(encounterEffectLine(rich)).toMatch(/营地多抽 1/);
     expect(encounterEffectLine(rich)).toMatch(/彩金 /);
@@ -189,9 +213,12 @@ describe("馆间遭遇 / 终局 / 带伤过馆", () => {
     expect(encounterOutcomeTag(buy)).toBe("买命");
     expect(encounterEffectLine(buy)).toMatch(/当场入伙/);
 
-    const refuse = rollEventChoices(run, "companion", () => 0).find((c) => c.skipCompanion)!;
-    expect(encounterOutcomeTag(refuse)).toBe("绕过");
-    expect(encounterEffectLine(refuse)).toMatch(/本站不入伙/);
+    const side = findChoice({ ...run, stage: 3 }, "fork", (c) => Boolean(c.sideSkirmish));
+    expect(side).toBeTruthy();
+    expect(encounterOutcomeTag(side!)).toBe("支线");
+    const after = applyEncounterChoice({ ...run, stage: 3 }, side!);
+    expect(after.pendingSkirmish).toBe("side");
+    expect(after.pendingSideLabel).toMatch(/^\d+-\d+$/);
 
     const small = rollEventChoices(run, "stall", () => 0).find((c) => c.stall === "small")!;
     expect(encounterOutcomeTag(small)).toBe("小注");
@@ -206,5 +233,11 @@ describe("馆间遭遇 / 终局 / 带伤过馆", () => {
     b.hand = [{ uid: "ad", defId: "advance" }];
     expect(canPlay(b, "ad").ok).toBe(false);
     expect(canPlay(b, "ad").reason).toMatch(/禁位移/);
+  });
+
+  it("无尽不开终局抉择，也不进遭遇", () => {
+    const run = createGauntletRun("bandit", "saber", "usurper", { endless: true });
+    expect(run.endless).toBe(true);
+    expect(shouldShowFinale({ ...run, stage: 10 })).toBe(false);
   });
 });

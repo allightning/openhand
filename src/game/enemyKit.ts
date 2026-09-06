@@ -287,7 +287,8 @@ export function followFromKit(ctx: KitCtx, prior: Intent): Intent {
     return inReach ? strike : lunge;
   }
   if (prior.kind === "windup") return { kind: "strike", damage: enemyStrikeAtDist(ctx.school, ctx.grade, 1) + 6 };
-  if (prior.kind === "retreat" || prior.kind === "lunge") return inReach ? strike : lunge;
+  if (prior.kind === "retreat") return inReach ? strike : { kind: "breathe", amount: ctx.school === "staff" ? 4 : 3 };
+  if (prior.kind === "lunge") return inReach ? strike : lunge;
   if (prior.kind === "breathe") return inReach ? strike : lunge;
   if (prior.kind === "guard") return inReach ? strike : lunge;
   if (prior.kind === "dodge" || prior.kind === "endure") return inReach ? strike : lunge;
@@ -304,7 +305,17 @@ export function followFromKit(ctx: KitCtx, prior: Intent): Intent {
     return retreat;
   }
   if (readYou && (ctx.playerSchool === "spear" || ctx.playerSchool === "staff") && ctx.dist > 1) {
+    /** 枪线：贴边就冲撞推壁；甜区就抢步贴身，逼你拨杆。 */
+    if (ctx.playerSchool === "spear" && ctx.playerAtEdge && ctx.dist <= 2) {
+      return { kind: "charge", damage: enemyStrikeAtDist(ctx.school, ctx.grade, 1) + 2, steps: 2 };
+    }
+    if (ctx.playerSchool === "spear" && ctx.dist >= 2 && ctx.dist <= 4) {
+      return lunge;
+    }
     return lunge;
+  }
+  if (readYou && ctx.playerSchool === "spear" && ctx.dist === 1 && ctx.turn % 3 === 0) {
+    return { kind: "charge", damage: enemyStrikeAtDist(ctx.school, ctx.grade, 1) + 2, steps: 2 };
   }
   if (ctx.stage >= 5 && ctx.foeAtEdge && ctx.dist <= 2 && prior.kind !== "swap") {
     return { kind: "swap" };

@@ -15,6 +15,7 @@ import { comboEffectiveCost, isComboCard } from "./labCombo";
 import { ITEM_DART_DMG, ITEM_GRANT_QTY, ITEM_HEAL_PCT, ITEM_QI_GAIN } from "./labV21Constants";
 import { BOARD_SIZE, type Battle, type CardDef, type CardId, type LabItemId } from "./types";
 import { isBreakAlign } from "../combatLab/labRuleset";
+import { labPlayCost } from "../combatLab/climbEconomy";
 import { emptyV2Turn } from "./labV2";
 
 export type { ResonanceStatus as AuraStatus };
@@ -197,12 +198,12 @@ export function labV21EffectiveCost(b: Battle, def: CardDef): number {
   const nick = def.type === "skill" ? (b.youSkillTax ?? 0) : 0;
   const v = def.variant;
   if (!v || !isLabV21()) {
-    const base = def.cost + tax;
+    const base = labPlayCost(def.cost) + tax;
     const c = isComboCard(def.id) ? comboEffectiveCost(b, def.id, base) : base;
     return Math.max(0, c - discount + nick);
   }
   const br = variantBranch(def, b);
-  let cost = br === "b" && v.costZeroOnB ? tax : def.cost + tax;
+  let cost = br === "b" && v.costZeroOnB ? tax : labPlayCost(def.cost) + tax;
   if (isComboCard(def.id)) cost = comboEffectiveCost(b, def.id, cost);
   return Math.max(0, cost - discount + nick);
 }

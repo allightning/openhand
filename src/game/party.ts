@@ -41,7 +41,7 @@ export const SCHOOL_REACH: Record<WeaponId, number> = {
 export const WEAPON_VERB: Record<WeaponId, string> = {
   palm: "伤轻、推远、撞壁认人。先机中。",
   saber: "贴身才狠，远了只是刀风。先机快。",
-  spear: "隔步才戳得着，贴身使不开。先机慢。",
+  spear: "远戳 2–4 格；贴身可拨杆推开。先机慢。",
   sword: "一刺一带，不求砸死。先机最快。",
   staff: "先占步，再打人。先机稳。",
   hook: "不推，拉近了再算。先机活。",

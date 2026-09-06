@@ -1,8 +1,6 @@
-import { ENEMIES, intentShortName, intentTip } from "../game/content";
+import { ENEMIES, intentShortName } from "../game/content";
 import { foeIntentAlias } from "../game/enemyKit";
 import { intentFirePlan, stressMetaAt } from "../game/labEnemyStress";
-import { weaknessTip } from "../game/intentWeakness";
-import { breakCounterDamage, breakLootFor } from "../game/labV2";
 import { isLabV2 } from "../game/labTuning";
 import { isBreakAlign, isBreakLesson } from "./labRuleset";
 import { MATES } from "../game/party";
@@ -10,7 +8,7 @@ import { dangerCellsForIntent, intentIncoming, livingFoes, projectedQueueThreat 
 import type { Battle, Intent, Unit } from "../game/types";
 import { escapeHtml } from "./setupUi";
 
-/** 意图条只显示一个数：伤用实收总量；架势/回血等用自身值。 */
+/** 意图条效果数：一律带阿拉伯数字（架/回/进撤/伤）。 */
 function intentOneNumber(b: Battle, intent: Intent): { text: string; modified: boolean; tipExtra: string } {
   const inc = intentIncoming(b, intent);
   if (intent.kind === "barrage") {
@@ -18,39 +16,116 @@ function intentOneNumber(b: Battle, intent: Intent): { text: string; modified: b
     const per = inc.total > 0 ? inc.total : intent.damage ?? 0;
     const total = per * hits;
     const modified = inc.total > 0 && inc.total !== (intent.damage ?? 0);
-    return {
-      text: String(total),
-      modified,
-      tipExtra: modified
-        ? `\n实收合计 ${total}（${per}×${hits}）= ${inc.parts.join(" · ")}×${hits}`
-        : `\n合计 ${total}（每下 ${intent.damage} × ${hits} 下）`,
-    };
+    return { text: `${total}×${hits}`, modified, tipExtra: "" };
   }
   if (intent.kind === "guard") return { text: String(intent.block), modified: false, tipExtra: "" };
   if (intent.kind === "mend") return { text: `+${intent.heal}`, modified: false, tipExtra: "" };
   if (intent.kind === "breathe") return { text: `+${intent.amount}`, modified: false, tipExtra: "" };
   if (intent.kind === "shatter") return { text: String(intent.amount), modified: false, tipExtra: "" };
-  if (intent.kind === "pull" || intent.kind === "charge") {
-    if (intent.kind === "charge") {
-      const modified = inc.total > 0 && inc.total !== (intent.damage ?? 0);
-      return {
-        text: String(inc.total || intent.damage),
-        modified,
-        tipExtra: modified ? `\n实收 ${inc.total} = ${inc.parts.join(" · ")}` : `\n冲 ${intent.steps} 步`,
-      };
-    }
-    return { text: String(intent.steps), modified: false, tipExtra: "" };
+  if (intent.kind === "retreat") return { text: `撤${intent.steps}`, modified: false, tipExtra: "" };
+  if (intent.kind === "pull") return { text: `拉${intent.steps}`, modified: false, tipExtra: "" };
+  if (intent.kind === "charge") {
+    const dmg = inc.total || intent.damage;
+    const modified = inc.total > 0 && inc.total !== intent.damage;
+    return { text: `${dmg}/${intent.steps}`, modified, tipExtra: "" };
+  }
+  if (intent.kind === "bleedcut") {
+    const raw = intent.damage;
+    const modified = inc.total > 0 && inc.total !== raw;
+    return { text: `${inc.total || raw}+${intent.bleed}`, modified, tipExtra: "" };
+  }
+  if (intent.kind === "stake") return { text: "1", modified: false, tipExtra: "" };
+  if (intent.kind === "trap") return { text: "1", modified: false, tipExtra: "" };
+  if (intent.kind === "windup") return { text: "1", modified: false, tipExtra: "" };
+  if (intent.kind === "swap") return { text: "1", modified: false, tipExtra: "" };
+  if (intent.kind === "dodge") return { text: "1", modified: false, tipExtra: "" };
+  if (intent.kind === "endure") return { text: "1", modified: false, tipExtra: "" };
+  if (intent.kind === "dust") return { text: "1", modified: false, tipExtra: "" };
+  if (intent.kind === "shackle") return { text: "1", modified: false, tipExtra: "" };
+  if (intent.kind === "seal") return { text: "1", modified: false, tipExtra: "" };
+  if (intent.kind === "counter") return { text: "1", modified: false, tipExtra: "" };
+  if (intent.kind === "sig") {
+    const dmg = intent.damage ?? 0;
+    return { text: dmg > 0 ? String(dmg) : "1", modified: false, tipExtra: "" };
   }
   if ("damage" in intent && (intent.damage ?? 0) > 0) {
     const raw = intent.damage ?? 0;
     const modified = inc.total > 0 && inc.total !== raw;
-    return {
-      text: String(inc.total || raw),
-      modified,
-      tipExtra: modified ? `\n实收 ${inc.total} = ${inc.parts.join(" · ")}` : "",
-    };
+    return { text: String(inc.total || raw), modified, tipExtra: "" };
   }
-  return { text: "", modified: false, tipExtra: "" };
+  return { text: "0", modified: false, tipExtra: "" };
+}
+
+/** 播报用：从意图抽出「动词 + 数字」，没有意图时退回 outcome 原字。 */
+function broadcastEffect(intent: Intent | undefined, outcome: string): string {
+  if (!intent) return outcome;
+  const dmg = "damage" in intent ? Number(intent.damage) : undefined;
+  const steps = "steps" in intent && typeof intent.steps === "number" ? intent.steps : undefined;
+
+  if (outcome === "打" && dmg != null && dmg > 0) return `打 ${dmg}`;
+  if (outcome === "让") {
+    if (intent.kind === "guard") return `让 · 架 ${Math.max(1, Math.floor(intent.block / 2))}`;
+    if (intent.kind === "mend") return `让 · 回 ${Math.max(1, Math.floor(intent.heal / 2))}`;
+    if (dmg != null && dmg > 0) return `让 ${Math.max(1, Math.ceil(dmg / 2))}`;
+    if (steps != null) return `让 · ${intent.kind === "pull" ? "拉" : "撤"}${steps}`;
+    return `让 · ${stripEffectFallback(intent)}`;
+  }
+  if (outcome === "破") {
+    if (intent.kind === "guard") return `破 · 架${intent.block}`;
+    if (intent.kind === "mend") return `破 · 回${intent.heal}`;
+    if (intent.kind === "breathe") return `破 · 劲${intent.amount}`;
+    if (dmg != null && dmg > 0) return `破 ${dmg}`;
+    if (steps != null) return `破 · ${intent.kind === "pull" ? "拉" : intent.kind === "charge" ? "进" : "撤"}${steps}`;
+    return `破 · ${stripEffectFallback(intent)}`;
+  }
+  if (outcome === "追") return steps != null ? `追 · 撤${steps}` : "追";
+  if (outcome === "放") return steps != null ? `放 · 撤${steps}` : `放 · ${stripEffectFallback(intent)}`;
+  if (outcome === "空") {
+    if (intent.kind === "guard") return `空 · 架${intent.block}`;
+    if (intent.kind === "mend") return `空 · 回${intent.heal}`;
+    if (intent.kind === "breathe") return `空 · 劲${intent.amount}`;
+    if (steps != null) {
+      const lab = intent.kind === "pull" ? "拉" : intent.kind === "charge" ? "进" : "撤";
+      return `空 · ${lab}${steps}`;
+    }
+    if (dmg != null && dmg > 0) return `空 · ${dmg}`;
+    return `空 · ${stripEffectFallback(intent)}`;
+  }
+  if (outcome === "劲尽" || outcome === "晕" || outcome === "散") return outcome;
+
+  // 正常出招：架 / 回 / 劲 / 出 …
+  if (intent.kind === "guard") return `架 ${intent.block}`;
+  if (intent.kind === "mend") return `回 ${intent.heal}`;
+  if (intent.kind === "breathe") return `劲+${intent.amount}`;
+  if (intent.kind === "shatter") return `震 ${intent.amount}`;
+  if (intent.kind === "retreat") return `撤${intent.steps}`;
+  if (intent.kind === "pull") return `拉${intent.steps}`;
+  if (intent.kind === "charge") return steps != null ? `${outcome} · 进${steps}${dmg ? ` · ${dmg}` : ""}` : outcome;
+  if (intent.kind === "stake") return "桩 1";
+  if (intent.kind === "trap") return "机 1";
+  if (intent.kind === "counter") return "埋 1";
+  if (intent.kind === "windup") return "蓄 1";
+  if (intent.kind === "dodge") return "闪 1";
+  if (intent.kind === "endure") return "霸 1";
+  if (intent.kind === "seal") return "封 1";
+  if (intent.kind === "dust") return "迷 1";
+  if (intent.kind === "shackle") return "锁 1";
+  if (intent.kind === "swap") return "换 1";
+  if (dmg != null && dmg > 0) return `${outcome} ${dmg}`;
+  return `${outcome} · ${stripEffectFallback(intent)}`;
+}
+
+function stripEffectFallback(intent: Intent): string {
+  if (intent.kind === "guard") return String(intent.block);
+  if (intent.kind === "mend") return `+${intent.heal}`;
+  if (intent.kind === "breathe") return `+${intent.amount}`;
+  if (intent.kind === "shatter") return String(intent.amount);
+  if ("steps" in intent && typeof intent.steps === "number") return String(intent.steps);
+  if ("damage" in intent && (intent.damage ?? 0) > 0) return String(intent.damage);
+  if ("block" in intent && typeof intent.block === "number") return String(intent.block);
+  if ("heal" in intent && typeof intent.heal === "number") return String(intent.heal);
+  if ("amount" in intent && typeof intent.amount === "number") return String(intent.amount);
+  return "1";
 }
 
 /**
@@ -130,53 +205,7 @@ function segmentHtml(
     .filter(Boolean)
     .join(" ");
   const cells = cellsArr.join(",");
-  const landText = cellsArr.length
-    ? `${breakMode && intent.kind === "retreat" ? "追圈" : "落"}${cellsArr.map((c) => c + 1).join("/")}`
-    : "";
-  const wTip = breakMode ? weaknessTip(intent) : "";
-  const missTip = unreachable ? (breakMode ? "\n这段打不着你（空）——不算拆" : "\n这段打不着你（空）") : "";
-  const skipTip = skip ? `\n劲不够（要 ${cost}，现 ${b.enemyEnergy}）→ 跳过，不出` : "";
-  const loot = breakMode ? breakLootFor(intent) : null;
-  const lootText = loot
-    ? ` · ${loot.label}${
-        loot.kind === "block"
-          ? ` 架+${loot.n}`
-          : loot.kind === "heal"
-            ? ` 血+${loot.n}`
-            : loot.kind === "expose"
-              ? ` 破绽+${loot.n}`
-              : loot.kind === "draw"
-                ? ` 抽${loot.n}${loot.meleeBonus ? ` 贴身+${loot.meleeBonus}` : ""}`
-                : ` 劲+${loot.n}`
-      }`
-    : "";
-  const counterTip =
-    !breakMode || unreachable || skip || tier.code === "放"
-      ? ""
-      : `\n硬拆得拆势（下一刀真伤 ${breakCounterDamage(b)}）${lootText}`;
-  const tierTip =
-    tier.code === "跳过"
-      ? "\n收势后：这段劲不够，跳过"
-      : tier.code === "追"
-        ? tier.pending
-          ? "\n收势后：本段将被追上（他仍撤，你得拆势）"
-          : "\n本段已被追上"
-        : tier.code === "放"
-          ? "\n没追：他照撤，不算拆"
-          : tier.code === "破"
-        ? tier.pending
-          ? "\n收势后：本段将被硬拆（拆势+势）"
-          : "\n本段已被硬拆"
-        : tier.code === "让"
-          ? tier.pending
-            ? "\n收势后：本段将被让（半效）"
-            : "\n本段已被让"
-          : tier.code === "空"
-            ? "\n本段打空"
-            : tier.code === "打"
-              ? "\n收势后：本段会照打到你"
-              : "";
-  const tip = `${isEye ? "【招眼】硬拆它：套路崩塌 + 拆势加力，他失衡\n" : ""}${stress ? `${stress.label} · ` : ""}第 ${i + 1} 段 · ${intentTip(intent)}${num.tipExtra}\n耗劲 ${cost}${landText ? ` · ${landText}` : ""}${skipTip}${missTip}${tierTip}${wTip ? `\n破法：${wTip}` : ""}${counterTip}`;
+  const iname = foeIntentAlias(b.enemyId, intent) ?? intentShortName(intent);
   const tierCls =
     tier.code === "破" || tier.code === "追"
       ? "hard"
@@ -192,12 +221,22 @@ function segmentHtml(
       ? `将${tier.code}`
       : tier.code
     : "";
+  // 悬浮 / 可见：招名 · 数值（格挡/治疗写明动词+数）
+  const tipEffect =
+    intent.kind === "guard"
+      ? `架${num.text}`
+      : intent.kind === "mend"
+        ? `回${String(intent.heal)}`
+        : intent.kind === "breathe"
+          ? `劲+${intent.amount}`
+          : intent.kind === "shatter"
+            ? `震${intent.amount}`
+            : num.text;
+  const tip = [iname, tipEffect].filter(Boolean).join(" · ");
   const badge = `${tierText ? `<span class="lab-tier-badge lab-tier-${tierCls}">${tierText}</span>` : ""}${stress ? `<span class="lab-stress-badge">应</span>` : ""}${isEye ? `<span class="lab-eye-badge">眼</span>` : ""}`;
-  const iname = foeIntentAlias(b.enemyId, intent) ?? intentShortName(intent);
-  const em = num.text ? `<em class="${num.modified ? "dmg-mod" : ""}">${num.text}</em>` : "";
-  const meta = `<span class="lab-seg-meta">${landText ? `<span class="lab-seg-land">${landText}</span>` : ""}<span class="lab-seg-cost">劲${cost}</span></span>`;
-  return `<button type="button" class="${cls}" data-intent-idx="${i}" data-threat="${cells}" data-tip="${escapeHtml(tip)}" aria-label="第${i + 1}段 ${iname} ${num.text} 劲${cost}${skip ? " 跳过" : ""}">
-    <span class="lab-seg-ord">${i + 1}</span>${badge}<b>${iname}</b>${em}${meta}<span class="status-tip">${escapeHtml(tip)}</span>
+  const em = `<em class="${num.modified ? "dmg-mod" : ""}">${escapeHtml(tipEffect)}</em>`;
+  return `<button type="button" class="${cls}" data-intent-idx="${i}" data-threat="${cells}" data-tip="${escapeHtml(tip)}" aria-label="第${i + 1}段 ${iname} ${tipEffect} 劲${cost}${skip ? " 跳过" : ""}">
+    <span class="lab-seg-ord">${i + 1}</span>${badge}<b>${iname}</b>${em}<span class="status-tip">${escapeHtml(tip)}</span>
   </button>`;
 }
 
@@ -227,7 +266,8 @@ function timelineRow(
 function recapChipClass(outcome: string): string {
   if (outcome === "破" || outcome === "追") return "hard";
   if (outcome === "让") return "graze";
-  if (outcome === "空" || outcome === "劲尽" || outcome === "晕" || outcome === "散" || outcome === "放") return "miss";
+  // 劲尽/晕/散：演出上按「躲过/落空」一类，拆招反馈仍在敌回合逐段体现
+  if (outcome === "空" || outcome === "劲尽" || outcome === "晕" || outcome === "散" || outcome === "放" || outcome === "躲") return "miss";
   if (outcome === "打") return "hit";
   return "misc";
 }
@@ -252,24 +292,20 @@ export function renderFoeIntentStrip(b: Battle, hoverIdx: number | null): string
   const grazed = new Set(b.v2GrazedSegments ?? []);
   const grazePreview = new Set(b.v2GrazePreview ?? []);
   const live = livingFoes(b);
-  const currentIdx = b.intentIndex ?? 0;
+  // 兑完待刷 / 播报期：高亮落在刚结算的段序，避免意图条跳到「下一手」错位
+  const currentIdx = b.v2PendingIntentRefresh
+    ? (b.v2ResolveIntentIdx ?? Math.max(0, (b.intents?.length ?? 1) - 1))
+    : (b.intentIndex ?? 0);
   const breakCount = b.v2BreakCount ?? 0;
   const offBalance = (b.v2OffBalance ?? 0) > 0;
-  const turnBreaks = b.v2TurnBreakCount ?? 0;
-  const grazedCount = (b.v2GrazedSegments ?? []).length;
-  const qi = b.qi ?? 0;
   const breakMode = isBreakLesson(b);
-  const head = breakMode
-    ? `<div class="lab-intent-bandhead"><span>左→右依次出招 · 破/让/追/放/空/打/跳过 · 落点与耗劲写在段上</span>${offBalance ? `<span class="lab-offbalance">他失衡了 · 承伤 ×2</span>` : ""}<span class="lab-break-count">充能 ${b.v2Turn?.moveCharges ?? 0} · 已硬拆 ${breakCount}${turnBreaks > 0 ? `（本回合 +${turnBreaks}）` : ""} · 已让 ${grazedCount} · 势 ${qi} · 敌劲 ${b.enemyEnergy}/${b.enemyEnergyMax}</span></div>`
-    : `<div class="lab-intent-bandhead lab-intent-compact"><span>敌招一览（左→右）· 打/空/跳过</span>${offBalance ? `<span class="lab-offbalance">他失衡了 · 承伤 ×2</span>` : ""}</div>`;
+  // 中轴只留意图本体；充能看下方条，不在此叠第二行账本
+  const head = `<div class="lab-intent-bandhead lab-intent-compact"><span>敌招</span>${offBalance ? `<span class="lab-offbalance">失衡 · 承伤 ×2</span>` : ""}${breakMode && breakCount > 0 ? `<span class="lab-break-count">已硬拆 ${breakCount}</span>` : ""}</div>`;
   const eyeIdx = breakMode ? (b.v2EyeIdx ?? -1) : -1;
   const mainQueue = b.intents.length ? b.intents : [b.intent];
-  const eyeIntent = eyeIdx >= 0 ? mainQueue[eyeIdx] : null;
-  const eyeHint =
-    breakMode && eyeIntent && !preview.has(eyeIdx) && !broken.has(eyeIdx)
-      ? `<div class="lab-eye-hint">眼在第 ${eyeIdx + 1} 段「${foeIntentAlias(b.enemyId, eyeIntent) ?? intentShortName(eyeIntent)}」——${weaknessTip(eyeIntent)}。硬拆它，整套跟着崩。</div>`
-      : "";
-  const recap = breakMode ? renderLastRecap(b) : "";
+  // 眼标在段上已有；不再另起教学条。上息回顾改由石台下播报承担。
+  const eyeHint = "";
+  const recap = "";
   const projected = projectedQueueThreat(b);
   if (live.length <= 1) {
     const queue = mainQueue;
@@ -324,6 +360,29 @@ function resonanceLabel(b: Battle): string {
   return mate ? `${b.player.name}·${MATES[mate.id].name}` : "共鸣";
 }
 
+export function formatIntentBroadcast(
+  intent: Intent | undefined,
+  outcome: string,
+  name: string,
+): string {
+  const effect = broadcastEffect(intent, outcome);
+  const parts = [name, effect];
+  if (
+    intent?.kind === "charge" &&
+    (outcome === "打" || outcome === "破" || outcome === "让") &&
+    !effect.includes("进")
+  ) {
+    parts.push(`进${intent.steps}`);
+  }
+  return parts.join(" · ");
+}
+
+/** 起手预告：招名 · 数值（尚未结算）。 */
+export function formatIntentCue(b: Battle, intent: Intent | undefined, name: string): string {
+  if (!intent) return name;
+  return `${name} · ${intentOneNumber(b, intent).text}`;
+}
+
 export function renderFxLayer(b: Battle): string {
   const quiet = isBreakAlign() && !isBreakLesson(b);
   const fx = (b.v2FxQueue ?? []).filter((kind) => !quiet || !["break", "graze", "miss", "counter", "eye"].includes(kind));
@@ -345,14 +404,15 @@ export function renderFxLayer(b: Battle): string {
     cardKnock: "推",
     cardStatus: "势",
   };
-  const extra = b.lastHitRead
-    ? `<div class="lab-fx-pop lab-fx-read">${escapeHtml(b.lastHitRead)}</div>`
-    : "";
-  const pops = fx
-    .map((kind, i) => `<div class="lab-fx-pop lab-fx-${kind}" style="--i:${i}">${map[kind] ?? kind}</div>`)
-    .join("");
-  if (!pops && !extra) return "";
-  return `<div class="lab-fx-stack">${pops}${extra}</div>`;
+  // 只亮最新一条：下一条滚动顶替上一条（不叠一排半透明字）
+  const kind = fx.length ? fx[fx.length - 1]! : null;
+  const read = b.lastHitRead?.trim() || "";
+  if (!kind && !read) {
+    return `<div class="lab-fx-stack lab-fx-empty" aria-hidden="true"></div>`;
+  }
+  const label = read || (kind ? map[kind] ?? kind : "");
+  const cls = kind ? `lab-fx-pop lab-fx-${kind}` : "lab-fx-pop lab-fx-read";
+  return `<div class="lab-fx-stack"><div class="${cls} lab-fx-hold lab-fx-plate" style="--i:0">${escapeHtml(label)}</div></div>`;
 }
 
 export function battleFxClasses(b: Battle): string {

@@ -116,7 +116,7 @@ describe("肉鸽拆招降权", () => {
   it("正式开踢意图条不刷将破/将让", () => {
     const b = startLabBattle(buildGauntletPreset(createGauntletRun("shaolin", "palm")), false, 1);
     const strip = renderFoeIntentStrip(b, null);
-    expect(strip).toContain("打/空/跳过");
+    expect(strip).toContain("敌招");
     expect(strip).not.toMatch(/将破|将让|将追/);
     expect(strip).not.toContain("lab-recap-chip");
   });

@@ -52,11 +52,9 @@ describe("lab smoke · 能进战斗", () => {
           expect(html).toContain("lab-charge-pip");
           expect(html).not.toMatch(/lab-break-charge-num">0</);
           expect(html).toContain("肉鸽踢馆");
-          expect(intent).toContain("打/空/跳过");
-          if (stage === 1) {
-            expect(html).toContain("lab-break-teach");
-            expect(html).toContain("has-teach");
-          }
+          expect(intent).toContain("敌招");
+          expect(html).not.toContain("lab-break-teach");
+          expect(html).not.toContain("has-teach");
         }
       }
     });

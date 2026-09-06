@@ -8,7 +8,7 @@ import {
   marketRefreshCost,
   wagerStakeCap,
 } from "./gauntlet";
-import { renderGauntletCompanionPick, renderGauntletLoadout, renderGauntletRewardPick } from "./gauntletUi";
+import { renderGauntletCompanionPick, renderGauntletLoadout, renderGauntletRewardPick, renderGauntletSettle } from "./gauntletUi";
 
 describe("营地停留 / 黑市刷新 / 立绘", () => {
   it("领奖屏有继续按钮，未领完时禁用", () => {
@@ -22,6 +22,8 @@ describe("营地停留 / 黑市刷新 / 立绘", () => {
       0,
     );
     expect(html).toContain("gauntlet-camp-continue");
+    expect(html).toContain("路程小本");
+    expect(html).toContain("州桥酒楼");
     expect(html).toMatch(/id="gauntlet-camp-continue"[^>]*disabled/);
     expect(html).toContain('class="card');
     expect(html).toMatch(/<p class="text">/);
@@ -61,7 +63,7 @@ describe("营地停留 / 黑市刷新 / 立绘", () => {
     expect(html).toContain("温掌");
   });
 
-  it("配装屏用水墨牌和立绘，回营地在侧栏", () => {
+  it("配装屏用水墨牌和立绘；仓库在底栏横排", () => {
     setLabRuleset("break");
     let run = createGauntletRun("bandit", "saber");
     run = applyCompanion(run, "baimenghe");
@@ -70,6 +72,7 @@ describe("营地停留 / 黑市刷新 / 立绘", () => {
     expect(html).toContain("work-screen");
     expect(html).toContain("gauntlet-loadout-rail");
     expect(html).toContain("gauntlet-loadout-back");
+    expect(html).toContain("gauntlet-loadout-stash");
     expect(html).toContain("gauntlet-comp-art");
     expect(html).toContain("data-loadout-mate");
     expect(html).toContain("data-unequip-mate");
@@ -77,6 +80,17 @@ describe("营地停留 / 黑市刷新 / 立绘", () => {
     expect(html).toContain("card-art");
     expect(html).toContain("data-equip-idx");
     expect(html).toContain("data-sell-idx");
+    expect(html).toMatch(/gauntlet-loadout-main[\s\S]*gauntlet-loadout-stash/);
     expect(html).not.toMatch(/装上 /);
+  });
+
+  it("告捷结清写在笺头里，不飘在底图上", () => {
+    const run = { ...createGauntletRun("bandit", "palm"), pot: 107, stage: 2 };
+    const html = renderGauntletSettle(run, ["底彩 +22"]);
+    expect(html).toContain("本馆告捷");
+    expect(html).toContain("州桥");
+    expect(html).toMatch(/gauntlet-head[\s\S]*底彩 \+22/);
+    expect(html).toMatch(/gauntlet-head[\s\S]*现有彩金/);
+    expect(html).toContain("gauntlet-settle-take");
   });
 });

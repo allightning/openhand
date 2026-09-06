@@ -7,6 +7,7 @@ import { AUTO_LOADOUTS, applyAutoLoadout, validateLoadoutPreset } from "./autoLo
 import { runFromPreset, startLabBattle } from "./factory";
 import { expandDeckRecipe } from "./rules";
 import { BUILTIN_PRESETS } from "./presets";
+import { setLabRuleset } from "./labRuleset";
 
 function maxConsecutiveSame(ids: string[]): number {
   let best = 1;
@@ -55,6 +56,7 @@ describe("§28 牌堆归属与配额", () => {
 
 describe("§28.4 组合技开闸 canPlay", () => {
   it("unlocks assist school cards when cross-school assist active", () => {
+    setLabRuleset("break");
     setLabMode(true);
     setLabTuning({ rulesCombo: true, rulesV2: true });
     let b = startLabBattle({ ...BUILTIN_PRESETS[0]!, party: ["rail", "blade"], fieldMate: "rail" }, true);

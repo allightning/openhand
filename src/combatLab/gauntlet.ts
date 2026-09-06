@@ -21,6 +21,7 @@ import {
   type GauntletPath,
 } from "./gauntletPaths";
 import { isBreakAlign } from "./labRuleset";
+import type { RouteLogEntry } from "./climbPlaces";
 import { BREAK_REWARD_WEIGHTS, itemTip, mindTip, techniqueTip } from "./breakAlign";
 import {
   breakStarterDeck,
@@ -29,7 +30,7 @@ import {
   rogueCompanionTierForStage,
   rogueRosterByTier,
 } from "./rogueRoster";
-import { SCHOOL_EXTRA_HIT, SCHOOL_EXTRA_STATUS, SCHOOL_SCHOOL_STEP, SCHOOL_SUB_ATTACK, SCHOOL_ULTIMATE, breakCardUpgrade } from "../game/rogueCards";
+import { SCHOOL_EXTRA_HIT, SCHOOL_EXTRA_STATUS, SCHOOL_EXTRA_STATUS2, SCHOOL_SCHOOL_STEP, SCHOOL_SUB_ATTACK, SCHOOL_ULTIMATE, breakCardUpgrade } from "../game/rogueCards";
 import { GAUNTLET_FOE_IDENTITY } from "../game/enemyKit";
 import { MOVE_CARD_IDS } from "../game/intentWeakness";
 import { fieldDeck, gearSlotMax, grantCardToLoadout, isAidItem, ownedCardIds, replaceOwnedCard, withMateDeck } from "./loadout";
@@ -178,16 +179,21 @@ export function rewardGate(fought: number): {
 
 function breakRewardCardPool(run: GauntletRun): CardId[] {
   const gate = rewardGate(rewardFought(run));
-  const have = ownedCardIds(run);
   const pool: CardId[] = [
     ...SCHOOL_SUB_ATTACK[run.school],
     SCHOOL_EXTRA_HIT[run.school],
     SCHOOL_EXTRA_STATUS[run.school],
+    SCHOOL_EXTRA_STATUS2[run.school],
     SCHOOL_SCHOOL_STEP[run.school],
+    "brace",
+    "expose",
+    "bleedcut",
+    "mend",
+    "defend",
   ];
   if (gate.advance2) pool.push("advance2", "sidestep", "brace");
   if (gate.ultimate) pool.push(SCHOOL_ULTIMATE[run.school]);
-  return pool.filter((id) => CARDS[id] && !have.has(id));
+  return [...new Set(pool.filter((id) => CARDS[id]))];
 }
 
 export { breakRewardCardPool };
@@ -255,13 +261,9 @@ export function marketOffers(run: GauntletRun, rng: () => number = Math.random):
     out.push({ id: "heal", kind: "heal", price: priceOf("heal"), title: "金创药", tip: `当场回 ${n} 血（战后回血同方）。` });
   }
   if (run.pendingSkipMarket) return out;
-  const cards = isBreakAlign()
-    ? breakRewardCardPool(run)
-    : cardPool(run.school, Boolean(runCompanions(run).length || run.lifelineCompanion));
+  const cards = breakRewardCardPool(run);
   if (cards.length > 0) {
-    const id = isBreakAlign()
-      ? pickWeightedRewardCard(cards, [...ownedCardIds(run)], rng)
-      : cards[Math.floor(rng() * cards.length)]!;
+    const id = pickWeightedRewardCard(cards, [...ownedCardIds(run)], rng);
     if (id) {
       out.push({ id: `card:${id}`, kind: "card", price: priceOf("card"), title: `谱 · ${CARDS[id].name}`, tip: `${CARDS[id].text}（买入进牌组）` });
     }
@@ -400,10 +402,12 @@ export function reviveGauntletRun(run: GauntletRun): GauntletRun | null {
   };
 }
 
+/** 踢馆双方加血、伤害系数不变：拉长回合。 */
+export const GAUNTLET_PLAYER_HP_MUL = 1.81;
+
 function scaledHpMax(run: GauntletRun): number {
-  const base = Math.max(MATES[gauntletFieldMate(run.school)].hp, isBreakAlign() ? 42 : 48);
-  const fromRun = run.hpMax;
-  const raw = Math.max(base, fromRun);
+  const base = Math.round(Math.max(MATES[gauntletFieldMate(run.school)].hp, isBreakAlign() ? 42 : 48) * GAUNTLET_PLAYER_HP_MUL);
+  const raw = Math.max(base, run.hpMax);
   return run.statBoostMul > 1 ? Math.floor(raw * run.statBoostMul) : raw;
 }
 
@@ -412,11 +416,12 @@ export function redeemGauntletRun(run: GauntletRun): GauntletRun | null {
   return reviveGauntletRun(run);
 }
 
-/** §31.13 无尽踢馆：对战版可在终馆后继续；拆招短局（10 馆）通关即结，无尽后开独立模式。 */
+/** @deprecated 用 run.endless；保留常量以免旧引用炸。 */
 export const GAUNTLET_ENDLESS = false;
 
-export function isGauntletEndless(): boolean {
-  return false;
+/** 本局是否无尽打榜（看 run，不再看全局开关）。 */
+export function isGauntletEndless(run?: Pick<GauntletRun, "endless"> | null): boolean {
+  return Boolean(run?.endless);
 }
 
 /** §31.13 赌馆启动资金：开局 20 彩金——够押小注，攒过馆底彩换重注。 */
@@ -602,6 +607,15 @@ export function resolveWager(run: GauntletRun, stats: WagerStats): { won: boolea
   return { won, payout, text };
 }
 
+export function wagerConfirmLine(
+  kind: WagerKind,
+  stake: number,
+  odds: number,
+): string {
+  const payout = Math.round(stake * odds);
+  return `确认：${wagerLabel(kind)} · 押 ${stake} · 赔 ×${odds}。打赢且达成则 +${payout}，飞了或输馆注额不退。`;
+}
+
 export function wagerLabel(kind: WagerKind): string {
   const labels: Record<WagerKind, string> = {
     chain: "连破注",
@@ -683,8 +697,6 @@ export const GAUNTLET_REWARD_TIERS: Record<
 
 /** 战后回血占位：最大 HP 的 30%。 */
 export const GAUNTLET_HEAL_RATIO = 0.3;
-
-export const GAUNTLET_BEST_KEY = "openhand-gauntlet-best";
 
 /** 神兵/仙药只在第 7 馆打完后出现，并且不能顶掉本轮免费奖励。 */
 export function isMidtermSuperFought(fought: number): boolean {
@@ -768,13 +780,22 @@ export interface GauntletRun {
   skipCompanionPick?: boolean;
   forceDangerNext?: boolean;
   pendingIntel?: boolean;
-  pendingSkirmish?: "save" | "duel";
+  pendingSkirmish?: "save" | "duel" | "side";
   pendingRecruit?: CompanionId;
   pendingGuestEnemyId?: EnemyId;
+  /** 馆间支线标号：脊骨馆 N · 第 k 条（展示 N-k） */
+  pendingSideLabel?: string;
+  sideBranchAt?: Record<number, number>;
   skirmishActive?: boolean;
+  /** 无尽打榜：无馆间遭遇，馆序不停 */
+  endless?: boolean;
   storyFlags?: string[];
   bgUses?: Record<string, number>;
   bgAssign?: Record<string, string>;
+  /** 最近一次馆间选择的后果（营地/赌馆可见）。 */
+  lastEncounterNote?: string;
+  /** 路程小本：落过的城/殿与选择。 */
+  routeLog?: RouteLogEntry[];
 }
 
 export type GauntletScreen =
@@ -791,7 +812,8 @@ export type GauntletScreen =
   | "rewardTarget"
   | "event"
   | "finale"
-  | "scar";
+  | "scar"
+  | "settle";
 
 let savedTuning: LabTuning | null = null;
 
@@ -804,7 +826,7 @@ export function enterGauntletTuning(): void {
   if (!savedTuning) savedTuning = { ...getLabTuning() };
   setLabTuning({
     rulesCombo: false,
-    deckMultiplier: 1,
+    deckMultiplier: 3,
     designerMode: false,
     rulesV2: true,
     v2Fx: true,
@@ -855,9 +877,9 @@ export function resolveStageEnemy(entry: GauntletLadderEntry, bossId: EnemyId, f
   return pool[0] ?? entry.enemyId;
 }
 
-/** §31.17 轮番替补：第 3 馆起可能有第二名敌人，打倒前排后接力。 */
+/** §31.17 轮番替补：第 2 馆起可能有第二名敌人，打倒前排后接力（拉长单馆，少堆海绵血）。 */
 export function waveEnemyForStage(run: GauntletRun, entry: GauntletLadderEntry, primary: EnemyId): EnemyId | undefined {
-  if (entry.stage < 3) return undefined;
+  if (entry.stage < 2) return undefined;
   const pool = GAUNTLET_LADDER.filter((e) => e.stage <= entry.stage)
     .map((e) => e.enemyId)
     .filter((id) => id !== primary && !run.facedEnemies.includes(id));
@@ -871,12 +893,17 @@ export function runCompanions(run: GauntletRun): CompanionId[] {
   return run.companion ? [run.companion] : [];
 }
 
-export function createGauntletRun(path: GauntletPath, school: WeaponId, bossId: EnemyId = "usurper"): GauntletRun {
+export function createGauntletRun(
+  path: GauntletPath,
+  school: WeaponId,
+  bossId: EnemyId = "usurper",
+  opts?: { endless?: boolean },
+): GauntletRun {
   const cfg = GAUNTLET_SCHOOL_LOADOUT[school];
   const base = applyAutoLoadout(cfg.loadoutId, 3, 0);
   const mate = gauntletFieldMate(school);
   const rosterHp = MATES[mate]?.hp ?? 42;
-  const hpMax = Math.max(base.hpMax ?? rosterHp, isBreakAlign() ? rosterHp : 48);
+  const hpMax = Math.round(Math.max(base.hpMax ?? rosterHp, isBreakAlign() ? rosterHp : 48) * GAUNTLET_PLAYER_HP_MUL);
   const recipe = [...breakStarterDeck(school)];
   return {
     path,
@@ -909,6 +936,9 @@ export function createGauntletRun(path: GauntletPath, school: WeaponId, bossId: 
     seenEvents: [],
     bgUses: {},
     bgAssign: {},
+    endless: opts?.endless ? true : undefined,
+    sideBranchAt: {},
+    routeLog: [],
   };
 }
 
@@ -932,13 +962,13 @@ export function buildGauntletPreset(run: GauntletRun): LabPreset {
   }
   const guest = run.pendingGuestEnemyId;
   if (guest && guest !== enemyId && !extras.includes(guest)) extras.unshift(guest);
-  let waveEnemyId = waveEnemyForStage(run, entry, enemyId);
+  let waveEnemyId: EnemyId | undefined;
   let waveQueue: EnemyId[] | undefined;
-  let extraFoeIds = extras.length ? extras : undefined;
-  if (isBreakAlign()) {
+  if (extras.length) {
     waveEnemyId = extras[0];
     waveQueue = extras.length > 1 ? extras.slice(1) : undefined;
-    extraFoeIds = undefined;
+  } else if (!isBreakAlign()) {
+    waveEnemyId = waveEnemyForStage(run, entry, enemyId);
   }
   const base = applyAutoLoadout(cfg.loadoutId, 3, 0, { enemyId });
   const mate = gauntletFieldMate(run.school);
@@ -971,7 +1001,7 @@ export function buildGauntletPreset(run: GauntletRun): LabPreset {
     enemyId,
     waveEnemyId,
     waveQueue,
-    extraFoeIds,
+    extraFoeIds: undefined,
     party,
     fieldMate: mate,
     deckRecipe: [...fieldDeck(run)],
@@ -1000,7 +1030,7 @@ export function duelEnemyForSchool(school: WeaponId): EnemyId {
 
 export function upcomingFoeNames(run: GauntletRun, n = 2): Array<{ stage: number; name: string }> {
   const out: Array<{ stage: number; name: string }> = [];
-  const cap = getGauntletFinalStage();
+  const cap = run.endless ? run.stage + n : getGauntletFinalStage();
   for (let s = run.stage; s < run.stage + n && s <= cap; s++) {
     const entry = ladderEntryForRun(run, s);
     const id = resolveStageEnemy(entry, run.bossId, run.facedEnemies);
@@ -1049,6 +1079,7 @@ export function buildSkirmishPreset(run: GauntletRun): LabPreset {
         ? "mob_yamenRunner_01"
         : "mob_road_01";
   const who = recruit ? (MATES[recruit]?.name ?? "") : "";
+  const side = run.pendingSkirmish === "side";
   const base = buildGauntletPreset({
     ...run,
     stage: Math.min(run.stage, 2),
@@ -1060,8 +1091,14 @@ export function buildSkirmishPreset(run: GauntletRun): LabPreset {
   return {
     ...base,
     id: `skirmish-${run.school}`,
-    name: duel ? `点到 · ${who}` : who ? `替${who}挡刀` : "路遇出手",
-    blurb: "短战 · 不占馆号 · 禁注",
+    name: side
+      ? `支线 · ${run.pendingSideLabel ?? "馆间"}`
+      : duel
+        ? `点到 · ${who}`
+        : who
+          ? `替${who}挡刀`
+          : "路遇出手",
+    blurb: side ? `馆间支线 ${run.pendingSideLabel ?? ""} · 不占脊骨馆号 · 禁注` : "短战 · 不占馆号 · 禁注",
     enemyId,
     waveEnemyId: undefined,
     waveQueue: undefined,
@@ -1164,11 +1201,11 @@ function itemPool(owned: LabItemId[]): LabItemId[] {
   return ALL_ITEMS.filter((id) => !owned.includes(id));
 }
 
-function pickWeightedKind(rng: () => number, tier: Exclude<GauntletTier, "extreme">, fought: number): GauntletRewardKind {
-  const w = isBreakAlign() ? BREAK_REWARD_WEIGHTS : { ...GAUNTLET_REWARD_TIERS[tier].weights, card: 0, forge: 0, upgrade: 0 };
+function pickWeightedKind(rng: () => number, _tier: Exclude<GauntletTier, "extreme">, fought: number): GauntletRewardKind {
+  const w = BREAK_REWARD_WEIGHTS;
   const gate = rewardGate(fought);
-  const forgeW = isBreakAlign() && gate.forge ? w.forge : 0;
-  const upgradeW = isBreakAlign() && gate.upgrade ? w.upgrade : 0;
+  const forgeW = gate.forge ? w.forge : 0;
+  const upgradeW = gate.upgrade ? w.upgrade : 0;
   const parts: Array<[GauntletRewardKind, number]> = [
     ["tech", w.tech],
     ["mind", w.mind],
@@ -1205,7 +1242,6 @@ function forgeOption(run: GauntletRun): GauntletRewardOption | null {
 }
 
 function upgradeOption(run: GauntletRun, usedFrom: Set<CardId>, rng: () => number): GauntletRewardOption | null {
-  if (!isBreakAlign()) return null;
   if (!rewardGate(rewardFought(run)).upgrade) return null;
   const seen = new Set<CardId>();
   const pool: CardId[] = [];
@@ -1241,7 +1277,6 @@ function rewardTier(run: GauntletRun): Exclude<GauntletTier, "extreme"> {
 
 /** 拆招：4 选 2；第 9 馆后 4 选 3。经典：按档 3/4 选 1。 */
 export function gauntletRewardTakeCount(run: GauntletRun): number {
-  if (!isBreakAlign()) return 1;
   const fought = Math.max(1, run.stage - 1);
   const base = fought >= 9 ? 3 : 2;
   return base + Math.max(0, run.pendingRewardBonus ?? 0);
@@ -1249,7 +1284,7 @@ export function gauntletRewardTakeCount(run: GauntletRun): number {
 
 export function rollGauntletRewards(run: GauntletRun, rng: () => number = Math.random): GauntletRewardOption[] {
   const tier = rewardTier(run);
-  const picks = isBreakAlign() ? 4 : GAUNTLET_REWARD_TIERS[tier].picks;
+  const picks = 4;
   const out: GauntletRewardOption[] = [];
   const usedTech = new Set(allOwnedTechs(run));
   const usedMind = new Set(Object.values(run.mateMindArts).flat());
@@ -1311,7 +1346,7 @@ export function rollGauntletRewards(run: GauntletRun, rng: () => number = Math.r
     usedMind.add(id);
     out.push({ kind: "mind", id, title: MIND_ARTS[id].name, tip: mindTip(id) });
   }
-  if (isBreakAlign() && fought <= 2 && !out.some((o) => o.kind === "card")) {
+  if (fought <= 2 && !out.some((o) => o.kind === "card")) {
     const pool = breakRewardCardPool(run).filter((id) => !usedCards.has(id));
     const id = pickWeightedRewardCard(pool, [...ownedCardIds(run), ...usedCards], rng);
     if (id) {
@@ -1319,14 +1354,14 @@ export function rollGauntletRewards(run: GauntletRun, rng: () => number = Math.r
       out.unshift({ kind: "card", id, title: CARDS[id].name, tip: CARDS[id].text });
     }
   }
-  if (isBreakAlign() && rewardGate(fought).upgrade) {
+  if (rewardGate(fought).upgrade) {
     const uo = upgradeOption(run, usedUpgradeFrom, rng);
     if (uo && !out.some((o) => o.kind === "upgrade")) {
       if (out.length >= picks) out.pop();
       out.unshift(uo);
     }
   }
-  if (isBreakAlign() && rewardGate(fought).forge) {
+  if (rewardGate(fought).forge) {
     const fo = forgeOption(run);
     if (fo && !out.some((o) => o.kind === "forge")) {
       if (out.length >= picks) out.pop();
@@ -1485,9 +1520,12 @@ export function applyGauntletReward(run: GauntletRun, opt: GauntletRewardOption)
   return { ...run, items: g.items, itemCharges: g.charges };
 }
 
-export function loadGauntletBest(): GauntletBest | null {
+export const GAUNTLET_BEST_KEY = "openhand-gauntlet-best";
+export const GAUNTLET_ENDLESS_BEST_KEY = "openhand-gauntlet-endless-best";
+
+export function loadGauntletBest(endless = false): GauntletBest | null {
   try {
-    const raw = localStorage.getItem(GAUNTLET_BEST_KEY);
+    const raw = localStorage.getItem(endless ? GAUNTLET_ENDLESS_BEST_KEY : GAUNTLET_BEST_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as GauntletBest;
     if (typeof parsed.streak !== "number" || typeof parsed.breaks !== "number") return null;
@@ -1505,10 +1543,11 @@ export function isBetterBest(next: GauntletBest, cur: GauntletBest | null): bool
 }
 
 export function saveGauntletBest(run: GauntletRun): GauntletBest | null {
-  const cur = loadGauntletBest();
+  const endless = Boolean(run.endless);
+  const cur = loadGauntletBest(endless);
   const next: GauntletBest = { streak: run.streak, breaks: run.totalBreaks, pot: run.pot };
   if (isBetterBest(next, cur)) {
-    localStorage.setItem(GAUNTLET_BEST_KEY, JSON.stringify(next));
+    localStorage.setItem(endless ? GAUNTLET_ENDLESS_BEST_KEY : GAUNTLET_BEST_KEY, JSON.stringify(next));
     return next;
   }
   return cur;

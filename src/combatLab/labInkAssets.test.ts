@@ -61,10 +61,15 @@ describe("水墨资产接入", () => {
     expect(waveHtml).toContain("含替补");
   });
 
-  it("斩杀 → 敌位弧光刀影；拆招/反打 → 敌位横斩；受击震 → 己位", () => {
+  it("斩杀/拆招落敌位；敌打我/让刀/撞墙落己位", () => {
     expect(battleHtml(saberBattle(["kill"]))).toContain("slash_arc");
     expect(battleHtml(saberBattle(["break"]))).toContain("slash_line");
     expect(battleHtml(saberBattle(["counter"]))).toContain("slash_line");
+    const hit = battleHtml(saberBattle(["hit"]));
+    expect(hit).toContain("lab-slash-overlay");
+    expect(hit).toContain("slash_line");
+    expect(hit).toMatch(/fig you[\s\S]*lab-slash-overlay/);
+    expect(hit).not.toMatch(/lab-stand-slot[\s\S]*?lab-slash-overlay[\s\S]*?stage-core/);
     const wall = battleHtml(saberBattle(["wall"]));
     expect(wall).toContain("lab-slash-overlay");
     expect(wall).toContain("slash_line");
@@ -92,7 +97,7 @@ describe("水墨资产接入", () => {
     expect(html).not.toContain('id="preview-slot"');
   });
 
-  it("素材文件齐备：立绘原图 / 刀光×2 / 音效×4 / BGM", () => {
+  it("素材文件齐备：立绘原图 / 刀光×2 / 音效×4 / 多曲 BGM", () => {
     for (const p of [
       "art/char/hero/full.png",
       "art/char/baimenghe/full.png",
@@ -106,7 +111,25 @@ describe("水墨资产接入", () => {
       "art/audio/sfx/clash.wav",
       "art/audio/sfx/page.wav",
       "art/audio/sfx/drop.mp3",
-      "art/audio/bgm/battle_main.mp3",
+      "art/audio/bgm/hall_a.mp3",
+      "art/audio/bgm/hall_b.mp3",
+      "art/audio/bgm/hall_c.mp3",
+      "art/audio/bgm/hall_voice.mp3",
+      "art/audio/bgm/jianghu_gym.mp3",
+      "art/audio/bgm/break_voice.mp3",
+      "art/audio/bgm/break_campaign.mp3",
+      "art/audio/bgm/jianghu_normal.mp3",
+      "art/audio/bgm/jianghu_normal_b.mp3",
+      "art/audio/bgm/jianghu_elite.mp3",
+      "art/audio/bgm/jianghu_boss.mp3",
+      "art/audio/bgm/shaolin_normal.mp3",
+      "art/audio/bgm/shaolin_elite.mp3",
+      "art/audio/bgm/shaolin_boss.mp3",
+      "art/audio/bgm/court_normal.mp3",
+      "art/audio/bgm/court_elite.mp3",
+      "art/audio/bgm/court_boss.mp3",
+      "art/audio/bgm/sting_win.mp3",
+      "art/audio/bgm/sting_lose.mp3",
       "art/ui/ink-border-a.png",
       "art/ui/ink-border-b.png",
       "art/scenes/scene-quiet-gate.png",
