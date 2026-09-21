@@ -15,20 +15,11 @@ const SCHOOL_CAP: Record<WeaponId, Capitalize<WeaponId>> = {
   hook: "Hook",
 };
 
-const SCHOOL_HAN: Record<WeaponId, string> = {
-  palm: "拳",
-  saber: "刀",
-  sword: "剑",
-  spear: "枪",
-  staff: "棍",
-  hook: "钩",
-};
-
 export function wardCardId(school: WeaponId): RogueCardId {
   return `ward${SCHOOL_CAP[school]}`;
 }
 
-export function wardUpgradeId(school: WeaponId): RogueCardId {
+export function wardUpgradeId(school: WeaponId): string {
   return `ward${SCHOOL_CAP[school]}2`;
 }
 
@@ -37,7 +28,39 @@ export function auraCardId(school: WeaponId): RogueCardId {
 }
 
 export function fusionCardId(main: WeaponId, sub: WeaponId): RogueCardId {
-  return `fuse${SCHOOL_CAP[main]}${SCHOOL_CAP[sub]}`;
+  const ia = ROGUE_SCHOOLS.indexOf(main);
+  const ib = ROGUE_SCHOOLS.indexOf(sub);
+  const [x, y] = ia < ib ? [main, sub] : [sub, main];
+  return `fuse${SCHOOL_CAP[x]}${SCHOOL_CAP[y]}`;
+}
+
+const LEGACY_CARD_ID: Record<string, CardId> = (() => {
+  const out: Record<string, CardId> = {
+    lateHand: "handCut",
+    midStrike: "follow2",
+    midGuard: "defend2",
+    midPush: "push2",
+    lateAnvil: "elbow",
+    flowTax: "gather",
+    setupTax: "setup",
+  };
+  for (const s of ROGUE_SCHOOLS) {
+    out[wardUpgradeId(s)] = wardCardId(s);
+  }
+  for (let i = 0; i < ROGUE_SCHOOLS.length; i++) {
+    for (let j = i + 1; j < ROGUE_SCHOOLS.length; j++) {
+      const a = ROGUE_SCHOOLS[i]!;
+      const b = ROGUE_SCHOOLS[j]!;
+      const canon = fusionCardId(a, b);
+      out[`fuse${SCHOOL_CAP[b]}${SCHOOL_CAP[a]}`] = canon;
+    }
+  }
+  return out;
+})();
+
+/** 旧档换名复制 id → 现行牌。 */
+export function remapLegacyCardId(id: string): CardId {
+  return (LEGACY_CARD_ID[id] ?? id) as CardId;
 }
 
 export function isRogueCardId(id: string): id is RogueCardId {
@@ -70,29 +93,24 @@ export function stepCardId(school: WeaponId): RogueCardId {
 
 function wardDef(school: WeaponId): CardDef {
   const id = wardCardId(school);
+  const extra: Record<
+    WeaponId,
+    Pick<CardDef, "name" | "text" | "block" | "knock" | "thorns" | "expose" | "energyNext" | "plant" | "frail">
+  > = {
+    palm: { name: "拳架", text: "格挡 6，击退 1。", block: 6, knock: 1 },
+    saber: { name: "刀架", text: "格挡 6，反震 2。", block: 6, thorns: 2 },
+    sword: { name: "剑架", text: "格挡 6，破绽 +1。", block: 6, expose: 1 },
+    spear: { name: "枪架", text: "格挡 6，立刻回劲 1。", block: 6, energyNext: 1 },
+    staff: { name: "棍架", text: "格挡 6。身前空则落桩。", block: 6, plant: true },
+    hook: { name: "钩架", text: "格挡 6，滞手 +1。", block: 6, frail: 1 },
+  };
   return {
     id,
-    name: `${SCHOOL_HAN[school]}架`,
     cost: 0,
     type: "skill",
-    text: "获得 6 点格挡。",
     flavor: "本系卸法，先站住再打。",
-    block: 6,
     school,
-  };
-}
-
-function wardUpgradeDef(school: WeaponId): CardDef {
-  const id = wardUpgradeId(school);
-  return {
-    id,
-    name: `${SCHOOL_HAN[school]}架·换页`,
-    cost: 1,
-    type: "skill",
-    text: "获得 9 点格挡，抽 1。本系架换页，位移仍是 ±1。",
-    flavor: "架子换一页，挡完还能摸一张。",
-    block: 9,
-    school,
+    ...extra[school],
   };
 }
 
@@ -100,71 +118,90 @@ function auraDef(school: WeaponId): CardDef {
   const id = auraCardId(school);
   const extra =
     school === "palm"
-      ? { heal: 5, energyNext: 1, text: "回复 5。下回劲 +1。同门气势。" }
+      ? { knock: 1, text: "【光环】打出后本场攻击 +3。击退 +1。同门·崩山。", name: "同门·崩山" as const }
       : school === "spear"
-        ? { block: 6, text: "格挡 6。标尺 +1。同门气势。" }
+        ? { block: 4, text: "【光环】打出后本场攻击 +3。格挡 4。同门·丈八。", name: "同门·丈八" as const }
         : school === "saber"
-          ? { block: 6, flow: 4, text: "格挡 6。本回合势伤 +4。同门气势。" }
+          ? { bleed: 2, block: 4, text: "【光环】打出后本场攻击 +3。裂创 +2，格挡 4。同门·血饮。", name: "同门·血饮" as const }
           : school === "sword"
-            ? { expose: 2, block: 4, text: "格挡 4。敌破绽 +2。同门气势。" }
+            ? { expose: 2, block: 6, text: "【光环】打出后本场攻击 +3。破绽 +2，格挡 6。同门·万脉。", name: "同门·万脉" as const }
             : school === "staff"
-              ? { block: 9, text: "格挡 9。同门桩气。" }
-              : { heal: 4, frail: 1, text: "回复 4。滞手 +1。同门气势。" };
+              ? { block: 12, plant: true as const, text: "【光环】打出后本场攻击 +3。格挡 12。同门·铁桩。", name: "同门·铁桩" as const }
+              : { pullEnemy: 1, frail: 1, text: "【光环】打出后本场攻击 +3。拉近 1，滞手 +1。同门·天罗。", name: "同门·天罗" as const };
+  const { name, ...rest } = extra;
   return {
     id,
-    name: `同门·${SCHOOL_HAN[school]}`,
-    cost: 1,
+    name,
+    cost: 0,
     type: "skill",
-    flavor: "同系在场才有的次一等绝招，不是废格挡。",
+    flavor: "三同系开战入手。打出后本场攻击 +3。",
     school,
-    ...extra,
+    ...rest,
   };
 }
 
-function fusionBurst(main: WeaponId, sub: WeaponId): Pick<CardDef, "text" | "damage" | "block" | "heal" | "bleed" | "expose" | "knock" | "pullEnemy" | "energyNext"> {
-  const key = `${main}:${sub}`;
-  const table: Record<string, Pick<CardDef, "text" | "damage" | "block" | "heal" | "bleed" | "expose" | "knock" | "pullEnemy" | "energyNext">> = {
-    "saber:palm": { damage: 9, energyNext: 1, text: "伤 9。下回劲 +1。次绝招。" },
-    "saber:sword": { damage: 8, bleed: 2, text: "伤 8，裂创 +2。次绝招。" },
-    "saber:spear": { damage: 10, bleed: 1, text: "伤 10，裂创 +1。次绝招。" },
-    "saber:staff": { damage: 8, block: 6, text: "伤 8，格挡 6。次绝招。" },
-    "saber:hook": { damage: 8, pullEnemy: 1, text: "伤 8，拉近 1。次绝招。" },
-    "palm:sword": { damage: 10, heal: 4, text: "伤 10，回 4 血。次绝招。" },
-    "palm:spear": { damage: 9, knock: 1, text: "伤 9，击退 1。次绝招。" },
-    "palm:staff": { damage: 9, block: 8, text: "伤 9，格挡 8。次绝招。" },
-    "palm:hook": { damage: 10, heal: 3, text: "伤 10，回 3 血。次绝招。" },
-    "sword:spear": { damage: 9, expose: 1, text: "伤 9，破绽 +1。次绝招。" },
-    "sword:staff": { damage: 10, block: 5, expose: 1, text: "伤 10，格挡 5，破绽 +1。次绝招。" },
-    "sword:hook": { damage: 11, expose: 1, text: "伤 11，破绽 +1。次绝招。" },
-    "spear:staff": { damage: 9, block: 4, text: "伤 9，格挡 4。次绝招。" },
-    "spear:hook": { damage: 9, pullEnemy: 1, text: "伤 9，拉近 1。次绝招。" },
-    "staff:hook": { damage: 10, block: 7, text: "伤 10，格挡 7。次绝招。" },
-  };
-  return table[key] ?? { damage: 11, text: "伤 11。次绝招。" };
+const FUSION_PACK: Record<
+  string,
+  Pick<CardDef, "name" | "text" | "damage" | "block" | "heal" | "bleed" | "expose" | "knock" | "pullEnemy" | "energyNext" | "type" | "plant">
+> = {
+  "palm:saber": { name: "崩刃", type: "attack", damage: 8, knock: 1, bleed: 2, text: "伤 8，击退 1，裂创 +2。" },
+  "palm:sword": { name: "崩锋", type: "attack", damage: 7, knock: 1, expose: 2, text: "伤 7，击退 1，破绽 +2。" },
+  "palm:spear": { name: "送客枪", type: "attack", damage: 8, knock: 1, text: "伤 8，击退 1。推开后距≥3 再打更疼。" },
+  "palm:staff": { name: "崩桩", type: "skill", block: 10, knock: 1, text: "格挡 10，击退 1。" },
+  "palm:hook": { name: "崩拖", type: "attack", pullEnemy: 1, damage: 6, text: "伤 6，拉近 1。" },
+  "saber:sword": { name: "放血刺", type: "attack", damage: 7, bleed: 2, text: "伤 7，裂创 +2。有破绽时更疼。" },
+  "saber:spear": { name: "血尺", type: "attack", damage: 9, bleed: 1, text: "伤 9，裂创 +1。" },
+  "saber:staff": { name: "血桩", type: "skill", block: 8, plant: true, text: "格挡 8。可落桩。" },
+  "saber:hook": { name: "拖血", type: "attack", damage: 7, pullEnemy: 1, bleed: 2, text: "伤 7，拉近 1，裂创 +2。" },
+  "sword:spear": { name: "回马刺", type: "attack", damage: 8, expose: 2, text: "伤 8，破绽 +2。" },
+  "sword:staff": { name: "锋桩", type: "skill", block: 8, expose: 1, text: "格挡 8，破绽 +1。" },
+  "sword:hook": { name: "锋丝", type: "skill", pullEnemy: 1, expose: 2, text: "拉近 1，破绽 +2。" },
+  "spear:staff": { name: "桩后冷枪", type: "skill", block: 10, text: "格挡 10。本回远打更稳。" },
+  "spear:hook": { name: "尺钩", type: "attack", damage: 8, pullEnemy: 1, text: "伤 8，拉近 1。" },
+  "staff:hook": { name: "桩网", type: "skill", block: 9, pullEnemy: 1, text: "格挡 9，拉近 1。" },
+};
+
+function pairKey(a: WeaponId, b: WeaponId): string {
+  const ia = ROGUE_SCHOOLS.indexOf(a);
+  const ib = ROGUE_SCHOOLS.indexOf(b);
+  return ia < ib ? `${a}:${b}` : `${b}:${a}`;
+}
+
+export function pairFusionId(a: WeaponId, b: WeaponId): RogueCardId | null {
+  if (a === b) return null;
+  const ia = ROGUE_SCHOOLS.indexOf(a);
+  const ib = ROGUE_SCHOOLS.indexOf(b);
+  const [x, y] = ia < ib ? [a, b] : [b, a];
+  return fusionCardId(x, y);
+}
+
+function fusionBurst(main: WeaponId, sub: WeaponId): (typeof FUSION_PACK)[string] {
+  return FUSION_PACK[pairKey(main, sub)] ?? { name: "合", type: "attack", damage: 8, text: "伤 8。" };
 }
 
 function fusionDef(main: WeaponId, sub: WeaponId): CardDef {
   const id = fusionCardId(main, sub);
   const pack = fusionBurst(main, sub);
+  const { name, type, ...rest } = pack;
   return {
     id,
-    name: `${SCHOOL_HAN[main]}×${SCHOOL_HAN[sub]}合`,
-    cost: 2,
-    type: "attack",
-    flavor: "异系合招，次一等绝招。",
+    name,
+    cost: 1,
+    type: type === "skill" ? "skill" : "attack",
+    flavor: "异系连携，换人时入手。",
     school: sub,
-    ...pack,
+    ...rest,
   };
 }
 
 function hitDef(school: WeaponId): CardDef {
   const id = hitCardId(school);
-  const pack: Record<WeaponId, Pick<CardDef, "name" | "text" | "flavor" | "damage" | "knock" | "bleed" | "expose" | "pullEnemy">> = {
+  const pack: Record<WeaponId, Pick<CardDef, "name" | "text" | "flavor" | "damage" | "knock" | "bleed" | "expose" | "pullEnemy" | "foeStun">> = {
     palm: { name: "崩拳", text: "造成 6 点伤害并击退 1。", flavor: "短拳砸实，把人掀开半步。", damage: 6, knock: 1 },
     saber: { name: "抹刀", text: "造成 6 点伤害，裂创 +1。", flavor: "不是斩，是拖口子。", damage: 6, bleed: 1 },
     sword: { name: "点刺", text: "造成 5 点伤害，破绽 +1。", flavor: "剑尖只取脉口。", damage: 5, expose: 1 },
-    spear: { name: "攒枪", text: "造成 7 点伤害。", flavor: "枪杆一抖，点子叠上去。", damage: 7 },
-    staff: { name: "扫堂", text: "造成 6 点伤害。", flavor: "棍梢扫地，先断步再砸人。", damage: 6 },
+    spear: { name: "攒枪", text: "造成 7 点伤害，破绽 +1。", flavor: "枪杆一抖，点子叠上去。", damage: 7, expose: 1 },
+    staff: { name: "扫堂", text: "造成 6 点伤害并击退 1，眩晕 1 段。", flavor: "棍梢扫地，先断步再砸人。", damage: 6, knock: 1, foeStun: 1 },
     hook: { name: "绊脚", text: "造成 5 点伤害并拉近 1。", flavor: "钩子不求穿喉，先绊住。", damage: 5, pullEnemy: 1 },
   };
   return { id, cost: school === "palm" || school === "saber" || school === "hook" ? 2 : 1, type: "attack", school, ...pack[school] };
@@ -172,12 +209,12 @@ function hitDef(school: WeaponId): CardDef {
 
 function statusDef(school: WeaponId): CardDef {
   const id = statusCardId(school);
-  const pack: Record<WeaponId, Pick<CardDef, "name" | "text" | "flavor" | "heal" | "block" | "expose" | "energyNext" | "frail">> = {
+  const pack: Record<WeaponId, Pick<CardDef, "name" | "text" | "flavor" | "heal" | "block" | "expose" | "energyNext" | "frail" | "bleed" | "plant">> = {
     palm: { name: "温气", text: "回复 4 点生命。抽 1。", flavor: "掌心一捂，血气回笼。", heal: 4 },
-    saber: { name: "刀势", text: "获得 5 点格挡。抽 1。", flavor: "刀背一横，先把这一息挡住。", block: 5 },
+    saber: { name: "刀势", text: "获得 5 点格挡。裂创 +1。抽 1。", flavor: "刀背一横，先开口子再挡。", block: 5, bleed: 1 },
     sword: { name: "凝锋", text: "格挡 3。敌破绽 +1。", flavor: "剑意一收，他身上就多一口。", block: 3, expose: 1 },
     spear: { name: "丈量", text: "格挡 4。回劲 1。", flavor: "先把距离量明白。", block: 4, energyNext: 1 },
-    staff: { name: "桩气", text: "获得 7 点格挡。抽 1。", flavor: "人桩先立住。", block: 7 },
+    staff: { name: "桩气", text: "获得 7 点格挡。身前空则落桩。抽 1。", flavor: "人桩先立住。", block: 7, plant: true },
     hook: { name: "缠丝", text: "格挡 3。滞手 +1。", flavor: "钩丝绕腕，他下一招发不干脆。", block: 3, frail: 1 },
   };
   return { id, cost: school === "staff" ? 2 : 1, type: "skill", school, ...pack[school] };
@@ -189,7 +226,7 @@ function statusDef2(school: WeaponId): CardDef {
     WeaponId,
     Pick<CardDef, "name" | "text" | "flavor" | "heal" | "block" | "expose" | "energyNext" | "frail" | "bleed" | "pullEnemy">
   > = {
-    palm: { name: "聚气", text: "回复 6 点生命。立刻回劲 2。", flavor: "掌心一捂，劲力跟着血气回来。", heal: 6, energyNext: 2 },
+    palm: { name: "回笼", text: "回复 6 点生命。立刻回劲 2。", flavor: "掌心一捂，劲力跟着血气回来。", heal: 6, energyNext: 2 },
     saber: { name: "血口", text: "裂创 +2。格挡 3。", flavor: "刀口先开口子，再拿刀背挡一下。", bleed: 2, block: 3 },
     sword: { name: "锁脉", text: "敌破绽 +2。滞手 +1。", flavor: "剑意锁住脉口，他下一招发不干脆。", expose: 2, frail: 1 },
     spear: { name: "蓄杆", text: "格挡 5。立刻回劲 3。", flavor: "枪杆一沉，先把距离和劲攒住。", block: 5, energyNext: 3 },
@@ -201,29 +238,15 @@ function statusDef2(school: WeaponId): CardDef {
 
 function stepDef(school: WeaponId): CardDef {
   const id = stepCardId(school);
-  const pack: Record<WeaponId, Pick<CardDef, "name" | "text" | "flavor" | "steps" | "block">> = {
+  const pack: Record<WeaponId, Pick<CardDef, "name" | "text" | "flavor" | "steps" | "block" | "pace" | "expose" | "energyNext" | "pullEnemy">> = {
     palm: { name: "进步掌", text: "前进 1 格，获得 2 点格挡。", flavor: "掌随身进，不是空进步。", steps: 1, block: 2 },
-    saber: { name: "刀步", text: "前进 1 格。", flavor: "刀要贴上，步先到。", steps: 1 },
-    sword: { name: "剑圈", text: "后退 1 格。", flavor: "剑走圆，人让半步。", steps: -1 },
-    spear: { name: "枪退", text: "后退 1 格。", flavor: "枪要留杆，先把距离还回来。", steps: -1 },
+    saber: { name: "刀步", text: "前进 1 格，先机 +2。", flavor: "刀要贴上，步先到。", steps: 1, pace: 2 },
+    sword: { name: "剑圈", text: "后退 1 格，破绽 +1。", flavor: "剑走圆，人让半步。", steps: -1, expose: 1 },
+    spear: { name: "枪退", text: "后退 1 格，立刻回劲 1。", flavor: "枪要留杆，先把距离还回来。", steps: -1, energyNext: 1 },
     staff: { name: "棍门", text: "前进 1 格，获得 3 点格挡。", flavor: "棍一横就是门。", steps: 1, block: 3 },
-    hook: { name: "钩步", text: "前进 1 格。", flavor: "钩要够着，人得先凑上去。", steps: 1 },
+    hook: { name: "钩步", text: "前进 1 格，拉近 1。", flavor: "钩要够着，人得先凑上去。", steps: 1, pullEnemy: 1 },
   };
   return { id, cost: 1, type: "skill", school, ...pack[school] };
-}
-
-function fusionSubDef(main: WeaponId, sub: WeaponId): CardDef {
-  const id = fusionCardId(sub, main);
-  const pack = fusionBurst(sub, main);
-  return {
-    id,
-    name: `${SCHOOL_HAN[sub]}×${SCHOOL_HAN[main]}副`,
-    cost: 2,
-    type: "attack",
-    flavor: "副路合招，次一等绝招。",
-    school: sub,
-    ...pack,
-  };
 }
 
 function buildRogueCardDefs(): Record<RogueCardId, CardDef> {
@@ -233,14 +256,14 @@ function buildRogueCardDefs(): Record<RogueCardId, CardDef> {
     name: "直取",
     cost: 1,
     type: "attack",
-    text: "造成 5 点伤害。",
-    flavor: "不讲门派，先打到人。",
-    damage: 5,
+    text: "造成 4 点伤害，破绽 +1。",
+    flavor: "不讲门派，先打开口子。",
+    damage: 4,
+    expose: 1,
     school: "any",
   };
   for (const s of ROGUE_SCHOOLS) {
     out[wardCardId(s)] = wardDef(s);
-    out[wardUpgradeId(s)] = wardUpgradeDef(s);
     out[auraCardId(s)] = auraDef(s);
     out[hitCardId(s)] = hitDef(s);
     out[statusCardId(s)] = statusDef(s);
@@ -252,7 +275,6 @@ function buildRogueCardDefs(): Record<RogueCardId, CardDef> {
       const a = ROGUE_SCHOOLS[i]!;
       const b = ROGUE_SCHOOLS[j]!;
       out[fusionCardId(a, b)] = fusionDef(a, b);
-      out[fusionCardId(b, a)] = fusionSubDef(a, b);
     }
   }
   return out;
@@ -287,12 +309,6 @@ export const BREAK_CARD_UPGRADES: Partial<Record<CardId, CardId>> = {
   follow: "follow2",
   gather: "gather2",
   finisher: "finisher2",
-  wardPalm: "wardPalm2",
-  wardSaber: "wardSaber2",
-  wardSword: "wardSword2",
-  wardSpear: "wardSpear2",
-  wardStaff: "wardStaff2",
-  wardHook: "wardHook2",
   drawcut: "burySlash",
   saberBleed: "buryBleed",
   push: "push2",
@@ -357,6 +373,8 @@ export const SCHOOL_SCHOOL_STEP: Record<WeaponId, CardId> = {
  */
 export function breakStarterDeck(school: WeaponId): CardId[] {
   const sub = SCHOOL_SUB_ATTACK[school][0];
+  // 钩核靠拉近：起手多一张击退，贴墙时能把人推开。
+  const stepOrPush: CardId = school === "hook" ? "push" : "advance";
   return [
     "direct",
     SCHOOL_MAIN_ATTACK[school],
@@ -364,7 +382,7 @@ export function breakStarterDeck(school: WeaponId): CardId[] {
     ...(sub ? [sub] : []),
     "defend",
     wardCardId(school),
-    "advance",
+    stepOrPush,
     "retreat",
     "mend",
     "inbreath",
@@ -373,7 +391,7 @@ export function breakStarterDeck(school: WeaponId): CardId[] {
 
 const FUSION_CAP = 4;
 
-/** 同系光环卡 1 张；每个异系同伴 2 张融合卡。融合牌最多 4。 */
+/** 同系光环卡 1 张；每个异系同伴 1 张融合卡（每对系只一张）。融合牌最多 4。 */
 export function rogueBondCards(leadSchool: WeaponId, partySchools: WeaponId[]): CardId[] {
   const others = partySchools.filter((s) => s !== leadSchool);
   const same = partySchools.filter((s) => s === leadSchool).length;
@@ -384,7 +402,7 @@ export function rogueBondCards(leadSchool: WeaponId, partySchools: WeaponId[]): 
     if (seen.has(s)) continue;
     seen.add(s);
     if (out.filter((id) => String(id).startsWith("fuse")).length >= FUSION_CAP) break;
-    out.push(fusionCardId(leadSchool, s), fusionCardId(s, leadSchool));
+    out.push(fusionCardId(leadSchool, s));
   }
   return out.slice(0, 1 + FUSION_CAP);
 }

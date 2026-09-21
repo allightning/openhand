@@ -25,7 +25,7 @@ export function renderTrainingHallCatalog(
           <p>引导锁牌 · 训练自由打 · 不走彩金</p>
         </div>
         <nav class="hall-cab-tabs" aria-label="柜">
-          <button type="button" class="lab-btn ${cab === "break" ? "active" : ""}" data-hall-cab="break">破招</button>
+          <button type="button" class="lab-btn ${cab === "break" ? "active" : ""}" data-hall-cab="break">自我修行</button>
           <button type="button" class="lab-btn ${cab === "weapon" ? "active" : ""}" data-hall-cab="weapon">兵器</button>
           <button type="button" class="lab-btn ${cab === "camp" ? "active" : ""}" data-hall-cab="camp">营地</button>
         </nav>
@@ -33,7 +33,7 @@ export function renderTrainingHallCatalog(
       <div class="hall-body">
         <aside class="hall-rail">${rail}</aside>
         <section class="hall-detail">
-          <p class="hall-detail-kicker">${cab === "break" ? "破招柜" : cab === "camp" ? "营地柜" : "兵器柜"}</p>
+          <p class="hall-detail-kicker">${cab === "break" ? "自我修行" : cab === "camp" ? "营地柜" : "兵器柜"}</p>
           <h3>${escapeHtml(focus.title)}</h3>
           <p class="hall-detail-blurb">${escapeHtml(focus.blurb)}</p>
           <div class="hall-detail-btns">

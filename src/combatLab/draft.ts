@@ -3,6 +3,8 @@ import { MATES } from "../game/party";
 import { canMateEquipGear } from "../game/equippedWeapon";
 import { starterGear } from "../game/weapons";
 import { uniqueRecipe, LAB_PARTY_CAP, LAB_TECH_CAP } from "./rules";
+import { climbTechSlotMax } from "./loadout";
+import { isBreakAlign } from "./labRuleset";
 import type { LabPreset } from "./types";
 
 export function normalizePreset(p: LabPreset): LabPreset {
@@ -24,7 +26,7 @@ export function normalizePreset(p: LabPreset): LabPreset {
   const mateTechs: Partial<Record<CompanionId, TechniqueId[]>> = {};
   for (const id of party) {
     const from = p.mateTechs?.[id] ?? (id === fieldMate ? p.techniques : []) ?? [];
-    mateTechs[id] = [...from].slice(0, LAB_TECH_CAP);
+    mateTechs[id] = [...from].slice(0, p.gauntletStage != null && !isBreakAlign() ? climbTechSlotMax(p.gauntletStage) : LAB_TECH_CAP);
   }
 
   return {
@@ -39,6 +41,7 @@ export function normalizePreset(p: LabPreset): LabPreset {
     mateDeckRecipes: p.mateDeckRecipes,
     mateWeapons,
     mateTechs,
+    mateTechRanks: p.mateTechRanks ? structuredClone(p.mateTechRanks) : undefined,
     mateMinds: p.mateMinds ? { ...p.mateMinds } : undefined,
     hp: p.hp,
     hpMax: p.hpMax,
@@ -73,6 +76,8 @@ export function clonePreset(p: LabPreset): LabPreset {
     deckRecipe: [...n.deckRecipe],
     mateWeapons: { ...n.mateWeapons },
     mateTechs: Object.fromEntries(Object.entries(n.mateTechs).map(([k, v]) => [k, [...v!]])) as LabPreset["mateTechs"],
+    mateTechRanks: n.mateTechRanks ? structuredClone(n.mateTechRanks) : undefined,
+    mateMinds: n.mateMinds ? { ...n.mateMinds } : undefined,
     extraFoeIds: n.extraFoeIds ? [...n.extraFoeIds] : undefined,
     waveEnemyId: n.waveEnemyId,
     waveQueue: n.waveQueue ? [...n.waveQueue] : undefined,

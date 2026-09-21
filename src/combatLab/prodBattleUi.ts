@@ -11,13 +11,15 @@ import { ENEMY_GEAR_GRADE_LABEL } from "../game/enemyGear";
 import { labCard } from "../game/labContent";
 import { ENEMIES, ENEMY_WEAPON, TECHNIQUES } from "../game/content";
 import { cardDisplayText } from "../game/cardTextV2";
+import { breakdownTipLine, previewShortLine } from "../game/damageBreakdown";
 import { variantActiveLabel, variantBranch, labV21EffectiveCost } from "../game/labV21";
 import { ROLE_LABEL } from "../game/labV25Constants";
 import { isLabV2 } from "../game/labTuning";
 import { MOVE_CARD_IDS } from "../game/intentWeakness";
-import { isBreakAlign, isBreakLesson } from "./labRuleset";
+import { isBreakAlign } from "./labRuleset";
 import { MATES, MATE_PASSIVE, WEAPON_NAME, schoolLabel } from "../game/party";
-import { dangerCells, livingFoes, statusChips, yourPace, isComboUnlockCard } from "../game/sim";
+import { dangerCells, livingFoes, statusChips, yourPace, isComboUnlockCard, climbCardLocked } from "../game/sim";
+import { battleTechRank } from "../game/techRank";
 import { BOARD_SIZE, type Battle, type EnemyId, type Preview } from "../game/types";
 import { gearById, starterGear } from "../game/weapons";
 import { escapeHtml } from "./setupUi";
@@ -27,6 +29,10 @@ import { renderFxLayer, renderGrudgeBadge, renderFoeIntentStrip, threatCellsForH
 
 function escapeAttr(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+}
+
+function cardBodyHtml(s: string): string {
+  return escapeHtml(s).replace(/(\d+)/g, "<b>$1</b>");
 }
 
 function mateArt(id: string, kind: string): string {
@@ -83,7 +89,7 @@ function qiBar(current: number, max: number, regen?: number): string {
 }
 
 function renderStatusCol(b: Battle, side: "you" | "foe"): string {
-  const chips = statusChips(b, side);
+  const chips = statusChips(b, side).filter((c) => !c.key.startsWith("mind-") && !c.name.includes("心法"));
   if (!chips.length) return `<div class="status-col ${side}-status empty" aria-hidden="true"></div>`;
   const rows = chips
     .map(
@@ -220,7 +226,29 @@ function labCoachText(_b: Battle, _prev: Preview | null, _gauntletStage?: number
   return coachOverride?.trim() ?? "";
 }
 
-function weaponPlate(id: string, side: "you" | "foe"): string {
+/** 构成合计须等于预演掉血；对不上只标口，不改公式。 */
+export function previewBreakdownMismatch(b: Battle, prev: Preview): boolean {
+  if (!prev.legal || !prev.breakdown) return false;
+  const m = prev.breakdown.match(/构成\s*(-?\d+)/);
+  if (!m) return false;
+  const claimed = Number(m[1]);
+  const dealt = b.enemy.hp - prev.enemyHp;
+  if (dealt <= 0) return false;
+  return claimed !== dealt;
+}
+
+/** 悬停预演条：括号内伤害构成，效果在括号后。 */
+export function renderHoverPreview(b: Battle, prev: Preview | null): string {
+  if (!prev) return `<div class="preview idle" id="preview-slot"></div>`;
+  if (!prev.legal) {
+    return `<div class="preview bad" id="preview-slot">${escapeHtml(prev.reason ?? "现在不能打出")}</div>`;
+  }
+  const line = previewShortLine(prev.notes, true, undefined, prev.breakdown, prev.breakdownRiders?.join(" · "));
+  const flag = previewBreakdownMismatch(b, prev) ? " 待 · 核玩" : "";
+  return `<div class="preview live" id="preview-slot">${escapeHtml(line + flag)}</div>`;
+}
+
+function weaponPlate(id: string, _side: "you" | "foe"): string {
   const g = gearById(id);
   const tip = g ? `${g.name} · ${g.tip}（点开细看）` : "兵刃";
   return weaponArtMarkup(id, { button: true }).replace(
@@ -243,9 +271,13 @@ export interface ProdBattleOpts {
   actionRowHtml: string;
   entranceNote: string;
   freshNote: string;
+  /** 爬塔阶段条：占位不撑布局 */
+  phaseBanner?: string;
   fxClass: string;
   pauseOverlay: string;
   toolbarExtra: string;
+  /** 局内系统钮（攻略/图鉴/设置），与局外顶栏共用同一套 id */
+  chromeHtml?: string;
   weaponSheetHtml: string;
   /** 踢馆当前馆序（拆招版 1–2 关教学用）。 */
   gauntletStage?: number;
@@ -266,6 +298,8 @@ export interface ProdBattleOpts {
   foeSegAnim?: "windup" | "break" | "hit" | "graze" | "miss" | "skip" | null;
   /** 当前回放段，高亮意图 */
   foePlaybackSegIdx?: number;
+  /** 回放：gone 拿掉 / grey 灰留 */
+  foeSegFate?: Record<number, "gone" | "grey">;
   /** 打出己牌时石台小人/刀光 demo */
   youPlayAnim?: "swing" | "step" | "cast" | null;
   wagerHud?: string;
@@ -284,9 +318,11 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
     actionRowHtml,
     entranceNote,
     freshNote,
+    phaseBanner = "",
     fxClass,
     pauseOverlay,
     toolbarExtra,
+    chromeHtml,
     weaponSheetHtml,
     gauntletStage,
     demoGuide,
@@ -294,12 +330,13 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
     foeResolving,
     foeSegAnim,
     foePlaybackSegIdx,
+    foeSegFate,
     youPlayAnim,
     wagerHud,
   } = opts;
   const mode = combatMode ?? {
-    label: "肉鸽踢馆",
-    tip: "踢馆肉鸽：不破也能爬。读招另有硬核谜题入口。",
+    label: "行路",
+    tip: "行路：不破也能走。登门另有硬核短拍入口。",
   };
   const breakAlign = isBreakAlign();
   const guideSet = new Set(demoGuide?.cardIds ?? []);
@@ -331,7 +368,9 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
             const t = TECHNIQUES[id];
             if (!t) return "";
             const tip = techniqueTip(id);
-            return `<span class="tech-chip" data-tip="${escapeAttr(tip)}">${escapeHtml(t.name)}<span class="status-tip">${escapeHtml(tip)}</span></span>`;
+            const rank = battleTechRank(b, id);
+            const rankMark = rank > 1 ? `·${rank}` : "";
+            return `<span class="tech-chip" data-tip="${escapeAttr(tip)}">${escapeHtml(t.name)}${rankMark}<span class="status-tip">${escapeHtml(tip)}</span></span>`;
           })
           .join("")}</div>`
       : `<div class="tech-list empty" aria-hidden="true"></div>`;
@@ -360,10 +399,12 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
         def.name,
         `${typeLabel(def.type)} · ${schoolLabel(c.defId)}${def.tags?.includes("组合") ? " · 组合" : ""}`,
         cardDisplayText(def, { breakAlign }),
+        playGate.ok && def.type === "attack" ? breakdownTipLine(b, def) : "",
         playGate.ok ? def.flavor : (playGate.reason ?? def.flavor),
       ]
         .filter(Boolean)
         .join("\n");
+      const stunLock = climbCardLocked(b, c.uid);
       const teachBadge =
         breakAlign &&
         ((demoGuide && guided) || (!demoGuide && teachStage === 1 && MOVE_CHARGE_CARDS.has(def.id)))
@@ -371,15 +412,16 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
           : guided && demoGuide?.stage === 2
             ? `<span class="combo-unlock-badge teach-move">让</span>`
             : "";
+      const qiCost = labV21EffectiveCost(b, def);
       return `
-        <button class="card ${def.type} ${active ? "hot" : ""} ${playGate.ok ? "" : "dead"} ${comboUnlock ? "combo-unlock" : ""} ${vClass} ${chargeCard} ${momClass} ${guided ? "demo-guide-card" : ""}"
-          data-uid="${c.uid}" data-tip="${escapeAttr(cardTip)}" style="--i:${idx}" ${playGate.ok ? "" : "disabled"}>
-          <span class="cost">${labV21EffectiveCost(b, def)}</span>
+        <button class="card ${def.type} ${active ? "hot" : ""} ${playGate.ok ? "" : "dead"} ${stunLock ? "stun-lock" : ""} ${comboUnlock ? "combo-unlock" : ""} ${vClass} ${chargeCard} ${momClass} ${guided ? "demo-guide-card" : ""}"
+          data-uid="${c.uid}" data-sfx="play-card" data-tip="${escapeAttr(cardTip)}" style="--i:${idx}" ${playGate.ok ? "" : "disabled"}>
+          <span class="cost">${qiCost}</span>
           ${teachBadge}${comboBadge}${vBadge}${momBadge}
           <div class="art">${cardArt(def.id)}</div>
           <div class="banner">${typeLabel(def.type)} · ${schoolLabel(c.defId)}${def.tags?.includes("组合") ? " · 组合" : ""}</div>
           <h3>${def.name}</h3>
-          <p class="text">${escapeHtml(cardDisplayText(def, { breakAlign }))}</p>
+          <p class="text">${cardBodyHtml(cardDisplayText(def, { breakAlign }))}</p>
           <p class="flavor">${playGate.ok ? def.flavor : playGate.reason ?? def.flavor}</p>
           <span class="hotkey">${idx + 1}</span>
         </button>`;
@@ -418,17 +460,22 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
     <div class="lab-battle-shell ${fxClass}${foeResolving ? " foe-resolving" : ""}">
       ${renderGrudgeBadge(b)}
       <section class="combat fy-combat ink-combat lab-prod-combat${hasTeach ? " has-teach" : ""}${foeResolving ? " is-foe-turn" : ""}" style="background-image:url('${b.labSceneBg ?? combatBg("wharf")}')">
-        ${foeResolving ? `<div class="lab-foe-lock" aria-live="assertive"><b>敌方出招</b><span>这一息看招</span></div>` : ""}
+        ${foeResolving
+          ? b.climbPhaseLabel
+            ? `<div class="lab-foe-lock" aria-live="assertive"><b>${escapeHtml(b.climbPhaseLabel)}</b><span>这一息看条</span></div>`
+            : `<div class="lab-foe-lock" aria-live="assertive"><b>敌方出招</b><span>这一息看招</span></div>`
+          : ""}
+        ${(b.youStun ?? 0) > 0 && !foeResolving ? `<div class="lab-foe-lock" aria-live="assertive"><b>你眩晕</b><span>打不出攻击</span></div>` : ""}
         <header class="fy-top lab-combat-top">
-          <div class="fy-place">
+          <div class="fy-place" data-tip="${escapeAttr(mode.tip)}">
             <b>${escapeHtml(mode.label)}</b>
           </div>
           <h1 class="fy-ink">七步石台</h1>
           <div class="fy-stats lab-combat-tools">
             ${toolbarExtra}
-            <span class="fy-btn lab-mode-badge" data-tip="${escapeAttr(mode.tip)}">${escapeHtml(mode.label)}</span>
             <span class="fy-btn hp" data-tip="当前回合">回合 ${b.turn}</span>
             <span class="fy-btn" data-tip="先机对比">先机 ${yourPace(b)}/${b.foePace}</span>
+            ${chromeHtml ?? ""}
           </div>
         </header>
         ${wagerHud ?? ""}
@@ -453,7 +500,12 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
             </aside>
 
             <div class="stage-core">
-              <div class="lab-intent-band">${renderFoeIntentStrip(b, intentHover)}</div>
+              <div class="lab-phase-slot">${
+                phaseBanner.trim()
+                  ? phaseBanner
+                  : `<p class="lab-phase-banner is-idle" aria-hidden="true"></p>`
+              }</div>
+              <div class="lab-intent-band">${renderFoeIntentStrip(b, intentHover, foeResolving && foePlaybackSegIdx != null && foePlaybackSegIdx >= 0 ? foePlaybackSegIdx : 0, foeSegFate)}</div>
               ${teachHtml}
               <div class="strip" id="strip">${boardHtml}</div>
               ${coachText ? `<div class="coach" id="coach">${escapeHtml(coachText)}</div>` : `<div class="coach coach-empty" id="coach" hidden></div>`}
@@ -473,12 +525,14 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
                 ${foeBars}
               </div>
               <div class="lab-bar-slot">${qiBar(b.enemyEnergy, b.enemyEnergyMax)}</div>
+              <div class="lab-aside-extra"></div>
             </aside>
           </div>
         </div>
 
         <div class="lab-mid-gutter">
           <div class="lab-readout-rail" aria-live="polite">${renderFxLayer(b)}</div>
+          ${renderHoverPreview(b, prev)}
         </div>
 
         ${
@@ -492,20 +546,12 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
           <div class="lab-hand-row">
             <div class="draw-col lab-pile-col">
               ${weaponPlate(gearId, "you")}
-              <button type="button" class="pile-card" data-pile="draw" data-tip="抽牌堆 · 下一张可查 · 残谱 ${b.drawPile.length} 张">
-                <em>残谱</em>
-                <b>${b.drawPile.length}</b>
-              </button>
+              ${renderStatusCol(b, "you")}
             </div>
-            ${renderStatusCol(b, "you")}
             <div class="hand-scroll"><div class="hand" id="hand">${hand}</div></div>
-            ${renderStatusCol(b, "foe")}
             <div class="foe-col lab-pile-col">
               ${weaponPlate(foeWeaponId(b.enemyId), "foe")}
-              <button type="button" class="pile-card discard" data-pile="discard" data-tip="本馆战绩 · 出刀 ${b.v2AttackPlays ?? 0} · 拆 ${b.v2BreakCount ?? 0}">
-                <em>本馆</em>
-                <b>${b.journal.length}</b>
-              </button>
+              ${renderStatusCol(b, "foe")}
             </div>
           </div>
         </footer>

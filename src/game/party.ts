@@ -1,4 +1,5 @@
 import { CARDS, STARTER_DECK } from "./content";
+import { remapLegacyCardId } from "./rogueCards";
 import { SAPPER_DECK, SEER_DECK } from "./hero";
 import { isLabMode } from "./labTuning";
 import { getContentOverrides } from "./labContentOverrides";
@@ -19,13 +20,14 @@ export const WEAPON_NAME: Record<WeaponId, string> = {
 };
 
 /** §31.11 甲方定速度链：拳最快 > 剑钩 > 枪棍 > 刀最慢（势大力沉）。 */
+/** 兵刃底速（2026-09-09 铁律）：拳 8 / 剑 7 / 刀钩 6 / 枪棍 5。 */
 export const WEAPON_PACE: Record<WeaponId, number> = {
   palm: 8,
   sword: 7,
-  hook: 7,
+  hook: 6,
   spear: 5,
   staff: 5,
-  saber: 4,
+  saber: 6,
 };
 
 /** §31.11 甲方定攻击距离：拳掌贴身 1，刀/剑/钩 2，枪/棍 3（七步石台的距离感）。 */
@@ -602,8 +604,8 @@ export function matePassive(id: CompanionId): MatePassive | undefined {
 }
 
 export function cardSchool(id: CardId): WeaponId | "any" {
-  const def = CARDS[id];
-  if (def.school) return def.school;
+  const def = CARDS[remapLegacyCardId(id)];
+  if (def?.school) return def.school;
   const key = id.replace(/2$/, "");
   if (
     key === "strike" ||

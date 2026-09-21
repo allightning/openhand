@@ -34,6 +34,7 @@ import {
   setBgmVolume,
   setSfxVolume,
   stopBgm,
+  debugMusicLane,
 } from "./labAudio";
 
 function stubStorage() {
@@ -132,7 +133,7 @@ describe("labAudio", () => {
     expect(ids).not.toContain("hall_d");
     expect(HALL_PLAYLIST.map((x) => x.label)).toContain("江湖 · 普");
     expect(HALL_PLAYLIST.map((x) => x.label)).toContain("江湖 · 普馆");
-    expect(HALL_PLAYLIST.map((x) => x.label)).toContain("读招 · 和声");
+    expect(HALL_PLAYLIST.map((x) => x.label)).toContain("登门 · 和声");
   });
 
   it("演出事件映射：拆招/受击→碰剑，斩杀/势爆→挥刀，水滴不作攻击音", () => {
@@ -183,5 +184,68 @@ describe("labAudio", () => {
     expect(bgmShouldRestart("hall", "hall", { forceRestart: true })).toBe(true);
     expect(bgmShouldRestart("hall", "hall", { resumeJump: true })).toBe(true);
     expect(bgmShouldRestart(null, "hall", {})).toBe(true);
+  });
+
+  it("硬切换曲与短句期间音乐路数 ≤ 1，短句结束后才接营地曲", () => {
+    const spawned: FakeAudio[] = [];
+    class FakeAudio {
+      src = "";
+      volume = 1;
+      loop = false;
+      paused = true;
+      currentTime = 0;
+      duration = 180;
+      readyState = 4;
+      dataset: Record<string, string> = {};
+      onended: (() => void) | null = null;
+      constructor(src?: string) {
+        this.src = src ?? "";
+        spawned.push(this);
+      }
+      play() {
+        this.paused = false;
+        return Promise.resolve();
+      }
+      pause() {
+        this.paused = true;
+      }
+      load() {}
+      removeAttribute(name: string) {
+        if (name === "src") this.src = "";
+      }
+      getAttribute(name: string) {
+        return name === "src" ? this.src : null;
+      }
+      addEventListener() {}
+    }
+    const prev = (globalThis as { Audio?: unknown }).Audio;
+    (globalThis as { Audio: typeof FakeAudio }).Audio = FakeAudio;
+    try {
+      ensureBgm("hall", { fadeMs: 0, seekSec: 0, volScale: 0.72 });
+      expect(debugMusicLane().musicSources).toBe(1);
+      expect(debugMusicLane().bgmOn).toBe(true);
+      ensureBgm("jianghu_normal", { fadeMs: 0, volScale: 1 });
+      expect(debugMusicLane().musicSources).toBe(1);
+      expect(debugMusicLane().track).toBe("jianghu_normal");
+      playSting("win");
+      expect(debugMusicLane().bgmOn).toBe(false);
+      expect(debugMusicLane().stingCount).toBe(1);
+      expect(debugMusicLane().musicSources).toBe(1);
+      ensureBgm("hall", { fadeMs: 0, volScale: 0.72, seekSec: 0 });
+      expect(debugMusicLane().pendingAfterSting).toBe(true);
+      expect(debugMusicLane().bgmOn).toBe(false);
+      expect(debugMusicLane().stingCount).toBe(1);
+      const sting = spawned.find((a) => a.src.includes("sting_win"));
+      expect(sting).toBeTruthy();
+      sting!.onended?.();
+      expect(debugMusicLane().stingCount).toBe(0);
+      expect(debugMusicLane().bgmOn).toBe(true);
+      expect(debugMusicLane().track).toBe("hall");
+      expect(debugMusicLane().musicSources).toBe(1);
+    } finally {
+      resetLabAudioForTest();
+      if (prev) (globalThis as { Audio: unknown }).Audio = prev;
+      else delete (globalThis as { Audio?: unknown }).Audio;
+    }
   });
 });

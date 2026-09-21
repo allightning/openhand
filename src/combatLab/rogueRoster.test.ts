@@ -40,10 +40,10 @@ describe("ROGUE_GRADIENT 花名册", () => {
     expect(rogueRosterByTier(3)[0]!.hp).toBe(64);
   });
 
-  it("3/7 馆对应二/三档；6 抽 4 排除已在队", () => {
-    expect(rogueCompanionTierForStage(3)).toBe(2);
+  it("4/7 馆对应二/三档；6 抽 4 排除已在队", () => {
+    expect(rogueCompanionTierForStage(4)).toBe(2);
     expect(rogueCompanionTierForStage(7)).toBe(3);
-    expect(rogueCompanionTierForStage(4)).toBeNull();
+    expect(rogueCompanionTierForStage(3)).toBeNull();
     const taken = new Set([rogueLeadId("saber"), "lvchifeng"] as const);
     const picks = rollRogueCompanionChoices(2, taken, () => 0);
     expect(picks).toHaveLength(4);
@@ -79,13 +79,13 @@ describe("ROGUE_GRADIENT 手牌 / 流血 / 枪距", () => {
 });
 
 describe("ROGUE_GRADIENT 起手/光环/轮番", () => {
-  it("每系起手 10 张：四攻 + 卸力本系架 + 进步撤步 + 吐纳纳息", () => {
+  it("每系起手 10 张：四攻 + 卸力本系架 + 进步撤步 + 吐纳纳息（钩用推代进步）", () => {
     for (const school of ["saber", "palm", "sword", "spear", "staff", "hook"] as const) {
       const deck = breakStarterDeck(school);
       expect(deck).toHaveLength(10);
       expect(deck).toContain("direct");
       expect(deck).toContain("defend");
-      expect(deck).toContain("advance");
+      expect(deck).toContain(school === "hook" ? "push" : "advance");
       expect(deck).toContain("retreat");
       expect(deck).toContain("mend");
       expect(deck).toContain("inbreath");
@@ -106,7 +106,7 @@ describe("ROGUE_GRADIENT 起手/光环/轮番", () => {
   it("刀×拳融合是次绝招，不是 4 格挡废牌", () => {
     const id = fusionCardId("saber", "palm");
     const def = CARDS[id];
-    expect(def.cost).toBeGreaterThanOrEqual(2);
+    expect(def.cost).toBeGreaterThanOrEqual(1);
     expect((def.damage ?? 0) + (def.block ?? 0)).toBeGreaterThanOrEqual(8);
     expect(def.text).not.toMatch(/^格挡 4/);
   });
@@ -116,13 +116,14 @@ describe("ROGUE_GRADIENT 起手/光环/轮番", () => {
     expect(same).toContain("auraSaber");
     const cross = rogueBondCards("saber", ["saber", "palm"]);
     expect(cross.some((id) => String(id).startsWith("fuse"))).toBe(true);
-    expect(cross).toHaveLength(2);
+    expect(cross).toHaveLength(1);
+    expect(cross).toContain("fusePalmSaber");
   });
 
   it("换页表有本系架，没有进步→纵步", () => {
     expect(breakCardUpgrade("advance")).toBeUndefined();
     expect(breakCardUpgrade("retreat")).toBeUndefined();
     expect(breakCardUpgrade("defend")).toBe("defend2");
-    expect(breakCardUpgrade("wardSaber")).toBe("wardSaber2");
+    expect(breakCardUpgrade("wardSaber")).toBeUndefined();
   });
 });

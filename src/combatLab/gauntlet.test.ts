@@ -15,24 +15,27 @@ import {
   enterGauntletTuning,
   exitGauntletTuning,
   getGauntletFinalStage,
+  ladderEntryForRun,
   loadGauntletBest,
   marketOffers,
   rewardGate,
   rollCompanionChoices,
+  banditCompanionChoices,
   rollGauntletRewards,
   rollSuperRewards,
   saveGauntletBest,
   isMidtermSuperFought,
 } from "./gauntlet";
-import { pathLadder } from "./gauntletPaths";
+import { eventAfterFought } from "./encounter";
+import { maxCompanions, pathLadder } from "./gauntletPaths";
 import { DEFAULT_LAB_TUNING, getLabTuning, setLabMode, setLabTuning } from "../game/labTuning";
 import { tryAppendStressIntent } from "../game/labEnemyStress";
 import { setLabRuleset } from "./labRuleset";
 import { CARDS } from "../game/content";
-import { breakStarterDeck } from "../game/rogueCards";
+import { breakStarterDeck, rogueMate } from "./rogueRoster";
+import { STORY_CAST_POOL } from "./storyBeats";
 import { startLabBattle } from "./factory";
 import { livingFoes } from "../game/sim";
-import { setLabMode } from "../game/labTuning";
 
 describe("§31 连胜踢馆", () => {
   beforeEach(() => {
@@ -65,13 +68,45 @@ describe("§31 连胜踢馆", () => {
     }
   });
 
-  it("拆招模式：10 馆、双敌、伙伴里程碑 3/7 四选一", () => {
+  it("routeLength 9/10/12 改变 getGauntletFinalStage；拓扑按 final 平移", () => {
+    expect(getGauntletFinalStage()).toBe(10);
+    expect(getGauntletFinalStage({ routeLength: 9 })).toBe(9);
+    expect(getGauntletFinalStage({ routeLength: 12 })).toBe(12);
+    // 默认 run 仍是 10
+    const run10 = createGauntletRun("bandit", "saber");
+    expect(getGauntletFinalStage(run10)).toBe(10);
+    // 短 9：情报在馆 8、期末在馆 9（回头关继承 last，仍极端）
+    const run9 = { ...run10, routeLength: 9 as const };
+    expect(getGauntletFinalStage(run9)).toBe(9);
+    const entry9Final = ladderEntryForRun(run9, 9);
+    expect(entry9Final.tier).toBe("extreme");
+    expect(entry9Final.forceGrudge).toBe(true);
+    expect(eventAfterFought(9, 9)).toBeNull();
+    expect(eventAfterFought(8, 9)).toBe("finaleHint");
+    // 9 馆的 final-1 情报落在馆 8
+    expect(eventAfterFought(8, 9)).toBe("finaleHint");
+    // 长 12：馆 11 复用 ladder 末尾前一条（hard）压力，馆 12 期末继承 extreme
+    const run12 = { ...run10, routeLength: 12 as const };
+    expect(getGauntletFinalStage(run12)).toBe(12);
+    const entry12_11 = ladderEntryForRun(run12, 11);
+    expect(entry12_11.tier).toBe("hard");
+    expect(entry12_11.stage).toBe(11);
+    const entry12Final = ladderEntryForRun(run12, 12);
+    expect(entry12Final.tier).toBe("extreme");
+    expect(entry12Final.forceGrudge).toBe(true);
+    expect(eventAfterFought(11, 12)).toBe("finaleHint");
+    expect(eventAfterFought(10, 12)).toBeNull();
+  });
+
+  it("拆招模式：10 馆、双敌、伙伴里程碑 4/7 四选一", () => {
     setLabRuleset("break");
-    for (const path of ["shaolin", "bandit", "court"] as const) {
+    for (const path of ["shaolin", "court"] as const) {
       const ladder = pathLadder(path);
       expect(ladder).toHaveLength(10);
-      expect(ladder[0]?.label).toMatch(/来锋位移/);
-      expect(ladder[1]?.label).toMatch(/让与破眼/);
+      expect(ladder[0]?.label).toMatch(/山门沙弥|剪径|皂隶/);
+      expect(ladder[1]?.label).toMatch(/巡寺棍僧|坡蹲|快班/);
+      expect(ladder[0]?.label).not.toMatch(/来锋|让与破/);
+      expect(ladder[1]?.label).not.toMatch(/来锋|让与破/);
       expect(ladder[3]?.extraEnemyIds).toHaveLength(1);
       expect(ladder[6]?.extraEnemyIds).toHaveLength(1);
       expect(ladder[7]?.extraEnemyIds).toHaveLength(2);
@@ -84,7 +119,7 @@ describe("§31 连胜踢馆", () => {
     expect(getGauntletFinalStage()).toBe(10);
     let run = createGauntletRun("bandit", "sword");
     expect(buildGauntletPreset(run).fieldMate).toBe("wenrensheng");
-    run = { ...run, stage: 4, streak: 3 };
+    run = { ...run, stage: 5, streak: 4 }; // 打过第 4 馆后进里程碑
     const choices = rollCompanionChoices(run, () => 0);
     expect(choices).toHaveLength(4);
     expect(choices).not.toContain("wenrensheng");
@@ -92,13 +127,60 @@ describe("§31 连胜踢馆", () => {
     run = applyCompanion(run, a);
     expect(run.companions).toEqual([a]);
     expect(run.companion).toBe(a);
-    run = { ...run, stage: 8, streak: 7 };
+    run = { ...run, stage: 8, streak: 7 }; // 打过第 7 馆后进里程碑
     const bChoices = rollCompanionChoices(run, () => 0);
     expect(bChoices).toHaveLength(4);
     expect(bChoices).not.toContain(a);
     run = applyCompanion(run, bChoices[0]!);
     expect(run.companions).toHaveLength(2);
     expect(buildGauntletPreset(run).party).toHaveLength(3);
+  });
+
+  it("拆招同伴池：江湖线关闭陌生人四选一，只出 castDraw 或 seenStoryIds 里见过的人", () => {
+    setLabRuleset("climb");
+    // castDraw 的 5 人本身就算「见过」
+    const castDraw = ["zhounuanxiang", "chenchenlan", "lvchifeng", "ananhuo", "boqing"] as const;
+    let run = {
+      ...createGauntletRun("bandit", "saber", "usurper", { rng: () => 0 }),
+      stage: 5,
+      streak: 4,
+      castDraw: castDraw as unknown as readonly CompanionId[],
+      seenStoryIds: [],
+    };
+    const choices = banditCompanionChoices(run, () => 0);
+    expect(choices.length).toBeGreaterThan(0);
+    for (const id of choices) {
+      expect(castDraw).toContain(id);
+    }
+    // 没抽到也没 seen 的人不出现在选项里
+    const unseen = STORY_CAST_POOL.find((id) => !castDraw.includes(id as any))!;
+    expect(choices).not.toContain(unseen);
+    // seenStoryIds 可补充 castDraw 以外的人
+    const seenStoryIds = ["zhangshoushan"] as const;
+    run = { ...run, seenStoryIds: [...seenStoryIds] as unknown as readonly CompanionId[] };
+    const choices2 = banditCompanionChoices(run, () => 0);
+    for (const id of choices2) {
+      expect([...castDraw, ...seenStoryIds]).toContain(id);
+    }
+    // 少林/朝廷不走这条约束，仍可能出标准花名册
+    const shaolin = { ...createGauntletRun("shaolin", "saber"), stage: 5, streak: 4 };
+    const sChoices = rollCompanionChoices(shaolin, () => 0);
+    expect(sChoices).toHaveLength(4);
+  });
+
+  it("maxCompanions 阶段化：1–8 程 2 人，9 程起 3 人", () => {
+    expect(maxCompanions(1)).toBe(2);
+    expect(maxCompanions(8)).toBe(2);
+    expect(maxCompanions(9)).toBe(3);
+    expect(maxCompanions(12)).toBe(3);
+    let run = createGauntletRun("bandit", "sword");
+    run = applyCompanion(run, "zhounuanxiang");
+    run = applyCompanion(run, "lvchifeng");
+    expect(run.companions).toHaveLength(2);
+    // 9 程后允许第 3 名同伴
+    run = { ...run, stage: 10, streak: 9 };
+    run = applyCompanion(run, "ananhuo");
+    expect(run.companions).toHaveLength(3);
   });
 
   it("拆招起手 10 张、奖励 4 选、轮番进队列不进场", () => {
@@ -218,9 +300,9 @@ describe("§31 连胜踢馆", () => {
     expect(run.weaponId).toBe("sword-a-2");
   });
 
-  it("§31.9/§31.18 伙伴：3/7 四选一", () => {
-    let run = createGauntletRun("bandit", "sword");
-    run = { ...run, stage: 4, streak: 3 };
+  it("§31.9/§31.18 伙伴：4/7 四选一", () => {
+    let run = createGauntletRun("shaolin", "sword");
+    run = { ...run, stage: 5, streak: 4 };
     const choices = rollCompanionChoices(run, () => 0);
     expect(choices).toHaveLength(4);
     expect(choices).not.toContain("wenrensheng");
@@ -242,16 +324,17 @@ describe("§31 连胜踢馆", () => {
   it("§31.9/§31.12 超级奖励：神兵直跃 / 助战符一对 / 仙药加上限", () => {
     let run = createGauntletRun("bandit", "sword");
     const opts = rollSuperRewards(run);
-    expect(opts.map((o) => o.kind)).toEqual(["forge", "aidPair", "elixir"]);
-    expect(opts[0]?.id).toBe("sword-a-5");
+    expect(opts.map((o) => o.kind)).toEqual(["forge", "forge", "aidPair", "elixir"]);
+    expect(opts[0]?.id).toBe("god-main");
     run = applySuperReward(run, opts[0]!);
     expect(run.weaponId).toBe("sword-a-5");
+    expect(run.godMain).toBe(true);
     const hpBefore = run.hpMax;
-    run = applySuperReward(run, opts[2]!);
+    run = applySuperReward(run, opts.find((o) => o.kind === "elixir")!);
     expect(run.hpMax).toBe(hpBefore + 12);
-    expect(run.bonusEnergyMax).toBe(1);
+    expect(run.bonusEnergyMax).toBe(4);
     run = { ...run, items: ["jinchuang"] };
-    run = applySuperReward(run, opts[1]!);
+    run = applySuperReward(run, opts.find((o) => o.kind === "aidPair")!);
     const aids = run.items.filter((i) => i.startsWith("aid"));
     expect(aids).toHaveLength(2);
     expect(new Set(aids).size).toBe(2);
@@ -260,11 +343,11 @@ describe("§31 连胜踢馆", () => {
   it("刀线神兵写进主角 weaponId", () => {
     const run = createGauntletRun("bandit", "saber");
     const opts = rollSuperRewards(run);
-    expect(opts[0]?.id).toBe("saber-a-5");
+    expect(opts[0]?.id).toBe("god-main");
     expect(applySuperReward(run, opts[0]!).weaponId).toBe("saber-a-5");
     const elixir = applySuperReward(run, opts.find((o) => o.kind === "elixir")!);
     expect(elixir.hpMax).toBe(run.hpMax + 12);
-    expect(elixir.bonusEnergyMax).toBe(1);
+    expect(elixir.bonusEnergyMax).toBe(4);
   });
 
   it("§31.10 伙伴真的进战斗：后场有人、可叫助战、兵器品阶同步主角封顶玄", async () => {
@@ -359,7 +442,7 @@ describe("ROGUE_GRADIENT 淬刃/换页/绝招池", () => {
     expect(marketOffers(after3, () => 0).some((o) => o.kind === "forge")).toBe(true);
   });
 
-  it("换页替换本系架/卸力，永不把进步换成纵步", () => {
+  it("换页替换卸力，本系架不再换成数字复制，永不把进步换成纵步", () => {
     let run = createGauntletRun("bandit", "palm");
     expect(run.deckRecipe).toContain("advance");
     run = applyGauntletReward(run, { kind: "upgrade", id: "advance", title: "换页", tip: "test" });
@@ -369,7 +452,8 @@ describe("ROGUE_GRADIENT 淬刃/换页/绝招池", () => {
     expect(run.deckRecipe).toContain("defend2");
     expect(run.deckRecipe.filter((id) => id === "defend")).toHaveLength(0);
     run = applyGauntletReward(run, { kind: "upgrade", id: "wardPalm", title: "换页", tip: "test" });
-    expect(run.deckRecipe).toContain("wardPalm2");
+    expect(run.deckRecipe).toContain("wardPalm");
+    expect(run.deckRecipe).not.toContain("wardPalm2");
   });
 
   it("7 馆后本系绝招进奖励池，更早没有", () => {
@@ -425,5 +509,22 @@ describe("爬塔 climb：奖励仍出谱，不跟读招规则集", () => {
     const opts = rollGauntletRewards(run, () => 0.1);
     expect(opts).toHaveLength(4);
     expect(opts.some((o) => o.kind === "card")).toBe(true);
+  });
+
+  it("爬塔同伴写牌、分档四选一、三档双心法", () => {
+    let run = { ...createGauntletRun("shaolin", "saber"), stage: 5 }; // 打过第 4 馆后进 T2 里程碑
+    const t2 = rollCompanionChoices(run, () => 0);
+    expect(t2).toHaveLength(4);
+    expect(t2.every((id) => rogueMate(id)?.tier === 2)).toBe(true);
+    run = applyCompanion(run, t2[0]!);
+    expect((run.mateDecks?.[t2[0]!] ?? []).length).toBeGreaterThan(0);
+    expect(run.mateMindArts[t2[0]!]).toHaveLength(1);
+    run = { ...run, stage: 8 }; // 打过第 7 馆后进 T3 里程碑
+    const t3 = rollCompanionChoices(run, () => 0);
+    expect(t3).toHaveLength(4);
+    expect(t3.every((id) => rogueMate(id)?.tier === 3)).toBe(true);
+    run = applyCompanion(run, t3[0]!);
+    expect((run.mateDecks?.[t3[0]!] ?? []).length).toBeGreaterThan(0);
+    expect(run.mateMindArts[t3[0]!]).toHaveLength(2);
   });
 });

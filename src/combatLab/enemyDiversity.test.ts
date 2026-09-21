@@ -8,11 +8,11 @@ import { intentFirePlan } from "../game/labEnemyStress";
 import { applyBreak, breakLootFor, counterHitFoe, emptyV2Turn } from "../game/labV2";
 import { setLabMode, setLabTuning } from "../game/labTuning";
 import { SCHOOL_REACH } from "../game/party";
-import { endTurn, playCard, seizeOpening } from "../game/sim";
+import { endTurn, playCard, seizeOpening, weakenLabOpeningQueue } from "../game/sim";
 import type { Battle, Intent } from "../game/types";
 import { startLabBattle } from "./factory";
 import { buildGauntletPreset, breakRewardCardPool, createGauntletRun } from "./gauntlet";
-import { BREAK_PATH_LADDERS, GAUNTLET_PATH_LABEL, pathLadder } from "./gauntletPaths";
+import { GAUNTLET_PATH_LADDERS, GAUNTLET_PATH_LABEL, pathLadder } from "./gauntletPaths";
 import { setLabRuleset } from "./labRuleset";
 import { saberReachDamage } from "./rogueRoster";
 
@@ -94,11 +94,13 @@ describe("B 三线套件", () => {
     expect(kinds).not.toContain("endure");
   });
 
-  it("馆 3+ 江湖刀会闪、少林棍会霸体", () => {
-    expect(profileFor("mob_road_01", 3).opener.map((i) => i.kind)).toContain("dodge");
-    expect(profileFor("mob_monk_02", 3).opener.map((i) => i.kind)).toContain("endure");
-    expect(profileFor("mob_court_03", 6).opener.map((i) => i.kind)).toContain("dodge");
-    expect(profileFor("mob_monk_04", 3).opener.map((i) => i.kind)).toContain("endure");
+  it("馆 8+ 江湖刀会闪、少林棍会霸体", () => {
+    expect(profileFor("mob_road_01", 8).opener.map((i) => i.kind)).toContain("dodge");
+    expect(profileFor("mob_monk_02", 8).opener.map((i) => i.kind)).toContain("endure");
+    expect(profileFor("mob_court_03", 8).opener.map((i) => i.kind)).toContain("dodge");
+    expect(profileFor("mob_monk_04", 8).opener.map((i) => i.kind)).toContain("endure");
+    expect(profileFor("mob_road_01", 3).opener.map((i) => i.kind)).not.toContain("dodge");
+    expect(profileFor("mob_monk_02", 3).opener.map((i) => i.kind)).not.toContain("endure");
     expect(profileFor("mob_road_01", 3).opener.map((i) => i.kind)).not.toContain("stake");
     expect(profileFor("mob_monk_02", 2).opener.map((i) => i.kind)).toContain("stake");
   });
@@ -144,18 +146,24 @@ describe("D 对线 AI + 撤", () => {
     expect(kinds.includes("retreat") || profileFor("mob_road_01", 3).opener.some((i) => i.kind === "retreat")).toBe(true);
   });
 
-  it("刀后手开局仍出招，且首轮段数削弱", () => {
-    const early = hall("bandit", "saber", 1);
-    expect(early.v2OpeningPaceBehind).toBe(true);
-    expect(early.intents.length).toBeGreaterThan(0);
-    expect(early.intents.some((i) => i.kind !== "guard")).toBe(true);
-    const late = hall("bandit", "saber", 7);
-    expect(late.v2OpeningPaceBehind).toBe(true);
-    expect(late.intents.length).toBeGreaterThan(0);
-    expect(late.intents.length).toBeLessThanOrEqual(2);
-    seizeOpening(early);
-    expect(early.log.some((line) => line.includes("手先到"))).toBe(true);
-    expect(early.intents.length).toBeGreaterThan(0);
+  it("后手开局仍出招，且首轮段数削弱", () => {
+    // 2026-09-09 铁律后梯内敌速 5/6，后手削弱暂无 ladder 敌可触发；直接单测削弱规则本身
+    const b = hall("bandit", "staff", 1);
+    b.foePace = 9;
+    b.intents = [
+      { kind: "strike", damage: 12 },
+      { kind: "strike", damage: 8 },
+      { kind: "guard", block: 6 },
+    ];
+    b.intent = b.intents[0]!;
+    weakenLabOpeningQueue(b);
+    expect(b.v2OpeningWeakened).toBe(true);
+    expect(b.intents.length).toBeGreaterThan(0);
+    expect(b.intents.length).toBeLessThanOrEqual(2);
+    expect(b.intents.some((i) => i.kind !== "guard")).toBe(true);
+    seizeOpening(b);
+    expect(b.log.some((line) => line.includes("手先到"))).toBe(true);
+    expect(b.intents.length).toBeGreaterThan(0);
   });
 
   it("投影后撤步接着的近战够不着时，不排空挥劈砍", () => {
@@ -359,7 +367,7 @@ describe("E 追 + 覆盖律 + 特色招", () => {
 
   it("8–10 轮番兵刃互补", () => {
     for (const path of ["shaolin", "bandit", "court"] as const) {
-      const e8 = BREAK_PATH_LADDERS[path][7]!;
+      const e8 = GAUNTLET_PATH_LADDERS[path][7]!;
       const ids = [e8.enemyId, ...(e8.extraEnemyIds ?? [])];
       const schools = new Set(ids.map((id) => schoolForGeneratedEnemy(id)));
       expect(schools.size).toBeGreaterThanOrEqual(2);

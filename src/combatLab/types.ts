@@ -19,6 +19,8 @@ export interface LabPreset {
   mateWeapons: Partial<Record<CompanionId, string>>;
   /** 外功绑定角色，每人最多 3 门。 */
   mateTechs: Partial<Record<CompanionId, TechniqueId[]>>;
+  /** 外功投喂档 1–3。 */
+  mateTechRanks?: Partial<Record<CompanionId, Partial<Record<TechniqueId, number>>>>;
   /** 心法绑定角色（气血/劲力/回合回复加成）。 */
   mateMinds?: Partial<Record<CompanionId, MindArtId[]>>;
   /** 额外敌人（拆招练习等多敌场景）。 */

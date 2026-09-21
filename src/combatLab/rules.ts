@@ -1,4 +1,6 @@
 import type { CardId, CompanionId, TechniqueId, WeaponId } from "../game/types";
+import { CARDS } from "../game/content";
+import { remapLegacyCardId } from "../game/rogueCards";
 import { cardSchool, WEAPON_NAME } from "../game/party";
 import { isCardAllowedForWeapon } from "./cardUi";
 
@@ -52,14 +54,24 @@ export function quotaCheck(
 export function expandDeckRecipe(recipe: CardId[], mult: number): CardId[] {
   const k = Math.max(LAB_DECK_MULT_MIN, Math.min(LAB_DECK_MULT_MAX, Math.round(mult)));
   const out: CardId[] = [];
-  for (const id of recipe) {
+  for (const raw of recipe) {
+    const id = remapLegacyCardId(raw);
+    if (!CARDS[id]) continue;
     for (let i = 0; i < k; i++) out.push(id);
   }
   return out;
 }
 
 export function uniqueRecipe(deck: CardId[]): CardId[] {
-  return [...new Set(deck)].slice(0, LAB_DECK_TYPE_CAP);
+  const seen = new Set<CardId>();
+  const out: CardId[] = [];
+  for (const raw of deck) {
+    const id = remapLegacyCardId(raw);
+    if (!CARDS[id] || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out.slice(0, LAB_DECK_TYPE_CAP);
 }
 
 export function tryAddToRecipe(

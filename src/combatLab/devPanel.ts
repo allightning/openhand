@@ -3,7 +3,6 @@ import { CARDS, ENEMIES, TECHNIQUES } from "../game/content";
 import {
   ENEMY_GEAR_GRADE_LABEL,
   enemyGear,
-  enemyGradeForStage,
   enemyStrikeAtDist,
   type EnemyGearGrade,
 } from "../game/enemyGear";
@@ -96,9 +95,10 @@ function renderCombatTab(): string {
   const peak = peakPotAnchor(devStage);
   const revive = reviveCost(devStage);
   const breakMode = isBreakAlign();
-  const final = getGauntletFinalStage();
+  const runRef = undefined; // dev panel 无 run 上下文，默认仍读 GAUNTLET_FINAL_STAGE=10
+  const final = getGauntletFinalStage(runRef);
   const modeBanner = breakMode
-    ? `<p class="lab-dev-mode-banner break">当前 <b>肉鸽踢馆</b> · 10 馆 · 硬拆/让/追/眼生效（不拆也能爬）· 品阶 1–2 精 / 3–6 玄 / 7+ 神</p>`
+    ? `<p class="lab-dev-mode-banner break">当前 <b>行路</b> · 10 馆 · 硬拆/让/追/眼生效（不拆也能走）· 品阶 1–2 精 / 3–6 玄 / 7+ 神</p>`
     : `<p class="lab-dev-mode-banner classic">当前 <b>对战版</b> · 15 馆 · <b>无拆招</b>（条上只打/空/跳过）· 品阶 1–4 精 / 5–12 玄 / 13+ 神 · 用来对照拆招</p>`;
   const breakSlider = breakMode
     ? slider("sl-break-dev", "破招窗口（遗留旋钮）", "val-break-dev", t.breakWindow, 0, 100, 5)
@@ -226,7 +226,7 @@ function renderEnemyEditor(): string {
     if (p === "shaolin") return "少林";
     if (p === "jianghu") return "江湖";
     if (p === "court") return "朝廷";
-    return "踢馆";
+    return "行路";
   };
   const options = [
     ...gauntletIds.map((id) => ({
@@ -239,7 +239,7 @@ function renderEnemyEditor(): string {
   const kitId = GAUNTLET_FOE_IDENTITY[pickEnemy] ? pickEnemy : null;
   let kitHtml = "";
   if (kitId) {
-    const profile = profileFor(kitId, Math.max(1, Math.min(devStage, getGauntletFinalStage())), "main", mode);
+    const profile = profileFor(kitId, Math.max(1, Math.min(devStage, getGauntletFinalStage())), "main", mode); // dev panel 无 run，仍用默认 10
     const gear = enemyGear(profile.school, profile.grade);
     const opener = profile.opener.map((i) => i.kind).join(" · ");
     const sigs = profile.sigs.length ? profile.sigs.join(" · ") : "（本馆无）";
@@ -247,7 +247,7 @@ function renderEnemyEditor(): string {
     const d2 = enemyStrikeAtDist(profile.school, profile.grade, 2);
     kitHtml = `
       <div class="lab-dev-section lab-dev-kit">
-        <h4>踢馆套件预览 · 馆 ${devStage}（${mode === "break" ? "拆招" : "对战"}）</h4>
+        <h4>行路套件预览 · 馆 ${devStage}（${mode === "break" ? "拆招" : "对战"}）</h4>
         <p class="lab-dev-base">系 <b>${escapeHtml(WEAPON_NAME[profile.school])}</b> · 品阶 <b>${ENEMY_GEAR_GRADE_LABEL[profile.grade]}</b> · 敌兵刃 <b>${escapeHtml(gear.name)}</b></p>
         <p class="muted">条（opener）：${escapeHtml(opener || "—")}</p>
         <p class="muted">蓝条 ${profile.energy.archive} · 上限 ${profile.energy.max} / 起手 ${profile.energy.start} · 吐纳 ${profile.energy.breathe}</p>
@@ -604,7 +604,9 @@ export function renderDevPanelModal(): string {
       <div class="lab-wiki-panel lab-dev-modal lab-iron-sheet">
         <header class="lab-wiki-head">
           <h2 class="lab-guide-title">实验台 · 数值调参</h2>
-          <button type="button" class="lab-wiki-close" id="lab-dev-close" aria-label="关闭">×</button>
+          <div class="lab-wiki-head-tools">
+            <button type="button" class="lab-wiki-close" id="lab-dev-close" data-sfx="ui-click" aria-label="关闭">×</button>
+          </div>
         </header>
         ${renderGauntletDevPanel()}
       </div>

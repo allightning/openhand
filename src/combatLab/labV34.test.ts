@@ -83,10 +83,10 @@ describe("§31.19 分系外功", () => {
 describe("§31.18 心法接线", () => {
   it("心法气血上限进 preset（场上角色）", () => {
     const run = createGauntletRun("bandit", "palm");
-    run.mateMindArts = { baimenghe: ["ironBreath", "steadyRoot"] }; // +10 +6
+    run.mateMindArts = { baimenghe: ["ironBreath", "steadyRoot"] }; // +30 +20
     const base = buildGauntletPreset(createGauntletRun("bandit", "palm"));
     const withMind = buildGauntletPreset(run);
-    expect(withMind.hpMax).toBe((base.hpMax ?? 0) + 16);
+    expect(withMind.hpMax).toBe((base.hpMax ?? 0) + 50);
   });
 
   it("心法劲力上限/回劲进战斗", () => {
@@ -94,8 +94,8 @@ describe("§31.18 心法接线", () => {
     run.mateMindArts = { watch: ["calmSea"] }; // energyMax+1, turnEnergy+1
     const plain = startLabBattle(buildGauntletPreset(createGauntletRun("bandit", "saber")), true, 1);
     const minded = startLabBattle(buildGauntletPreset(run), true, 1);
-    expect(minded.energyMax).toBe(plain.energyMax + 1);
-    expect(minded.energyRegen).toBe(plain.energyRegen + 1);
+    expect(minded.energyMax).toBe(plain.energyMax + 4);
+    expect(minded.energyRegen).toBe(plain.energyRegen + 2);
   });
 
   it("收势时按在场角色心法回血", () => {
@@ -109,8 +109,8 @@ describe("§31.18 心法接线", () => {
 
   it("心法加总是确定性数值", () => {
     const sum = sumMindArtBonuses(["ironBreath", "calmSea"]);
-    expect(sum.hpMax).toBe(10);
-    expect(sum.energyMax).toBe(1);
-    expect(sum.turnEnergy).toBe(1);
+    expect(sum.hpMax).toBe(30);
+    expect(sum.energyMax).toBe(4);
+    expect(sum.turnEnergy).toBe(2);
   });
 });

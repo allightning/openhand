@@ -22,6 +22,8 @@ describe("营地停留 / 黑市刷新 / 立绘", () => {
       0,
     );
     expect(html).toContain("gauntlet-camp-continue");
+    expect(html).toContain("gauntlet-camp-body");
+    expect(html).toContain("gauntlet-camp-story");
     expect(html).toContain("路程小本");
     expect(html).toContain("州桥酒楼");
     expect(html).toMatch(/id="gauntlet-camp-continue"[^>]*disabled/);
@@ -40,18 +42,19 @@ describe("营地停留 / 黑市刷新 / 立绘", () => {
     const html = renderGauntletRewardPick(
       run,
       [],
-      [{ id: "heal", kind: "heal", price: 12, title: "金创药", tip: "当场回 8 血（战后回血同方）。" }],
+      [{ id: "heal", kind: "heal", price: 12, title: "金创药", tip: "现在回 8 点血。这馆打完再回 8 点。" }],
       new Set(),
       2,
     );
     expect(html).toContain('data-market-id="heal"');
     expect(html).toContain('class="card');
     expect(html).toContain("金创药");
-    expect(html).toContain("当场回 8 血");
+    expect(html).toContain("现在回 8 点血");
     expect(html).toContain("12 彩金");
     expect(html).toContain("card-art");
     expect(html).not.toContain("gauntlet-kind-svg");
     expect(html).toContain("刷新货架");
+    expect(html).toMatch(/gauntlet-camp-foot[\s\S]*id="gauntlet-market-refresh"/);
     expect(html).not.toMatch(/id="gauntlet-camp-continue"[^>]*disabled/);
   });
 
@@ -63,7 +66,7 @@ describe("营地停留 / 黑市刷新 / 立绘", () => {
     expect(html).toContain("温掌");
   });
 
-  it("配装屏用水墨牌和立绘；仓库在底栏横排", () => {
+  it("配装屏：谱/外功/心法/武器并列，行囊在底栏，角色在左栏", () => {
     setLabRuleset("break");
     let run = createGauntletRun("bandit", "saber");
     run = applyCompanion(run, "baimenghe");
@@ -79,9 +82,29 @@ describe("营地停留 / 黑市刷新 / 立绘", () => {
     expect(html).toContain('class="card');
     expect(html).toContain("card-art");
     expect(html).toContain("data-equip-idx");
-    expect(html).toContain("data-sell-idx");
+    expect(html).toContain("gauntlet-stash-sell");
+    expect(html).toContain("gauntlet-stash-craft");
+    expect(html).toContain("换页");
     expect(html).toMatch(/gauntlet-loadout-main[\s\S]*gauntlet-loadout-stash/);
-    expect(html).not.toMatch(/装上 /);
+    expect(html).toContain("gauntlet-loadout-mate is-empty");
+    expect(html).toContain("data-loadout-page");
+    expect(html).toContain('data-loadout-page="deck"');
+    expect(html).toContain('data-loadout-page="tech"');
+    expect(html).toContain('data-loadout-page="mind"');
+    expect(html).toContain('data-loadout-page="weapon"');
+    expect(html).not.toContain("gauntlet-loadout-portrait");
+    expect(html).not.toContain("配装 ·");
+    expect(html).not.toMatch(/<h3>行囊<\/h3>/);
+    expect(html).toMatch(/id="gauntlet-loadout-back"[\s\S]*gauntlet-loadout-stash/);
+    expect(html).toContain('data-sfx="ui-click"');
+    const tech = renderGauntletLoadout(run, undefined, "tech");
+    expect(tech).toContain("叠功");
+    const mind = renderGauntletLoadout(run, undefined, "mind");
+    expect(mind).toMatch(/合成/);
+    expect(mind).toMatch(/id="gauntlet-stash-craft"[^>]*disabled/);
+    const weapon = renderGauntletLoadout(run, undefined, "weapon");
+    expect(weapon).toContain("淬刃");
+    expect(weapon).toContain("gauntlet-loadout-weapon");
   });
 
   it("告捷结清写在笺头里，不飘在底图上", () => {

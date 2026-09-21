@@ -1,5 +1,5 @@
 import { CARDS, intentShortName } from "./content";
-import { isLabV2, getLabTuning } from "./labTuning";
+import { isLabMode, isLabV2, getLabTuning } from "./labTuning";
 import { VARIANT_BREAK_THRESHOLD } from "./labV2Constants";
 import { initLabV21Battle, refreshBreakPromised } from "./labV21";
 import { planBreaks, queuedThreatCells } from "./intentWeakness";
@@ -72,12 +72,13 @@ export function simV2AfterEndTurnSetup(b: Battle): void {
 
 export function simV2StrikeDamage(b: Battle, base: number): number {
   if (!isLabV2()) return base;
-  let dmg = base + b.nextDamage + b.mark;
-  if (b.expose > 0) {
+  let dmg = base + b.nextDamage;
+  if (b.expose > 0 && !(isLabMode() && !isBreakAlign())) {
     dmg += 4;
     b.expose -= 1;
   }
-  if (b.youSway > 0) dmg = Math.max(1, dmg - 2);
+  if (b.youSway > 0 || (b.youUnseat ?? 0) > 0) dmg = Math.max(1, dmg - 2);
+  if ((b.foeSway ?? 0) > 0 || (b.foeUnseat ?? 0) > 0) dmg += 3;
   // §31.13 v4 失衡：招眼被破后的处决窗（×1.5 → ×2）
   if ((b.v2OffBalance ?? 0) > 0) dmg = Math.ceil(dmg * OFFBALANCE_MULT);
   return dmg;
@@ -172,22 +173,56 @@ export function simV2EntranceBonus(b: Battle, base: number, isAttack: boolean): 
   return isLabV2() ? v2StrikeBonus(b, base, isAttack) : base;
 }
 
+function climbOneIntentPace(): boolean {
+  return false;
+}
+
+function isApproachIntent(intent: Intent): boolean {
+  return (
+    intent.kind === "lunge" ||
+    intent.kind === "charge" ||
+    intent.kind === "pull" ||
+    intent.kind === "swap" ||
+    intent.kind === "advance"
+  );
+}
+
+function climbRiderIntent(intent: Intent): boolean {
+  return (
+    intent.kind === "guard" ||
+    intent.kind === "mend" ||
+    intent.kind === "breathe" ||
+    intent.kind === "stake" ||
+    intent.kind === "windup" ||
+    intent.kind === "endure" ||
+    intent.kind === "dodge"
+  );
+}
+
 export function simV2ResolveIntentQueue(b: Battle, resolveOne: (intent: Intent, index: number) => void): void {
   b.labFoeTurnPlayerHit = false;
   b.labFoeTurnAssistHit = false;
   const queue = b.intents.length ? [...b.intents] : [b.intent];
   const projected = queuedThreatCells(b, queue);
   const breakMode = isBreakAlign();
+  const climbPace = climbOneIntentPace();
   // §31.8 v3：破招计划一次算清（预览=结算），硬拆耗充能、软拆半效。经典只算打/空/跳过。
   const plan = breakMode ? planBreaks(b, queue, "resolve") : new Map<number, "hard" | "graze">();
   const eyeIdx = breakMode ? (b.v2EyeIdx ?? -1) : -1;
   let collapsed = false;
   const recap: { ord: number; name: string; outcome: string; hpLost?: number; blockLost?: number }[] = [];
+  const leftover: Intent[] = [];
+  let consumed = 0;
+  const startPos = b.v2Turn?.turnStartPos ?? b.player.pos;
   for (let i = 0; i < queue.length; i++) {
     if (b.phase !== "player") break;
     const live = (b.foes ?? [b.enemy]).filter((f) => f.hp > 0);
     if (live.length === 0) break;
     const intent = queue[i]!;
+    if (climbPace && consumed >= 1) {
+      leftover.push(intent);
+      continue;
+    }
     b.v2ResolveIntentIdx = i;
     b.intent = intent;
     const name = intentShortName(intent);
@@ -206,6 +241,14 @@ export function simV2ResolveIntentQueue(b: Battle, resolveOne: (intent: Intent, 
       b.log.push(`【套路散】${intent.kind} 跟着招眼一起散了`);
       b.journal.push({ side: "you", text: "散！" });
       recapSeg("散");
+      if (climbPace && !climbRiderIntent(intent)) consumed += 1;
+      continue;
+    }
+    const dmg0 = "damage" in intent ? (intent.damage ?? 0) : 0;
+    const cells = projected[i] ?? [];
+    if (climbPace && !isApproachIntent(intent) && dmg0 > 0 && !cells.includes(startPos)) {
+      recapSeg("空");
+      consumed += 1;
       continue;
     }
     // §31.11 眩晕：跳过攻击段（棍连击/拳震壁/助战施加）。多敌人时眩晕只影响主敌队列。
@@ -214,13 +257,15 @@ export function simV2ResolveIntentQueue(b: Battle, resolveOne: (intent: Intent, 
       b.log.push(`【眩晕】${intent.kind} 段被打懵，没出出来`);
       b.journal.push({ side: "you", text: "他晕了——这段空了" });
       recapSeg("晕");
+      if (climbPace) consumed += 1;
       continue;
     }
     if (b.enemyEnergy < intentEnergyCost(intent)) {
       pushFx(b, "skip");
-      b.log.push(`【劲尽】${intent.kind} 没劲，跳过`);
+      b.log.push(`【劲尽】${intent.kind} 没劲，出不了`);
       b.journal.push({ side: "you", text: "劲尽" });
       recapSeg("劲尽");
+      if (climbPace && !climbRiderIntent(intent)) consumed += 1;
       continue;
     }
     if (breakMode && intent.kind === "bleedcut") {
@@ -277,8 +322,6 @@ export function simV2ResolveIntentQueue(b: Battle, resolveOne: (intent: Intent, 
     }
     resolveOne(intent, i);
     const dmg = "damage" in intent ? (intent.damage ?? 0) : 0;
-    const startPos = b.v2Turn?.turnStartPos ?? b.player.pos;
-    const cells = projected[i] ?? [];
     const outcome =
       intent.kind === "guard"
         ? "架"
@@ -320,6 +363,11 @@ export function simV2ResolveIntentQueue(b: Battle, resolveOne: (intent: Intent, 
     if (outcome === "打") pushFx(b, "hit");
     if (outcome === "空") pushFx(b, "miss");
     recapSeg(outcome);
+    if (climbPace && !climbRiderIntent(intent)) consumed += 1;
+  }
+  if (climbPace) {
+    b.intents = leftover;
+    b.intent = leftover[0] ?? b.intent;
   }
   b.v2LastIntentRecap = recap;
   syncDoubleHitTelemetry(b);

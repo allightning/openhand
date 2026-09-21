@@ -27,6 +27,16 @@ import {
 } from "./breakDemo";
 import type { LabPreset } from "./types";
 import { normalizePreset } from "./draft";
+import {
+  CAMPAIGN_STAGES,
+  campaignStage,
+  createBreakCampaignRun,
+  createQiFightFromStage,
+  syncCampaignLesson,
+  type BreakCampaignRun,
+  type CampaignStageId,
+} from "./breakCampaign";
+import { createQiFight, STARTER_DECK, type QiFight } from "./qiCommit";
 
 export type HallCabinet = "break" | "weapon" | "camp";
 export type HallBout = 1 | 2;
@@ -65,6 +75,8 @@ export interface HallCourse {
   eyeIdx?: number;
   drillCoach: string;
   drillHp: number;
+  /** 自我修行：气力承诺关。兵器/营地柜不要设。 */
+  qiStage?: CampaignStageId;
 }
 
 function play(ids: CardId[], banner: string, coach: string): DemoLessonStep {
@@ -73,7 +85,7 @@ function play(ids: CardId[], banner: string, coach: string): DemoLessonStep {
 function end(banner: string, coach: string, foeDebrief?: DemoFoeDebrief): DemoLessonStep {
   return { kind: "end", allowCardIds: [], teachBanner: banner, coach, foeDebrief };
 }
-function swapStep(banner: string, coach: string): DemoLessonStep {
+export function swapStep(banner: string, coach: string): DemoLessonStep {
   return { kind: "swap", allowCardIds: [], teachBanner: banner, coach };
 }
 
@@ -94,38 +106,16 @@ function schoolGuide(school: WeaponId): DemoLessonStep[] {
   const move: CardId = school === "palm" ? "backpalm" : "retreat";
   const moveName = school === "palm" ? "退步掌" : "撤步";
   return [
-    play([move], "离开红格", `你踩在他的落点（红格）上。打「${moveName}」离开：离格 + 攒 1 点破招充能。`),
-    end("收势硬拆", "点「收势」：红格外 + 充能 = 硬拆。他的招作废，你拿拆势。", {
+    play([move], "离开红格", `你踩在红格上。打「${moveName}」走出去，攒 1 点破招。`),
+    end("收势硬拆", "点「收势」：人在红格外、有破招 = 硬拆。这一招作废，你得拆势。", {
       title: "拆势在下一刀",
-      body: "拆势挂在攻击牌上（看描边）。走进兵刃圈打出，才兑现真伤。",
+      body: "拆势挂在攻击牌上。走进兵刃圈打出，穿他的架，打真伤。",
     }),
-    play(["advance"], "上前", `打「进步」走进攻击距离——这系兵刃打 ${range} 格，够不着就是打空。`),
-    play([fin.id], "打出拆势", `打「${fin.name}」——拆势在这一击兑现成真伤。`),
-    end("收势结束", "点「收势」。他重新亮招，你回劲抽牌。"),
+    play(["advance"], "上前", `打「进步」走进攻击距离。这系兵刃打 ${range} 格，够不着打空。`),
+    play([fin.id], "打出拆势", `打「${fin.name}」。拆势在这一击兑现成真伤。`),
+    end("收势结束", "点「收势」。他按条再出手。你回满劲，再摸牌。"),
   ];
 }
-
-const CHAIN_LESSONS: DemoLessonStep[] = [
-  play(["retreat"], "第一段", "他连打两段。打「撤步」攒第 1 点充能——每段硬拆各耗 1 点。"),
-  play(["retreat"], "第二段", "再打「撤步」攒第 2 点充能。两点在手，两段都能硬拆。"),
-  end("连环拆", "点「收势」。两段都硬拆 = 拆势叠两层，还额外得势。", {
-    title: "连环拆",
-    body: "同回合第 2 段硬拆再叠一层拆势。拆势挂在攻击牌上，打一刀吃一层。",
-  }),
-  play(["advance2"], "上前", "退得太远，一步不够——打「纵步」（前进 2 格）大步上前。"),
-  play(["cut"], "第一刀", "打「斩」吃一层拆势。还剩一层，下一刀接着吃。"),
-  end("收势结束", "点「收势」。没吃完的拆势留到下回合。"),
-];
-
-const CHASE_LESSONS: DemoLessonStep[] = [
-  play(["advance"], "追上", "他要撤。打「进步」朝他靠近——收势时比开局更近 = 追。"),
-  end("追", "点「收势」。追上了：他仍撤走，你拿拆势。没进步 = 放，不算拆。", {
-    title: "追 = 拆「撤」",
-    body: "朝他的位移（进步/纵步/逼近）且更近 = 追。算硬拆、得拆势。他照样撤。",
-  }),
-  play(["cut"], "收官", "人还在刀距。打「斩」兑现拆势。"),
-  end("收势结束", "点「收势」。江湖刀敌爱撤——开踢里常碰到。"),
-];
 
 const REACH_LESSONS: DemoLessonStep[] = [
   play(["advance"], "走近", "兵刃有圈：刀 2 格、拳 1 格、枪棍 3 格。他够不着你——打「进步」走进刀距。"),
@@ -134,28 +124,65 @@ const REACH_LESSONS: DemoLessonStep[] = [
 ];
 
 export const HALL_COURSES: HallCourse[] = [
-  { id: "hard", cabinet: "break", title: "硬破与破势", blurb: "走开硬破，下一刀打出真伤。", school: "saber", demoStage: 1, drillCoach: "流程：位移出红格 → 收势硬破 → 攻击牌兑现破势。自己打一遍。", drillHp: 22 },
-  { id: "charges", cabinet: "break", title: "充能", blurb: "1 点充能只能硬破 1 段。", school: "saber", demoStage: 2, drillCoach: "两段招要两点充能（两张位移）。不够的话，没破的那段照打你。", drillHp: 24 },
-  { id: "graze", cabinet: "break", title: "让", blurb: "红格里堆挡 = 半伤，没有破势。", school: "saber", demoStage: 3, drillCoach: "红格里堆格挡 = 让（半伤保命）；走开 + 充能 = 硬破（拿破势）。自己选。", drillHp: 22 },
-  { id: "rift", cabinet: "break", title: "破架", blurb: "架势要用破架牌拆。", school: "saber", demoStage: 4, drillCoach: "架势走不开也挡不住。先开缝再收势，角标「将破」才是硬拆。", drillHp: 22 },
-  { id: "eye", cabinet: "break", title: "破眼", blurb: "硬拆眼段，后招散、拆势加力。", school: "saber", demoStage: 5, drillCoach: "眼是连招要害（标在第 1 段）。硬拆它：后招全散、他失衡（承伤 ×2）。", drillHp: 24 },
-  { id: "chase", cabinet: "break", title: "追", blurb: "他撤你进：进步缩短距离 = 追。", school: "saber", lessons: CHASE_LESSONS, intents: [{ kind: "retreat", steps: 1 }], drillCoach: "他撤。打进步/纵步朝他靠近再收势 = 追。没追 = 放。", drillHp: 20 },
-  { id: "chain", cabinet: "break", title: "连环拆", blurb: "同回合两段硬拆，两层拆势。", school: "saber", lessons: CHAIN_LESSONS, intents: [{ kind: "strike", damage: 8 }, { kind: "strike", damage: 8 }], drillCoach: "两张位移攒两点充能，两段都硬拆。拆势叠两层，打一刀吃一层。", drillHp: 24 },
-  { id: "reach", cabinet: "break", title: "兵刃圈", blurb: "够不着是打空，走进距离才能打。", school: "saber", lessons: REACH_LESSONS, intents: [{ kind: "strike", damage: 9 }], drillCoach: "刀 2 格、拳 1 格、枪棍 3 格。先进圈再出刀。敌刀平砍 1–2，你刀距 2 伤低。", drillHp: 20 },
-  { id: "saber", cabinet: "weapon", title: "刀", blurb: "拆势打出：贴身裂创。", school: "saber", lessons: schoolGuide("saber"), drillCoach: "刀距 2。拆完自己打出拆势；贴身那刀更重、还叠裂创。玩家刀 10/4 叠创，敌刀平砍。", drillHp: 22 },
-  { id: "palm", cabinet: "weapon", title: "拳", blurb: "拆势打出：击退。", school: "palm", lessons: schoolGuide("palm"), drillCoach: "拳距 1，贴身才够得着。拆势那一掌会把他击退。", drillHp: 22 },
-  { id: "sword", cabinet: "weapon", title: "剑", blurb: "拆势打出：破绽。", school: "sword", lessons: schoolGuide("sword"), drillCoach: "剑距 2。拆势那一刺叠破绽，后续更痛。", drillHp: 22 },
-  { id: "spear", cabinet: "weapon", title: "枪", blurb: "拆势打出：远打加力。", school: "spear", lessons: schoolGuide("spear"), drillCoach: "枪距 3。隔开打也有拆势，远一寸力一分。", drillHp: 22 },
-  { id: "staff", cabinet: "weapon", title: "棍", blurb: "拆势打出：眩晕。", school: "staff", lessons: schoolGuide("staff"), drillCoach: "棍距 3。拆势可晕他一段——晕住的段打不出来。", drillHp: 22 },
-  { id: "hook", cabinet: "weapon", title: "钩", blurb: "拆势打出：缴械。", school: "hook", lessons: schoolGuide("hook"), drillCoach: "钩距 2。拆势缴他的兵：缴械期他攻击减半。", drillHp: 22 },
-  { id: "swap", cabinet: "weapon", title: "换人", blurb: "换兵器上场，规则不变。", school: "saber", demoStage: 6, companion: DEMO_FIST_MATE, drillCoach: "换人 1 劲。拳已在队：拳距 1 格，贴身打。", drillHp: 24 },
-  { id: "camp-shop", cabinet: "camp", title: "营地与黑市", blurb: "免费奖励、黑市刷新、半价卖掉。", school: "saber", lessons: REACH_LESSONS, intents: [{ kind: "strike", damage: 8 }], drillCoach: "不下注大约只够买一件最便宜的。稳吃 ×2 能买两件。刷新会越来越贵，用来花掉闲钱。多的牌半价卖。", drillHp: 22 },
-  { id: "camp-loadout", cabinet: "camp", title: "配装", blurb: "每人牌包有上下限，不合规不能开打。", school: "saber", lessons: REACH_LESSONS, intents: [{ kind: "strike", damage: 8 }], drillCoach: "馆 1–2：牌 8～10，助战/道具各 1。3–7：10～12 / 各 2。8–10：12～15 / 各 3。仓库里的不占出战。", drillHp: 22 },
-  { id: "camp-wager", cabinet: "camp", title: "读盘口", blurb: "开打扣注额；飞了抽 10% 出血、底彩不发。", school: "saber", lessons: REACH_LESSONS, intents: [{ kind: "strike", damage: 8 }], drillCoach: "盘口跟你的兵刃和敌人走。枪少开不贴身。连破/破眼是高手加成不是过关门槛。复活赛不能下注。", drillHp: 22 },
+  { id: "hard", cabinet: "break", title: "拆·点", blurb: "气力承诺。刺用拆·点。硬拆还 1 气。", school: "saber", qiStage: "R1", drillCoach: "拆·点点刺再收势。克错白扣气。", drillHp: 12 },
+  { id: "charges", cabinet: "break", title: "连拆返气", blurb: "净花 1 拆一段。先拆还气，再拆下一段。", school: "saber", qiStage: "R2", drillCoach: "拆费 2 还 1。两段都硬拆。", drillHp: 12 },
+  { id: "graze", cabinet: "break", title: "出红格", blurb: "离开红格来招打空，算躲。攻牌断蓄。", school: "saber", qiStage: "R3", drillCoach: "撤步离开红格，攻牌点蓄力。", drillHp: 16 },
+  { id: "rift", cabinet: "break", title: "墨痕", blurb: "硬拆留格。他再打这格自动破。", school: "saber", qiStage: "R4", drillCoach: "第一拍硬拆留墨，第二拍收势白赚。", drillHp: 12 },
+  { id: "eye", cabinet: "break", title: "起手式", blurb: "后段半隐。刀平=刺。信起手或盯梢。", school: "saber", qiStage: "R5", drillCoach: "刀尖平指是刺。拆·点点后段。", drillHp: 12 },
+  { id: "chase", cabinet: "break", title: "过·存气", blurb: "点过存 1 气。打空算躲。", school: "saber", qiStage: "R6", drillCoach: "第一拍过。第二拍拆刺并断蓄。", drillHp: 16 },
+  { id: "chain", cabinet: "break", title: "闪", blurb: "闪须站红格。打空是躲，不是闪牌。", school: "saber", qiStage: "R7", drillCoach: "退步·闪点刺段。架会擦到，算打。", drillHp: 12 },
+  { id: "reach", cabinet: "break", title: "分格", blurb: "先拆留墨，再走进另一格闪。", school: "saber", qiStage: "R8", drillCoach: "第一拍拆刺。第二拍进步，闪扫。", drillHp: 16 },
+  { id: "saber", cabinet: "weapon", title: "刀", blurb: "拆势打出：贴身叠裂创。", school: "saber", lessons: schoolGuide("saber"), drillCoach: "刀距 2。拆完打出拆势。贴脸 10 伤叠裂创，距 2 打 4。", drillHp: 22 },
+  { id: "palm", cabinet: "weapon", title: "拳", blurb: "拆势打出：击退。", school: "palm", lessons: schoolGuide("palm"), drillCoach: "拳距 1，贴身才打得到。拆势那一掌击退他。", drillHp: 22 },
+  { id: "sword", cabinet: "weapon", title: "剑", blurb: "拆势打出：叠破绽。", school: "sword", lessons: schoolGuide("sword"), drillCoach: "剑距 2。拆势那一刺叠破绽，后面每层 +4 伤。", drillHp: 22 },
+  { id: "spear", cabinet: "weapon", title: "枪", blurb: "拆势打出：远打加力。", school: "spear", lessons: schoolGuide("spear"), drillCoach: "枪距 3。隔开打也有拆势。", drillHp: 22 },
+  { id: "staff", cabinet: "weapon", title: "棍", blurb: "拆势打出：眩晕。", school: "staff", lessons: schoolGuide("staff"), drillCoach: "棍距 3。拆势可晕他 1 段。晕住的段打不出来。", drillHp: 22 },
+  { id: "hook", cabinet: "weapon", title: "钩", blurb: "拆势打出：缴械。", school: "hook", lessons: schoolGuide("hook"), drillCoach: "钩距 2。拆势缴械：期间他攻击减半。", drillHp: 22 },
+  { id: "swap", cabinet: "weapon", title: "换人", blurb: "换兵器上场。规则不变。", school: "saber", demoStage: 6, companion: DEMO_FIST_MATE, drillCoach: "换人耗 1 劲。拳距 1 格，贴身打。", drillHp: 24 },
+  { id: "camp-shop", cabinet: "camp", title: "营地与黑市", blurb: "免费奖励。黑市刷新。多的牌半价卖。", school: "saber", lessons: REACH_LESSONS, intents: [{ kind: "strike", damage: 8 }], drillCoach: "不下注大概够买 1 件最便宜的。稳吃 ×2 能买 2 件。刷新越来越贵。多的牌半价卖。有的遭遇会跳过这一摊黑市。", drillHp: 22 },
+  { id: "camp-loadout", cabinet: "camp", title: "配装", blurb: "每人牌包有上下限。不合规不能开打。", school: "saber", lessons: REACH_LESSONS, intents: [{ kind: "strike", damage: 8 }], drillCoach: "馆 1–2：牌 8～10，助战/道具各 1。3–7：10～12 / 各 2。8–10：12～15 / 各 3。仓库不占出战。", drillHp: 22 },
+  { id: "camp-wager", cabinet: "camp", title: "读盘口", blurb: "开打扣注额。输了抽 10% 出血，底彩不发。", school: "saber", lessons: REACH_LESSONS, intents: [{ kind: "strike", damage: 8 }], drillCoach: "盘口跟你的兵刃和敌人走。枪少开「不贴身」。连破/破眼是高手加成，不是过关门槛。复活赛不能下注。", drillHp: 22 },
 ];
 
 export function hallCourse(id: string): HallCourse | undefined {
   return HALL_COURSES.find((c) => c.id === id);
+}
+
+export function hallUsesQiCommit(courseId: string): boolean {
+  return hallCourse(courseId)?.qiStage != null;
+}
+
+export function hallCampaignShell(run: HallRun): BreakCampaignRun | null {
+  const id = hallCourse(run.courseId)?.qiStage;
+  if (!id) return null;
+  const idx = CAMPAIGN_STAGES.findIndex((s) => s.id === id);
+  return syncCampaignLesson({
+    ...createBreakCampaignRun(),
+    stageIndex: idx,
+    stageId: id,
+    hp: run.hp,
+    hpMax: run.hpMax,
+  });
+}
+
+export function hallQiFight(run: HallRun): QiFight {
+  const stage = campaignStage(hallCourse(run.courseId)!.qiStage!)!;
+  if (run.bout === 1) return createQiFightFromStage(stage);
+  return createQiFight({
+    playerHp: stage.playerHp,
+    enemyHp: stage.enemyHp,
+    playerStance: stage.playerHp,
+    enemyStance: stage.enemyHp,
+    playerPos: stage.playerPos,
+    enemyPos: stage.enemyPos,
+    queue: stage.qiQueue,
+    nextQueue: stage.qiNextQueue,
+    qi: stage.energy,
+    loopQueue: true,
+    hideFrom: stage.hideFrom,
+    allowFeint: stage.id === "R5" || stage.id === "RB",
+    deck: [...STARTER_DECK],
+  });
 }
 
 export function hallCoursesIn(cabinet: HallCabinet): HallCourse[] {
@@ -166,7 +193,7 @@ export interface HallRun {
   courseId: HallCourseId;
   bout: HallBout;
   lessonStep: number;
-  guideCardIds: CardId[];
+  guideCardIds: string[];
   guideCoach: string;
   teachBanner: string;
   companion: CompanionId | null;
@@ -174,6 +201,7 @@ export interface HallRun {
   foeDebrief: DemoFoeDebrief | null;
   hp: number;
   hpMax: number;
+  qiTick: BreakCampaignRun | null;
 }
 
 export function hallIsGuided(run: HallRun): boolean {
@@ -203,6 +231,16 @@ export function currentHallLesson(run: HallRun): DemoLessonStep | null {
 }
 
 export function syncHallLesson(run: HallRun): HallRun {
+  const qi = hallCourse(run.courseId)?.qiStage;
+  if (qi) {
+    const st = campaignStage(qi)!;
+    return {
+      ...run,
+      guideCardIds: run.bout === 1 ? [...st.hand] : [],
+      guideCoach: run.bout === 1 ? `${st.blurb} ${st.teach}` : (hallCourse(run.courseId)?.drillCoach ?? ""),
+      teachBanner: run.bout === 1 ? `自我修行 · ${st.title}` : "训练 · 不锁牌",
+    };
+  }
   if (hallLessonDone(run)) {
     return {
       ...run,
@@ -230,7 +268,7 @@ export function syncHallLesson(run: HallRun): HallRun {
 
 export function createHallRun(courseId: HallCourseId, bout: HallBout): HallRun {
   const c = hallCourse(courseId);
-  return syncHallLesson({
+  const run = syncHallLesson({
     courseId,
     bout,
     lessonStep: 0,
@@ -242,16 +280,24 @@ export function createHallRun(courseId: HallCourseId, bout: HallBout): HallRun {
     foeDebrief: null,
     hp: 48,
     hpMax: 48,
+    qiTick: null,
   });
+  return { ...run, qiTick: hallCampaignShell(run) };
 }
 
-export function hallAllowsCard(run: HallRun, cardId: CardId): boolean {
+export function hallAllowsCard(run: HallRun, cardId: string): boolean {
+  const qi = hallCourse(run.courseId)?.qiStage;
+  if (qi) {
+    if (run.bout === 2) return true;
+    if (run.foeDebrief) return false;
+    return (campaignStage(qi)?.hand as string[]).includes(cardId);
+  }
   if (run.bout === 2) return run.foeDebrief == null;
   if (run.foeDebrief) return false;
   if (hallLessonDone(run)) return true;
   const step = currentHallLesson(run);
   if (!step || step.kind === "end" || step.kind === "swap") return false;
-  return step.allowCardIds.includes(cardId);
+  return step.allowCardIds.includes(cardId as (typeof step.allowCardIds)[number]);
 }
 
 /** 收势常亮：任何教案步都能主动结束回合（软锁兜底）；仅敌方讲解弹窗期间挡。 */
@@ -314,7 +360,7 @@ function asDemo(run: HallRun): BreakDemoRun | null {
   fake.companion = run.companion;
   fake.foeDebrief = run.foeDebrief;
   fake.swapTaught = run.swapTaught;
-  fake.guideCardIds = run.guideCardIds;
+  fake.guideCardIds = run.guideCardIds as BreakDemoRun["guideCardIds"];
   fake.guideCoach = run.guideCoach;
   fake.teachBanner = run.teachBanner;
   fake.hp = run.hp;
@@ -377,7 +423,7 @@ export function applyHallBattle(b: Battle, run: HallRun): Battle {
   Object.assign(run, synced);
   const c = hallCourse(run.courseId);
   const intents = hallIntents(run);
-  if (run.courseId === "reach") {
+  if (run.courseId === "reach" || run.courseId.startsWith("camp-")) {
     b.player.pos = 2;
     b.enemy.pos = 5;
   } else if (run.courseId === "chase") {

@@ -94,7 +94,8 @@ describe("水墨资产接入", () => {
   it("战场恢复码头背景图（水墨画框方案已回退）", () => {
     const html = battleHtml(saberBattle());
     expect(html).toContain("background-image");
-    expect(html).not.toContain('id="preview-slot"');
+    // 预演条已恢复：悬停卡牌亮实际效果，无悬停亮态势行
+    expect(html).toContain('id="preview-slot"');
   });
 
   it("素材文件齐备：立绘原图 / 刀光×2 / 音效×4 / 多曲 BGM", () => {

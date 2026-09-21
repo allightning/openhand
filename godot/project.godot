@@ -1,0 +1,23 @@
+; Openhand Combat Lab · 水墨特效练习（独立工程，不接入网页局）
+config_version=5
+
+[application]
+
+config/name="Openhand Ink VFX"
+config/description="Combat Lab 2D 水墨特效练习。未点名接入前不进 combat-lab.html。"
+run/main_scene="res://scenes/00_scene.tscn"
+config/features=PackedStringArray("4.3", "GL Compatibility")
+config/icon="res://icon.svg"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+environment/defaults/default_clear_color=Color(0.101961, 0.0784314, 0.0627451, 1)

@@ -1,6 +1,6 @@
-import { CARDS, ENEMIES, ENEMY_WEAPON, STARTER, enemyEnergyMax, enemyPace, isSparEnemy } from "./content";
+import { ENEMY_WEAPON, STARTER, enemyEnergyMax, enemyPace, intentShortName, isSparEnemy } from "./content";
 import { labCard, labEnemy } from "./labContent";
-import { sumMindArtBonuses } from "./mindArts";
+import { sumMindArtBonuses, MIND_ARTS } from "./mindArts";
 import { MATE_PASSIVE, MATES, SCHOOL_REACH, WEAPON_NAME, WEAPON_PACE, cardSchool, deckFor, isLead } from "./party";
 import { battleEquippedSchool, battleMateGearId } from "./equippedWeapon";
 import {
@@ -33,9 +33,10 @@ import {
   stressMetaAt,
   stressTargetsAssist,
 } from "./labEnemyStress";
-import { chooseFromKit, followFromKit, profileFor, type KitCtx } from "./enemyKit";
+import { chooseFromKit, followFromKit, foeIntentAlias, pickApproach, profileFor, type KitCtx } from "./enemyKit";
 import { SIGNATURE_BREAK, type EnemySigId } from "./enemySignatures";
-import { enemyNickTax, enemyStrikeAtDist } from "./enemyGear";
+import { enemyNickTax } from "./enemyGear";
+import { battleTechRank, techBonus } from "./techRank";
 import {
   simV2AfterEndTurnSetup,
   simV2BeforeEndTurn,
@@ -57,14 +58,14 @@ import {
   simV2StatusQi,
   simV2StrikeDamage,
 } from "./simV2Hooks";
-import { emptyV2Turn, pushFx, addQi, v2StrikeBonus, breakCounterDamage, grantBreakMomentum, applyBreakMomentumOnAttack } from "./labV2";
+import { emptyV2Turn, pushFx, addQi, v2StrikeBonus, grantBreakMomentum, applyBreakMomentumOnAttack } from "./labV2";
 import { registerBreakLootApplier } from "./breakLootBus";
 import { BREAK_COUNTER_CHAIN } from "./labV2Constants";
 import { MOVE_CARD_IDS, planEyeIdx, registerThreatProvider, registerQueueThreatProvider } from "./intentWeakness";
 import { SUMMON_DEFS } from "./labSummon";
 import { addStake, adjacentStakePos, enemyPlantHits, playerPlantHits, removeStake, smashHitsForSchool, smashStake, stakeHitsAt } from "./stake";
 import { isBreakAlign } from "../combatLab/labRuleset";
-import { scaleClimbResource } from "../combatLab/climbEconomy";
+import { climbEnergyStart, climbVitals } from "../combatLab/climbVitals";
 import {
   bleedTickDamage,
   clampHandCap,
@@ -72,7 +73,31 @@ import {
   spearReachDamage,
   saberReachDamage,
   HAND_CAP_DEFAULT,
+  HAND_CAP_HARD_MAX,
 } from "../combatLab/rogueRoster";
+import {
+  CLIMB_BLOCK_CAP,
+  CLIMB_BLEED_CAP,
+  CLIMB_COMBO_CAP,
+  CLIMB_COMBO_REPLAY_COST,
+  CLIMB_ENDURE_CAP,
+  CLIMB_EXPOSE_CAP,
+  CLIMB_LIFESTEAL_PCT,
+  CLIMB_POOL_COPIES,
+  CLIMB_SPEAR_CUT_QI,
+  CLIMB_STAKE_BLAST_DMG,
+  CLIMB_STAKE_BREAK_BLOCK,
+  CLIMB_STUN_N,
+  CLIMB_SWORD_CHAIN_CAP,
+  CLIMB_UNSEAT_PACE,
+  climbCycleCost,
+  climbDustAllowed,
+  climbEnemyPaceBonus,
+  climbOpeningDistance,
+  climbOpeningPositions,
+} from "../combatLab/climbCaps";
+
+export { techBonus, battleTechRank, techRankMul } from "./techRank";
 
 const SPEAR_RULER_CAP = 6;
 
@@ -134,7 +159,7 @@ function spearBreakAttackBase(b: Battle, def: CardDef): number | null {
 }
 
 function saberBreakAttackBase(b: Battle, def: CardDef): number | null {
-  if (!(isLabMode() && isBreakAlign())) return null;
+  if (!isLabMode()) return null;
   if (def.type !== "attack") return null;
   return saberReachDamage(def.id, distTo(b));
 }
@@ -194,6 +219,7 @@ import {
   type StatusChip,
   type TechniqueId,
   type Unit, WeaponId } from "./types";
+import { breakdownDisplay } from "./damageBreakdown";
 import { gearById, pathSkillMods } from "./weapons";
 
 let seq = 0;
@@ -208,6 +234,7 @@ export function applyLabFightScale(): void {
 
 export function syncBattleGear(b: Battle, mateId?: CompanionId): void {
   battleGearId = battleMateGearId(b, mateId ?? b.active);
+  b.labGearId = battleGearId ?? undefined;
 }
 /** Soft cap so AI turtle cannot freeze a fight behind endless 架势. */
 const ENEMY_BLOCK_CAP = 20;
@@ -228,6 +255,11 @@ function intentCost(intent: Intent): number {
 
 function card(defId: CardId): CardInst {
   return { uid: uid(), defId };
+}
+
+/** 开战/换人塞入手牌（光环卡、连携卡）。 */
+export function dealToHand(b: Battle, defId: CardId): void {
+  b.hand.unshift(card(defId));
 }
 
 export function cloneBattle(b: Battle): Battle {
@@ -283,6 +315,180 @@ function foePack(id: EnemyId): Unit[] {
   ];
 }
 
+export function isClimbQi(): boolean {
+  return isLabMode() && !isBreakAlign();
+}
+
+export function climbCardLocked(b: Battle, uid: string): boolean {
+  if (!isClimbQi()) return false;
+  const n = b.youStun ?? 0;
+  if (n <= 0) return false;
+  const idx = b.hand.findIndex((c) => c.uid === uid);
+  return idx >= 0 && idx < n;
+}
+
+function applyYouStun(b: Battle, n = CLIMB_STUN_N): void {
+  if (n <= 0) return;
+  if (isClimbQi()) {
+    if (b.climbPlayerMidDone) b.climbStunDrawTax = (b.climbStunDrawTax ?? 0) + n;
+    else b.youStun = (b.youStun ?? 0) + n;
+    return;
+  }
+  b.youStun = (b.youStun ?? 0) + n;
+}
+
+function clampClimbStatus(b: Battle): void {
+  if (!isClimbQi()) return;
+  b.playerBlock = Math.min(CLIMB_BLOCK_CAP, Math.max(0, b.playerBlock));
+  b.bleed = Math.min(CLIMB_BLEED_CAP, Math.max(0, b.bleed));
+  b.expose = Math.min(CLIMB_EXPOSE_CAP, Math.max(0, b.expose));
+  b.combo = Math.min(CLIMB_COMBO_CAP, Math.max(0, b.combo));
+  b.foeEndure = Math.min(CLIMB_ENDURE_CAP, Math.max(0, b.foeEndure ?? 0));
+  b.v2SwordChain = Math.min(CLIMB_SWORD_CHAIN_CAP, Math.max(0, b.v2SwordChain ?? 0));
+}
+
+/** 爬塔：桩不能放在敌人身后那一格（相对你→他朝向）。 */
+function climbStakeBehindFoe(b: Battle, pos: number): boolean {
+  if (!isClimbQi()) return false;
+  const you = b.player.pos;
+  const foe = (targetFoe(b) ?? b.enemy).pos;
+  if (foe > you) return pos > foe;
+  if (foe < you) return pos < foe;
+  return false;
+}
+
+/** 爬塔钩核：拉近成功才缴械（跳过下一次有伤）。 */
+function climbHookDisarmOnPull(b: Battle, beforeDist: number, notes: string[]): void {
+  if (!isClimbQi()) return;
+  if (battleEquippedSchool(b, b.active) !== "hook") return;
+  if (b.foeSkipCc) return;
+  const after = Math.abs(b.player.pos - (targetFoe(b) ?? b.enemy).pos);
+  if (after >= beforeDist) return;
+  b.foeDisarm = Math.max(b.foeDisarm ?? 0, 1);
+  notes.push("缴械：跳过下一次有伤");
+}
+
+/** 爬塔棍副：我裂桩 → 爆炸伤双方 + 晕 N。 */
+function climbSplitBlast(b: Battle, notes: string[]): void {
+  if (!isClimbQi()) return;
+  const dmg = CLIMB_STAKE_BLAST_DMG;
+  const foe = targetFoe(b) ?? b.enemy;
+  foe.hp -= dmg;
+  b.player.hp = Math.max(1, b.player.hp - dmg);
+  if (!b.foeSkipCc) b.foeStun = (b.foeStun ?? 0) + CLIMB_STUN_N;
+  notes.push(`裂桩爆炸 ${dmg}（双方）·敌晕 ${CLIMB_STUN_N}`);
+  syncFront(b);
+  checkWin(b);
+}
+
+/** 爬塔棍副：敌裂掉你的桩 → 你立刻拿格挡。 */
+function climbEnemyBrokeStake(b: Battle, notes: string[]): void {
+  if (!isClimbQi()) return;
+  b.playerBlock = Math.min(CLIMB_BLOCK_CAP, b.playerBlock + CLIMB_STAKE_BREAK_BLOCK);
+  notes.push(`敌裂桩：格挡 +${CLIMB_STAKE_BREAK_BLOCK}`);
+  clampClimbStatus(b);
+}
+
+function climbRecipeFromPiles(hand: CardInst[], drawPile: CardInst[], discardPile: CardInst[]): CardId[] {
+  const seen = new Set<CardId>();
+  const unique: CardId[] = [];
+  for (const c of [...hand, ...drawPile, ...discardPile]) {
+    if (seen.has(c.defId)) continue;
+    seen.add(c.defId);
+    unique.push(c.defId);
+  }
+  const recipe: CardId[] = [];
+  for (const id of unique) {
+    for (let i = 0; i < CLIMB_POOL_COPIES; i++) recipe.push(id);
+  }
+  const inHand: Partial<Record<CardId, number>> = {};
+  for (const c of hand) inHand[c.defId] = (inHand[c.defId] ?? 0) + 1;
+  const leftover: CardId[] = [];
+  for (const id of recipe) {
+    const n = inHand[id] ?? 0;
+    if (n > 0) {
+      inHand[id] = n - 1;
+      continue;
+    }
+    leftover.push(id);
+  }
+  return leftover;
+}
+
+function drawOneIntoBag(bag: FighterBag, ordered: boolean): boolean {
+  if (bag.drawPile.length === 0) {
+    if (bag.discardPile.length === 0) return false;
+    const recycled = bag.discardPile.splice(0);
+    bag.drawPile = ordered ? recycled : shuffle(recycled);
+  }
+  const drawn = bag.drawPile.shift();
+  if (!drawn) return false;
+  bag.hand.push(drawn);
+  return true;
+}
+
+function rebuildClimbBag(bag: FighterBag, ordered: boolean): void {
+  const leftover = climbRecipeFromPiles(bag.hand, bag.drawPile, bag.discardPile);
+  bag.discardPile = [];
+  bag.drawPile = (ordered ? leftover : shuffle(leftover)).map(card);
+}
+
+function rebuildClimbField(b: Battle): void {
+  const leftover = climbRecipeFromPiles(b.hand, b.drawPile, b.discardPile);
+  b.discardPile = [];
+  b.drawPile = (b.orderedDeal ? leftover : shuffle(leftover)).map(card);
+}
+
+function climbDrawRound(b: Battle, opening: boolean): void {
+  const cap = handCap(b);
+  const D = handRefillAmount(cap);
+  rebuildClimbField(b);
+  if (opening) {
+    b.hand = [];
+    rebuildClimbField(b);
+  }
+  const tax = opening ? 0 : b.climbStunDrawTax ?? 0;
+  b.climbStunDrawTax = 0;
+  const fieldBefore = b.hand.length;
+  const fieldN = Math.max(0, D - tax);
+  for (let i = 0; i < fieldN; i++) {
+    if (b.hand.length >= HAND_CAP_HARD_MAX) break;
+    if (!drawOne(b)) break;
+  }
+  const fieldDrew = b.hand.length - fieldBefore;
+  const benchN = Math.max(0, D - 1);
+  let benchDrew = 0;
+  for (const bag of b.bench) {
+    if (opening) bag.hand = [];
+    rebuildClimbBag(bag, Boolean(b.orderedDeal));
+    const before = bag.hand.length;
+    for (let i = 0; i < benchN; i++) {
+      if (bag.hand.length >= cap) break;
+      if (!drawOneIntoBag(bag, Boolean(b.orderedDeal))) break;
+    }
+    benchDrew += bag.hand.length - before;
+  }
+  const taxNote = tax > 0 ? `，晕少摸 ${tax}` : "";
+  const openTag = opening ? "开局" : "开始";
+  const who = MATES[b.active]?.name ?? "场上";
+  note(b, "you", `【${openTag}】${who}摸 ${fieldDrew} 张${taxNote}（手 ${b.hand.length}/${cap}）。`);
+  if (benchDrew > 0) {
+    note(b, "you", `【${openTag}】后场本轮共摸 ${benchDrew} 张。`);
+  }
+  if ((b.youStun ?? 0) > 0) note(b, "foe", `晕：最左 ${b.youStun} 张锁着。`);
+  if ((b.climbWageDebt ?? 0) > 0) note(b, "foe", `断劲挂账 ${b.climbWageDebt}：他下次回劲先扣这笔。`);
+}
+
+function bindClimbQi(b: Battle, remaining: number): void {
+  const v = climbVitals(b.active);
+  const minds = sumMindArtBonuses(b.labMateMinds?.[b.active] ?? []);
+  const gearQi = pathSkillMods(battleMateGearId(b, b.active)).qiRegen ?? 0;
+  const bonusQi = getLabTuning().playerEnergyBonus;
+  b.energyMax = v.energyMax + minds.energyMax + bonusQi;
+  b.energyRegen = v.energyRegen + minds.turnEnergy + gearQi;
+  b.energy = Math.max(0, Math.min(remaining, b.energyMax));
+}
+
 function parkFighter(b: Battle): FighterBag {
   return {
     id: b.active,
@@ -291,6 +497,7 @@ function parkFighter(b: Battle): FighterBag {
     hand: [...b.hand],
     drawPile: [...b.drawPile],
     discardPile: [...b.discardPile],
+    ...(isClimbQi() ? { energy: b.energy } : {}),
   };
 }
 
@@ -308,6 +515,7 @@ function applyFighter(b: Battle, bag: FighterBag): void {
   b.hand = bag.hand;
   b.drawPile = bag.drawPile;
   b.discardPile = bag.discardPile;
+  if (isClimbQi() && bag.energy != null) bindClimbQi(b, bag.energy);
 }
 
 export function makeBattle(
@@ -323,11 +531,19 @@ export function makeBattle(
   const active = run.active ?? "rail";
   const deck = deal(deckFor(run, active), ordered);
   const foes = foePack(enemyId);
-  const mateHp = (id: CompanionId) =>
-    isLead(run, id) ? run.hp : (run.companionHp[id] ?? MATES[id].hp);
+  const mateHp = (id: CompanionId) => {
+    if (isLabMode() && !isBreakAlign() && id === active) return run.hp;
+    return isLead(run, id) ? run.hp : (run.companionHp[id] ?? MATES[id].hp);
+  };
   const mateMax = (id: CompanionId) => {
     const bonus = run.companionBonus?.[id]?.maxHp ?? 0;
-    return (isLead(run, id) ? run.hpMax : MATES[id].hp) + bonus;
+    if (isLabMode() && !isBreakAlign()) {
+      // 爬塔场上角色：用 run.hpMax（赌坊药 / 心法气血已打进 preset），不要用 isLead（hero 常被落成 rail）。
+      if (id === active) return Math.max(run.hpMax, climbVitals(id).hp) + bonus;
+      return climbVitals(id).hp + bonus;
+    }
+    const body = isLead(run, id) ? run.hpMax : MATES[id].hp;
+    return body + bonus;
   };
   const bench: FighterBag[] = (run.party ?? ["rail"])
     .filter((id) => id !== active)
@@ -340,19 +556,18 @@ export function makeBattle(
         hand: packed.hand,
         drawPile: packed.drawPile,
         discardPile: [],
+        ...(isLabMode() && !isBreakAlign() ? { energy: climbEnergyStart(id) } : {}),
       };
     });
   const energyMax = enemyEnergyMax(enemyId);
   const gearQi = pathSkillMods(battleGearId).qiRegen ?? 0;
   const bonusQi = run.companionBonus?.[active]?.qiMax ?? 0;
-  const climbPool = (n: number) => scaleClimbResource(n, "pool");
-  const climbRegen = (n: number) => scaleClimbResource(n, "regen");
   const battle: Battle = {
     player: {
       id: "you",
       name: MATES[active].name,
       title: MATES[active].title,
-      hp: mateMax(active),
+      hp: Math.min(mateHp(active), mateMax(active)),
       maxHp: mateMax(active),
       pos: STARTER.playerPos,
     },
@@ -360,21 +575,28 @@ export function makeBattle(
     foes,
     enemyId,
       playerBlock: run.techniques.includes("nightStep") && !(isLabMode() && isBreakAlign()) ? 1 : 0,
-      // §31.7 踢馆线劲力收敛：v1 的 10/8/4 在单人高压下等于"无限出牌"，拆招失去取舍。占位 6/5/3（甲方可调）。
-      // §31.9 仙药加成：劲力上限随 playerEnergyBonus 抬高。
-      ...(isLabMode() && getLabTuning().enemySegAll
+      // 读招：小池 6/5/3。爬塔：按角色气血档位，不再 ×8。
+      ...(isLabMode() && isBreakAlign()
         ? {
-            energy: climbRegen(5 + getLabTuning().playerEnergyBonus),
-            energyMax: climbPool(6 + getLabTuning().playerEnergyBonus),
-            energyRegen: climbRegen(3 + gearQi),
+            energy: 5 + getLabTuning().playerEnergyBonus,
+            energyMax: 6 + getLabTuning().playerEnergyBonus,
+            energyRegen: 3 + gearQi,
           }
-        : {
-            energy: climbRegen(
-              Math.min(STARTER.energy + bonusQi, (STARTER.energyStart ?? Math.min(5, STARTER.energy)) + bonusQi),
-            ),
-            energyMax: climbPool(STARTER.energy + bonusQi),
-            energyRegen: climbRegen((STARTER.energyRegen ?? 3) + gearQi),
-          }),
+        : isLabMode()
+          ? (() => {
+              const v = climbVitals(active);
+              const energyMax = v.energyMax + bonusQi + getLabTuning().playerEnergyBonus;
+              return {
+                energy: v.energyStart,
+                energyMax,
+                energyRegen: v.energyRegen + gearQi,
+              };
+            })()
+          : {
+              energy: Math.min(STARTER.energy + bonusQi, (STARTER.energyStart ?? Math.min(5, STARTER.energy)) + bonusQi),
+              energyMax: STARTER.energy + bonusQi,
+              energyRegen: (STARTER.energyRegen ?? 3) + gearQi,
+            }),
     nextDamage: 0,
     stakes: [],
     traps: [],
@@ -431,6 +653,16 @@ export function makeBattle(
     enteredMelee: false,
     youSway: 0,
     youGift: 0,
+    youUnseat: 0,
+    foeSway: 0,
+    foeGift: 0,
+    foeUnseat: 0,
+    foeMovedFwd: false,
+    foeMovedBack: false,
+    foeEnteredMelee: false,
+    foeStrikesThisTurn: 0,
+    youExpose: 0,
+    youStun: 0,
     youRegen: 0,
     youRegenTurns: 0,
     regenClock: 0,
@@ -473,14 +705,18 @@ export function seizeOpening(b: Battle): void {
   weakenLabOpeningQueue(b);
   note(b, "foe", `${b.enemy.name}手先到。`);
   resolveAllIntents(b);
+  if (isClimbQi()) {
+    b.climbEnemyActedThisRound = true;
+    return;
+  }
   if (b.phase !== "player") return;
   rollIntent(b);
   note(b, "foe", `${b.enemy.name}亮招：${labelIntent(b.intent)}${b.intents.length > 1 ? `（后手 ${b.intents.length - 1}）` : ""}`);
 }
 
-/** 后手开局只留至多两段、至多一段伤害，避免先手满套路。 */
+/** 读招开局削弱。爬塔开局与收势同一套完整意图条，不削段、不打折。 */
 export function weakenLabOpeningQueue(b: Battle): void {
-  if (!isLabMode() || yourPace(b) >= b.foePace) return;
+  if (!isLabMode() || !isBreakAlign() || yourPace(b) >= b.foePace) return;
   if (b.v2OpeningWeakened) return;
   b.v2OpeningWeakened = true;
   const q = (b.intents.length ? b.intents : [b.intent]).slice();
@@ -508,7 +744,8 @@ function setupBattle(b: Battle): void {
     if (!occupied(b, at)) addStake(b, at, 2);
   }
   hardenFoe(b);
-  drawToHand(b);
+  if (isClimbQi()) climbDrawRound(b, true);
+  else drawToHand(b);
   applyMateOpen(b);
   applyTechOpen(b);
   seedIntents(b);
@@ -564,6 +801,7 @@ function labelIntent(intent: Battle["intent"]): string {
   if (intent.kind === "trap") return "脚下下机";
   if (intent.kind === "windup") return "蓄势";
   if (intent.kind === "lunge") return `抢步打 ${intent.damage}`;
+  if (intent.kind === "advance") return `逼近 ${intent.steps} 步`;
   if (intent.kind === "swap") return "换位";
   if (intent.kind === "barrage") return `连打 ${intent.hits} 下，每下 ${intent.damage}`;
   if (intent.kind === "guard") return `卸力 架势 ${intent.block}`;
@@ -660,13 +898,24 @@ export function labDiscardsLeft(b: Battle): number {
 export function labCanCycle(b: Battle): { ok: boolean; reason?: string } {
   if (!isLabV2()) return { ok: false, reason: "仅踢馆" };
   if (b.phase !== "player") return { ok: false, reason: "不是你的回合" };
-  if (needsDiscardToHandCap(b)) return { ok: false, reason: "请先弃到上限再置换" };
+  if (needsDiscardToHandCap(b) && !isClimbQi()) return { ok: false, reason: "请先弃到上限再置换" };
+  if (isClimbQi() && b.climbDiscardPhase) return { ok: false, reason: "弃牌阶段不能置换" };
   if (b.hand.length === 0) return { ok: false, reason: "没牌可换" };
+  if (isClimbQi()) {
+    const cheapest = Math.min(...b.hand.map((c) => climbCycleCost(labCard(c.defId)?.cost ?? 1)));
+    if (b.energy < cheapest) return { ok: false, reason: "劲力不够置换" };
+    return { ok: true };
+  }
   if ((b.v2Turn?.cyclesUsed ?? 0) >= 1) return { ok: false, reason: "本回已置换" };
   return { ok: true };
 }
 
 export function labCanDiscard(b: Battle): { ok: boolean; reason?: string } {
+  if (isClimbQi()) {
+    if (b.phase !== "player") return { ok: false, reason: "不是你的回合" };
+    if (b.hand.length === 0) return { ok: false, reason: "没牌可弃" };
+    return { ok: true };
+  }
   if (needsDiscardToHandCap(b)) {
     if (b.phase !== "player") return { ok: false, reason: "不是你的回合" };
     if (b.hand.length === 0) return { ok: false, reason: "没牌可弃" };
@@ -675,24 +924,93 @@ export function labCanDiscard(b: Battle): { ok: boolean; reason?: string } {
   return labCanCycle(b);
 }
 
+export function labEnterDiscardPhase(b: Battle): Battle {
+  if (!isClimbQi() || b.phase !== "player") return b;
+  b.climbDiscardPhase = true;
+  return b;
+}
+
+function applyClimbSpearCut(b: Battle): void {
+  const cut = CLIMB_SPEAR_CUT_QI;
+  if (b.enemyEnergy >= cut) {
+    b.enemyEnergy -= cut;
+    note(b, "you", `断劲 −${cut} 敌劲（余 ${b.enemyEnergy}）`);
+    return;
+  }
+  const taken = b.enemyEnergy;
+  b.enemyEnergy = 0;
+  const debt = cut - taken;
+  b.climbWageDebt = (b.climbWageDebt ?? 0) + debt;
+  note(
+    b,
+    "you",
+    taken > 0
+      ? `断劲 −${taken}，余 ${debt} 挂下次回劲`
+      : `断劲挂下次回劲 −${cut}`,
+  );
+}
+
+export function labCanComboReplay(b: Battle): { ok: boolean; reason?: string } {
+  if (!isClimbQi()) return { ok: false, reason: "仅爬塔" };
+  if (b.phase !== "player") return { ok: false, reason: "不是你的回合" };
+  if (b.climbDiscardPhase) return { ok: false, reason: "弃牌阶段不能重放" };
+  if (battleEquippedSchool(b, b.active) !== "palm") return { ok: false, reason: "拳核才有连击重放" };
+  if ((b.combo ?? 0) < CLIMB_COMBO_REPLAY_COST) return { ok: false, reason: `连击不足（需 ${CLIMB_COMBO_REPLAY_COST}）` };
+  if (!b.climbLastAttackId) return { ok: false, reason: "本手还没打过攻击" };
+  return { ok: true };
+}
+
+/** 拳核：花 2 层连击，再结算上一张攻击一次（不耗劲、不耗手牌）。 */
+export function labComboReplay(b: Battle): Battle {
+  const gate = labCanComboReplay(b);
+  if (!gate.ok) return b;
+  const defId = b.climbLastAttackId!;
+  const next = cloneBattle(b);
+  next.combo = Math.max(0, (next.combo ?? 0) - CLIMB_COMBO_REPLAY_COST);
+  const notes = applyCard(next, defId);
+  note(next, "you", `连击重放「${labCard(defId).name}」：${notes.join("，") || "无效果"}（−${CLIMB_COMBO_REPLAY_COST} 连击）`);
+  checkWin(next);
+  clampClimbStatus(next);
+  return next;
+}
+
 export function labCycleCard(b: Battle, uid: string): Battle {
   const gate = labCanCycle(b);
   if (!gate.ok) return b;
+  if (climbCardLocked(b, uid)) return b;
   const idx = b.hand.findIndex((c) => c.uid === uid);
   if (idx < 0) return b;
-  const [card] = b.hand.splice(idx, 1);
-  b.discardPile.push(card);
-  const f = b.v2Turn ?? emptyV2Turn(b);
-  f.cyclesUsed = (f.cyclesUsed ?? 0) + 1;
-  b.v2Turn = f;
+  const inst = b.hand[idx]!;
+  const spend = isClimbQi() ? climbCycleCost(labCard(inst.defId)?.cost ?? 1) : 0;
+  if (isClimbQi() && b.energy < spend) return b;
+  const [cycled] = b.hand.splice(idx, 1);
+  b.discardPile.push(cycled);
+  if (isClimbQi()) b.energy -= spend;
+  else {
+    const f = b.v2Turn ?? emptyV2Turn(b);
+    f.cyclesUsed = (f.cyclesUsed ?? 0) + 1;
+    b.v2Turn = f;
+  }
   drawOne(b);
-  b.log.push(`置换：弃 ${labCard(card.defId).name}，摸 1`);
-  b.journal.push({ side: "you", text: `置换 ${labCard(card.defId).name}` });
+  const paid = isClimbQi() && spend > 0 ? `，耗 ${spend} 劲` : "";
+  b.log.push(`置换：弃 ${labCard(cycled.defId).name}，摸 1${paid}`);
+  b.journal.push({ side: "you", text: `置换 ${labCard(cycled.defId).name}` });
   return b;
 }
 
 export function labDiscardCard(b: Battle, uid: string): Battle {
   const overCap = needsDiscardToHandCap(b);
+  if (isClimbQi()) {
+    if (b.phase !== "player") return b;
+    const idx = b.hand.findIndex((c) => c.uid === uid);
+    if (idx < 0) return b;
+    const [tossed] = b.hand.splice(idx, 1);
+    b.discardPile.push(tossed);
+    b.climbDiscardPhase = true;
+    b.log.push(`弃 ${labCard(tossed.defId).name}`);
+    b.journal.push({ side: "you", text: `弃 ${labCard(tossed.defId).name}` });
+    return b;
+  }
   if (!overCap) return labCycleCard(b, uid);
   if (b.phase !== "player") return b;
   const idx = b.hand.findIndex((c) => c.uid === uid);
@@ -735,21 +1053,26 @@ export function isComboUnlockCard(b: Battle, defId: CardId): boolean {
 
 function wallHit(b: Battle, cardWall?: number): number {
   const base = cardWall ?? WALL_DAMAGE;
-  let dmg = hasTech(b, "hardWall") ? Math.max(12, base) : base;
-  if (hasTech(b, "ironPalm")) dmg += 6;
+  let dmg = hasTech(b, "hardWall") ? Math.max(techBonus(b, "hardWall", 12) || 12, base) : base;
+  dmg += techBonus(b, "ironPalm", 6);
   return dmg;
 }
 
 function knockDist(b: Battle, base: number): number {
-  return base + (hasTech(b, "longPush") ? 1 : 0) + (hasTech(b, "piercingPalm") ? 1 : 0) + (hasTech(b, "heavyStaff") ? 1 : 0);
+  return (
+    base +
+    techBonus(b, "longPush", 1) +
+    techBonus(b, "piercingPalm", 1) +
+    techBonus(b, "heavyStaff", 1)
+  );
 }
 
 /** §31.19 分系外功的格挡加成：绵里针 / 剑幕 / 钩帘。 */
 function techBlockBonus(b: Battle): number {
   let n = 0;
-  if (hasTech(b, "softPalm")) n += 2;
-  if (hasTech(b, "swordScreen") && !adjacent(b)) n += 3;
-  if (hasTech(b, "hookVeil") && (b.foeDisarm ?? 0) > 0) n += 3;
+  n += techBonus(b, "softPalm", 2);
+  if (!adjacent(b)) n += techBonus(b, "swordScreen", 3);
+  if ((b.foeDisarm ?? 0) > 0) n += techBonus(b, "hookVeil", 3);
   return n;
 }
 
@@ -782,6 +1105,22 @@ function noteStep(b: Battle, from: number, to: number): void {
   if (dTo < dFrom) b.movedFwd = true;
   if (dTo > dFrom) b.movedBack = true;
   if (dFrom !== 1 && dTo === 1) b.enteredMelee = true;
+}
+
+function noteFoeStep(b: Battle, from: number, to: number): void {
+  const youPos = b.player.pos;
+  const dFrom = Math.abs(from - youPos);
+  const dTo = Math.abs(to - youPos);
+  if (dTo < dFrom) b.foeMovedFwd = true;
+  if (dTo > dFrom) b.foeMovedBack = true;
+  if (dFrom !== 1 && dTo === 1) b.foeEnteredMelee = true;
+}
+
+function moveEnemyTo(b: Battle, to: number): void {
+  const from = b.enemy.pos;
+  if (from === to) return;
+  b.enemy.pos = to;
+  noteFoeStep(b, from, to);
 }
 
 function applyMateOpen(b: Battle): void {
@@ -883,7 +1222,7 @@ function healYou(b: Battle, n: number): number {
 }
 
 function handCap(b: Battle): number {
-  const bonus = (b.v2HandCapBonus ?? 0) + (hasTech(b, "stackHand") ? 1 : 0);
+  const bonus = (b.v2HandCapBonus ?? 0) + techBonus(b, "stackHand", 1);
   return clampHandCap(HAND_CAP_DEFAULT + bonus - (b.youHandTax ?? 0));
 }
 
@@ -892,9 +1231,9 @@ export function battleHandCap(b: Battle): number {
   return handCap(b);
 }
 
-/** 拆招开踢：手牌超过上限时须先点选弃到上限才能收势。 */
+/** 手牌超过上限时须先弃到上限才能收势。爬塔与拆招开踢都闸。 */
 export function needsDiscardToHandCap(b: Battle): boolean {
-  return isLabMode() && isBreakAlign() && b.hand.length > handCap(b);
+  return isLabMode() && b.hand.length > handCap(b);
 }
 
 export function canEndPlayerTurn(b: Battle): { ok: boolean; reason?: string } {
@@ -961,14 +1300,21 @@ function schoolIdentityMods(b: Battle, cardDef: CardDef | undefined, dmg: number
   if (!cardDef || cardDef.type !== "attack") return dmg;
   const school = battleEquippedSchool(b, b.active);
   const d = Math.abs(b.player.pos - b.enemy.pos);
-  if (school === "saber" && b.foeHitLastTurn) dmg += 4;
+  if (school === "saber") {
+    if (isLabMode() && !isBreakAlign()) {
+      /* 快刀不是核心：领先 +2 已关。兵器「快刀」仍走 saber-b。 */
+    } else if (b.foeHitLastTurn) dmg += 4;
+  }
   if (hasTech(b, "saberGrudge") && b.foeHitLastTurn) {
-    if (!(isLabMode() && isBreakAlign())) dmg += 2;
+    if (!(isLabMode() && isBreakAlign())) dmg += techBonus(b, "saberGrudge", 2);
   }
   if (school === "spear" && !(isLabMode() && isBreakAlign())) dmg += d >= 2 ? 3 : -2;
-  if (hasTech(b, "spearWind") && d >= 3) dmg += 3;
-  if (school === "sword") dmg += Math.floor((b.bleed ?? 0) / 3);
-  if (hasTech(b, "swordRain") && (b.bleed ?? 0) >= 3) dmg += 3;
+  if (hasTech(b, "spearWind") && d >= 3) dmg += techBonus(b, "spearWind", 3);
+  if (school === "sword") {
+    if (isClimbQi()) dmg += b.v2SwordChain ?? 0;
+    else dmg += Math.floor((b.bleed ?? 0) / 3);
+  }
+  if (hasTech(b, "swordRain") && (b.bleed ?? 0) >= 3) dmg += techBonus(b, "swordRain", 3);
   if (school === "hook" && (b.foeDisarm ?? 0) > 0) dmg += 3;
   return dmg;
 }
@@ -985,15 +1331,16 @@ function strikeDamage(b: Battle, base: number, forceMelee = false, cardDef?: Car
     dmg = schoolIdentityMods(b, cardDef, dmg);
     if (b.active === "ananhuo" && Math.abs(b.player.pos - b.enemy.pos) >= 2) dmg += 2;
     if (hasTech(b, "brightBlade") && (forceMelee || adjacent(b))) {
-      if (!(isLabMode() && isBreakAlign()) || breakTurnBonus(b)) dmg += 3;
+      if (!(isLabMode() && isBreakAlign()) || breakTurnBonus(b)) dmg += techBonus(b, "brightBlade", 3);
     }
     if (fightScale.youDmg !== 1) dmg = Math.max(1, Math.round(dmg * fightScale.youDmg));
     return Math.max(1, dmg);
   }
   let dmg = base + b.nextDamage + b.flow + b.mark;
-  if (hasTech(b, "brightBlade") && (forceMelee || adjacent(b))) dmg += 3;
-  if (b.youSway > 0) dmg = Math.max(1, dmg - 2);
-  if (b.expose > 0) {
+  if (hasTech(b, "brightBlade") && (forceMelee || adjacent(b))) dmg += techBonus(b, "brightBlade", 3);
+  if (b.youSway > 0 || (b.youUnseat ?? 0) > 0) dmg = Math.max(1, dmg - 2);
+  if ((b.foeSway ?? 0) > 0 || (b.foeUnseat ?? 0) > 0) dmg += 3;
+  if (b.expose > 0 && !(isLabMode() && !isBreakAlign())) {
     dmg += 4;
     b.expose -= 1;
   }
@@ -1012,6 +1359,89 @@ function intentThreat(b: Battle): number {
 }
 
 /** Soft cap so AI turtle / riposte ward cannot freeze a fight. */
+function applyGodSkillOnHit(
+  b: Battle,
+  skill: string | null,
+  dist: number,
+  dmg: number,
+  notes: string[],
+  f: import("./types").V2TurnFlags,
+): number {
+  if (!skill) {
+    notes.push("神兵");
+    return dmg + 2;
+  }
+  switch (skill) {
+    case "palm-a":
+      notes.push(...pushEnemy(b, 1));
+      notes.push("连环震步");
+      return dmg;
+    case "palm-b":
+      if ((b.qi ?? 0) >= 2 && (f.attackHitsThisTurn ?? 0) >= 3) {
+        notes.push("叠浪");
+        return dmg + 4;
+      }
+      return dmg;
+    case "saber-a":
+      if (dist <= 1 && (f.attackHitsThisTurn ?? 0) >= 3) {
+        notes.push("破门");
+        return dmg * 2;
+      }
+      return dmg;
+    case "saber-b":
+      if (yourPace(b) >= b.foePace) {
+        if (drawOne(b)) notes.push("快刀抽 1");
+        b.energy = Math.min(b.energyMax, b.energy + 1);
+        notes.push("回 1 劲");
+      }
+      return dmg;
+    case "spear-a":
+      b.foeMute = Math.max(b.foeMute, 1);
+      notes.push("锁喉封技");
+      return dmg;
+    case "spear-b":
+      if ((b.expose ?? 0) >= 3) {
+        b.foeHandTax = Math.max(b.foeHandTax ?? 0, 1);
+        notes.push("三封削手");
+      }
+      return dmg;
+    case "sword-a":
+      f.labFreeSkill = true;
+      b.v2Turn = f;
+      notes.push("照影");
+      return dmg;
+    case "sword-b":
+      if (b.playerBlock > 0) {
+        b.energy = Math.min(b.energyMax, b.energy + 2);
+        notes.push("格反回劲");
+      }
+      return dmg;
+    case "staff-a":
+      b.playerBlock += 2;
+      notes.push("定桩 +2");
+      return dmg;
+    case "staff-b":
+      if (livingFoes(b).length > 1) {
+        notes.push("千斤");
+        return dmg + 3;
+      }
+      return dmg;
+    case "hook-a":
+      b.energy = Math.min(b.energyMax, b.energy + 2);
+      notes.push("纤力回劲");
+      return dmg;
+    case "hook-b":
+      if ((b.foeDisarm ?? 0) > 0) {
+        if (drawOne(b)) notes.push("缴兵抽");
+        if (drawOne(b)) notes.push("缴兵抽");
+      }
+      return dmg;
+    default:
+      notes.push("神兵");
+      return dmg + 2;
+  }
+}
+
 function hitEnemy(b: Battle, raw: number, verb: string, spendCharge = true): string[] {
   const foe = targetFoe(b);
   if (!foe) return ["没有目标"];
@@ -1047,7 +1477,7 @@ function hitEnemy(b: Battle, raw: number, verb: string, spendCharge = true): str
   const mods = pathSkillMods(gear, {
     dist,
     combo: b.combo,
-    paceAdvantage: battlePace(b) + b.paceBoost >= b.foePace,
+    paceAdvantage: yourPace(b) >= b.foePace,
     hasBlock: b.playerBlock > 0,
   });
   if (mods.damage) {
@@ -1058,6 +1488,31 @@ function hitEnemy(b: Battle, raw: number, verb: string, spendCharge = true): str
   if (mods.expose && raw > 0) {
     b.expose += mods.expose;
     notes.push("破绽露出");
+  }
+  const aura = b.labAuraStrike ?? 0;
+  if (aura > 0 && raw > 0) {
+    dmg += aura;
+    notes.push("同门");
+  }
+  if (mods.foeSlow && raw > 0) {
+    b.foeRootTurns = Math.max(b.foeRootTurns ?? 0, 1);
+    notes.push("锁步");
+  }
+  const f = b.v2Turn ?? emptyV2Turn(b);
+  if (raw > 0 && dmg > 0) {
+    f.attackHitsThisTurn = (f.attackHitsThisTurn ?? 0) + 1;
+    b.v2Turn = f;
+  }
+  if (gear?.godSkill && raw > 0) {
+    dmg = applyGodSkillOnHit(b, gear.skill, dist, dmg, notes, f);
+  }
+  if (gear?.skill === "sword-a" && raw > 0 && dmg > 0) {
+    if (!f.swordPokeDraw && ((b.expose ?? 0) > 0 || (b.mark ?? 0) > 0)) {
+      drawOne(b);
+      f.swordPokeDraw = true;
+      b.v2Turn = f;
+      notes.push("刺点抽 1");
+    }
   }
   if (!isLabV2() && b.combo > 0) b.combo = 0;
   if (b.active === "boqing" && b.enemyBlock > 0) {
@@ -1071,9 +1526,53 @@ function hitEnemy(b: Battle, raw: number, verb: string, spendCharge = true): str
     dmg -= blocked;
     if (blocked) notes.push(`他卸了 ${blocked}`);
   }
+  if (isClimbQi() && b.expose > 0 && raw > 0) {
+    dmg += 4;
+    b.expose -= 1;
+    notes.push("破绽穿挡 4");
+  }
+  if ((b.foeGift ?? 0) > 0 && raw > 0) {
+    dmg += 4;
+    b.foeGift = 0;
+    notes.push("送手 4");
+  }
   foe.hp -= dmg;
   if (spendCharge) b.nextDamage = 0;
   notes.unshift(`${verb}${dmg}`);
+  if (raw > 0 && dmg > 0) {
+    let leech = 0;
+    if (b.active === "ouyangyingou" && (b.foeDisarm ?? 0) > 0) leech += 2;
+    if (b.active === "moqiwan" && (b.labLifestealNext ?? 0) > 0) {
+      leech += 2;
+      b.labLifestealNext = 0;
+    }
+    if (isClimbQi() && battleEquippedSchool(b, b.active) === "hook" && (b.foeDisarm ?? 0) > 0) {
+      leech += Math.max(1, Math.floor(dmg * CLIMB_LIFESTEAL_PCT));
+    }
+    if (leech > 0) {
+      const before = b.player.hp;
+      b.player.hp = Math.min(b.player.maxHp, b.player.hp + leech);
+      notes.push(`噬血 +${b.player.hp - before}`);
+    }
+  }
+  if (isClimbQi() && raw > 0 && dmg > 0) {
+    const school = battleEquippedSchool(b, b.active);
+    if (school === "palm") {
+      b.combo = Math.min(CLIMB_COMBO_CAP, (b.combo ?? 0) + 1);
+      notes.push(`连击 ${b.combo}`);
+      if (!b.foeSkipCc) notes.push(...pushEnemy(b, 1));
+    }
+    if (school === "saber" && dist <= 1) {
+      b.bleed = Math.min(CLIMB_BLEED_CAP, (b.bleed ?? 0) + 1);
+      notes.push(`裂创 ${b.bleed}`);
+    }
+    if (school === "sword") {
+      const before = b.v2SwordChain ?? 0;
+      b.v2SwordChain = Math.min(CLIMB_SWORD_CHAIN_CAP, before + 1);
+      if (before > 0) notes.push(`剑势 ${before}→${b.v2SwordChain}`);
+      else notes.push(`剑势 ${b.v2SwordChain}`);
+    }
+  }
   if (raw > 0 && dmg > 0 && b.active === "lvchifeng" && dist <= 1) {
     b.bleed = Math.min(9, (b.bleed ?? 0) + 1);
     notes.push("见血");
@@ -1164,6 +1663,10 @@ function knockAway(b: Battle, who: "player" | "enemy", dist: number, wall?: numb
       if (who === "enemy" && b.stakes.includes(next)) {
         unit.hp -= 4;
         notes.push("猎桩 4");
+        if (isClimbQi()) {
+          removeStake(b, next);
+          climbEnemyBrokeStake(b, notes);
+        }
         if (unit.hp <= 0) notes.push(`${unit.name}倒下`);
       }
       break;
@@ -1206,6 +1709,10 @@ function pullUnit(
       if (who === "enemy" && b.stakes.includes(next)) {
         unit.hp -= 4;
         notes.push("猎桩 4");
+        if (isClimbQi()) {
+          removeStake(b, next);
+          climbEnemyBrokeStake(b, notes);
+        }
         syncFront(b);
       }
       break;
@@ -1221,8 +1728,9 @@ function pullUnit(
       notes.push(`钩伤 ${mods.pullDmg}`);
     }
     if (hasTech(b, "barbedHook")) {
-      unit.hp -= 3;
-      notes.push("倒刺 3");
+      const n = techBonus(b, "barbedHook", 3);
+      unit.hp -= n;
+      notes.push(`倒刺 ${n}`);
     }
     if (mods.pullStrip && b.enemyBlock > 0) {
       const strip = Math.min(b.enemyBlock, mods.pullStrip + 2);
@@ -1262,6 +1770,56 @@ function pathClear(b: Battle, from: number, to: number): boolean {
   return true;
 }
 
+/** 能否朝 dir 至少挪 1 格（出界 / 占格 / 桩 视为堵）。 */
+function canPlayerStepOne(b: Battle, dir: 1 | -1, ignoreStakes: boolean): boolean {
+  return !occupied(b, b.player.pos + dir, b.player.id, ignoreStakes);
+}
+
+/**
+ * 进步 / 退步无路：对应牌不可出（灰掉）。
+ * 对撞技贴脸进步仍可出；有鬼步则忽略桩。
+ */
+function playerMovePathGate(b: Battle, defId: CardId): { ok: boolean; reason?: string } {
+  const def = labCard(defId);
+  if (!def) return { ok: true };
+  const foe = targetFoe(b) ?? b.enemy;
+  const ignore = hasTech(b, "ghostStep");
+
+  if (defId === "close") {
+    if (!foe) return { ok: false, reason: "没有目标" };
+    const dir = towardDir(b.player.pos, foe.pos);
+    const target = foe.pos - dir;
+    if (target === b.player.pos) return { ok: true };
+    if (!pathClear(b, b.player.pos, target)) return { ok: false, reason: "去路被占" };
+    return { ok: true };
+  }
+
+  if (defId === "advance" || defId === "advance2") {
+    const dir = towardDir(b.player.pos, foe.pos);
+    const front = b.player.pos + dir;
+    if (hasTech(b, "bodyCheck") && front === foe.pos) return { ok: true };
+    if (canPlayerStepOne(b, dir, ignore)) return { ok: true };
+    if (hasTech(b, "backstep") && canPlayerStepOne(b, awayDir(foe.pos, b.player.pos), ignore)) {
+      return { ok: true };
+    }
+    return { ok: false, reason: "身前无路" };
+  }
+
+  if (defId === "retreat" || defId === "backpalm") {
+    const dir = awayDir(foe.pos, b.player.pos);
+    if (canPlayerStepOne(b, dir, false)) return { ok: true };
+    return { ok: false, reason: "身后无路" };
+  }
+
+  if (def.steps) {
+    const dir = def.steps > 0 ? towardDir(b.player.pos, foe.pos) : awayDir(foe.pos, b.player.pos);
+    if (canPlayerStepOne(b, dir, ignore)) return { ok: true };
+    return { ok: false, reason: def.steps > 0 ? "身前无路" : "身后无路" };
+  }
+
+  return { ok: true };
+}
+
 function applyCard(b: Battle, defId: CardId): string[] {
   const def = labCard(defId);
   const notes: string[] = [];
@@ -1290,7 +1848,7 @@ function applyCard(b: Battle, defId: CardId): string[] {
 
   if (defId === "defend" || defId === "defend2") {
     let block = def.block ?? 0;
-    if (hasTech(b, "throne") && (b.player.pos === 0 || b.player.pos === BOARD_SIZE - 1)) block += 4;
+    if (hasTech(b, "throne") && (b.player.pos === 0 || b.player.pos === BOARD_SIZE - 1)) block += techBonus(b, "throne", 4);
     block += techBlockBonus(b);
     b.playerBlock += block;
     notes.push(`格挡 ${block}`);
@@ -1303,7 +1861,7 @@ function applyCard(b: Battle, defId: CardId): string[] {
     notes.push(...movePlayer(b, awayDir(foe.pos, b.player.pos), 1, false));
     if (notes.length === 0) notes.push("身后无路");
     let block = def.block ?? 0;
-    if (hasTech(b, "throne") && (b.player.pos === 0 || b.player.pos === BOARD_SIZE - 1)) block += 4;
+    if (hasTech(b, "throne") && (b.player.pos === 0 || b.player.pos === BOARD_SIZE - 1)) block += techBonus(b, "throne", 4);
     block += techBlockBonus(b);
     b.playerBlock += block;
     notes.push(`格挡 ${block}`);
@@ -1329,7 +1887,7 @@ function applyCard(b: Battle, defId: CardId): string[] {
 
   if (defId === "advance" || defId === "advance2") {
     const ignore = hasTech(b, "ghostStep");
-    const steps = (def.steps ?? 1) + (hasTech(b, "longMarch") ? 1 : 0);
+    const steps = (def.steps ?? 1) + techBonus(b, "longMarch", 1);
     const foe = targetFoe(b) ?? b.enemy;
     const dir = towardDir(b.player.pos, foe.pos);
     const front = b.player.pos + dir;
@@ -1364,6 +1922,7 @@ function applyCard(b: Battle, defId: CardId): string[] {
       removeStake(b, front);
       if (b.v2Turn) b.v2Turn.hitStakeThisTurn = true;
       notes.push("桩裂了");
+      climbSplitBlast(b, notes);
       return notes;
     }
     const ahead =
@@ -1374,6 +1933,7 @@ function applyCard(b: Battle, defId: CardId): string[] {
       removeStake(b, ahead);
       if (b.v2Turn) b.v2Turn.hitStakeThisTurn = true;
       notes.push("桩裂了");
+      climbSplitBlast(b, notes);
       return notes;
     }
     return hitEnemy(b, strikeDamage(b, def.damage ?? 7, false, def), "裂桩 ");
@@ -1458,7 +2018,8 @@ function applyCard(b: Battle, defId: CardId): string[] {
   if (defId === "plant") {
     const foe = targetFoe(b) ?? b.enemy;
     const at = b.player.pos + towardDir(b.player.pos, foe.pos);
-    if (at >= 0 && at < BOARD_SIZE && !occupied(b, at)) {
+    if (climbStakeBehindFoe(b, at)) notes.push("敌身后落不下");
+    else if (at >= 0 && at < BOARD_SIZE && !occupied(b, at)) {
       addStake(b, at, playerPlantHits(battleEquippedSchool(b, b.active)));
       notes.push(`桩落在第 ${at + 1} 步`);
     } else notes.push("身前落不下");
@@ -1466,12 +2027,15 @@ function applyCard(b: Battle, defId: CardId): string[] {
   }
 
   if (defId === "hookpull") {
+    const before = Math.abs(b.player.pos - b.enemy.pos);
     notes.push(...pullUnit(b, "enemy", "player", def.pullEnemy ?? 2));
+    climbHookDisarmOnPull(b, before, notes);
     notes.push(...hitEnemy(b, strikeDamage(b, def.damage ?? 0, false, def), def.name + " "));
     if (companionOn(b) && b.active === "hooker") {
       b.nextDamage += 3;
       notes.push("缆手 下一掌 +3");
     }
+    if (b.active === "moqiwan") b.labLifestealNext = 2;
     return notes;
   }
 
@@ -1601,7 +2165,10 @@ function applyCard(b: Battle, defId: CardId): string[] {
   }
 
   if (defId === "weave") {
-    if (b.lastPlay === "attack") {
+    if (isLabMode() && !isBreakAlign()) {
+      b.playerBlock += 6;
+      notes.push("格挡 6");
+    } else if (b.lastPlay === "attack") {
       b.playerBlock += 8;
       b.combo += 1;
       notes.push("格挡 8");
@@ -1655,6 +2222,10 @@ function applyCard(b: Battle, defId: CardId): string[] {
     } else {
       notes.push(...hitEnemy(b, strikeDamage(b, base), "虚缝 "));
       notes.push("没印");
+    }
+    if (def.expose) {
+      b.expose += def.expose;
+      notes.push(`破绽 ${b.expose}`);
     }
     return notes;
   }
@@ -1735,9 +2306,11 @@ function applyCard(b: Battle, defId: CardId): string[] {
     notes.push(`换至第 ${b.player.pos + 1} 步`);
     if (yourPace(b) >= b.foePace) {
       if (drawOne(b)) notes.push("抽 1");
+      b.foeUnseat = Math.max(b.foeUnseat ?? 0, 1);
+      notes.push("他失位 1");
     } else {
-      b.youSway = Math.max(b.youSway, 1);
-      notes.push("乱步 1");
+      b.youUnseat = Math.max(b.youUnseat ?? 0, 1);
+      notes.push("失位 1");
     }
     return notes;
   }
@@ -1870,9 +2443,17 @@ function applyCard(b: Battle, defId: CardId): string[] {
     addSpearRuler(b, 1);
     notes.push("标尺 +1");
   }
+  if (def.id.startsWith("aura")) {
+    b.labAuraStrike = 3;
+    notes.push("同门光环·本场攻击 +3");
+  }
   if (def.energyNext) {
     b.energy = Math.min(b.energyMax, b.energy + def.energyNext);
     notes.push(`回劲 ${def.energyNext}`);
+  }
+  if (def.pace) {
+    b.paceBoost += def.pace;
+    notes.push(`先机 ${yourPace(b)}`);
   }
   if (def.steps) {
     const foe = targetFoe(b) ?? b.enemy;
@@ -1887,9 +2468,12 @@ function applyCard(b: Battle, defId: CardId): string[] {
   if (def.pullEnemy && !b.foeSkipCc) {
     const before = Math.abs(b.player.pos - b.enemy.pos);
     notes.push(...pullUnit(b, "enemy", "player", def.pullEnemy));
+    climbHookDisarmOnPull(b, before, notes);
     if (b.active === "chenchenlan" && Math.abs(b.player.pos - b.enemy.pos) < before) {
-      b.foeDisarm = Math.max(b.foeDisarm ?? 0, 1);
-      notes.push("缴手：短缴械");
+      if (!isClimbQi() || battleEquippedSchool(b, b.active) !== "hook") {
+        b.foeDisarm = Math.max(b.foeDisarm ?? 0, 1);
+        notes.push("缴手：短缴械");
+      }
     }
   }
   if (def.bleed && !b.foeDodgedHit) {
@@ -1909,7 +2493,7 @@ function applyCard(b: Battle, defId: CardId): string[] {
       syncFront(b);
     }
     b.bleed = Math.max(0, b.bleed - 1);
-    notes.push(`流血 ${b.bleed}`);
+    notes.push(`裂创 ${b.bleed}`);
   }
   if (def.frail) {
     b.frail += def.frail;
@@ -1936,13 +2520,26 @@ function applyCard(b: Battle, defId: CardId): string[] {
     b.energyRegen += def.qiRegenSelf;
     notes.push(`回劲+${def.qiRegenSelf}/息`);
   }
+  if (def.plant) {
+    const foe = targetFoe(b) ?? b.enemy;
+    const at = b.player.pos + towardDir(b.player.pos, foe.pos);
+    if (climbStakeBehindFoe(b, at)) notes.push("敌身后落不下");
+    else if (at >= 0 && at < BOARD_SIZE && !occupied(b, at)) {
+      addStake(b, at, playerPlantHits(battleEquippedSchool(b, b.active)));
+      notes.push(`桩落在第 ${at + 1} 步`);
+    } else notes.push("身前落不下");
+  }
   if (def.foeMute) {
     b.foeMute = Math.max(b.foeMute, def.foeMute);
     notes.push(`敌禁技 ${b.foeMute}`);
   }
   if (def.foeDisarm) {
     b.foeDisarm = Math.max(b.foeDisarm ?? 0, def.foeDisarm);
-    notes.push(`敌缴械 ${b.foeDisarm} 息（攻击减半）`);
+    notes.push(
+      isClimbQi()
+        ? `敌缴械 ${b.foeDisarm}（跳过下一次有伤）`
+        : `敌缴械 ${b.foeDisarm} 息（攻击减半）`,
+    );
   }
   if (def.foeStun && !b.foeSkipCc) {
     b.foeStun = (b.foeStun ?? 0) + def.foeStun;
@@ -1952,7 +2549,7 @@ function applyCard(b: Battle, defId: CardId): string[] {
     b.costDiscountNext = (b.costDiscountNext ?? 0) + def.costDiscountNext;
     notes.push(`下张牌耗劲 -${def.costDiscountNext}`);
   }
-  if (def.noBag) {
+  if (def.noBag && !isClimbQi()) {
     b.youNoBag = Math.max(b.youNoBag, def.noBag);
     notes.push(`你禁药 ${b.youNoBag}`);
   }
@@ -1968,14 +2565,12 @@ function applyCard(b: Battle, defId: CardId): string[] {
     b.foeQiBurn = Math.max(b.foeQiBurn, def.foeQiBurn);
     notes.push(`敌扣劲 ${b.foeQiBurn}`);
   }
-  if (def.mute) {
+  if (def.mute && !isClimbQi()) {
     b.youMute = Math.max(b.youMute, def.mute);
     notes.push(`禁技 ${b.youMute}`);
   }
   if (defId === "qiPulse" && drawOne(b)) notes.push("抽 1");
-  if (defId === "setupTax" && drawOne(b)) notes.push("抽 1");
   if (String(defId).startsWith("status") && drawOne(b)) notes.push("抽 1");
-  if (/^ward(Palm|Saber|Sword|Spear|Staff|Hook)2$/.test(String(defId)) && drawOne(b)) notes.push("抽 1");
   if (notes.length) return notes;
 
   notes.push("没有这一招");
@@ -2022,7 +2617,7 @@ function checkWin(b: Battle): void {
 }
 
 /** 多敌同时倒下/前排倒下：把活着的拉到前面，触发替补。 */
-function ensureFoeAlive(b: Battle): void {
+export function ensureFoeAlive(b: Battle): void {
   if (b.phase !== "player") return;
   syncFront(b);
   checkWin(b);
@@ -2034,7 +2629,10 @@ export function canPlay(b: Battle, uid: string): { ok: boolean; reason?: string 
   if (!inst) return { ok: false, reason: "不在手牌里" };
   const def = labCard(inst.defId);
   if (!def) return { ok: false, reason: "残谱缺损" };
+  if (isClimbQi() && b.climbDiscardPhase) return { ok: false, reason: "弃牌阶段不能出牌" };
+  if (climbCardLocked(b, uid)) return { ok: false, reason: `晕：最左 ${b.youStun} 张锁着` };
   if (def.type === "skill" && b.youMute > 0) return { ok: false, reason: "禁技：这一息打不出技能" };
+  if (!isClimbQi() && (b.youStun ?? 0) > 0 && def.type === "attack") return { ok: false, reason: "你眩晕，打不出攻击" };
   const need = isLabV2() ? labV21EffectiveCost(b, def) : def.cost + (def.stackTaxQi ?? 0);
   if (b.energy < need) return { ok: false, reason: "劲力不足" };
   const schoolGate = cardPlaySchoolGate(b, inst.defId);
@@ -2042,12 +2640,15 @@ export function canPlay(b: Battle, uid: string): { ok: boolean; reason?: string 
   if (b.labHallLaw === "noMove" && (MOVE_CARD_IDS as CardId[]).includes(inst.defId)) {
     return { ok: false, reason: "本馆禁位移" };
   }
+  const movePath = playerMovePathGate(b, inst.defId);
+  if (!movePath.ok) return movePath;
   if (b.labHallLaw === "mustMelee" && def.type === "attack") {
     const foe = targetFoe(b);
     const dist = foe ? Math.abs(foe.pos - b.player.pos) : 0;
     if (foe && dist !== 1) return { ok: false, reason: "本馆必须贴身" };
   }
   // §31.11 攻击距离闸（踢馆线）：攻击牌要求敌在兵刃距离内——拳 1 / 刀剑钩 2 / 枪棍 3。
+  // 枪爬塔 / 读招：2–4 格（读招另许贴身拨杆）。
   // 牌面有系别的按牌面兵刃算（助战开闸时，是助战者持自己的兵刃递招）；通用牌按场上所执。
   // 组合技例外：助战者自己会上前递招。
   if (isLabMode() && def.type === "attack" && !isComboCard(inst.defId)) {
@@ -2055,11 +2656,11 @@ export function canPlay(b: Battle, uid: string): { ok: boolean; reason?: string 
     const school = cardSch === "any" ? battleEquippedSchool(b, b.active) : cardSch;
     const foe = targetFoe(b);
     const dist = foe ? Math.abs(foe.pos - b.player.pos) : 0;
-    if (foe && isBreakAlign() && school === "spear") {
-      if (dist === 1) {
+    if (foe && school === "spear" && (isBreakAlign() || isClimbQi())) {
+      if (isBreakAlign() && dist === 1) {
         /* 贴身拨杆：允许出枪，结算走低伤+击退 */
       } else if (spearReachDamage(dist) == null) {
-        return { ok: false, reason: `枪够不着（需贴身拨杆或 2–4 格，敌在 ${dist} 格）` };
+        return { ok: false, reason: `枪够不着（需${isBreakAlign() ? "贴身拨杆或 " : ""}2–4 格，敌在 ${dist} 格）` };
       }
     } else if (foe && dist > SCHOOL_REACH[school]) {
       const reach = SCHOOL_REACH[school];
@@ -2081,7 +2682,7 @@ export function canPlay(b: Battle, uid: string): { ok: boolean; reason?: string 
   return { ok: true };
 }
 
-function snapshot(b: Battle, notes: string[], legal: boolean, reason?: string): Preview {
+function snapshot(b: Battle, notes: string[], legal: boolean, reason?: string, breakdown?: string, breakdownRiders?: string[]): Preview {
   return {
     playerHp: b.player.hp,
     playerBlock: b.playerBlock,
@@ -2096,6 +2697,8 @@ function snapshot(b: Battle, notes: string[], legal: boolean, reason?: string): 
     notes,
     legal,
     reason,
+    breakdown,
+    breakdownRiders,
   };
 }
 
@@ -2116,7 +2719,9 @@ export function previewCard(b: Battle, uid: string): Preview {
   const next = cloneBattle(b);
   const notes = applyCard(next, inst.defId);
   applyPlayedAttackMomentum(next, inst.defId, notes);
-  return snapshot(next, notes, gate.ok, gate.reason);
+  const def = labCard(inst.defId);
+  const shown = def.type === "attack" || def.block ? breakdownDisplay(b, def) : undefined;
+  return snapshot(next, notes, gate.ok, gate.reason, shown?.inner || undefined, shown?.riders);
 }
 
 export function playCard(b: Battle, uid: string): Battle {
@@ -2146,6 +2751,7 @@ export function playCard(b: Battle, uid: string): Battle {
   applyPlayedAttackMomentum(next, inst.defId, notes);
   const spend = isLabV2() ? labV21EffectiveCost(next, def) : def.cost + (def.stackTaxQi ?? 0);
   next.energy -= spend;
+  if (def.type === "skill" && next.v2Turn?.labFreeSkill) next.v2Turn.labFreeSkill = false;
   if (isLabV2()) simV2SpendResources(next, def.comboCost ?? 0, def.flowCost ?? 0, def.setupCost ?? 0);
   else {
     if (def.comboCost) next.combo = Math.max(0, next.combo - def.comboCost);
@@ -2158,10 +2764,23 @@ export function playCard(b: Battle, uid: string): Battle {
     const field = battleEquippedSchool(next, next.active);
     const cs = cardSchool(inst.defId);
     if (cs !== "any" && cs !== field) next.v2OffSchoolAtk = (next.v2OffSchoolAtk ?? 0) + 1;
+    if (isClimbQi()) next.climbLastAttackId = inst.defId;
     // §31.11 棍系连击眩晕：本回合每第 3 张攻击，敌晕 1 段（踢馆线）。
     if (isLabV2() && battleEquippedSchool(next, next.active) === "staff" && next.attacksThisTurn % 3 === 0 && !next.foeSkipCc) {
       next.foeStun = (next.foeStun ?? 0) + 1;
       next.journal.push({ side: "you", text: "连击成势——敌眩晕 1 段" });
+    }
+    if (isClimbQi() && battleEquippedSchool(next, next.active) === "spear") {
+      const dist = Math.abs(next.player.pos - next.enemy.pos);
+      if (dist >= 3 && dist <= 4) {
+        next.climbSpearRangeHits = (next.climbSpearRangeHits ?? 0) + 1;
+        if ((next.climbSpearRangeHits ?? 0) >= 2) {
+          applyClimbSpearCut(next);
+          next.climbSpearRangeHits = 0;
+        } else {
+          note(next, "you", `断劲蓄势 1/2（3–4 格）`);
+        }
+      }
     }
   }
   // §31.11 减费手段：搓手等「下张牌耗劲 -N」在此兑现
@@ -2179,6 +2798,7 @@ export function playCard(b: Battle, uid: string): Battle {
   labV21AfterCard(next, inst.defId);
   note(next, "you", `${def.name}：${notes.join("，") || "无效果"}`);
   checkWin(next);
+  clampClimbStatus(next);
   return next;
 }
 
@@ -2188,8 +2808,12 @@ function drawToHand(b: Battle): void {
   }
 }
 
-/** 收势后回补：拆招开踢摸 ⌈上限/2⌉；其它模式补满上限。 */
+/** 收势后回补：拆招开踢摸 ⌈上限/2⌉；爬塔开始摸 D（可被晕削）；其它模式补满上限。 */
 function drawRefill(b: Battle): void {
+  if (isClimbQi()) {
+    climbDrawRound(b, false);
+    return;
+  }
   if (isLabMode() && isBreakAlign()) {
     const n = handRefillAmount(handCap(b));
     for (let i = 0; i < n; i++) {
@@ -2206,14 +2830,25 @@ function hitPlayer(b: Battle, raw: number, verb: string): void {
     hitAssist(b, raw, verb);
     return;
   }
-  // §31.11 缴械：敌攻击伤害减半（钩系施加）
+  if (isClimbQi() && (b.foeDisarm ?? 0) > 0 && raw > 0) {
+    b.foeDisarm = Math.max(0, (b.foeDisarm ?? 0) - 1);
+    note(b, "you", `${b.enemy.name}缴械，这一记跳过。`);
+    return;
+  }
+  // 读招：缴械仍减半
   if ((b.foeDisarm ?? 0) > 0) raw = Math.max(1, Math.floor(raw / 2));
   const cut = b.frail > 0 ? 3 : 0;
-  const sway = b.youSway > 0 ? 3 : 0;
+  const sway = b.youSway > 0 || (b.youUnseat ?? 0) > 0 ? 3 : 0;
   const gift = b.youGift > 0 ? 4 : 0;
   if (b.youGift > 0) b.youGift = 0;
+  if ((b.foeSway ?? 0) > 0 || (b.foeUnseat ?? 0) > 0) raw = Math.max(1, raw - 2);
+  if (raw > 0) b.foeStrikesThisTurn = (b.foeStrikesThisTurn ?? 0) + 1;
   const extraThorn = companionOn(b) && b.active === "sapper" && b.playerBlock > 0 ? 2 : 0;
-  const incoming = Math.max(1, simV2Incoming(raw, b) - cut + sway + gift - (b.active === "zhangshoushan" && b.stakes.length > 0 ? 2 : 0));
+  let incoming = Math.max(1, simV2Incoming(raw, b) - cut + sway + gift - (b.active === "zhangshoushan" && b.stakes.length > 0 ? 2 : 0));
+  if ((b.youExpose ?? 0) > 0) {
+    incoming += 4;
+    b.youExpose = (b.youExpose ?? 0) - 1;
+  }
   const blocked = Math.min(b.playerBlock, incoming);
   const taken = incoming - blocked;
   b.playerBlock -= blocked;
@@ -2226,7 +2861,7 @@ function hitPlayer(b: Battle, raw: number, verb: string): void {
       : `${b.enemy.name}${verb}${incoming}。格挡 ${blocked}，你受 ${taken}。`;
   note(b, "foe", line);
   if (raw > 0 && (b.thorns > 0 || extraThorn > 0 || hasTech(b, "rebound"))) {
-    const back = b.thorns + extraThorn + (hasTech(b, "rebound") ? 3 : 0);
+    const back = b.thorns + extraThorn + techBonus(b, "rebound", 3);
     if (back > 0) {
       const notes = hitEnemy(b, back, "回敬 ", false);
       note(b, "you", notes.join("，"));
@@ -2385,7 +3020,7 @@ export function chargePath(b: Battle): number[] {
 
 function dangerCellsForIntentOnly(b: Battle, intent: Intent): number[] {
   // §31.9 打击/抢步的红格锁定在「回合开始你站的那一格/那一条线」——出红格才算拆，红圈不再追着你跑。
-  const lockPos = isLabV2() ? (b.v2Turn?.turnStartPos ?? b.player.pos) : b.player.pos;
+  const lockPos = intentLockPos(b);
   if (intent.kind === "strike") {
     // §31.14 打击红格 = 身前兵刃覆盖（身后打不到；显示与结算同一公式）
     if (isLabV2()) return facingReachCells(b.enemy.pos, lockPos, enemyReach(b));
@@ -2426,6 +3061,7 @@ function dangerCellsForIntentOnly(b: Battle, intent: Intent): number[] {
     }
     return facingReachCells(land, lockPos, enemyReach(b));
   }
+  if (intent.kind === "advance") return [];
   if (intent.kind === "pull") {
     const cells: number[] = [];
     let pos = b.player.pos;
@@ -2493,8 +3129,8 @@ export function projectedQueueThreat(b: Battle): number[][] {
 function advanceThreatProjection(b: Battle, intent: Intent): void {
   if (!isLabV2()) return;
   if (intent.kind === "lunge") {
-    const lockPos = b.v2Turn?.turnStartPos ?? b.player.pos;
-    if (Math.abs(b.enemy.pos - lockPos) > 1) {
+    const lockPos = intentLockPos(b);
+    if ((b.foeRootTurns ?? 0) <= 0 && Math.abs(b.enemy.pos - lockPos) > 1) {
       const step = b.enemy.pos + towardDir(b.enemy.pos, lockPos);
       if (step >= 0 && step < BOARD_SIZE && !occupied(b, step, b.enemy.id)) b.enemy.pos = step;
     }
@@ -2502,6 +3138,14 @@ function advanceThreatProjection(b: Battle, intent: Intent): void {
     const steps = chargeSteps(b);
     const dir = towardDir(b.enemy.pos, b.player.pos);
     for (let i = 0; i < steps; i++) {
+      const next = b.enemy.pos + dir;
+      if (next < 0 || next >= BOARD_SIZE) break;
+      if (next === b.player.pos || occupied(b, next, b.enemy.id)) break;
+      b.enemy.pos = next;
+    }
+  } else if (intent.kind === "advance") {
+    const dir = towardDir(b.enemy.pos, b.player.pos);
+    for (let i = 0; i < intent.steps; i++) {
       const next = b.enemy.pos + dir;
       if (next < 0 || next >= BOARD_SIZE) break;
       if (next === b.player.pos || occupied(b, next, b.enemy.id)) break;
@@ -2557,11 +3201,19 @@ export function intentIncoming(b: Battle, intent: Intent): { total: number; part
   }
   if (b.youSway > 0) {
     total += 3;
-    parts.push("醉态 +3");
+    parts.push("乱步 +3");
+  }
+  if ((b.youUnseat ?? 0) > 0) {
+    total += 3;
+    parts.push("失位 +3");
   }
   if (b.youGift > 0) {
     total += 4;
-    parts.push("礼数 +4");
+    parts.push("送手 +4");
+  }
+  if ((b.foeSway ?? 0) > 0 || (b.foeUnseat ?? 0) > 0) {
+    total = Math.max(1, total - 2);
+    parts.push("他失步 -2");
   }
   return { total: Math.max(1, total), parts };
 }
@@ -2590,13 +3242,28 @@ function resolveCharge(b: Battle, damage: number): void {
       break;
     }
     if (occupied(b, next, b.enemy.id)) break;
-    b.enemy.pos = next;
+    moveEnemyTo(b, next);
   }
   // §31.12 终点贴脸：身前兵刃覆盖才算撞上（身后打不到）
   if (!hits && isLabV2() && enemyCanHitPlayerPos(b, b.player.pos)) hits = true;
   else if (!hits && !isLabV2() && Math.abs(b.enemy.pos - b.player.pos) <= 1) hits = true;
-  if (hits) hitPlayer(b, damage, "冲锋 ");
+  if (hits && damage > 0) hitPlayer(b, damage, "冲锋 ");
+  else if (hits) b.log.push(`${b.enemy.name}冲到身前。`);
   else b.log.push(`${b.enemy.name}冲过去了。`);
+}
+
+function resolveAdvance(b: Battle, steps: number): void {
+  const dir = towardDir(b.enemy.pos, b.player.pos);
+  let moved = 0;
+  for (let i = 0; i < steps; i++) {
+    const next = b.enemy.pos + dir;
+    if (next < 0 || next >= BOARD_SIZE) break;
+    if (next === b.player.pos || occupied(b, next, b.enemy.id)) break;
+    moveEnemyTo(b, next);
+    moved += 1;
+  }
+  if (moved > 0) b.log.push(`${b.enemy.name}逼近 ${moved} 步。`);
+  else b.log.push(`${b.enemy.name}近不了。`);
 }
 
 function resolveStake(b: Battle): void {
@@ -2621,10 +3288,10 @@ function resolveLunge(b: Battle, damage: number): void {
   if (isLabV2()) {
     // §31.14 抢步扑的是「回合开始你站的那条线」（锁定招），与红格同一公式：
     // 落点 = 朝锁定格进一步；命中 = 你的收势格在落点的兵刃圈内。你挪走了，他就扑空。
-    const lockPos = b.v2Turn?.turnStartPos ?? b.player.pos;
-    if (Math.abs(b.enemy.pos - lockPos) > 1) {
+    const lockPos = intentLockPos(b);
+    if ((b.foeRootTurns ?? 0) <= 0 && Math.abs(b.enemy.pos - lockPos) > 1) {
       const step = b.enemy.pos + towardDir(b.enemy.pos, lockPos);
-      if (step >= 0 && step < BOARD_SIZE && !occupied(b, step, b.enemy.id)) b.enemy.pos = step;
+      if (step >= 0 && step < BOARD_SIZE && !occupied(b, step, b.enemy.id)) moveEnemyTo(b, step);
     }
     if (enemyCanHitPlayerPos(b, b.player.pos)) hitPlayer(b, damage, "抢步 ");
     else b.log.push(`${b.enemy.name}抢了个空。`);
@@ -2632,7 +3299,7 @@ function resolveLunge(b: Battle, damage: number): void {
   }
   if (!adjacent(b)) {
     const next = b.enemy.pos + towardDir(b.enemy.pos, b.player.pos);
-    if (next >= 0 && next < BOARD_SIZE && !occupied(b, next, b.enemy.id)) b.enemy.pos = next;
+    if (next >= 0 && next < BOARD_SIZE && !occupied(b, next, b.enemy.id)) moveEnemyTo(b, next);
   }
   if (Math.abs(b.enemy.pos - b.player.pos) <= 1) hitPlayer(b, damage, "抢步 ");
   else b.log.push(`${b.enemy.name}抢空了。`);
@@ -2642,7 +3309,7 @@ function resolveSwap(b: Battle): void {
   if (!adjacent(b)) {
     const next = b.enemy.pos + towardDir(b.enemy.pos, b.player.pos);
     if (next >= 0 && next < BOARD_SIZE && !occupied(b, next, b.enemy.id)) {
-      b.enemy.pos = next;
+      moveEnemyTo(b, next);
       b.log.push(`${b.enemy.name}近了一步。`);
       return;
     }
@@ -2650,9 +3317,21 @@ function resolveSwap(b: Battle): void {
     return;
   }
   const p = b.player.pos;
+  const from = b.enemy.pos;
   b.player.pos = b.enemy.pos;
   b.enemy.pos = p;
-  b.log.push(`${b.enemy.name}和你换了位置。`);
+  noteFoeStep(b, from, p);
+  if (b.foePace > yourPace(b)) {
+    b.youUnseat = Math.max(b.youUnseat ?? 0, 1);
+    if (isClimbQi()) b.youSlow = Math.max(b.youSlow, CLIMB_UNSEAT_PACE);
+    b.log.push(`${b.enemy.name}和你换了位置。你失位。`);
+  } else if (yourPace(b) > b.foePace) {
+    b.foeUnseat = Math.max(b.foeUnseat ?? 0, 1);
+    b.log.push(`${b.enemy.name}和你换了位置。他失位。`);
+  } else {
+    b.foeUnseat = Math.max(b.foeUnseat ?? 0, 1);
+    b.log.push(`${b.enemy.name}和你换了位置。他失位。`);
+  }
 }
 
 function resolveAllIntents(b: Battle): void {
@@ -2712,11 +3391,12 @@ function resolveIntent(b: Battle): void {
       applyEnemyOnHitRiders(b);
     }
   } else if (intent.kind === "charge") resolveCharge(b, intent.damage);
+  else if (intent.kind === "advance") resolveAdvance(b, intent.steps);
   else if (intent.kind === "stake") {
     resolveStake(b);
     if (b.labEnemyGrade && ENEMY_WEAPON[b.enemyId] === "staff") {
       const extra = b.labEnemyGrade === "shen" ? 4 : b.labEnemyGrade === "xuan" ? 3 : 2;
-      b.enemyBlock = Math.min(24, b.enemyBlock + extra);
+      b.enemyBlock = Math.min(ENEMY_BLOCK_CAP, b.enemyBlock + extra);
       note(b, "foe", `${b.enemy.name}借桩加挡 ${extra}。`);
     }
   } else if (intent.kind === "pull") {
@@ -2750,11 +3430,16 @@ function resolveIntent(b: Battle): void {
     const gained = b.enemyBlock - before;
     note(b, "foe", `${b.enemy.name}架住了 ${gained}${b.enemyBlock >= ENEMY_BLOCK_CAP ? "（已顶满）" : ""}。`);
   } else if (intent.kind === "bleedcut") {
-    hitPlayer(b, intent.damage, "刀创 ");
-    applyEnemyOnHitRiders(b);
-    if (b.phase === "player") {
-      b.youBleed = Math.min(9, b.youBleed + intent.bleed);
-      note(b, "foe", `你裂创 ${b.youBleed}`);
+    if (isLabV2() && !enemyCanHitPlayerPos(b, b.player.pos)) {
+      b.log.push(`${b.enemy.name}刀创够不着。`);
+      b.journal.push({ side: "you", text: "刀创落空" });
+    } else {
+      hitPlayer(b, intent.damage, "刀创 ");
+      applyEnemyOnHitRiders(b);
+      if (b.phase === "player") {
+        b.youBleed = Math.min(9, b.youBleed + intent.bleed);
+        note(b, "foe", `你裂创 ${b.youBleed}`);
+      }
     }
   } else if (intent.kind === "counter") {
     armRiposte(b, "foe", intent.form);
@@ -2770,16 +3455,25 @@ function resolveIntent(b: Battle): void {
     b.youSeal += 1;
     const slow = b.labEnemyGrade && ENEMY_WEAPON[b.enemyId] === "sword" ? 3 : 2;
     b.youSlow = Math.max(b.youSlow, slow);
-    note(b, "foe", `${b.enemy.name}点了你的脉。封脉 ${b.youSeal}，滞步 ${b.youSlow}。`);
+    if ((b.labGauntletStage ?? 0) >= 8) {
+      b.youExpose = Math.min(3, (b.youExpose ?? 0) + 1);
+      note(b, "foe", `${b.enemy.name}点了你的脉。封脉 ${b.youSeal}，滞步 ${b.youSlow}，破绽 ${b.youExpose}。`);
+    } else {
+      note(b, "foe", `${b.enemy.name}点了你的脉。封脉 ${b.youSeal}，滞步 ${b.youSlow}。`);
+    }
   } else if (intent.kind === "breathe") {
     const before = b.enemyEnergy;
     b.enemyEnergy = Math.min(b.enemyEnergyMax, b.enemyEnergy + intent.amount);
     note(b, "foe", `${b.enemy.name}吐纳，敌劲 ${before}→${b.enemyEnergy}。`);
   } else if (intent.kind === "shatter") {
-    const before = b.playerBlock;
-    b.playerBlock = Math.max(0, b.playerBlock - intent.amount);
-    const cut = before - b.playerBlock;
-    note(b, "foe", cut > 0 ? `${b.enemy.name}裂盾 ${cut}。` : `${b.enemy.name}裂盾，架势已空。`);
+    if (isLabV2() && !enemyCanHitPlayerPos(b, b.player.pos)) {
+      b.log.push(`${b.enemy.name}裂盾够不着。`);
+    } else {
+      const before = b.playerBlock;
+      b.playerBlock = Math.max(0, b.playerBlock - intent.amount);
+      const cut = before - b.playerBlock;
+      note(b, "foe", cut > 0 ? `${b.enemy.name}裂盾 ${cut}。` : `${b.enemy.name}裂盾，格挡已空。`);
+    }
   } else if (intent.kind === "retreat") {
     resolveRetreat(b, intent.steps);
   } else if (intent.kind === "pestle") {
@@ -2788,13 +3482,18 @@ function resolveIntent(b: Battle): void {
     } else {
       hitPlayer(b, intent.damage, "韦陀杵 ");
       if (!(b.v2BrokenSegments ?? []).includes(b.v2ResolveIntentIdx ?? -1)) {
-        b.foeStun = (b.foeStun ?? 0) + 1;
-        note(b, "foe", `${b.enemy.name}杵中，你眩了 1 段。`);
+        applyYouStun(b, 1);
+        note(b, "foe", `${b.enemy.name}杵中，你眩晕 1 息。`);
       }
     }
   } else if (intent.kind === "dust") {
-    b.youDust = 1;
-    note(b, "foe", `${b.enemy.name}迷了你的眼。下一段攻击须贴身。`);
+    const elite = Boolean(labEnemy(b.enemyId)?.elite) || b.labEnemyGrade === "xuan" || b.labEnemyGrade === "shen";
+    if (isClimbQi() && !climbDustAllowed(b.labGauntletStage ?? 1, elite)) {
+      note(b, "foe", `${b.enemy.name}扬尘，没迷住。`);
+    } else {
+      b.youDust = 1;
+      note(b, "foe", `${b.enemy.name}迷了你的眼。下一段攻击须贴身。`);
+    }
   } else if (intent.kind === "shackle") {
     if (Math.abs(b.player.pos - b.enemy.pos) <= 1) {
       b.youSlow = Math.max(b.youSlow, 1);
@@ -2819,7 +3518,7 @@ function resolveRetreat(b: Battle, steps: number): void {
   for (let i = 0; i < steps; i++) {
     const next = b.enemy.pos + dir;
     if (next < 0 || next >= BOARD_SIZE || occupied(b, next, b.enemy.id)) break;
-    b.enemy.pos = next;
+    moveEnemyTo(b, next);
     moved += 1;
   }
   note(b, "foe", moved ? `${b.enemy.name}撤了 ${moved} 格。` : `${b.enemy.name}无路可撤。`);
@@ -2841,15 +3540,19 @@ function resolveSignature(b: Battle, id: string): void {
     return;
   }
   if (id === "vajra-ward") {
-    b.enemyBlock = Math.min(24, b.enemyBlock + 12);
+    b.enemyBlock = Math.min(ENEMY_BLOCK_CAP, b.enemyBlock + 12);
     b.thorns = Math.max(b.thorns, 3);
     note(b, "foe", `${b.enemy.name}金刚罩，挡 12。`);
     return;
   }
   if (id === "flower-seal") {
-    b.youMute = Math.max(b.youMute, 1);
-    b.youNoBag = Math.max(b.youNoBag ?? 0, 1);
-    note(b, "foe", `${b.enemy.name}拈花，你这一息抽不出牌。`);
+    if (!isClimbQi()) {
+      b.youMute = Math.max(b.youMute, 1);
+      b.youNoBag = Math.max(b.youNoBag ?? 0, 1);
+      note(b, "foe", `${b.enemy.name}拈花，你这一息抽不出牌。`);
+    } else {
+      note(b, "foe", `${b.enemy.name}拈花，这一手没封住。`);
+    }
     return;
   }
   if (id === "snare") {
@@ -2900,7 +3603,7 @@ function applyEnemyOnHitRiders(b: Battle): void {
   if (w === "palm") {
     const notes = knockAway(b, "player", 1);
     if (notes.length) note(b, "foe", notes[0]!);
-    if (b.labEnemyGrade === "shen") b.enemyBlock = Math.min(24, b.enemyBlock + 2);
+    if (b.labEnemyGrade === "shen") b.enemyBlock = Math.min(ENEMY_BLOCK_CAP, b.enemyBlock + 2);
   }
 }
 
@@ -2943,6 +3646,9 @@ export function applyLabEnemyKit(b: Battle, role: "main" | "extra" = "main"): vo
   b.labEnemyGrade = profile.grade;
   b.enemyEnergyMax = profile.energy.max;
   b.enemyEnergy = Math.min(profile.energy.max, profile.energy.start);
+  if (!isBreakAlign()) {
+    b.foePace = enemyPace(b.enemyId) + climbEnemyPaceBonus(stage);
+  }
   if (profile.name) {
     b.enemy.name = profile.name;
   }
@@ -3211,9 +3917,16 @@ export function facingReachCells(origin: number, faceToward: number, reach: numb
   return cells;
 }
 
+/** 读招：锁定回合开始格；爬塔：跟收势位/现位。 */
+function intentLockPos(b: Battle): number {
+  if (!isLabV2()) return b.player.pos;
+  if (isBreakAlign()) return b.v2Turn?.turnStartPos ?? b.player.pos;
+  return b.v2Turn?.endPos ?? b.player.pos;
+}
+
 /** 敌当前能否打到某格：面向锁定线，身前 reach 内。 */
 function enemyThreatCellsFrom(b: Battle, fromPos: number): number[] {
-  const lock = isLabV2() ? (b.v2Turn?.turnStartPos ?? b.player.pos) : b.player.pos;
+  const lock = intentLockPos(b);
   return facingReachCells(fromPos, lock, enemyReach(b));
 }
 
@@ -3233,6 +3946,80 @@ function isMeleeIntent(intent: Intent): boolean {
   );
 }
 
+function pickApproachFromBattle(b: Battle): Intent {
+  if (usesGeneratedKit(b.enemyId) && b.labEnemyGrade) {
+    return scaleIntent(pickApproach(kitCtx(b)));
+  }
+  const d = distTo(b);
+  const reach = enemyReach(b);
+  const gap = d - reach;
+  if (gap <= 0) return scaleIntent({ kind: "strike", damage: 12 });
+  const w = ENEMY_WEAPON[b.enemyId];
+  if (w === "hook" && gap >= 2) return scaleIntent({ kind: "pull", steps: Math.min(2, gap) });
+  const cap = w === "spear" || w === "staff" ? 3 : 2;
+  const steps = Math.min(cap, gap);
+  if (steps >= 2) return scaleIntent({ kind: "advance", steps });
+  return scaleIntent({ kind: "lunge", damage: 11 });
+}
+
+function approachSegment(intent: Intent): boolean {
+  return (
+    intent.kind === "advance" ||
+    intent.kind === "pull" ||
+    intent.kind === "lunge" ||
+    intent.kind === "charge" ||
+    intent.kind === "swap"
+  );
+}
+
+function approachLen(intent: Intent): number {
+  if (intent.kind === "advance") return intent.steps;
+  if (intent.kind === "pull") return intent.steps;
+  if (intent.kind === "charge") return intent.steps;
+  if (intent.kind === "lunge") return 1;
+  if (intent.kind === "swap") return 1;
+  return 0;
+}
+
+function approachBudget(planned: Intent[]): { long: number; short: number } {
+  let long = 0;
+  let short = 0;
+  for (const it of planned) {
+    if (!approachSegment(it)) continue;
+    const len = approachLen(it);
+    if (len >= 2) long += 1;
+    else short += 1;
+  }
+  return { long, short };
+}
+
+function canQueueApproach(planned: Intent[], next: Intent): boolean {
+  if (!isClimbQi() || !approachSegment(next)) return true;
+  const { long, short } = approachBudget(planned);
+  const len = approachLen(next);
+  if (len >= 2) return long < 1;
+  return long === 0 && short < 2;
+}
+
+function coerceInReachStrike(b: Battle): Intent {
+  return distTo(b) <= enemyReach(b) ? scaleIntent({ kind: "strike", damage: 12 }) : { kind: "breathe", amount: 3 };
+}
+
+/** 爬塔开战站位：前段距 3，中后期拉满。 */
+export function applyClimbOpeningPositions(b: Battle): void {
+  if (!isClimbQi() || isBreakAlign()) return;
+  const stage = b.labGauntletStage ?? 1;
+  const elite = isEliteEnemy(b.enemyId) || isBossEnemy(b.enemyId);
+  const dist = climbOpeningDistance(stage, elite);
+  const pos = climbOpeningPositions(dist);
+  b.player.pos = pos.playerPos;
+  b.enemy.pos = pos.enemyPos;
+  for (const f of b.foes ?? []) {
+    if (f.id === b.enemy.id) f.pos = pos.enemyPos;
+  }
+  syncFront(b);
+}
+
 function followIntent(b: Battle, prior: Intent): Intent {
   if (isLabMode() && usesGeneratedKit(b.enemyId) && b.labEnemyGrade) {
     return scaleIntent(followFromKit(kitCtx(b), prior));
@@ -3241,16 +4028,20 @@ function followIntent(b: Battle, prior: Intent): Intent {
   // §31.10 距离感知与长兵器只在踢馆线生效；主线行为冻结（reach 视作 1）。
   const reach = isLabMode() ? enemyReach(b) : 1;
   const inReach = d <= reach;
-  const approachOr = (melee: Intent): Intent => (isLabMode() && !inReach ? { kind: "lunge", damage: 12 } : melee);
+  const approachOr = (melee: Intent): Intent => {
+    if (!isLabMode() || inReach) return melee;
+    if (isBreakAlign()) return { kind: "lunge", damage: 12 };
+    return pickApproachFromBattle(b);
+  };
   let next: Intent;
   if (prior.kind === "windup") next = approachOr({ kind: "strike", damage: 16 });
   else if (prior.kind === "stake") next = approachOr({ kind: "strike", damage: 14 });
-  else if (prior.kind === "guard") next = inReach ? { kind: "strike", damage: 14 } : { kind: "lunge", damage: 12 };
-  else if (prior.kind === "dodge" || prior.kind === "endure") next = inReach ? { kind: "strike", damage: 14 } : { kind: "lunge", damage: 12 };
+  else if (prior.kind === "guard") next = inReach ? { kind: "strike", damage: 14 } : approachOr({ kind: "strike", damage: 14 });
+  else if (prior.kind === "dodge" || prior.kind === "endure") next = inReach ? { kind: "strike", damage: 14 } : approachOr({ kind: "strike", damage: 14 });
   else if (prior.kind === "breathe") next = { kind: "guard", block: 8 };
-  else if (prior.kind === "mend") next = inReach ? { kind: "guard", block: 8 } : { kind: "lunge", damage: 12 };
-  else if (prior.kind === "shatter") next = inReach ? { kind: "strike", damage: 15 } : { kind: "lunge", damage: 13 };
-  else if (prior.kind === "charge" || prior.kind === "pull") next = approachOr({ kind: "strike", damage: 12 });
+  else if (prior.kind === "mend") next = inReach ? { kind: "guard", block: 8 } : approachOr({ kind: "strike", damage: 12 });
+  else if (prior.kind === "shatter") next = inReach ? { kind: "strike", damage: 15 } : approachOr({ kind: "strike", damage: 15 });
+  else if (prior.kind === "charge" || prior.kind === "pull" || prior.kind === "advance") next = approachOr({ kind: "strike", damage: 12 });
   else if (prior.kind === "strike" || prior.kind === "lunge" || prior.kind === "barrage") {
     if (isLabMode() && isBreakAlign()) {
       if (b.enemyEnergy <= Math.floor(b.enemyEnergyMax / 3)) next = { kind: "breathe", amount: 3 };
@@ -3266,6 +4057,7 @@ function followIntent(b: Battle, prior: Intent): Intent {
     else if (inReach) next = { kind: "strike", damage: 12 };
     else next = { kind: "guard", block: 6 };
   } else if (inReach) next = { kind: "strike", damage: 12 };
+  else if (isClimbQi()) next = pickApproachFromBattle(b);
   else if (d >= 3) next = { kind: "lunge", damage: 11 };
   // §31.10 踢馆线：隔 1 格（d=2 且够不着）不再缩架势，直接抢步逼近——「打不到就移动直到打到」
   else if (isLabMode()) next = { kind: "lunge", damage: 11 };
@@ -3322,9 +4114,9 @@ function planFromFirst(b: Battle, first: Intent): void {
 }
 
 function planFromFirstAtPos(b: Battle, first: Intent): void {
-  // §31.10 够不着不出贴身招：起手段是近战攻击但距离不够 → 换成抢步逼近（踢馆线）。
+  // §31.10 够不着不出贴身招：起手段是近战攻击但距离不够 → 换成逼近段。
   if (isLabMode() && isMeleeIntent(first) && distTo(b) > enemyReach(b)) {
-    first = { kind: "lunge", damage: 11 };
+    first = isBreakAlign() ? { kind: "lunge", damage: 11 } : pickApproachFromBattle(b);
   }
   const planned: Intent[] = [first];
   if (isLabMode()) advanceThreatProjection(b, first);
@@ -3337,11 +4129,29 @@ function planFromFirstAtPos(b: Battle, first: Intent): void {
     guard += 1;
     let next = followIntent(b, last);
     if (isLabMode() && isMeleeIntent(next) && distTo(b) > enemyReach(b)) {
-      next = last.kind === "retreat" ? { kind: "breathe", amount: 3 } : { kind: "lunge", damage: 11 };
+      next =
+        last.kind === "retreat"
+          ? { kind: "breathe", amount: 3 }
+          : isBreakAlign()
+            ? { kind: "lunge", damage: 11 }
+            : pickApproachFromBattle(b);
+    }
+    if (isClimbQi() && distTo(b) <= enemyReach(b) && approachSegment(next)) {
+      next = scaleIntent({ kind: "strike", damage: 12 });
+    }
+    if (isClimbQi() && approachSegment(next) && !canQueueApproach(planned, next)) {
+      next = coerceInReachStrike(b);
     }
     if (isHeavyIntent(next)) {
       if (heavyUsed) {
-        next = budget >= 1 ? (isLabMode() && distTo(b) > enemyReach(b) ? { kind: "lunge", damage: 11 } : { kind: "strike", damage: 11 }) : { kind: "guard", block: 6 };
+        next =
+          budget >= 1
+            ? isLabMode() && distTo(b) > enemyReach(b)
+              ? isBreakAlign()
+                ? { kind: "lunge", damage: 11 }
+                : pickApproachFromBattle(b)
+              : { kind: "strike", damage: 11 }
+            : { kind: "guard", block: 6 };
       } else {
         heavyUsed = true;
       }
@@ -3365,8 +4175,12 @@ function planFromFirstAtPos(b: Battle, first: Intent): void {
     !planned.some(isAttackIntent) &&
     budgetCap >= 1
   ) {
-    // §31.10 兜底攻击也守距离：够不着就抢步，不远距离空挥送拆。
-    planned.push(scaleIntent(distTo(b) <= enemyReach(b) ? { kind: "strike", damage: 12 } : { kind: "lunge", damage: 12 }));
+    // §31.10 兜底攻击也守距离：够不着就逼近，不远距离空挥送拆。
+    planned.push(
+      scaleIntent(
+        distTo(b) <= enemyReach(b) ? { kind: "strike", damage: 12 } : isBreakAlign() ? { kind: "lunge", damage: 12 } : pickApproachFromBattle(b),
+      ),
+    );
   }
   // §31.14 应激「下一手」入场：带着应签进队尾，吃同一个总督。
   if (isLabV2()) {
@@ -3408,7 +4222,10 @@ export function canSwap(b: Battle, id: CompanionId): { ok: boolean; reason?: str
   if (b.phase !== "player") return { ok: false, reason: "现在不是你的回合" };
   if (id === b.active) return { ok: false, reason: "已经在场上" };
   if (b.swappedThisTurn) return { ok: false, reason: "这一息已经换过人" };
-  if (b.energy < 1) return { ok: false, reason: "换人要留一劲" };
+  if (isClimbQi()) {
+    const bag = b.bench.find((m) => m.id === id);
+    if ((bag?.energy ?? 0) < 1) return { ok: false, reason: "换人要留一劲" };
+  } else if (b.energy < 1) return { ok: false, reason: "换人要留一劲" };
   if (!b.bench.some((m) => m.id === id)) return { ok: false, reason: "不在队里" };
   return { ok: true };
 }
@@ -3423,7 +4240,11 @@ export function swapFighter(b: Battle, id: CompanionId): Battle {
   next.bench = next.bench.filter((m) => m.id !== id);
   next.bench.push(parked);
   applyFighter(next, bag);
-  next.energy -= 1;
+  if (isClimbQi()) {
+    next.energy = Math.max(0, next.energy - 1);
+  } else {
+    next.energy -= 1;
+  }
   next.swappedThisTurn = true;
   battleGearId = battleMateGearId(next, id);
   const weapon = battleEquippedSchool(next, id);
@@ -3438,8 +4259,10 @@ export function swapFighter(b: Battle, id: CompanionId): Battle {
   next.hand = keepSchool(next.hand);
   next.drawPile = keepSchool(next.drawPile);
   if (offSchool.length) next.discardPile.push(...offSchool);
-  const cap = handCap(next);
-  while (next.hand.length < cap && next.drawPile.length > 0) drawOne(next);
+  if (!isClimbQi()) {
+    const cap = handCap(next);
+    while (next.hand.length < cap && next.drawPile.length > 0) drawOne(next);
+  }
   if (offSchool.length) {
     next.log.push(`${MATES[id].name}替上。先机 ${yourPace(next)}。异谱 ${offSchool.length} 张落地，补了同等。`);
   } else {
@@ -3470,12 +4293,201 @@ export type EndTurnOpts = {
    * 播报结束后再调 `refreshFoeIntentsIfPending`。测试默认 false（立即刷新）。
    */
   deferIntentRefresh?: boolean;
+  /** true：先播完敌招，再结算裂创等回合末效果。 */
+  deferStatusTicks?: boolean;
 };
 
-/** 敌回合播报结束后：刷新「下一手」全套意图。 */
-export function refreshFoeIntentsIfPending(b: Battle): Battle {
-  if (!b.v2PendingIntentRefresh) return b;
-  const next = cloneBattle(b);
+export type ClimbPhaseStep = "bleed" | "regen" | "wage" | "endure" | "draw" | "drawBench" | "intents";
+
+/** 按「有内容才进队」筛结束/开始拍。场上摸牌、亮招始终保留；后场摸牌仅有人时进队。 */
+export function buildClimbPhaseQueue(b: Battle, carry: number): ClimbPhaseStep[] {
+  const q: ClimbPhaseStep[] = [];
+  if (b.bleed > 0 || b.youBleed > 0) q.push("bleed");
+  const tax = b.youSeal;
+  const regenAmt = b.energyRegen + b.energyNext - (b.youQiBurn ?? 0);
+  const energyAfter = Math.min(b.energyMax, Math.max(0, b.energy + regenAmt + carry - tax));
+  if (energyAfter !== b.energy) q.push("regen");
+  let foeRegen = Math.max(1, Math.floor(b.enemyEnergyMax / 3)) - (b.foeQiBurn > 0 ? 1 : 0);
+  const debt = b.climbWageDebt ?? 0;
+  const debtPaid = debt > 0 ? Math.min(foeRegen, debt) : 0;
+  foeRegen -= debtPaid;
+  const foeAfter = Math.min(b.enemyEnergyMax, Math.max(0, b.enemyEnergy + foeRegen));
+  if (foeAfter !== b.enemyEnergy || debtPaid > 0) q.push("wage");
+  if ((b.foeEndure ?? 0) > 0) q.push("endure");
+  q.push("draw");
+  if (b.bench.length > 0) q.push("drawBench");
+  q.push("intents");
+  return q;
+}
+
+export function peekClimbPhaseQueue(b: Battle): ClimbPhaseStep[] {
+  return [...(b.climbPhaseQueue ?? [])];
+}
+
+function lastLogMatch(b: Battle, re: RegExp): string | undefined {
+  for (let i = b.log.length - 1; i >= 0; i--) {
+    const line = b.log[i]!;
+    if (re.test(line)) return line;
+  }
+  return undefined;
+}
+
+function applyStatusTicksAtTurnEnd(next: Battle): void {
+  if (isClimbQi() && (next.youSkillTax ?? 0) > 0) {
+    next.youSkillTax = 0;
+  }
+  if (next.bleed > 0) {
+    const foe = livingFoes(next)[0];
+    if (foe) {
+      const tick =
+        isLabMode() && isBreakAlign() ? bleedTickDamage(next.bleed) : next.bleed;
+      foe.hp -= tick;
+      note(next, "you", isLabMode() && isBreakAlign() ? `裂创跳 ${tick}（${next.bleed} 层）` : `裂创 ${next.bleed}`);
+      syncFront(next);
+      if (foe.hp <= 0) checkWin(next);
+    }
+  }
+  if (next.youBleed > 0 && next.phase === "player") {
+    const raw = next.youBleed;
+    const blocked = Math.min(next.playerBlock, raw);
+    const pierce = raw - blocked;
+    next.playerBlock -= blocked;
+    next.player.hp -= pierce;
+    simV2OnHitPlayer(next, pierce);
+    note(
+      next,
+      "foe",
+      pierce === 0 ? `裂创 ${raw}，全部卸掉。` : blocked > 0 ? `你裂创 ${raw}。格挡 ${blocked}，你受 ${pierce}。` : `你裂创 ${raw}。`,
+    );
+    if (next.player.hp <= 0) collapseOrDeathSwap(next);
+  }
+}
+
+/** 裂创拍之后：乱步衰减、回合 +1、格挡保留、清本手出击标记（尚未回劲/摸牌）。 */
+function climbAdvanceTurnClock(next: Battle): void {
+  if (next.youSway > 0) next.youSway -= 1;
+  if ((next.youUnseat ?? 0) > 0) next.youUnseat = (next.youUnseat ?? 1) - 1;
+  if ((next.foeSway ?? 0) > 0) next.foeSway = (next.foeSway ?? 1) - 1;
+  if ((next.foeUnseat ?? 0) > 0) next.foeUnseat = (next.foeUnseat ?? 1) - 1;
+  tickRiposte(next, "you");
+  tickRiposte(next, "foe");
+  next.movedFwd = false;
+  next.movedBack = false;
+  next.enteredMelee = false;
+  next.foeMovedFwd = false;
+  next.foeMovedBack = false;
+  next.foeEnteredMelee = false;
+  next.foeStrikesThisTurn = 0;
+  next.turn += 1;
+  simV2AfterEndTurnSetup(next);
+  tickSignatureCooldown(next);
+  simV2StartPlayerTurn(next);
+  dismissSummonAtTurnStart(next);
+  if (isLabMode() && isBreakAlign() && Math.abs(next.player.pos - next.enemy.pos) <= 1) {
+    if ((next.v2SpearRuler ?? 0) > 0) {
+      next.v2SpearRuler = 0;
+      note(next, "you", "贴身，标尺清零");
+    }
+  }
+  const keepOk =
+    hasTech(next, "keepGuard") &&
+    (!(isLabMode() && isBreakAlign()) || (next.v2TurnBreakCount ?? 0) > 0 || (next.v2BreakCount ?? 0) > 0);
+  if (isClimbQi()) {
+    next.playerBlock = Math.min(CLIMB_BLOCK_CAP, next.playerBlock);
+  } else {
+    const kept = keepOk ? Math.min(4, next.playerBlock) : 0;
+    let retained = 0;
+    if (next.retainTurns > 0 && next.retainAmt > 0) {
+      retained = next.retainAmt;
+      next.retainTurns -= 1;
+      note(next, "you", `铁布开局 ${retained}`);
+    }
+    let block = Math.max(kept, retained);
+    if (staffBlockRetain(next)) block = Math.max(block, next.playerBlock);
+    next.playerBlock = block;
+  }
+}
+
+function climbApplyEnergyRegen(next: Battle, carry: number): void {
+  const tax = next.youSeal;
+  const regen = next.energyRegen + next.energyNext - (next.youQiBurn ?? 0);
+  next.energy = Math.min(next.energyMax, Math.max(0, next.energy + regen + carry - tax));
+  if (tax > 0) note(next, "foe", `封脉，劲力少 ${tax}`);
+  if (regen !== 0 || carry) {
+    const tag = isClimbQi() ? "【结束】回劲" : "回劲";
+    note(next, "you", `${tag} ${Math.max(0, regen + carry - tax)} → ${next.energy}/${next.energyMax}`);
+  }
+  next.energyNext = 0;
+  next.youSeal = Math.max(0, next.youSeal - 1);
+  next.youMute = Math.max(0, (next.youMute ?? 0) - 1);
+  next.youNoBag = Math.max(0, (next.youNoBag ?? 0) - 1);
+  next.youHandTax = Math.max(0, (next.youHandTax ?? 0) - 1);
+  next.youQiBurn = Math.max(0, (next.youQiBurn ?? 0) - 1);
+  next.foeMute = Math.max(0, (next.foeMute ?? 0) - 1);
+  if (!isClimbQi()) next.foeDisarm = Math.max(0, (next.foeDisarm ?? 0) - 1);
+  next.foeNoBag = Math.max(0, (next.foeNoBag ?? 0) - 1);
+  next.foeHandTax = Math.max(0, (next.foeHandTax ?? 0) - 1);
+  next.foeQiBurn = Math.max(0, (next.foeQiBurn ?? 0) - 1);
+}
+
+function climbApplyFoeWage(next: Battle): void {
+  let foeRegen = Math.max(1, Math.floor(next.enemyEnergyMax / 3)) - (next.foeQiBurn > 0 ? 1 : 0);
+  if (isClimbQi() && (next.climbWageDebt ?? 0) > 0) {
+    const debt = next.climbWageDebt!;
+    const paid = Math.min(foeRegen, debt);
+    foeRegen -= paid;
+    next.climbWageDebt = debt - paid;
+    note(next, "you", `【结束】断劲挂账先扣回劲 −${paid}${next.climbWageDebt ? `（仍挂 ${next.climbWageDebt}）` : ""}`);
+  }
+  const foeBefore = next.enemyEnergy;
+  next.enemyEnergy = Math.min(next.enemyEnergyMax, Math.max(0, next.enemyEnergy + foeRegen));
+  if (isClimbQi()) note(next, "foe", `【结束】敌回劲 +${next.enemyEnergy - foeBefore} → ${next.enemyEnergy}/${next.enemyEnergyMax}`);
+}
+
+function climbApplyEndureDecay(next: Battle): void {
+  if (isClimbQi() && (next.foeEndure ?? 0) > 0) {
+    next.foeEndure = Math.max(0, (next.foeEndure ?? 1) - 1);
+    note(next, "foe", `【结束】霸体 −1 → ${next.foeEndure}`);
+  }
+}
+
+/** 回劲拍可跳过：首次进入结束尾部时仍须推进回合钟并静默结算回劲/衰减。 */
+function climbEnsureTurnClock(next: Battle): void {
+  if (next.climbClockDone) return;
+  const carry = next.climbCarryEnergy ?? 0;
+  climbAdvanceTurnClock(next);
+  climbApplyEnergyRegen(next, carry);
+  next.climbCarryEnergy = 0;
+  next.climbClockDone = true;
+}
+
+function climbClearHandAndDraw(next: Battle): void {
+  next.climbSpearRangeHits = 0;
+  next.climbLastAttackId = undefined;
+  next.thorns = 0;
+  next.frail = Math.max(0, next.frail - 1);
+  next.youSlow = Math.max(0, next.youSlow - 1);
+  next.nextDamage = next.echoNext;
+  if (next.echoNext > 0) note(next, "you", `尾劲入掌 +${next.echoNext}`);
+  next.echoNext = 0;
+  if (next.mark > 0) next.mark = Math.max(0, next.mark - 1);
+  next.pressedLast = next.attacksThisTurn;
+  next.playedThisTurn = [];
+  next.attacksThisTurn = 0;
+  next.lastPlay = null;
+  next.swappedThisTurn = false;
+  if (isLabMode() && !isLabV2()) next.labFreshSwap = false;
+  applyMateOpen(next);
+  applyTechOpen(next);
+  applyMindOpen(next);
+  drawRefill(next);
+  if (next.v2Turn) next.v2Turn.turnStartHand = next.hand.length;
+  next.climbPlayerMidDone = false;
+  next.climbDiscardPhase = false;
+  clampClimbStatus(next);
+}
+
+function climbRollNextIntents(next: Battle): void {
   next.v2PendingIntentRefresh = false;
   rollIntent(next);
   if (hasTech(next, "delayGuard") && next.intent.kind === "windup") {
@@ -3489,8 +4501,141 @@ export function refreshFoeIntentsIfPending(b: Battle): Battle {
   note(
     next,
     "foe",
-    `${next.enemy.name}亮招：${labelIntent(next.intent)}${next.intents.length > 1 ? `（后手隐 ${next.intents.length - 1}）` : ""}`,
+    `${next.enemy.name}亮招：${labelIntent(next.intent)}${next.intents.length > 1 ? `（共 ${next.intents.length} 段）` : ""}`,
   );
+  // 爬塔后手：只挂旗，交给 UI 播报；禁止在此静默 resolve（否则像「意图外又打一轮」）
+  if (isClimbQi() && yourPace(next) < next.foePace) {
+    next.climbNeedFoeOpenPlayback = true;
+  }
+}
+
+/**
+ * 爬塔结束/开始：落地一拍。收势 defer 后由 UI 逐条调用；测试可连调或走 applyPendingStatusTicks。
+ * carry 劲力结余在第一拍「回劲」前写入 battle（见 endTurn 挂 climbCarryEnergy）。
+ */
+export function applyClimbPhaseBeat(b: Battle): {
+  battle: Battle;
+  banner: string;
+  read: string;
+  done: boolean;
+  step: ClimbPhaseStep | null;
+  /** true：本拍无内容，UI 应立刻进下一拍 */
+  skip?: boolean;
+} {
+  const queue = b.climbPhaseQueue ?? [];
+  if (!queue.length) {
+    return { battle: b, banner: b.climbPhaseLabel ?? "", read: "", done: true, step: null };
+  }
+  const step = queue[0]!;
+  const next = cloneBattle(b);
+  next.climbPhaseQueue = queue.slice(1);
+  let banner = "";
+  let read = "";
+  let skip = false;
+  switch (step) {
+    case "bleed": {
+      applyStatusTicksAtTurnEnd(next);
+      next.v2PendingStatusTicks = false;
+      banner = "【结束】裂创";
+      read = lastLogMatch(next, /裂创/) ?? "【结束】裂创";
+      break;
+    }
+    case "regen": {
+      climbEnsureTurnClock(next);
+      banner = "【结束】回劲";
+      read = lastLogMatch(next, /回劲|封脉/) ?? "【结束】回劲";
+      break;
+    }
+    case "wage": {
+      climbEnsureTurnClock(next);
+      climbApplyFoeWage(next);
+      banner = "【结束】敌回劲";
+      read = lastLogMatch(next, /敌回劲|挂账/) ?? "【结束】敌回劲";
+      break;
+    }
+    case "endure": {
+      climbEnsureTurnClock(next);
+      climbApplyEndureDecay(next);
+      banner = "【结束】霸体";
+      read = lastLogMatch(next, /霸体/) ?? `【结束】霸体 −1 → ${next.foeEndure}`;
+      break;
+    }
+    case "draw": {
+      climbEnsureTurnClock(next);
+      climbClearHandAndDraw(next);
+      banner = "【开始】摸牌";
+      read =
+        lastLogMatch(next, /【开始】[^后]*摸 \d+ 张|【开局】[^后]*摸 \d+ 张/) ??
+        lastLogMatch(next, /【开始】|【开局】/) ??
+        "【开始】摸牌";
+      // 场上句，不要吃到后场那条
+      if (read.includes("后场")) {
+        read = [...next.log].reverse().find((l) => /摸 \d+ 张/.test(l) && !l.includes("后场")) ?? read;
+      }
+      break;
+    }
+    case "drawBench": {
+      const line = [...next.log].reverse().find((l) => /后场.*摸 \d+/.test(l));
+      if (!line) {
+        skip = true;
+        banner = "";
+        read = "";
+        break;
+      }
+      banner = "【开始】后场摸牌";
+      read = line;
+      break;
+    }
+    case "intents": {
+      climbEnsureTurnClock(next);
+      if (next.v2PendingIntentRefresh) climbRollNextIntents(next);
+      else next.v2PendingIntentRefresh = false;
+      banner = "【开始】亮招";
+      read = lastLogMatch(next, /亮招/) ?? "【开始】亮招";
+      break;
+    }
+  }
+  next.climbPhaseLabel = banner || next.climbPhaseLabel;
+  next.lastHitRead = read;
+  return {
+    battle: next,
+    banner,
+    read,
+    done: !(next.climbPhaseQueue?.length),
+    step,
+    skip,
+  };
+}
+
+/** 敌回合播报结束后：一次跑完剩余爬塔尾部（或仅裂创，非爬塔）。 */
+export function applyPendingStatusTicks(b: Battle): Battle {
+  if (b.climbPhaseQueue?.length) {
+    let next = b;
+    while (next.climbPhaseQueue?.length) {
+      next = applyClimbPhaseBeat(next).battle;
+    }
+    if (next.climbNeedFoeOpenPlayback) {
+      next = cloneBattle(next);
+      next.climbNeedFoeOpenPlayback = false;
+      seizeOpening(next);
+    }
+    return next;
+  }
+  if (!b.v2PendingStatusTicks) return b;
+  const next = cloneBattle(b);
+  next.v2PendingStatusTicks = false;
+  applyStatusTicksAtTurnEnd(next);
+  return next;
+}
+
+export function refreshFoeIntentsIfPending(b: Battle): Battle {
+  if (!b.v2PendingIntentRefresh) return b;
+  const next = cloneBattle(b);
+  climbRollNextIntents(next);
+  if (next.climbNeedFoeOpenPlayback) {
+    next.climbNeedFoeOpenPlayback = false;
+    seizeOpening(next);
+  }
   return next;
 }
 
@@ -3498,14 +4643,22 @@ export function endTurn(b: Battle, opts: EndTurnOpts = {}): Battle {
   if (b.phase !== "player") return b;
   if (!canEndPlayerTurn(b).ok) return b;
   const next = cloneBattle(b);
+  if (isClimbQi()) {
+    next.youStun = 0;
+    next.climbDiscardPhase = false;
+    next.climbPlayerMidDone = true;
+    next.climbPhaseLabel = "【结束】敌招";
+    next.log.push("【结束】你收势。先兑他亮着的整条。");
+  } else if ((next.youStun ?? 0) > 0) next.youStun = Math.max(0, (next.youStun ?? 0) - 1);
   if (isLabMode() && next.hand.length > 0 && next.hand.every((c) => !canPlay(next, c.uid).ok)) {
     next.v2DeadHandTurns = (next.v2DeadHandTurns ?? 0) + 1;
   }
-  const carryRaw = (hasTech(next, "leftover") ? 1 : 0) + (hasTech(next, "flowSword") ? 1 : 0);
+  const carryRaw =
+    (hasTech(next, "leftover") ? battleTechRank(next, "leftover") : 0) + techBonus(next, "flowSword", 1);
   const carryCap =
     isLabMode() && isBreakAlign() && (next.v2TurnBreakCount ?? 0) <= 0 ? 0 : carryRaw;
   const carry = carryCap > 0 ? Math.min(carryCap, next.energy) : 0;
-  next.log.push("你收势。");
+  if (!isClimbQi()) next.log.push("你收势。");
   if (companionOn(next) && next.active === "seer" && next.energy === 0) {
     next.energyNext += 1;
     next.log.push("余墨，下回劲力 +1");
@@ -3552,125 +4705,55 @@ export function endTurn(b: Battle, opts: EndTurnOpts = {}): Battle {
   if (next.phase !== "player") return next;
   // §31.11 刀系埋招前置只记「最近一轮敌出手」——结算前清，结算中由 simV2OnHitPlayer 重立。
   next.foeHitLastTurn = false;
-  resolveAllIntents(next);
+  if (!(isClimbQi() && next.climbEnemyActedThisRound)) {
+    resolveAllIntents(next);
+  }
+  next.climbEnemyActedThisRound = false;
+  if (next.foeMovedFwd && next.foeMovedBack) {
+    next.foeSway = Math.max(next.foeSway ?? 0, 2);
+    next.log.push(`${next.enemy.name}乱步。进退同一息。`);
+  }
+  if (next.foeEnteredMelee && (next.foeStrikesThisTurn ?? 0) === 0) {
+    next.foeGift = 1;
+    next.log.push(`${next.enemy.name}送手。贴上来却没出招。`);
+  }
+  if ((next.foeRootTurns ?? 0) > 0) next.foeRootTurns = (next.foeRootTurns ?? 1) - 1;
   if (next.phase !== "player") return next;
   for (const extra of livingFoes(next).filter((f) => f.id !== next.enemy.id)) {
     actAlly(next, extra);
     if (next.phase !== "player") return next;
   }
-  if (next.bleed > 0) {
-    const foe = livingFoes(next)[0];
-    if (foe) {
-      const tick =
-        isLabMode() && isBreakAlign() ? bleedTickDamage(next.bleed) : next.bleed;
-      foe.hp -= tick;
-      note(next, "you", isLabMode() && isBreakAlign() ? `裂创跳 ${tick}（${next.bleed} 层）` : `裂创 ${next.bleed}`);
-      syncFront(next);
-      if (foe.hp <= 0) checkWin(next);
-    }
-  }
-  if (next.youBleed > 0 && next.phase === "player") {
-    const raw = next.youBleed;
-    const blocked = Math.min(next.playerBlock, raw);
-    const pierce = raw - blocked;
-    next.playerBlock -= blocked;
-    next.player.hp -= pierce;
-    simV2OnHitPlayer(next, pierce);
-    note(
-      next,
-      "foe",
-      pierce === 0 ? `裂创 ${raw}，全部卸掉。` : blocked > 0 ? `你裂创 ${raw}。格挡 ${blocked}，你受 ${pierce}。` : `你裂创 ${raw}。`,
-    );
-    if (next.player.hp <= 0) collapseOrDeathSwap(next);
-  }
-  if (foeTurnMark >= 0) next.v2LastFoeTurn = next.log.slice(foeTurnMark);
   if (next.phase !== "player") return next;
-  if (next.youSway > 0) next.youSway -= 1;
-  tickRiposte(next, "you");
-  tickRiposte(next, "foe");
-  next.movedFwd = false;
-  next.movedBack = false;
-  next.enteredMelee = false;
-  next.turn += 1;
-  simV2AfterEndTurnSetup(next);
-  tickSignatureCooldown(next);
-  simV2StartPlayerTurn(next);
-  dismissSummonAtTurnStart(next);
-  if (isLabMode() && isBreakAlign() && Math.abs(next.player.pos - next.enemy.pos) <= 1) {
-    if ((next.v2SpearRuler ?? 0) > 0) {
-      next.v2SpearRuler = 0;
-      note(next, "you", "贴身，标尺清零");
-    }
+
+  // 爬塔 UI：敌招播完后再一条条落地结束/开始。测试无 defer 则当场跑完。
+  if (isClimbQi() && opts.deferStatusTicks) {
+    if (foeTurnMark >= 0) next.v2LastFoeTurn = next.log.slice(foeTurnMark);
+    if (isClimbQi() && (next.youSkillTax ?? 0) > 0) next.youSkillTax = 0;
+    next.v2PendingStatusTicks = true;
+    next.climbCarryEnergy = carry;
+    next.climbClockDone = false;
+    next.climbPhaseQueue = buildClimbPhaseQueue(next, carry);
+    next.v2PendingIntentRefresh = true;
+    return next;
   }
-  const keepOk =
-    hasTech(next, "keepGuard") &&
-    (!(isLabMode() && isBreakAlign()) || (next.v2TurnBreakCount ?? 0) > 0 || (next.v2BreakCount ?? 0) > 0);
-  const kept = keepOk ? Math.min(4, next.playerBlock) : 0;
-  let retained = 0;
-  if (next.retainTurns > 0 && next.retainAmt > 0) {
-    retained = next.retainAmt;
-    next.retainTurns -= 1;
-    note(next, "you", `铁布开局 ${retained}`);
-  }
-  let block = Math.max(kept, retained);
-  if (staffBlockRetain(next)) block = Math.max(block, next.playerBlock);
-  next.playerBlock = block;
-  const tax = next.youSeal;
-  const regen = next.energyRegen + next.energyNext - (next.youQiBurn ?? 0);
-  next.energy = Math.min(next.energyMax, Math.max(0, next.energy + regen + carry - tax));
-  if (tax > 0) note(next, "foe", `封脉，劲力少 ${tax}`);
-  if (regen !== 0 || carry) note(next, "you", `回劲 ${Math.max(0, regen + carry - tax)} → ${next.energy}/${next.energyMax}`);
-  next.energyNext = 0;
-  next.youSeal = Math.max(0, next.youSeal - 1);
-  next.youMute = Math.max(0, (next.youMute ?? 0) - 1);
-  next.youNoBag = Math.max(0, (next.youNoBag ?? 0) - 1);
-  next.youHandTax = Math.max(0, (next.youHandTax ?? 0) - 1);
-  next.youQiBurn = Math.max(0, (next.youQiBurn ?? 0) - 1);
-  next.foeMute = Math.max(0, (next.foeMute ?? 0) - 1);
-  next.foeDisarm = Math.max(0, (next.foeDisarm ?? 0) - 1);
-  next.foeNoBag = Math.max(0, (next.foeNoBag ?? 0) - 1);
-  next.foeHandTax = Math.max(0, (next.foeHandTax ?? 0) - 1);
-  next.foeQiBurn = Math.max(0, (next.foeQiBurn ?? 0) - 1);
-  const foeRegen = Math.max(1, Math.floor(next.enemyEnergyMax / 3)) - (next.foeQiBurn > 0 ? 1 : 0);
-  next.enemyEnergy = Math.min(next.enemyEnergyMax, Math.max(0, next.enemyEnergy + foeRegen));
-  next.thorns = 0;
-  next.frail = Math.max(0, next.frail - 1);
-  next.youSlow = Math.max(0, next.youSlow - 1);
-  next.nextDamage = next.echoNext;
-  if (next.echoNext > 0) note(next, "you", `尾劲入掌 +${next.echoNext}`);
-  next.echoNext = 0;
-  if (next.mark > 0) next.mark = Math.max(0, next.mark - 1);
-  next.pressedLast = next.attacksThisTurn;
-  next.playedThisTurn = [];
-  next.attacksThisTurn = 0;
-  next.lastPlay = null;
-  next.swappedThisTurn = false;
-  if (isLabMode() && !isLabV2()) next.labFreshSwap = false;
-  applyMateOpen(next);
-  applyTechOpen(next);
-  applyMindOpen(next);
-  drawRefill(next);
-  // §31.10 弃牌上限按「补牌后的回合开始手牌」定——否则上回合打得越狠，下回合越没弃牌权（甲方实测「全局两次」的根因）。
-  if (next.v2Turn) next.v2Turn.turnStartHand = next.hand.length;
-  // 整队锁死兑完再刷：defer 时意图条仍是本回合刚打完的全套，播报后再亮下一手。
+
+  if (opts.deferStatusTicks) next.v2PendingStatusTicks = true;
+  else applyStatusTicksAtTurnEnd(next);
+  if (foeTurnMark >= 0) next.v2LastFoeTurn = next.log.slice(foeTurnMark);
+
+  climbAdvanceTurnClock(next);
+  climbApplyEnergyRegen(next, carry);
+  climbApplyFoeWage(next);
+  climbApplyEndureDecay(next);
+  climbClearHandAndDraw(next);
   if (opts.deferIntentRefresh) {
     next.v2PendingIntentRefresh = true;
   } else {
-    next.v2PendingIntentRefresh = false;
-    rollIntent(next);
-    if (hasTech(next, "delayGuard") && next.intent.kind === "windup") {
-      next.playerBlock += 3;
-      note(next, "you", "等手，卸了这一息。");
+    climbRollNextIntents(next);
+    if (next.climbNeedFoeOpenPlayback) {
+      next.climbNeedFoeOpenPlayback = false;
+      seizeOpening(next);
     }
-    if (hasTech(next, "pikeBrace") && next.intent.kind === "windup") {
-      next.playerBlock += 2;
-      note(next, "you", "拒马，枪尖朝外。");
-    }
-    note(
-      next,
-      "foe",
-      `${next.enemy.name}亮招：${labelIntent(next.intent)}${next.intents.length > 1 ? `（后手隐 ${next.intents.length - 1}）` : ""}`,
-    );
   }
   return next;
 }
@@ -3684,9 +4767,15 @@ export function statusChips(b: Battle, side: "you" | "foe"): StatusChip[] {
   if (side === "you") {
     const passive = companionOn(b) ? MATE_PASSIVE[b.active] : undefined;
     if (passive) push("passive", passive.name, "开", passive.text);
-    push("pace", "先机", `${yourPace(b)}${yourPace(b) >= b.foePace ? "（先手）" : "（后手）"}`, "比他快则你先出手。抢先会加，滞步会减。");
-    push("block", "格挡", b.playerBlock, "这一息卸掉这么多伤害。收势清掉，铁布除外。");
-    if ((b.v2BreakMomentum ?? 0) > 0) {
+    const climb = isClimbQi();
+    push(
+      "pace",
+      "先机",
+      `${yourPace(b)}${yourPace(b) >= b.foePace ? "（先手）" : "（后手）"}`,
+      "每手比一次先机。并手你先出。后手空条。",
+    );
+    push("block", "格挡", b.playerBlock, climb ? "局内受击减少，不随回合清。" : "这一息卸掉这么多伤害。收势清掉，铁布除外。");
+    if (!climb && (b.v2BreakMomentum ?? 0) > 0) {
       push(
         "breakmom",
         "拆势",
@@ -3695,11 +4784,23 @@ export function statusChips(b: Battle, side: "you" | "foe"): StatusChip[] {
       );
     }
     const qiSt = simV2StatusQi(b);
-    if (qiSt.show) push("qi", "势", qiSt.value, `叠层输出资源，上限 ${5}。穿盾受损清零。`);
-    else {
+    if (!climb && qiSt.show) push("qi", "势", qiSt.value, `叠层输出资源，上限 ${5}。穿盾受损清零。`);
+    else if (!climb) {
       push("combo", "连势", b.combo, "下一掌更重，或让连环接上。");
       push("flow", "气脉", b.flow, "本场攻击各加这么多。最多 3。");
       push("setup", "铺势", b.setup, "收势掌按层数加伤，然后清掉。");
+    }
+    if (climb && (b.combo ?? 0) > 0) {
+      push("combo", "连击", b.combo, `拳核。命中叠层，帽 ${CLIMB_COMBO_CAP}。花 ${CLIMB_COMBO_REPLAY_COST} 层重放上一张攻击。`);
+    }
+    if (climb && (b.v2SwordChain ?? 0) > 0) {
+      push("swordchain", "剑势", b.v2SwordChain!, `剑核。攻击加伤等于层数，命中再 +1，帽 ${CLIMB_SWORD_CHAIN_CAP}。`);
+    }
+    if (climb && (b.climbSpearRangeHits ?? 0) > 0) {
+      push("spearcut", "断劲", `${b.climbSpearRangeHits}/2`, `枪副。同手两枪都在 3–4 格，立刻扣敌劲 ${CLIMB_SPEAR_CUT_QI}。`);
+    }
+    if (climb && (b.climbWageDebt ?? 0) > 0) {
+      push("wagedebt", "断劲挂账", b.climbWageDebt!, "下次回劲先扣这笔。");
     }
     push("thorns", "反震", b.thorns, "他打你时，你按这个数回敬。");
     if (b.retainTurns > 0) push("iron", "铁布", `${b.retainAmt}/${b.retainTurns}`, `再 ${b.retainTurns} 回开局各有 ${b.retainAmt} 格挡。`);
@@ -3707,39 +4808,67 @@ export function statusChips(b: Battle, side: "you" | "foe"): StatusChip[] {
     push("qi", "纳息", b.energyNext, "下回额外多回这么多劲力。");
     push("regenQi", "回劲", b.energyRegen, "每收势回复的基础劲力。");
     if (b.youMute > 0) push("mute", "禁技", b.youMute, "这一息打不出技能牌。");
+    if ((b.youSkillTax ?? 0) > 0) {
+      push("skilltax", "技能加费", b.youSkillTax!, climb ? "刀创 nick：技能牌多耗这么多劲。收势清掉。" : "技能牌多耗这么多劲。打出技能后清掉。");
+    }
     if (b.youNoBag > 0) push("nobag", "封囊", b.youNoBag, "不能用伤药/暗器。");
     if (b.youHandTax > 0) push("handtax", "削谱", b.youHandTax, "手牌上限减少。");
     if (b.youQiBurn > 0) push("qiburn", "扣劲", b.youQiBurn, "回劲被克扣。");
     if (b.youRiposte) {
       push("bury", "埋招", `${riposteName(b.youRiposte)}·${b.youRiposteTurns}`, `再 ${b.youRiposteTurns} 回。挨打时按此反击。血过半更久，领先多撑 1 回，裂创深则短。`);
     }
-    push("bleed", "裂创", b.youBleed, "每回收势按这个数掉血。金创、烙口、缝创可治。");
+    const mindIds = b.labMateMinds?.[b.active] ?? [];
+    for (const mid of mindIds) {
+      const def = MIND_ARTS[mid];
+      if (def) push(`mind-${mid}`, def.name, "开", def.text);
+    }
+    push("bleed", "裂创", b.youBleed, "每回收势按层数掉血。金创、烙口、缝创可治。");
     push("seal", "封脉", b.youSeal, "下回少这么多劲力。通脉可解。");
     push("slow", "滞步", b.youSlow, "先机减这么多。通脉可解。");
-    push("sway", "乱步", b.youSway, "输出少 2，挨打多 3。进退同一息，或换位时先机不够，会乱。");
+    if ((b.youStun ?? 0) > 0) push("stun", "眩晕", b.youStun!, climb ? `最左 ${b.youStun} 张锁着。弃牌可弃。` : "打不出攻击牌，收势后减一层。");
+    if ((b.youExpose ?? 0) > 0) push("youexpose", "破绽", b.youExpose!, "敌打你时每层 +4 伤并消耗。");
+    push("sway", "乱步", b.youSway, "输出少 2，挨打多 3。同一息又进又退。");
+    push("unseat", "失位", b.youUnseat ?? 0, climb ? "本手先机 −1。换位时你慢才挂。" : "输出少 2，挨打多 3。换位时先机不够。");
     push("gift", "送手", b.youGift, "下一记挨打多 4。贴上去却没出招。");
+    if ((b.youDust ?? 0) > 0) push("dust", "迷眼", b.youDust!, "下一段攻击须贴身才中。");
     if (b.youRegenTurns > 0) {
       push("regen", "缝创", `${b.youRegen}/${b.youRegenTurns}`, `再 ${b.youRegenTurns} 回每回回 ${b.youRegen}。每两回裂创 -1。`);
     }
   } else {
-    push("pace", "先机", `${b.foePace}${b.foePace > yourPace(b) ? "（先手）" : b.foePace === yourPace(b) ? "（并手）" : "（后手）"}`, "比你快则他先出手。");
-    push("intent", "来招", labelIntent(b.intent), "这一息他打算这么做。红格是危险步。");
-    push("block", "架势", b.enemyBlock, "打在他身上先吃掉这些。");
-    if (b.flow >= 2) {
+    push("pace", "先机", `${b.foePace}${b.foePace > yourPace(b) ? "（先手）" : b.foePace === yourPace(b) ? "（并手）" : "（后手）"}`, "他先机更高，他先出手。");
+    {
+      const it = b.intent;
+      const name = foeIntentAlias(b.enemyId, it) ?? intentShortName(it);
+      const dmg = "damage" in it ? Number(it.damage) : 0;
+      const chip =
+        dmg > 0
+          ? `${name} ${dmg}`
+          : it.kind === "guard"
+            ? `${name} ${it.block}`
+            : it.kind === "mend"
+              ? `${name} +${it.heal}`
+              : name;
+      push("intent", "来招", chip, "与上方意图条同一招。红格是危险步。");
+    }
+    push("block", "格挡", b.enemyBlock, "打在他身上先吃掉这些。");
+    if (!isClimbQi() && b.flow >= 2) {
       push("flowwarn", "气脉", b.flow, "你气脉偏高时，他更爱卸力或连打。");
     }
-    push("bleed", "裂创", b.bleed, "他每回收势按这个数掉血。");
-    push("expose", "破绽", b.expose, "你的攻击各多吃一层破绽。");
-    push("mark", "点穴", b.mark, "你的攻击加印，开缝能吃印。");
+    push("bleed", "裂创", b.bleed, "他每回收势按层数掉血。");
+    push("expose", "破绽", b.expose, "耗 1 层穿挡直伤 4，克高格挡。");
     push("frail", "滞手", b.frail, "他打你时少 3 点。每回减一层。");
+    push("sway", "乱步", b.foeSway ?? 0, "他输出少 2，挨打多 3。同一息又进又退。");
+    push("unseat", "失位", b.foeUnseat ?? 0, "他输出少 2，挨打多 3。换位先机不够。");
+    push("gift", "送手", b.foeGift ?? 0, "下一记你打他多 4。他贴上来却没出招。");
     if (b.foeRiposte) {
       push("bury", "埋招", `${riposteName(b.foeRiposte)}·${b.foeRiposteTurns}`, `再 ${b.foeRiposteTurns} 回。你打他时，他按此反击。`);
     }
-    if ((b.foeDodge ?? 0) > 0) push("dodge", "闪避", b.foeDodge, "你下一张攻击牌的卡面伤会落空。拆势真伤仍中。");
-    if ((b.foeEndure ?? 0) > 0) push("endure", "霸体", b.foeEndure, "你下一张攻击仍能打伤，但击退、拉、眩晕无效。");
+    if ((b.foeDodge ?? 0) > 0) push("dodge", "闪避", b.foeDodge ?? 0, "你下一张攻击牌的卡面伤会落空。");
+    if ((b.foeEndure ?? 0) > 0) push("endure", "霸体", b.foeEndure ?? 0, isClimbQi() ? "挡控耗 1 层。每个结束 −1。" : "你下一张攻击仍能打伤，但击退、拉、眩晕无效。");
     if (b.foeMute > 0) push("mute", "禁技", b.foeMute, "他暂时打不出技能意图强化。");
+    if (!isClimbQi() && (b.v2OffBalance ?? 0) > 0) push("offbalance", "失衡", b.v2OffBalance!, "承伤加倍。破眼后失衡。");
     if ((b.foeStun ?? 0) > 0) push("stun", "眩晕", b.foeStun!, "他接下来 N 个攻击段出不来（棍连击/拳震壁）。");
-    if ((b.foeDisarm ?? 0) > 0) push("disarm", "缴械", b.foeDisarm!, "他被摘了兵刃：攻击伤害减半（钩系）。");
+    if ((b.foeDisarm ?? 0) > 0) push("disarm", "缴械", b.foeDisarm!, isClimbQi() ? "跳过下一次有伤。" : "他被摘了兵刃：攻击伤害减半（钩系）。");
     if (b.foeNoBag > 0) push("nobag", "封囊", b.foeNoBag, "他袋里的药/暗器用不上（对你亦同规则）。");
     if (b.foeHandTax > 0) push("handtax", "削谱", b.foeHandTax, "压迫他的节奏。");
     if (b.foeQiBurn > 0) push("qiburn", "扣劲", b.foeQiBurn, "他回劲变慢。");

@@ -22,7 +22,7 @@ export const LAB_ITEM_LABEL: Record<string, string> = {
 export const LAB_ITEM_TIP: Record<string, string> = {
   jinchuang: "回 32% 气血",
   xiujian: "8 点伤害，无视格挡",
-  huiqi: "即时 +6 劲",
+  huiqi: "即时回劲（爬塔 +4 / 读招 +6）",
   lianhuan: "本回合积势额外 +1",
   pojin: "本回合绝招无视前置",
   deathSquad: "死士为你挡下本回合第一段攻击并反扑 8；若无人来犯，他收势前主动打 8。用后即走，不占伙伴位",

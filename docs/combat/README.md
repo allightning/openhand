@@ -1,56 +1,24 @@
-# 战斗线文档 · Combat Lab
+# 战斗线文档
 
-> **当前唯一活跃开发线**。主线地图已冻结 → `docs/frozen/`。
+活跃产品：Combat Lab / 踢馆（爬塔优先）。主线地图 → `docs/frozen/`。
 
----
+| 读谁 | 给谁 |
+|------|------|
+| **[AGENT.md](./AGENT.md)** | **新对话：游戏全貌 + 精简流程（先读这个）** |
+| [PLAY.md](./PLAY.md) | 朋友试玩 |
+| [RULES.md](./RULES.md) | 机制表（改规则先改它） |
+| [ROGUE_GRADIENT.md](./ROGUE_GRADIENT.md) | 爬塔经济（对照代码） |
+| [SCOPE.md](./SCOPE.md) | 目录白名单 |
+| [ART_PIPELINE.md](./ART_PIPELINE.md) | 水墨素材 |
+| [TRAINING_HALL.md](./TRAINING_HALL.md) | 训练馆 |
+| [CHANGELOG.md](./CHANGELOG.md) | 历史记录 |
 
-## 给朋友测试
-
-| | |
-|---|---|
-| **在线踢馆** | https://allightning.github.io/openhand/ （根路径；`/combat-lab.html` 亦可） |
-| **怎么玩** | [PLAY.md](./PLAY.md) |
-| **规则详解** | [RULES.md](./RULES.md) |
-
-本地：`npm run lab` → http://127.0.0.1:5175/combat-lab.html
-
----
-
-## 文档分册
-
-| 文件 | 读者 | 内容 |
-|------|------|------|
-| [LAUNCH_ROADMAP.md](./LAUNCH_ROADMAP.md) | 策划 / 发行 | **从现在到上架的完整路线与内容清单（双模式）** |
-| [PLAY.md](./PLAY.md) | 测试玩家 | 开局流程、战斗要点、反馈清单 |
-| [RULES.md](./RULES.md) | 玩家 / 策划 / 程序 | 拆招四档、破法表、应激、势、总督 |
-| [CHANGELOG.md](./CHANGELOG.md) | 开发 | 版本迭代记录 |
-| [BREAK_ALIGN_DRAFT.md](./BREAK_ALIGN_DRAFT.md) | 策划 | **拆招核靠拢草案（待拍板，未改码）** |
-| [DUEL_READ_DRAFT.md](./DUEL_READ_DRAFT.md) | 策划 | **武侠对线读招（已拍板）：反馈 / 对线 AI / 刀距伤 / 池闸** |
-| [ENEMY_DIVERSITY_DRAFT.md](./ENEMY_DIVERSITY_DRAFT.md) | 策划 | **敌人多元 v2（已拍板）：智能>数值、敌兵刃精玄神、追、经典零拆招** |
-| [ROGUE_GRADIENT.md](./ROGUE_GRADIENT.md) | 策划 / 程序 | **开踢肉鸽定稿（18 人、手牌上限、六系、3/7 选人）** |
-| [BRANCH_MAP_DRAFT.md](./BRANCH_MAP_DRAFT.md) | 策划 | **树状遭遇（待拍板）：馆间事件、伤痕过馆、终局抉择、同道遭遇** |
-| [ROADMAP.md](./ROADMAP.md) | 策划 | 拍板项与待实现 |
-| [SCOPE.md](./SCOPE.md) | Agent | 目录白名单、验收命令 |
-
-仓库总览与「自上次提交以来改了什么」→ 根目录 [DEVELOPMENT.md](../../DEVELOPMENT.md)。
-
----
-
-## 开发入口
+设计真源：Notion「踢馆」空间（定稿先后 → 骨架 / 六系 / 状态 / 资源）。  
+现行板（收件箱）：`.cursor/lanes/SYNC.md`  
+铁律：`.cursor/rules/combat-ironclad.mdc`
 
 ```bash
-npm run lab              # 只开 combat-lab
-npm run test:combat      # 战斗回归（改完必跑）
+npm run lab
+npm run test:combat
+npm run typecheck:combat
 ```
-
-代码热区：
-
-```
-src/combatLab/           UI、踢馆、黑市、赌注、实验台
-src/game/sim.ts          战斗引擎
-src/game/intentWeakness.ts   破法 + planBreaks
-src/game/labV2.ts        拆招奖励、势、变招
-src/game/content.ts      牌 / 敌 / 意图
-```
-
-交接：`.cursor/handoff.md`

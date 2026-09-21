@@ -1,5 +1,47 @@
 /* Combat Lab — 明手主色板：深褐底 / 米黄纸面 / 暖橙灯笼 / 墨黑字 */
 
+html.lab-root,
+body:has(#app.lab-root) {
+  margin: 0;
+  height: 100%;
+}
+
+#app.lab-root {
+  position: relative;
+  height: 100%;
+  min-height: 100dvh;
+}
+
+#lab-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+#lab-overlay-mount {
+  position: absolute;
+  top: 3.15rem;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 80;
+  pointer-events: none;
+}
+
+.lab-root:has(.lab-prod-combat) #lab-overlay-mount {
+  top: 0;
+}
+
+#lab-overlay-mount:empty {
+  display: none;
+}
+
+#lab-overlay-mount > * {
+  pointer-events: auto;
+}
+
 .lab-root {
   --lab-bg: #1a1410;
   --lab-bg-2: #221c16;
@@ -58,13 +100,17 @@
 /* ── 顶栏 ── */
 .lab-header {
   flex-shrink: 0;
+  position: relative;
+  z-index: 90;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.55rem 1rem;
-  border-bottom: 1px solid var(--lab-line);
-  background: linear-gradient(180deg, #2a221c 0%, var(--lab-bg-2) 100%);
-  box-shadow: inset 0 -1px 0 rgba(212, 180, 90, 0.12);
+  min-height: 3.15rem;
+  padding: 0.4rem 1rem;
+  border-bottom: 1px solid #2a2018;
+  background: linear-gradient(180deg, #f4ead6, #e8dcc4);
+  box-shadow: none;
 }
 
 .lab-header.lab-header-battle {
@@ -77,15 +123,23 @@
   margin: 0;
   font-size: 1.05rem;
   letter-spacing: 0.12em;
-  color: var(--lab-ink);
+  color: #1a1410;
   font-weight: 700;
 }
 
 .lab-title-block .lab-sub {
   margin: 0.1rem 0 0;
   font-size: 0.68rem;
-  color: var(--lab-muted);
+  color: #3a2a1c;
   letter-spacing: 0.04em;
+}
+
+.lab-header .lab-btn,
+.lab-header .lab-btn:hover:not(:disabled) {
+  background: #efe4cc;
+  color: #1a1410;
+  border-color: #2a2018;
+  box-shadow: none;
 }
 
 .lab-stat-badges {
@@ -1350,6 +1404,39 @@
   color: var(--lab-gold);
 }
 
+.lab-phase-slot {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 1.55rem;
+  margin: 0 0 0.15rem;
+  flex-shrink: 0;
+}
+
+.lab-phase-banner {
+  margin: 0;
+  padding: 0.12rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: center;
+  color: #efe4cc;
+  background: rgba(26, 20, 16, 0.78);
+  border: 1px solid rgba(196, 90, 40, 0.55);
+  border-radius: 999px;
+  min-height: 1.35rem;
+  width: max-content;
+  max-width: 16rem;
+  box-shadow: none;
+  flex-shrink: 0;
+}
+
+.lab-phase-banner.is-idle {
+  visibility: hidden;
+  border-color: transparent;
+  background: none;
+}
+
 .lab-settings-panel {
   min-width: 320px;
 }
@@ -1479,15 +1566,21 @@
   opacity: 1;
 }
 
+.lab-fx-pop.lab-fx-settled {
+  animation: none;
+}
+
 .lab-mid-gutter {
   width: 100%;
   flex: 0 0 auto;
   min-height: 5.2rem;
-  margin: 0.75rem 0 1.15rem;
+  margin: 0.75rem 0 0.55rem;
   padding: 0 0.75rem;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 0.35rem;
   position: relative;
   z-index: 4;
 }
@@ -1559,10 +1652,19 @@
 }
 
 .lab-fx-pop.lab-fx-plate {
-  background: #f4ead6;
-  padding: 0.28rem 0.85rem 0.35rem;
-  border: 1px solid #2a1c10;
-  color: #1a1410;
+  background: none;
+  padding: 0;
+  border: none;
+  color: #fff6e0;
+  font-weight: 800;
+  font-size: 1.6rem;
+  text-shadow:
+    0 0 2px #1a1410,
+    0 1px 0 #1a1410,
+    1px 0 0 #1a1410,
+    -1px 0 0 #1a1410,
+    0 -1px 0 #1a1410,
+    0 0 10px rgba(244, 234, 214, 0.85);
 }
 
 /* 敌方出招锁：回合制停手 */
@@ -1582,12 +1684,16 @@
   flex-direction: column;
   align-items: center;
   gap: 0.1rem;
-  padding: 0.4rem 1.15rem 0.5rem;
-  background: #f4ead6;
-  border: 1px solid #2a1c10;
+  padding: 0.15rem 0.4rem;
+  background: none;
+  border: none;
   pointer-events: none;
-  color: #1a1410;
+  color: #fff6e0;
   font-family: "Songti SC", "Noto Serif SC", "STSong", serif;
+  text-shadow:
+    0 0 2px #1a1410,
+    0 1px 0 #1a1410,
+    0 0 10px rgba(244, 234, 214, 0.85);
 }
 .lab-foe-lock b {
   font-size: 1.15rem;
@@ -1783,6 +1889,7 @@
 
 .lab-wiki-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
   padding: 0.55rem 0.75rem;
@@ -1794,7 +1901,17 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem;
-  flex: 1;
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.lab-wiki-head-tools {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 
 .lab-wiki-tab {
@@ -1813,6 +1930,34 @@
   border-color: var(--lab-lantern);
 }
 
+.lab-wiki-search {
+  width: 11rem;
+  flex: 1 1 8rem;
+  min-width: 7rem;
+  max-width: 14rem;
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid var(--lab-line);
+  background: var(--lab-paper-2);
+  color: var(--lab-ink);
+}
+
+.lab-wiki-related {
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.lab-wiki-related b {
+  margin-right: 0.35rem;
+}
+
+.lab-wiki-empty {
+  margin: 1rem;
+  text-align: center;
+}
+
 .lab-wiki-close {
   border: none;
   background: transparent;
@@ -1820,6 +1965,9 @@
   line-height: 1;
   cursor: pointer;
   color: var(--lab-ink);
+  flex: 0 0 auto;
+  min-width: 2.2rem;
+  min-height: 2.2rem;
 }
 
 .lab-wiki-body {
@@ -1983,13 +2131,26 @@
   color: var(--lab-muted);
 }
 
+.lab-wiki-nums {
+  margin: 0.25rem 0 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--lab-ink);
+}
+
 .lab-wiki-foot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  gap: 0.55rem 0.85rem;
   padding: 0.55rem 0.75rem;
   border-top: 1px solid var(--lab-line);
   background: var(--lab-paper-2);
+}
+
+.lab-wiki-foot .lab-btn {
+  flex: 0 0 auto;
 }
 
 .lab-wiki-page {
@@ -2333,16 +2494,15 @@
 .lab-battle-shell {
   display: flex;
   flex-direction: column;
-  height: 100dvh;
-  max-height: 100dvh;
-  overflow-x: hidden;
-  overflow-y: hidden;
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
+  height: auto;
+  max-height: none;
+  overflow: hidden;
 }
 
 .lab-battle-shell:has(.lab-prod-combat) {
-  overflow: visible;
+  overflow: hidden;
 }
 
 .lab-enemy-band {
@@ -2455,7 +2615,8 @@
 .lab-prod-combat .foe-side > .lab-aside-head,
 .lab-prod-combat .foe-side > .lab-stand-slot,
 .lab-prod-combat .foe-side > .lab-name-slot,
-.lab-prod-combat .foe-side > .lab-bar-slot {
+.lab-prod-combat .foe-side > .lab-bar-slot,
+.lab-prod-combat .foe-side > .lab-aside-extra {
   justify-self: end;
   z-index: 2;
 }
@@ -2523,6 +2684,13 @@
 
 .lab-prod-combat .you-side > .lab-aside-extra {
   grid-column: 1;
+  grid-row: 6;
+  width: 168px;
+  justify-self: center;
+}
+
+.lab-prod-combat .foe-side > .lab-aside-extra {
+  grid-column: 3;
   grid-row: 6;
   width: 168px;
   justify-self: center;
@@ -2870,10 +3038,12 @@
 .lab-prod-combat .cell .wall-label {
   font-size: 0.82rem;
   line-height: 1.35;
+  color: #1a1410;
+  font-weight: 700;
 }
 
 .lab-prod-combat.fy-combat {
-  overflow: visible;
+  overflow: hidden;
   background-color: #e8dcc8;
 }
 
@@ -2951,15 +3121,22 @@
 .lab-prod-combat .lab-action-band.bottombar {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 0.45rem;
   margin-top: auto;
   padding-bottom: 0.45rem;
 }
 
 .lab-prod-combat .lab-action-row {
   position: relative;
-  z-index: 1;
+  z-index: 120;
   flex-shrink: 0;
+  flex-wrap: wrap;
+  max-height: none;
+  overflow: visible;
+  gap: 0.4rem 0.5rem;
+  row-gap: 0.35rem;
+  margin: 0;
+  padding: 0.2rem 0.5rem 0.35rem;
 }
 
 .lab-prod-combat .lab-hand-row {
@@ -2969,8 +3146,8 @@
   overflow: visible;
   min-height: unset;
   position: relative;
-  z-index: 100;
-  margin-top: -4px;
+  z-index: 1;
+  margin-top: 0;
 }
 
 .lab-prod-combat .lab-hand-row .hand-scroll {
@@ -3009,20 +3186,20 @@
   margin: 0;
   overflow: visible;
   position: relative;
-  z-index: 201;
+  z-index: 1;
 }
 
 .lab-prod-combat .lab-hand-row .hand-scroll .hand .card {
   flex-shrink: 0;
   position: relative;
-  overflow: visible;
-  z-index: calc(210 + var(--i, 0)) !important;
+  overflow: hidden;
+  z-index: calc(2 + var(--i, 0));
 }
 
 .lab-prod-combat .lab-hand-row .hand-scroll .hand .card:hover,
 .lab-prod-combat .lab-hand-row .hand-scroll .hand .card.hot {
-  transform: translateY(-28px);
-  z-index: 9999 !important;
+  transform: translateY(-12px);
+  z-index: 20;
 }
 .lab-prod-combat .lab-hand-row .hand-scroll .hand .card:hover::after,
 .lab-prod-combat .lab-hand-row .hand-scroll .hand .card.hot::after {
@@ -3032,24 +3209,72 @@
   right: 0;
   top: 100%;
   height: 36px;
+  pointer-events: none;
 }
 
 .lab-prod-combat .lab-hand-row .hand-scroll .hand .card.dead:hover {
   transform: none;
-  z-index: calc(210 + var(--i, 0)) !important;
+  z-index: calc(2 + var(--i, 0));
 }
 
-.lab-prod-combat #preview-slot {
-  flex-shrink: 0;
-  position: relative;
-  z-index: 1;
+.lab-prod-combat .lab-hand-row .hand-scroll .hand .card.stun-lock {
+  outline: 2px solid rgba(180, 40, 40, 0.85);
+  filter: grayscale(0.35);
 }
 
 .lab-prod-combat .lab-hand-row .draw-col,
-.lab-prod-combat .lab-hand-row .foe-col,
-.lab-prod-combat .lab-hand-row .status-col {
+.lab-prod-combat .lab-hand-row .foe-col {
   position: relative;
   z-index: 50;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 0.35rem;
+  min-width: 10.5rem;
+  max-width: 16rem;
+  flex: 0 1 16rem;
+}
+
+.lab-prod-combat .lab-hand-row .foe-col {
+  flex-direction: row-reverse;
+}
+
+.lab-prod-combat .lab-hand-row .weapon-plate {
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+.lab-prod-combat .lab-hand-row .status-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-auto-rows: minmax(1.35rem, auto);
+  align-content: start;
+  justify-items: stretch;
+  gap: 0.2rem;
+  flex: 1 1 0;
+  min-width: 6.8rem;
+  max-width: none;
+  width: auto;
+}
+
+.lab-prod-combat .lab-hand-row .status-col.empty {
+  min-height: 4.2rem;
+}
+
+.lab-prod-combat .lab-hand-row .status-chip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.2rem;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 0.72rem;
+  padding: 0.12rem 0.28rem;
+  background: #f4ead6;
+  color: #1a1410;
+  border: 1px solid #2a2018;
 }
 
 .lab-prod-combat .lab-tech-slot {
@@ -3228,6 +3453,14 @@
   z-index: 3;
 }
 
+/* 悬停预演条：中缝通栏，底栏上沿在它下面 */
+.lab-prod-combat .lab-mid-gutter > .preview,
+.lab-prod-combat .lab-mid-gutter > #preview-slot {
+  width: 100%;
+  box-sizing: border-box;
+  text-align: center;
+}
+
 .lab-action-band {
   flex: none;
   display: flex;
@@ -3245,14 +3478,13 @@
 
 .lab-action-row {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 0.35rem;
-  max-height: 36px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding: 0.15rem 0.35rem;
+  gap: 0.4rem 0.5rem;
+  max-height: none;
+  overflow: visible;
+  padding: 0.2rem 0.35rem;
   background: transparent;
   border: none;
 }
@@ -3270,7 +3502,7 @@
 
 .lab-action-group {
   display: inline-flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.25rem;
   flex-shrink: 0;
@@ -3299,9 +3531,8 @@
   text-align: center;
 }
 
-.lab-prod-combat .status-col {
-  align-items: center;
-  justify-content: center;
+.lab-prod-combat .lab-hand-row .status-col {
+  align-content: start;
 }
 
 .lab-action-muted {
@@ -3435,7 +3666,8 @@
   display: flex;
   justify-content: center;
   width: 100%;
-  padding: 0.35rem 0 0.15rem;
+  min-height: 2.1rem;
+  padding: 0.2rem 0 0.1rem;
   flex-shrink: 0;
   position: relative;
   z-index: 1;
@@ -3506,9 +3738,9 @@
 .lab-hand-row .lab-pile-col {
   flex: none;
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.2rem;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 0.35rem;
   min-width: 3.2rem;
 }
 
@@ -3573,7 +3805,7 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: visible;
+  overflow: hidden;
   padding-top: 0;
   justify-content: flex-start;
 }
@@ -3601,11 +3833,7 @@ html.lab-fullscreen body {
   margin: 0;
 }
 
-html.lab-fullscreen #app.lab-root {
-  height: 100%;
-  min-height: 0;
-}
-
+html.lab-fullscreen #app.lab-root,
 .lab-root.lab-fullscreen {
   height: 100%;
   min-height: 0;
@@ -4043,16 +4271,16 @@ html.lab-fullscreen #app.lab-root {
 }
 
 .lab-prod-combat .lab-hand-row .hand-scroll {
-  height: 252px;
-  padding-top: 36px;
+  height: 248px;
+  padding-top: 16px;
 }
 
 .lab-prod-combat .lab-hand-row .hand-scroll .hand {
-  height: 214px;
+  height: 220px;
 }
 
 .lab-prod-combat .lab-hand-row .hand-scroll .hand .card {
-  height: 214px;
+  height: 220px;
   width: 152px;
   margin-left: -36px;
 }
@@ -4075,6 +4303,12 @@ html.lab-fullscreen #app.lab-root {
 .lab-prod-combat .lab-hand-row .hand-scroll .hand .card .banner {
   font-size: 0.72rem;
   line-height: 1.3;
+  color: #f4ead6;
+}
+
+.lab-prod-combat .lab-hand-row .hand-scroll .hand .card .text b {
+  font-weight: 800;
+  font-size: inherit;
 }
 
 .lab-prod-combat .lab-hand-row .hand-scroll .hand .card .text {
@@ -4272,7 +4506,10 @@ html.lab-fullscreen #app.lab-root {
 .lab-root .summon-hint { color: #4a6a8a; }
 
 /* 踢馆卡面：沿用 style.css 宣纸卡面，立绘不动 */
+/* 卡面条：深底浅字，禁止继承墨色 */
+.lab-root .card .banner,
 .lab-root .banner {
+  color: #f4ead6;
   font-family: inherit;
   letter-spacing: 0.18em;
 }
@@ -4281,7 +4518,38 @@ html.lab-fullscreen #app.lab-root {
 .lab-root .fy-combat.lab-prod-combat .fy-top.lab-combat-top {
   margin-top: 0;
   padding: 0.28rem 0.75rem;
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) auto minmax(8rem, 1fr);
+  align-items: center;
   gap: 0.5rem;
+  flex-wrap: unset;
+}
+.lab-root .lab-combat-top .fy-place {
+  justify-self: start;
+  min-width: 0;
+}
+.lab-root .lab-combat-top .fy-ink {
+  justify-self: center;
+  margin: 0;
+}
+.lab-root .lab-combat-top .lab-combat-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  justify-self: end;
+  justify-content: flex-end;
+  min-width: 0;
+  align-items: center;
+}
+.lab-root .lab-combat-top .lab-actions {
+  margin-left: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.25rem;
+}
+.lab-root .lab-combat-top .lab-actions .lab-btn {
+  font-size: 0.68rem;
+  padding: 0.16rem 0.4rem;
 }
 .lab-root .lab-combat-top .fy-btn {
   font-size: 0.72rem;
@@ -4408,6 +4676,14 @@ html.lab-fullscreen #app.lab-root {
   font-size: 0.95rem;
   line-height: 1.45;
   color: #4a3c2e;
+}
+.qi-tell {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.4;
+  color: #1a1410;
 }
 .qi-beat {
   padding: 0.35rem 0.7rem;
@@ -4608,6 +4884,12 @@ html.lab-fullscreen #app.lab-root {
   cursor: default;
   background: #d8c8a8;
 }
+.qi-seg-hidden {
+  background: #2a2018;
+  color: #f4ead6;
+}
+.qi-seg-hidden .qi-seg-dmg,
+.qi-seg-hidden .qi-seg-how { color: #d4c4a8; }
 .qi-pick, .qi-recap, .qi-empty {
   margin: 0.75rem 0 0;
   font-size: 1.05rem;

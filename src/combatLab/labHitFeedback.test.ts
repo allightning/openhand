@@ -6,7 +6,7 @@ import type { Battle } from "../game/types";
 import { startLabBattle } from "./factory";
 import { buildGauntletPreset, createGauntletRun } from "./gauntlet";
 import { setLabRuleset } from "./labRuleset";
-import { renderFxLayer, renderFoeIntentStrip, formatIntentBroadcast } from "./labV2Ui";
+import { renderFxLayer, renderFoeIntentStrip, formatIntentBroadcast, formatCombatRead } from "./labV2Ui";
 import { renderProdBattle } from "./prodBattleUi";
 
 function battle(): Battle {
@@ -161,6 +161,29 @@ describe("打击反馈：拆/让/空/打/拆势/劲尽", () => {
     expect(formatIntentBroadcast({ kind: "guard", block: 8 }, "架", "卸力")).toBe("卸力 · 架 8");
     expect(formatIntentBroadcast({ kind: "breathe", amount: 3 }, "劲", "吐纳")).toBe("吐纳 · 劲+3");
     expect(formatIntentBroadcast({ kind: "lunge", damage: 9 }, "破", "抢路")).toBe("抢路 · 破 9");
+    expect(formatIntentBroadcast({ kind: "strike", damage: 8 }, "打", "扑刀", { hpLost: 3, blockLost: 5 })).toBe(
+      "扑刀 · 打 8 · 挡5 · 半挡 · 入血3",
+    );
+    expect(formatIntentBroadcast({ kind: "strike", damage: 8 }, "打", "扑刀", { hpLost: 0, blockLost: 8 })).toBe(
+      "扑刀 · 打 8 · 挡8 · 全挡",
+    );
+  });
+
+  it("出刀播报：全挡只标全挡，穿挡才标穿挡", () => {
+    const blocked = battle();
+    blocked.lastHitRead = "伤0 · 伤0 · 他卸了 8";
+    blocked.enemyBlock = 0;
+    expect(formatCombatRead(blocked)).toMatch(/伤0/);
+    expect(formatCombatRead(blocked)).toMatch(/挡8/);
+    expect(formatCombatRead(blocked)).toMatch(/全挡/);
+    expect(formatCombatRead(blocked)).not.toMatch(/破盾|穿挡/);
+    expect(formatCombatRead(blocked)).not.toMatch(/他卸了/);
+
+    const pierce = battle();
+    pierce.lastHitRead = "伤5 · 他卸了 3";
+    pierce.enemyBlock = 0;
+    expect(formatCombatRead(pierce)).toMatch(/穿挡/);
+    expect(formatCombatRead(pierce)).not.toMatch(/全挡/);
   });
 
   it("readout sits in mid gutter between strip and charge", () => {
@@ -182,9 +205,21 @@ describe("打击反馈：拆/让/空/打/拆势/劲尽", () => {
     b.v2LastIntentRecap = [{ ord: 1, name: "劈", outcome: "空" }];
     expect(html(b)).toMatch(/coach-empty|coach" hidden/);
   });
+
+  it("状态与武器同排，不叠在武器底下", () => {
+    const page = html(battle());
+    const draw = /<div class="draw-col lab-pile-col">([\s\S]*?)<div class="hand-scroll">/.exec(page)?.[1] ?? "";
+    const foe = /<div class="foe-col lab-pile-col">([\s\S]*?)<\/div>\s*<\/div>\s*<\/footer>/.exec(page)?.[1] ?? "";
+    expect(draw).toMatch(/weapon-plate/);
+    expect(draw).toMatch(/status-col/);
+    expect(draw.indexOf("weapon-plate")).toBeLessThan(draw.indexOf("status-col"));
+    expect(draw).not.toMatch(/weapon-plate[\s\S]*status-col[\s\S]*weapon-plate/);
+    expect(foe).toMatch(/weapon-plate/);
+    expect(foe).toMatch(/status-col/);
+  });
 });
 
-describe("意图条：招名 / 效果 / 跳过", () => {
+describe("意图条：招名 / 效果 / 劲尽", () => {
   it("每段必有招名与数值效果，进撤明示", () => {
     const b = battle();
     b.enemyEnergy = 8;
@@ -200,12 +235,12 @@ describe("意图条：招名 / 效果 / 跳过", () => {
     expect(strip).toContain("卸力 · 架6");
     expect(strip).toContain("吐纳 · 劲+3");
     expect(strip).toContain("撤1");
-    expect(strip).toMatch(/7\/2/);
+    expect(strip).toMatch(/进2/);
     expect(strip).not.toMatch(/落\d/);
     expect(strip).not.toMatch(/lab-seg-meta/);
   });
 
-  it("劲不够的段标跳过，不标打", () => {
+  it("劲不够的段标劲尽，不标打", () => {
     const b = battle();
     b.player.pos = 3;
     b.enemy.pos = 4;
@@ -213,7 +248,8 @@ describe("意图条：招名 / 效果 / 跳过", () => {
     b.enemyEnergy = 0;
     b.intents = [{ kind: "strike", damage: 8 }];
     const strip = renderFoeIntentStrip(b, null);
-    expect(strip).toContain("跳过");
+    expect(strip).toContain("劲尽");
+    expect(strip).not.toContain("跳过");
     expect(strip).not.toMatch(/lab-tier-hit">打/);
   });
 
@@ -253,5 +289,35 @@ describe("意图条：招名 / 效果 / 跳过", () => {
     b = refreshFoeIntentsIfPending(b);
     expect(b.v2PendingIntentRefresh).toBeFalsy();
     expect(b.intents.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("回放时打完的段不留在意图条上", () => {
+    const b = battle();
+    b.intents = [
+      { kind: "strike", damage: 6 },
+      { kind: "strike", damage: 7 },
+      { kind: "guard", block: 4 },
+    ];
+    const html = renderProdBattle({
+      b,
+      prev: null,
+      hoverUid: null,
+      hoverIntentIdx: null,
+      weaponId: "palm-a-1",
+      canPlay: () => ({ ok: true }),
+      actionRowHtml: "",
+      entranceNote: "",
+      freshNote: "",
+      fxClass: "",
+      pauseOverlay: "",
+      toolbarExtra: "",
+      weaponSheetHtml: "",
+      gauntletStage: 3,
+      foeResolving: true,
+      foePlaybackSegIdx: 1,
+    });
+    expect(html).not.toMatch(/data-intent-idx="0"/);
+    expect(html).toMatch(/data-intent-idx="1"/);
+    expect(html).toMatch(/data-hide-before="1"/);
   });
 });

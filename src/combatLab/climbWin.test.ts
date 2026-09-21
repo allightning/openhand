@@ -19,6 +19,7 @@ describe("最后一人倒下当场判胜", () => {
     b.gauntletWaveQueue = undefined;
     b.player.pos = 3;
     b.enemy.pos = 4;
+    b.v2Turn = { ...b.v2Turn!, turnStartPos: 3, endPos: 3 };
     b.foes = [{ ...b.enemy, hp: 2, maxHp: 2, pos: 4 }];
     b.enemy = b.foes[0]!;
     b.thorns = 80;

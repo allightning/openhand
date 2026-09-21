@@ -302,9 +302,9 @@ export function rogueLeadId(school: WeaponId): CompanionId {
   return ROGUE_LEAD_BY_SCHOOL[school];
 }
 
-/** 3 馆 → 二档；7 馆 → 三档。 */
+/** 4 馆 → 二档；7 馆 → 三档。与 COMPANION_MILESTONES 同步。 */
 export function rogueCompanionTierForStage(stageCompleted: number): RogueRosterTier | null {
-  if (stageCompleted === 3) return 2;
+  if (stageCompleted === 4) return 2;
   if (stageCompleted === 7) return 3;
   return null;
 }

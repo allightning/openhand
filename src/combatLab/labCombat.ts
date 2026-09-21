@@ -2,7 +2,11 @@ import { isLabMode, isLabV2, getLabTuning } from "../game/labTuning";
 import { isLabV21 } from "../game/labV21";
 import { MATES } from "../game/party";
 import type { Battle, CompanionId, WeaponId } from "../game/types";
-import { cloneBattle, canPlay, canSwap, swapFighter, livingFoes, rebindMindStats } from "../game/sim";
+import { cloneBattle, canPlay, canSwap, swapFighter, livingFoes, rebindMindStats, dealToHand } from "../game/sim";
+import { pairFusionId } from "../game/rogueCards";
+import { battleEquippedSchool } from "../game/equippedWeapon";
+import { isBreakAlign } from "./labRuleset";
+import { labCard } from "../game/labContent";
 import { addQi, pushFx } from "../game/labV2";
 import { LAB_RESONANCE_COST, LAB_SWAP_COST } from "./rules";
 
@@ -38,7 +42,10 @@ export function labCanSwap(b: Battle, id: CompanionId): { ok: boolean; reason?: 
   if (b.phase !== "player") return { ok: false, reason: "现在不是你的回合" };
   if (id === b.active) return { ok: false, reason: "已经在场上" };
   if (b.swappedThisTurn) return { ok: false, reason: "这一息已经换过人" };
-  if (b.energy < labSwapCost()) return { ok: false, reason: `换人需 ${labSwapCost()} 劲力` };
+  if (!isBreakAlign()) {
+    const bag = b.bench.find((m) => m.id === id);
+    if ((bag?.energy ?? 0) < labSwapCost()) return { ok: false, reason: `换人需 ${labSwapCost()} 劲力` };
+  } else if (b.energy < labSwapCost()) return { ok: false, reason: `换人需 ${labSwapCost()} 劲力` };
   if (!b.bench.some((m) => m.id === id)) return { ok: false, reason: "在后场槽" };
   return { ok: true };
 }
@@ -54,11 +61,20 @@ export function labSwapFighter(b: Battle, id: CompanionId): Battle {
     next = { ...next, techniques: [...next.labMateTechs[id]!] };
   }
   next = cloneBattle(next);
-  rebindMindStats(next, prevActive);
-  if (next.energy > 0) {
-    next = { ...next, energy: Math.max(0, next.energy - Math.max(0, cost - 1)) };
+  if (isBreakAlign()) {
+    rebindMindStats(next, prevActive);
+    if (next.energy > 0) {
+      next = { ...next, energy: Math.max(0, next.energy - Math.max(0, cost - 1)) };
+    }
   }
   next.v2SwapCount = (next.v2SwapCount ?? 0) + 1;
+  if (isLabV2() && !isBreakAlign()) {
+    const fid = pairFusionId(battleEquippedSchool(b, prevActive), battleEquippedSchool(next, id));
+    if (fid) {
+      dealToHand(next, fid);
+      next = note(next, `${MATES[id].name}换上场，连携「${labCard(fid).name}」入手`);
+    }
+  }
   if (isLabV2()) {
     next = note(next, `${MATES[id].name}换上场，消耗 ${cost} 劲 —— 登场势就绪`);
     return { ...next, labEntranceActive: true, labEntranceUsed: false, labResonanceTurn: false };

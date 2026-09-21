@@ -139,6 +139,7 @@ function kitMoves(school: WeaponId, grade: EnemyGearGrade, stage: number, path?:
   const s2 = dmg(school, grade, 2);
   const narrow = stage <= 2;
   const mid = stage >= 3;
+  const late = stage >= 8;
   const heavyOk = stage >= 5;
   const retreat: Intent = { kind: "retreat", steps: stage >= 5 ? 2 : 1 };
   if (school === "staff") {
@@ -149,7 +150,7 @@ function kitMoves(school: WeaponId, grade: EnemyGearGrade, stage: number, path?:
       { kind: "guard", block: 6 + (grade === "jing" ? 0 : 2) },
     ];
     if (!narrow) base.push({ kind: "breathe", amount: 4 });
-    if (mid) base.push({ kind: "endure" });
+    if (late) base.push({ kind: "endure" });
     if (stage >= 5) base.push(retreat);
     return base;
   }
@@ -161,7 +162,7 @@ function kitMoves(school: WeaponId, grade: EnemyGearGrade, stage: number, path?:
       retreat,
     ];
     if (mid) base.push({ kind: "barrage", damage: Math.max(3, Math.floor(s1 / 2)), hits: 3 });
-    if (mid && path === "shaolin") base.push({ kind: "endure" });
+    if (late && path === "shaolin") base.push({ kind: "endure" });
     return base;
   }
   if (school === "saber") {
@@ -173,7 +174,7 @@ function kitMoves(school: WeaponId, grade: EnemyGearGrade, stage: number, path?:
     if (narrow) return [base[0]!, { kind: "lunge", damage: s2 }, retreat, base[2]!];
     base.push(retreat, { kind: "lunge", damage: s2 });
     if (path === "jianghu" && mid) base.push({ kind: "dust" });
-    if (mid) base.push({ kind: "dodge" });
+    if (late) base.push({ kind: "dodge" });
     return base;
   }
   if (school === "sword") {
@@ -185,7 +186,7 @@ function kitMoves(school: WeaponId, grade: EnemyGearGrade, stage: number, path?:
     if (narrow) return [base[0]!, { kind: "lunge", damage: s2 }, retreat, { kind: "breathe", amount: 3 }];
     base.push({ kind: "swap" }, retreat);
     if (mid) base.push({ kind: "shackle" }, { kind: "windup" });
-    if (mid) base.push({ kind: "dodge" });
+    if (late) base.push({ kind: "dodge" });
     return base;
   }
   if (school === "spear") {
@@ -196,7 +197,7 @@ function kitMoves(school: WeaponId, grade: EnemyGearGrade, stage: number, path?:
       retreat,
     ];
     if (heavyOk) base.push({ kind: "charge", damage: s2, steps: 2 });
-    if (mid) base.push({ kind: "dodge" });
+    if (late) base.push({ kind: "dodge" });
     return base;
   }
   const hook: Intent[] = [
@@ -242,6 +243,30 @@ export function kitCatalogPattern(id: string, indexInFamily: number): Intent[] {
   return kitMoves(school, "jing", 3, GAUNTLET_FOE_IDENTITY[id]?.path);
 }
 
+export function approachStrideCap(school: WeaponId): number {
+  if (school === "spear" || school === "staff") return 3;
+  return 2;
+}
+
+/** 爬塔：够不着时选逼近段（可变步长，避免连段 1 步抢步）。 */
+export function pickApproach(ctx: KitCtx): Intent {
+  const gap = ctx.dist - ctx.reach;
+  if (gap <= 0) {
+    return { kind: "strike", damage: enemyStrikeAtDist(ctx.school, ctx.grade, Math.max(1, ctx.dist)) };
+  }
+  if (ctx.school === "hook" && gap >= 2) {
+    return { kind: "pull", steps: Math.min(2, gap) };
+  }
+  const steps = Math.min(approachStrideCap(ctx.school), gap);
+  if (steps >= 2 && (ctx.school === "spear" || ctx.school === "staff")) {
+    return { kind: "advance", steps };
+  }
+  if (gap === 1) {
+    return { kind: "lunge", damage: enemyStrikeAtDist(ctx.school, ctx.grade, Math.min(2, ctx.dist)) };
+  }
+  return { kind: "advance", steps };
+}
+
 export interface KitCtx {
   dist: number;
   reach: number;
@@ -266,7 +291,6 @@ export function followFromKit(ctx: KitCtx, prior: Intent): Intent {
   const lowEnergy = ctx.energy <= Math.floor(ctx.energyMax / 3);
   const retreatSteps = ctx.stage >= 5 ? 2 : 1;
   const retreat: Intent = { kind: "retreat", steps: retreatSteps };
-  const lunge: Intent = { kind: "lunge", damage: enemyStrikeAtDist(ctx.school, ctx.grade, Math.min(2, ctx.dist)) };
   const strike: Intent = { kind: "strike", damage: enemyStrikeAtDist(ctx.school, ctx.grade, Math.max(1, ctx.dist)) };
 
   if (lowEnergy) {
@@ -281,27 +305,27 @@ export function followFromKit(ctx: KitCtx, prior: Intent): Intent {
   }
 
   const readYou = ctx.stage >= 3;
-  if (prior.kind === "pull") return inReach ? strike : lunge;
+  if (prior.kind === "pull") return inReach ? strike : pickApproach(ctx);
   if (prior.kind === "stake") {
     if (ctx.school === "staff" && ctx.stakes > 0) return { kind: "pestle", damage: strike.kind === "strike" ? strike.damage + 4 : 12 };
-    return inReach ? strike : lunge;
+    return inReach ? strike : pickApproach(ctx);
   }
   if (prior.kind === "windup") return { kind: "strike", damage: enemyStrikeAtDist(ctx.school, ctx.grade, 1) + 6 };
   if (prior.kind === "retreat") return inReach ? strike : { kind: "breathe", amount: ctx.school === "staff" ? 4 : 3 };
-  if (prior.kind === "lunge") return inReach ? strike : lunge;
-  if (prior.kind === "breathe") return inReach ? strike : lunge;
-  if (prior.kind === "guard") return inReach ? strike : lunge;
-  if (prior.kind === "dodge" || prior.kind === "endure") return inReach ? strike : lunge;
-  if (prior.kind === "dust" || prior.kind === "shackle") return inReach ? strike : lunge;
+  if (prior.kind === "lunge") return inReach ? strike : pickApproach(ctx);
+  if (prior.kind === "breathe") return inReach ? strike : pickApproach(ctx);
+  if (prior.kind === "guard") return inReach ? strike : pickApproach(ctx);
+  if (prior.kind === "dodge" || prior.kind === "endure") return inReach ? strike : pickApproach(ctx);
+  if (prior.kind === "dust" || prior.kind === "shackle") return inReach ? strike : pickApproach(ctx);
 
-  if (readYou && ctx.stage >= 3 && inReach && ctx.playerSchool === "saber" && ctx.turn % 3 === 0 && prior.kind !== "dodge") {
+  if (readYou && ctx.stage >= 8 && inReach && ctx.playerSchool === "saber" && ctx.turn % 3 === 0) {
     return { kind: "dodge" };
   }
-  if (readYou && ctx.stage >= 3 && (ctx.school === "staff" || ctx.school === "palm") && ctx.turn % 4 === 1 && prior.kind !== "endure") {
+  if (readYou && ctx.stage >= 8 && (ctx.school === "staff" || ctx.school === "palm") && ctx.turn % 4 === 1) {
     return { kind: "endure" };
   }
 
-  if (readYou && ctx.hpRatio < 0.28 && ctx.stage >= 6 && ctx.dist <= 2 && prior.kind !== "retreat") {
+  if (readYou && ctx.hpRatio < 0.28 && ctx.stage >= 6 && ctx.dist <= 2) {
     return retreat;
   }
   if (readYou && (ctx.playerSchool === "spear" || ctx.playerSchool === "staff") && ctx.dist > 1) {
@@ -310,9 +334,9 @@ export function followFromKit(ctx: KitCtx, prior: Intent): Intent {
       return { kind: "charge", damage: enemyStrikeAtDist(ctx.school, ctx.grade, 1) + 2, steps: 2 };
     }
     if (ctx.playerSchool === "spear" && ctx.dist >= 2 && ctx.dist <= 4) {
-      return lunge;
+      return pickApproach(ctx);
     }
-    return lunge;
+    return pickApproach(ctx);
   }
   if (readYou && ctx.playerSchool === "spear" && ctx.dist === 1 && ctx.turn % 3 === 0) {
     return { kind: "charge", damage: enemyStrikeAtDist(ctx.school, ctx.grade, 1) + 2, steps: 2 };
@@ -320,7 +344,7 @@ export function followFromKit(ctx: KitCtx, prior: Intent): Intent {
   if (ctx.stage >= 5 && ctx.foeAtEdge && ctx.dist <= 2 && prior.kind !== "swap") {
     return { kind: "swap" };
   }
-  if (!inReach) return ctx.stage <= 2 ? lunge : retreat;
+  if (!inReach) return ctx.stage <= 2 ? pickApproach(ctx) : retreat;
   if (ctx.school === "saber" && ctx.dist <= 2) return { kind: "bleedcut", damage: enemyStrikeAtDist("saber", ctx.grade, 2), bleed: 2 };
   if (ctx.school === "palm" && ctx.turn % 2 === 0) {
     return { kind: "barrage", damage: Math.max(3, Math.floor(enemyStrikeAtDist("palm", ctx.grade, 1) / 2)), hits: 3 };
@@ -343,7 +367,7 @@ export function chooseFromKit(ctx: KitCtx): Intent {
       return { kind: "strike", damage: enemyStrikeAtDist(ctx.school, ctx.grade, Math.max(1, ctx.dist)) };
     }
     if ((first.kind === "strike" || first.kind === "bleedcut" || first.kind === "barrage" || first.kind === "pestle") && ctx.dist > ctx.reach) {
-      return { kind: "lunge", damage: enemyStrikeAtDist(ctx.school, ctx.grade, 2) };
+      return pickApproach(ctx);
     }
     return first;
   }

@@ -122,12 +122,6 @@ export type CardId =
   | "ironPulse"
   | "comboTax"
   | "comboPay"
-  | "setupTax"
-  | "flowTax"
-  | "midStrike"
-  | "midGuard"
-  | "midPush"
-  | "lateAnvil"
   | "lateTide"
   | "lateMirror"
   | "lateChain"
@@ -135,7 +129,6 @@ export type CardId =
   | "lateBleed"
   | "lateMute"
   | "lateLeech"
-  | "lateHand"
   | "latePouch"
   | "jinwuToken"
   | "peonyBrew"
@@ -163,7 +156,6 @@ export type SchoolCap = Capitalize<WeaponId>;
 export type RogueCardId =
   | "direct"
   | `ward${SchoolCap}`
-  | `ward${SchoolCap}2`
   | `aura${SchoolCap}`
   | `fuse${SchoolCap}${SchoolCap}`
   | `hit${SchoolCap}`
@@ -267,6 +259,9 @@ export interface V2TurnFlags {
   hitFoeThisTurn: boolean;
   adjacentAttackHit: boolean;
   plantStakePlayed: boolean;
+  swordPokeDraw?: boolean;
+  attackHitsThisTurn?: number;
+  labFreeSkill?: boolean;
   antiGuardPlayed: boolean;
   stoodStill: boolean;
   endTurnCommitted: boolean;
@@ -430,6 +425,8 @@ export type Intent =
   | { kind: "trap"; weakness?: WeaknessDef }
   | { kind: "windup"; weakness?: WeaknessDef }
   | { kind: "lunge"; damage: number; weakness?: WeaknessDef }
+  /** 爬塔：纯逼近，不出伤（可变步长）。读招线不用。 */
+  | { kind: "advance"; steps: number; weakness?: WeaknessDef }
   | { kind: "swap"; weakness?: WeaknessDef }
   | { kind: "barrage"; damage: number; hits: number; weakness?: WeaknessDef }
   | { kind: "guard"; block: number; weakness?: WeaknessDef }
@@ -499,6 +496,8 @@ export interface FighterBag {
   hand: CardInst[];
   drawPile: CardInst[];
   discardPile: CardInst[];
+  /** 爬塔：此人自己的余劲。读招共用蓝条时不写。 */
+  energy?: number;
 }
 
 export interface Battle {
@@ -544,6 +543,8 @@ export interface Battle {
   labMateTechs?: Partial<Record<CompanionId, TechniqueId[]>>;
   /** Combat Lab: per-mate 心法（属性加成跟随在场角色）。 */
   labMateMinds?: Partial<Record<CompanionId, MindArtId[]>>;
+  /** Combat Lab: 外功投喂档 1–3。 */
+  labMateTechRanks?: Partial<Record<CompanionId, Partial<Record<TechniqueId, number>>>>;
   /** v2.2 各角色当前装备兵器（战前定、局内锁）。 */
   labMateWeapons?: Partial<Record<CompanionId, string>>;
   /** v2: unified 势 (0–5). */
@@ -595,6 +596,8 @@ export interface Battle {
   v2SwordChain?: number;
   /** 破绽剩余回合。 */
   v2ExposeTurns?: number;
+  /** 拆势层数（硬拆叠层，打出攻击消耗）。 */
+  v2BreakMomentum?: number;
   /** 拆势真伤池：打出时按层均分。 */
   v2BreakMomentumTrue?: number;
   /** 上一敌回合意图结算回顾（新队列亮出后仍可读）。 */
@@ -604,6 +607,21 @@ export interface Battle {
    * UI 播报期为 true：意图条仍显示刚打完的整队；玩家回合真正开始时再 roll。
    */
   v2PendingIntentRefresh?: boolean;
+  v2PendingStatusTicks?: boolean;
+  /**
+   * 爬塔：收势兑完敌招后，结束/开始各拍仍待逐步落地。
+   * 顺序固定：裂创 → 回劲 → 敌回劲 → 霸体 → 摸牌 → 亮招（无内容则跳过）。
+   */
+  climbPhaseQueue?: Array<"bleed" | "regen" | "wage" | "endure" | "draw" | "drawBench" | "intents">;
+  /** 爬塔 defer 尾部时暂存结余劲，回劲拍消耗。 */
+  climbCarryEnergy?: number;
+  /** 爬塔：回合钟 + 静默回劲是否已落地（空拍跳过回劲时仍须推进）。 */
+  climbClockDone?: boolean;
+  /**
+   * 爬塔：亮招后他先机更高，须先播敌招再进中期。
+   * UI 播完再 seizeOpening；测试 blob 可同步兑掉。
+   */
+  climbNeedFoeOpenPlayback?: boolean;
   v2VariantTriggers?: number;
   v2SwapCount?: number;
   v2ResonanceCount?: number;
@@ -616,6 +634,8 @@ export interface Battle {
   gauntletWaveQueue?: EnemyId[];
   /** 踢馆馆序（敌人套件 / 品阶 / AI 层）。 */
   labGauntletStage?: number;
+  /** 当前场上兵器 id，供牌面伤害展示。 */
+  labGearId?: string;
   /** 本馆馆法：禁位移 / 必须贴身 / 招眼提前。 */
   labHallLaw?: "noMove" | "mustMelee" | "earlyEye";
   /** 本场战斗背景。 */
@@ -726,6 +746,42 @@ export interface Battle {
   enteredMelee: boolean;
   youSway: number;
   youGift: number;
+  /** 失位：换位时先机不够。输出 -2，挨打 +3。 */
+  youUnseat?: number;
+  foeSway?: number;
+  foeGift?: number;
+  foeUnseat?: number;
+  foeMovedFwd?: boolean;
+  foeMovedBack?: boolean;
+  foeEnteredMelee?: boolean;
+  foeStrikesThisTurn?: number;
+  /** 玩家破绽：敌打你每层 +4 并消耗。 */
+  youExpose?: number;
+  /** 玩家眩晕：爬塔锁最左 N 张；读招仍挡攻击牌。 */
+  youStun?: number;
+  /** 爬塔：点了弃牌，本手中期不能再出牌，直到收势。 */
+  climbDiscardPhase?: boolean;
+  /** 爬塔：下手场上少摸这么多（晕挂下手）。 */
+  climbStunDrawTax?: number;
+  /** 爬塔：本手中期已经收势。晕在此时挂下手。 */
+  climbPlayerMidDone?: boolean;
+  /** 爬塔：本轮敌中期已兑完。后手空条。 */
+  climbEnemyActedThisRound?: boolean;
+  /** 爬塔：本手枪在 3–4 格的攻击次数（断劲）。 */
+  climbSpearRangeHits?: number;
+  /** 爬塔：断劲扣不动时挂在下次敌人工资上的点数。 */
+  climbWageDebt?: number;
+  /** 爬塔：上一张攻击牌（连击重放）。 */
+  climbLastAttackId?: CardId;
+  /** 爬塔：界面阶段条文案（开始 / 中期 / 结束）。 */
+  climbPhaseLabel?: string;
+  /** 爬塔：收势回放末尾的结束/开始条。 */
+  climbTurnTape?: { ord?: number; name: string; outcome: string; hpLost?: number; blockLost?: number }[];
+  labLifestealNext?: number;
+  /** 光环卡打出后：本场攻击额外面伤。 */
+  labAuraStrike?: number;
+  /** 枪 a：命中后本息敌少移。 */
+  foeRootTurns?: number;
   youRegen: number;
   youRegenTurns: number;
   regenClock: number;
@@ -796,6 +852,8 @@ export interface Preview {
   notes: string[];
   legal: boolean;
   reason?: string;
+  breakdown?: string;
+  breakdownRiders?: string[];
 }
 
 export interface HeroDef {

@@ -25,6 +25,8 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - run: npm run typecheck:combat
+      - run: npm run test:combat
       - run: npm run build:pages
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -3,7 +3,7 @@ import { gearIdsForMateSchools, schoolFromGearId } from "../game/equippedWeapon"
 import { computeResonance, type ResonanceStatus } from "../game/labResonance";
 import { getLabTuning } from "../game/labTuning";
 import { MATES, ROLE_LABEL, WEAPON_NAME } from "../game/party";
-import type { CardId, CompanionId, EnemyId, TechniqueId } from "../game/types";
+import type { CompanionId, TechniqueId } from "../game/types";
 import { gearById, TIER_NAME } from "../game/weapons";
 import { ALL_CARD_IDS, ALL_MATE_IDS, ALL_TECHNIQUE_IDS, ALL_WEAPON_IDS } from "./arsenal";
 import {
@@ -52,7 +52,7 @@ export function computeAurasFromPreset(draft: LabPreset): ResonanceStatus {
       .filter((id) => id !== draft.fieldMate)
       .map((id) => ({ id, hp: 1, maxHp: 1, hand: [], drawPile: [], discardPile: [] })),
     labMateWeapons: draft.mateWeapons,
-  } as import("../game/types").Battle;
+  } as unknown as import("../game/types").Battle;
   return computeResonance(mock);
 }
 
@@ -130,7 +130,7 @@ function renderWeaponPick(draft: LabPreset, mateId: CompanionId): string {
   const current = draft.mateWeapons[mateId] ?? "";
   const m = MATES[mateId];
   const { main, alt } = weaponsForMate(mateId);
-  const renderGroup = (label: string, ids: string[]) =>
+  const renderGroup = (_label: string, ids: string[]) =>
     ids
       .map((wid) => {
         const g = gearById(wid);

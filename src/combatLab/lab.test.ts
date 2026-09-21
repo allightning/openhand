@@ -17,6 +17,8 @@ import type { LabPreset } from "./types";
 import { labCanPlay, labSwapFighter } from "./labCombat";
 import { setLabMode, setLabTuning } from "../game/labTuning";
 import { applyLabFightScale, canPlay, makeTutorialBattle, playCard, previewCard } from "../game/sim";
+import { handRefillAmount } from "./rogueRoster";
+import { isBreakAlign } from "./labRuleset";
 
 describe("Combat Lab arsenal", () => {
   it("exposes full content counts", () => {
@@ -52,7 +54,7 @@ describe("Combat Lab presets", () => {
     setLabMode(true);
     const b = startLabBattle(preset);
     expect(b.enemyId).toBe(preset.enemyId);
-    expect(b.hand.length).toBe(5);
+    expect(b.hand.length).toBe(isBreakAlign() ? 5 : handRefillAmount(5));
     expect(b.labFreshSwap).toBe(false);
     expect(b.orderedDeal).toBe(false);
     setLabMode(false);
@@ -271,7 +273,7 @@ describe("Combat Lab telemetry", () => {
       startedAt: Date.now(),
     });
     const text = balanceReport(tel);
-    expect(text).toContain("踢馆平衡报告");
+    expect(text).toContain("行路平衡报告");
     expect(text).toContain("预演不符");
     expect(text).toContain("§24 死穴审计");
   });

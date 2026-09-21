@@ -143,13 +143,13 @@ export function onV2CardPlayed(b: Battle, defId: CardId, movedPlayer: boolean, h
   const f = b.v2Turn ?? emptyV2Turn(b);
   if (MOVE_CARD_IDS.includes(defId)) {
     f.moveCardPlayed = true;
-    f.moveCharges = (f.moveCharges ?? 0) + 1;
+    if (isBreakAlign()) f.moveCharges = (f.moveCharges ?? 0) + 1;
   }
   if (CHASE_CARD_IDS.includes(defId)) f.chaseCardPlayed = true;
   if (PLANT_STAKE_CARD_IDS.includes(defId)) f.plantStakePlayed = true;
   if (ANTI_GUARD_CARD_IDS.includes(defId)) {
     f.antiGuardPlayed = true;
-    f.antiGuardCharges = (f.antiGuardCharges ?? 0) + 1;
+    if (isBreakAlign()) f.antiGuardCharges = (f.antiGuardCharges ?? 0) + 1;
   }
   if (movedPlayer) {
     f.playerMoved = true;

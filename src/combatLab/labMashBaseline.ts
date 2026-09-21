@@ -70,10 +70,11 @@ export function mashWinRate(
 }
 
 /** §31 踢馆馆主乱点基线：末馆配置 + 起手 preset + rulesCombo=false。 */
-export function runGauntletMashBattle(seed: number, bossId: EnemyId = "usurper"): "win" | "loss" {
+export function runGauntletMashBattle(seed: number, bossId: EnemyId = "usurper", routeLength: 9 | 10 | 12 = 10): "win" | "loss" {
   setLabMode(true);
-  const final = getGauntletFinalStage();
-  const entry = ladderEntry(final);
+  const runRef = { routeLength };
+  const final = getGauntletFinalStage(runRef);
+  const entry = ladderEntry(final, "bandit", routeLength);
   setLabTuning({
     ...DEFAULT_LAB_TUNING,
     rulesV2: true,

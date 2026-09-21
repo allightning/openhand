@@ -45,24 +45,41 @@ describe("break campaign · 气力承诺", () => {
     expect(f0.loopQueue).toBe(true);
   });
 
-  it("座前试刃：拆刺+撤步+打断蓄力，后三拍直取可击倒", () => {
+  it("座前试刃：连拆断蓄后破尽架势", () => {
     const rb = CAMPAIGN_STAGES.find((s) => s.id === "RB")!;
     let f = createQiFightFromStage(rb);
+    f = playOn(f, "break_press", 0);
     f = playOn(f, "break_point", 1);
-    f = playStep(selectCard(f, f.hand.find((c) => c.defId === "step_back")!.uid));
     f = playOn(f, "atk1", 2);
     f = resolveTurn(f);
-    expect(f.enemyHp).toBe(12);
-    expect(f.momentum).toBe(1);
+    expect(f.enemyStance).toBe(9); // 14-2-3，断蓄不夺
+    expect(f.momentum).toBe(2);
     expect(f.phase).toBe("play");
-    for (let beat = 2; beat <= 4; beat++) {
-      const atk = f.hand.find((c) => c.defId === "atk1");
-      if (!atk) throw new Error("missing atk1");
-      f = playAttackFree(selectCard(f, atk.uid));
-      f = resolveTurn(f);
-    }
-    expect(f.enemyHp).toBe(0);
+    f = playOn(f, "break_yield", 0);
+    f = playOn(f, "break_press", 1);
+    const atk = f.hand.find((c) => c.defId === "atk1");
+    if (!atk) throw new Error("missing atk1");
+    f = playAttackFree(selectCard(f, atk.uid));
+    f = resolveTurn(f);
+    expect(f.enemyStance).toBe(5); // 承被拆，合滞；只拆扫 −2，▲3 夺 2
+    expect(f.lastRecap.map((r) => r.outcome)).toContain("滞");
+    expect(f.phase).toBe("play");
+    f = playOn(f, "break_press", 0);
+    f = playOn(f, "break_point", 1);
+    f = resolveTurn(f);
+    expect(f.enemyStance).toBe(0);
     expect(f.phase).toBe("won");
+  });
+
+  it("座前试刃：不拆只攻破不了架势", () => {
+    const rb = CAMPAIGN_STAGES.find((s) => s.id === "RB")!;
+    let f = createQiFightFromStage(rb);
+    const atk = f.hand.find((c) => c.defId === "atk1");
+    if (!atk) throw new Error("missing atk1");
+    f = playAttackFree(selectCard(f, atk.uid));
+    f = resolveTurn(f);
+    expect(f.enemyStance).toBe(14);
+    expect(f.playerStance).toBeLessThan(12);
   });
 
   it("ships nine qi-commit stages", () => {
@@ -74,7 +91,7 @@ describe("break campaign · 气力承诺", () => {
       expect(s.hand.length).toBeGreaterThan(0);
       expect(s.qiQueue.length).toBeGreaterThan(0);
       expect(s.maxTurns).toBeGreaterThan(0);
-      expect(s.goals.some((g) => g.type === "withinTurns" || g.type === "hardBreaks" || g.type === "kill")).toBe(
+      expect(s.goals.some((g) => g.type === "withinTurns" || g.type === "hardBreaks" || g.type === "breakStance")).toBe(
         true,
       );
     }
@@ -82,18 +99,20 @@ describe("break campaign · 气力承诺", () => {
     expect(campaignStage("R4")?.qiQueue.some((i) => i.move === "pierce")).toBe(true);
   });
 
-  it("R5 气势：拆刺后两拍直取，第三拍吃 +1 砍满", () => {
+  it("R5 气势：拆刺后墨痕+夺势，三拍破尽架势", () => {
     const st = CAMPAIGN_STAGES.find((s) => s.id === "R5")!;
-    expect(st.teach).toMatch(/气势/);
+    expect(st.teach).toMatch(/架势/);
     let f = createQiFightFromStage(st);
     f = playOn(f, "break_point", 0);
     f = playAttackFree(selectCard(f, f.hand.find((c) => c.defId === "atk1")!.uid));
     f = resolveTurn(f);
+    expect(f.enemyStance).toBe(5); // 8-2-1
     f = playAttackFree(selectCard(f, f.hand.find((c) => c.defId === "atk1")!.uid));
     f = resolveTurn(f);
+    expect(f.enemyStance).toBe(2); // 5-2-1
     f = playAttackFree(selectCard(f, f.hand.find((c) => c.defId === "atk1")!.uid));
     f = resolveTurn(f);
-    expect(f.enemyHp).toBe(0);
+    expect(f.enemyStance).toBe(0);
     expect(f.phase).toBe("won");
   });
 
@@ -148,7 +167,7 @@ describe("break campaign · 气力承诺", () => {
       interruptDelta: 0,
       hitCount: 0,
       enemyDead: false,
-      outcomes: ["空"],
+      outcomes: ["躲"],
     });
     expect(lose.kind).toBe("lose");
   });
@@ -180,10 +199,9 @@ describe("break campaign · 气力承诺", () => {
     expect(isBreakCampaignCleared()).toBe(true);
   });
 
-  it("home enables 读招战役 entry", () => {
+  it("home 读招战役入口已开（架势胜负手测）", () => {
     const html = renderGauntletHome("");
     expect(html).toContain("start-break-campaign");
-    expect(html).not.toMatch(/id="start-break-campaign"[^>]*disabled/);
   });
 
   it("R1 qi: 拆·点 then resolve wins", () => {
@@ -221,7 +239,7 @@ describe("break campaign · 气力承诺", () => {
     f = playStep(selectCard(f, step.uid));
     f = playOn(f, "atk1", 1);
     f = resolveTurn(f);
-    expect(f.lastRecap.map((r) => r.outcome)).toEqual(["空", "断"]);
+    expect(f.lastRecap.map((r) => r.outcome)).toEqual(["躲", "断"]);
     expect(tickCampaignAfterResolve(run, readQiResolveStats(f)).kind).toBe("win");
   });
 

@@ -1,4 +1,5 @@
 import type { CardId, CompanionId, LabItemId, WeaponId } from "../game/types";
+import { CARDS } from "../game/content";
 import { breakCardUpgrade } from "../game/rogueCards";
 import { rogueLeadId } from "./rogueRoster";
 
@@ -168,4 +169,57 @@ export function sellStashCard<T extends LoadoutRun>(run: T, stashIdx: number, pr
   if (!stash[stashIdx]) return run;
   stash.splice(stashIdx, 1);
   return { ...run, stashCards: stash, pot: run.pot + Math.max(1, price) };
+}
+
+/** 爬塔外功栏：馆 1–3 为 3，4–7 为 4，8+ 为 5。 */
+export function climbTechSlotMax(stage: number): number {
+  const s = Math.max(1, stage);
+  if (s <= 3) return 3;
+  if (s <= 7) return 4;
+  return 5;
+}
+
+/** 进退/换位不合成；攻击、防御、状态可走换页链。 */
+export function climbCardFusable(id: CardId): boolean {
+  const def = CARDS[id];
+  if (!def) return false;
+  if (def.steps || def.swap) return false;
+  if (id === "advance" || id === "retreat" || id === "advance2" || id.startsWith("step")) return false;
+  return Boolean(breakCardUpgrade(id));
+}
+
+function removeFirst(list: CardId[], id: CardId): CardId[] {
+  const i = list.indexOf(id);
+  if (i < 0) return list;
+  const next = [...list];
+  next.splice(i, 1);
+  return next;
+}
+
+/** 两张同名合成一张换页（精）；再合成走下一级（绝，若表里有）。合成后费更高的是换页牌本身。 */
+export function fuseOwnedCard<T extends LoadoutRun>(run: T, id: CardId): T {
+  const up = breakCardUpgrade(id);
+  if (!up || !climbCardFusable(id) || countCardCopies(run, id) < 2) return run;
+  let left = 2;
+  let stash = [...(run.stashCards ?? [])];
+  while (left && stash.includes(id)) {
+    stash = removeFirst(stash, id);
+    left -= 1;
+  }
+  let next: T = { ...run, stashCards: stash };
+  const hero = loadoutHero(next.school);
+  const mates = new Set<CompanionId>([hero, ...(Object.keys(next.mateDecks ?? {}) as CompanionId[])]);
+  for (const mate of mates) {
+    while (left) {
+      const deck = mateDeck(next, mate);
+      if (!deck.includes(id)) break;
+      next = withMateDeck(next, mate, removeFirst(deck, id));
+      left -= 1;
+    }
+  }
+  if (left) return run;
+  const deck = mateDeck(next, hero);
+  const { max } = deckBounds(next.stage);
+  if (deck.length < max) return withMateDeck(next, hero, [...deck, up]);
+  return { ...next, stashCards: [...(next.stashCards ?? []), up] };
 }

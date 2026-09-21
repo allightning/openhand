@@ -51,7 +51,7 @@ describe("lab smoke · 能进战斗", () => {
           expect(html).toContain("lab-break-charge");
           expect(html).toContain("lab-charge-pip");
           expect(html).not.toMatch(/lab-break-charge-num">0</);
-          expect(html).toContain("肉鸽踢馆");
+          expect(html).toContain("行路");
           expect(intent).toContain("敌招");
           expect(html).not.toContain("lab-break-teach");
           expect(html).not.toContain("has-teach");
@@ -91,11 +91,11 @@ describe("lab smoke · 能进战斗", () => {
     expect(html).toContain("实验台 · 数值调参");
   });
 
-  it("实验台：肉鸽踢馆 10 馆、敌人页见套件/品阶", () => {
+  it("实验台：行路 10 馆、敌人页见套件/品阶", () => {
     setLabRuleset("break");
     setDevPanelState({ tab: "combat", stage: 4 });
     const breakCombat = renderDevPanelModal();
-    expect(breakCombat).toMatch(/肉鸽踢馆/);
+    expect(breakCombat).toMatch(/行路/);
     expect(breakCombat).toContain('max="10"');
     expect(breakCombat).toContain("破招窗口");
 

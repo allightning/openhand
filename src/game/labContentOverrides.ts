@@ -71,7 +71,7 @@ export function getContentOverrides(): ContentOverrideStore {
 export function setContentOverride<K extends keyof ContentOverrideStore>(
   bucket: K,
   id: string,
-  patch: ContentOverrideStore[K][string] | null,
+  patch: object | null,
 ): void {
   const next = { ...store[bucket] } as Record<string, unknown>;
   if (patch == null || Object.keys(patch as object).length === 0) {

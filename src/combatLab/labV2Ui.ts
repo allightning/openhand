@@ -1,6 +1,7 @@
 import { ENEMIES, intentShortName } from "../game/content";
 import { foeIntentAlias } from "../game/enemyKit";
 import { intentFirePlan, stressMetaAt } from "../game/labEnemyStress";
+import { previewIntentSegments, type IntentSegmentPreview } from "../game/intentPreview";
 import { isLabV2 } from "../game/labTuning";
 import { isBreakAlign, isBreakLesson } from "./labRuleset";
 import { MATES } from "../game/party";
@@ -9,8 +10,13 @@ import type { Battle, Intent, Unit } from "../game/types";
 import { escapeHtml } from "./setupUi";
 
 /** 意图条效果数：一律带阿拉伯数字（架/回/进撤/伤）。 */
-function intentOneNumber(b: Battle, intent: Intent): { text: string; modified: boolean; tipExtra: string } {
+function intentOneNumber(b: Battle, intent: Intent, segPreview?: IntentSegmentPreview): { text: string; modified: boolean; tipExtra: string } {
   const inc = intentIncoming(b, intent);
+  if (intent.kind === "advance") return { text: `进${intent.steps}`, modified: false, tipExtra: "" };
+  if (segPreview?.tierCode === "空" && (intent.kind === "lunge" || intent.kind === "charge")) {
+    const steps = intent.kind === "charge" ? intent.steps : 1;
+    return { text: `进${steps}`, modified: false, tipExtra: "" };
+  }
   if (intent.kind === "barrage") {
     const hits = intent.hits ?? 1;
     const per = inc.total > 0 ? inc.total : intent.damage ?? 0;
@@ -91,7 +97,8 @@ function broadcastEffect(intent: Intent | undefined, outcome: string): string {
     if (dmg != null && dmg > 0) return `空 · ${dmg}`;
     return `空 · ${stripEffectFallback(intent)}`;
   }
-  if (outcome === "劲尽" || outcome === "晕" || outcome === "散") return outcome;
+  if (outcome === "劲尽") return "劲尽";
+  if (outcome === "晕" || outcome === "散") return outcome;
 
   // 正常出招：架 / 回 / 劲 / 出 …
   if (intent.kind === "guard") return `架 ${intent.block}`;
@@ -128,9 +135,6 @@ function stripEffectFallback(intent: Intent): string {
   return "1";
 }
 
-/**
- * 玩家回合：用预览档位（将破/将让/将打/将空）。经典只标打/空/跳过。
- */
 function segmentTier(
   b: Battle,
   intent: Intent,
@@ -139,10 +143,11 @@ function segmentTier(
   preview: Set<number>,
   grazed: Set<number>,
   grazePreview: Set<number>,
-  cellsArr: number[],
-  skip: boolean,
-): { code: "" | "破" | "让" | "空" | "打" | "跳过" | "追" | "放"; pending: boolean } {
-  if (skip) return { code: "跳过", pending: true };
+  segPreview: IntentSegmentPreview,
+): { code: "" | "破" | "让" | "空" | "打" | "劲尽" | "晕" | "缴械" | "追" | "放"; pending: boolean } {
+  if (segPreview.tierCode === "劲尽") return { code: "劲尽", pending: true };
+  if (segPreview.tierCode === "晕") return { code: "晕", pending: true };
+  if (segPreview.tierCode === "缴械") return { code: "缴械", pending: true };
   const breakMode = isBreakLesson(b);
   if (breakMode && intent.kind === "retreat") {
     if (broken.has(i) || preview.has(i)) return { code: "追", pending: preview.has(i) && !broken.has(i) };
@@ -153,14 +158,9 @@ function segmentTier(
   if (breakMode && grazed.has(i)) return { code: "让", pending: false };
   if (breakMode && preview.has(i)) return { code: "破", pending: true };
   if (breakMode && grazePreview.has(i)) return { code: "让", pending: true };
-  const rawDmg = "damage" in intent ? (intent.damage ?? 0) : 0;
-  if (rawDmg <= 0) return { code: "", pending: false };
-  const endPos = b.v2Turn?.endPos ?? b.player.pos;
-  const startPos = b.v2Turn?.turnStartPos ?? b.player.pos;
-  // 开局就不在红格 → 空；收势仍在红格 → 打
-  if (!cellsArr.includes(startPos)) return { code: "空", pending: true };
-  if (cellsArr.includes(endPos)) return { code: "打", pending: true };
-  return { code: "空", pending: true };
+  if (segPreview.tierCode === "空") return { code: "空", pending: true };
+  if (segPreview.tierCode === "打") return { code: "打", pending: true };
+  return { code: "", pending: false };
 }
 
 function segmentHtml(
@@ -176,15 +176,19 @@ function segmentHtml(
   eyeIdx: number,
   projectedCells?: number[],
   fire?: { cost: number; skip: boolean },
+  segPreview?: IntentSegmentPreview,
 ): string {
   const stress = stressMetaAt(b, i);
   const breakMode = isBreakLesson(b);
   const isEye = breakMode && i === eyeIdx && eyeIdx >= 0;
-  const cellsArr = projectedCells ?? dangerCellsForIntent(b, intent);
-  const num = intentOneNumber(b, intent);
-  const skip = Boolean(fire?.skip);
+  const previewRow =
+    segPreview ??
+    previewIntentSegments(b, [intent], [projectedCells ?? dangerCellsForIntent(b, intent)])[0]!;
+  const cellsArr = previewRow.threatCells;
+  const num = intentOneNumber(b, intent, previewRow);
+  const skip = previewRow.tierCode === "劲尽";
   const cost = fire?.cost ?? 1;
-  const tier = segmentTier(b, intent, i, broken, preview, grazed, grazePreview, cellsArr, skip);
+  const tier = segmentTier(b, intent, i, broken, preview, grazed, grazePreview, previewRow);
   const unreachable = tier.code === "空";
   const cls = [
     "lab-intent-seg",
@@ -199,6 +203,7 @@ function segmentHtml(
     unreachable ? "unreachable" : "",
     tier.code === "打" ? "will-hit" : "",
     skip ? "will-skip" : "",
+    previewRow.fate === "gone" ? "resolved-gone" : "",
     breakMode && tier.code === "追" ? "will-break" : "",
     breakMode && tier.code === "放" ? "unreachable" : "",
   ]
@@ -211,13 +216,13 @@ function segmentHtml(
       ? "hard"
       : tier.code === "让"
         ? "graze"
-        : tier.code === "空" || tier.code === "跳过" || tier.code === "放"
+        : tier.code === "空" || tier.code === "劲尽" || tier.code === "晕" || tier.code === "缴械" || tier.code === "放"
           ? "miss"
           : tier.code === "打"
             ? "hit"
             : "";
   const tierText = tier.code
-    ? breakMode && tier.pending && (tier.code === "破" || tier.code === "让" || tier.code === "追")
+    ? tier.pending && (tier.code === "破" || tier.code === "让" || tier.code === "追" || tier.code === "空")
       ? `将${tier.code}`
       : tier.code
     : "";
@@ -235,7 +240,7 @@ function segmentHtml(
   const tip = [iname, tipEffect].filter(Boolean).join(" · ");
   const badge = `${tierText ? `<span class="lab-tier-badge lab-tier-${tierCls}">${tierText}</span>` : ""}${stress ? `<span class="lab-stress-badge">应</span>` : ""}${isEye ? `<span class="lab-eye-badge">眼</span>` : ""}`;
   const em = `<em class="${num.modified ? "dmg-mod" : ""}">${escapeHtml(tipEffect)}</em>`;
-  return `<button type="button" class="${cls}" data-intent-idx="${i}" data-threat="${cells}" data-tip="${escapeHtml(tip)}" aria-label="第${i + 1}段 ${iname} ${tipEffect} 劲${cost}${skip ? " 跳过" : ""}">
+  return `<button type="button" class="${cls}" data-intent-idx="${i}" data-threat="${cells}" data-tip="${escapeHtml(tip)}" aria-label="第${i + 1}段 ${iname} ${tipEffect} 劲${cost}${skip ? " 劲尽" : ""}">
     <span class="lab-seg-ord">${i + 1}</span>${badge}<b>${iname}</b>${em}<span class="status-tip">${escapeHtml(tip)}</span>
   </button>`;
 }
@@ -253,14 +258,54 @@ function timelineRow(
   eyeIdx: number,
   foeCount: number,
   projected?: number[][],
+  hideResolvedBefore = 0,
+  segFate?: Record<number, "gone" | "grey">,
 ): string {
   const fire = intentFirePlan(b.enemyEnergy, queue);
+  const threat = projected ?? projectedQueueThreat(b);
+  const segPreviews = previewIntentSegments(b, queue, threat);
   const cards = queue
-    .map((intent, i) =>
-      segmentHtml(b, intent, i, broken, preview, grazed, grazePreview, hoverIdx, currentIdx, eyeIdx, projected?.[i], fire[i]),
-    )
+    .map((intent, i) => {
+      if (segFate?.[i] === "gone") return "";
+      if (!segFate && i < hideResolvedBefore) return "";
+      const html = segmentHtml(
+        b,
+        intent,
+        i,
+        broken,
+        preview,
+        grazed,
+        grazePreview,
+        hoverIdx,
+        currentIdx,
+        eyeIdx,
+        threat[i],
+        fire[i],
+        segPreviews[i],
+      );
+      if (segFate?.[i] === "grey") {
+        return html.replace("lab-intent-seg", "lab-intent-seg unreachable resolved-stay");
+      }
+      return html;
+    })
     .join("");
-  return `<div class="lab-intent-row" data-foe-count="${foeCount}"><span class="lab-intent-label">${foe.name}</span>${cards}</div>`;
+  return `<div class="lab-intent-row" data-foe-count="${foeCount}" data-hide-before="${hideResolvedBefore}"><span class="lab-intent-label">${foe.name}</span>${cards}</div>`;
+}
+
+export function foeIntentIsStrike(intent?: Intent): boolean {
+  if (!intent) return false;
+  return (
+    intent.kind === "strike" ||
+    intent.kind === "lunge" ||
+    intent.kind === "charge" ||
+    intent.kind === "barrage" ||
+    intent.kind === "bleedcut" ||
+    intent.kind === "pestle"
+  );
+}
+
+export function foeStunCurtainMs(recap: { outcome: string }[]): number {
+  return recap.some((r) => r.outcome === "晕") ? 2500 : 0;
 }
 
 function recapChipClass(outcome: string): string {
@@ -272,7 +317,7 @@ function recapChipClass(outcome: string): string {
   return "misc";
 }
 
-function renderLastRecap(b: Battle): string {
+export function renderLastRecap(b: Battle): string {
   const recap = b.v2LastIntentRecap;
   if (!recap?.length) return "";
   const parts = recap
@@ -285,7 +330,12 @@ function renderLastRecap(b: Battle): string {
 }
 
 /** §30.3 敌人 aside 内意图条（蓝条下方）。 */
-export function renderFoeIntentStrip(b: Battle, hoverIdx: number | null): string {
+export function renderFoeIntentStrip(
+  b: Battle,
+  hoverIdx: number | null,
+  hideResolvedBefore = 0,
+  segFate?: Record<number, "gone" | "grey">,
+): string {
   if (!isLabV2()) return `<div class="lab-intent-slot empty" aria-hidden="true"></div>`;
   const broken = new Set(b.v2BrokenSegments ?? []);
   const preview = new Set(b.v2BreakPreview ?? []);
@@ -309,7 +359,7 @@ export function renderFoeIntentStrip(b: Battle, hoverIdx: number | null): string
   const projected = projectedQueueThreat(b);
   if (live.length <= 1) {
     const queue = mainQueue;
-    return `<div class="lab-intent-slot">${head}${recap}${eyeHint}<div class="lab-intent-timeline foe-inline">${timelineRow(b, b.enemy, queue, hoverIdx, broken, preview, grazed, grazePreview, currentIdx, eyeIdx, live.length, projected)}</div></div>`;
+    return `<div class="lab-intent-slot">${head}${recap}${eyeHint}<div class="lab-intent-timeline foe-inline">${timelineRow(b, b.enemy, queue, hoverIdx, broken, preview, grazed, grazePreview, currentIdx, eyeIdx, live.length, projected, hideResolvedBefore, segFate)}</div></div>`;
   }
   const rows = live.map((foe, row) => {
     const queue =
@@ -331,16 +381,12 @@ export function renderFoeIntentStrip(b: Battle, hoverIdx: number | null): string
       row === 0 ? eyeIdx : -1,
       live.length,
       row === 0 ? projected : undefined,
+      hideResolvedBefore,
+      segFate,
     );
   });
   return `<div class="lab-intent-slot">${head}${recap}${eyeHint}<div class="lab-intent-timeline foe-inline">${rows.join("")}</div></div>`;
 }
-
-/** @deprecated 顶部敌情带已废弃，保留供测试引用。 */
-export function renderIntentTimeline(b: Battle, hoverIdx: number | null): string {
-  return renderFoeIntentStrip(b, hoverIdx);
-}
-
 export function threatCellsForHover(b: Battle, hoverIdx: number | null): number[] {
   if (!isLabV2() || hoverIdx === null) return [];
   const queue = b.intents.length ? b.intents : [b.intent];
@@ -364,6 +410,7 @@ export function formatIntentBroadcast(
   intent: Intent | undefined,
   outcome: string,
   name: string,
+  recap?: { hpLost?: number; blockLost?: number },
 ): string {
   const effect = broadcastEffect(intent, outcome);
   const parts = [name, effect];
@@ -374,7 +421,31 @@ export function formatIntentBroadcast(
   ) {
     parts.push(`进${intent.steps}`);
   }
+  const blocked = recap?.blockLost ?? 0;
+  const hp = recap?.hpLost ?? 0;
+  // 敌打你：挡后仍入血 = 半挡；全吃掉 = 全挡。你打穿他挡才写穿挡。
+  if (blocked > 0 && hp > 0) parts.push(`挡${blocked}`, `半挡`, `入血${hp}`);
+  else if (blocked > 0) parts.push(`挡${blocked}`, `全挡`);
+  else if (hp > 0 && (outcome === "打" || outcome === "让" || outcome === "破")) parts.push(`入血${hp}`);
   return parts.join(" · ");
+}
+
+/** 把结算里的「他卸了」并进同一句；全挡与穿挡分开，互斥。 */
+export function formatCombatRead(b: Battle): string {
+  let s = (b.lastHitRead ?? "").trim();
+  s = s.replace(/他卸了\s*(\d+)/g, "挡$1");
+  s = s.replace(/伤(\d+)\s*·\s*伤\1\b/g, "伤$1");
+  const blocked = /挡(\d+)/.exec(s);
+  if (blocked) {
+    const fullyBlocked = /伤0\b/.test(s);
+    if (fullyBlocked && !s.includes("全挡")) s += " · 全挡";
+    // 你打穿他挡并入血：标穿挡。全挡不再兼标破盾。
+    if (!fullyBlocked && /伤([1-9]\d*)\b/.test(s) && !s.includes("穿挡") && !s.includes("破盾")) {
+      s += " · 穿挡";
+    }
+  }
+  if ((b.combo ?? 0) > 1 && !s.includes("连势")) s += ` · 连势${b.combo}`;
+  return s.replace(/(?: · )+/g, " · ").replace(/^ · | · $/g, "");
 }
 
 /** 起手预告：招名 · 数值（尚未结算）。 */
@@ -404,9 +475,8 @@ export function renderFxLayer(b: Battle): string {
     cardKnock: "推",
     cardStatus: "势",
   };
-  // 只亮最新一条：下一条滚动顶替上一条（不叠一排半透明字）
   const kind = fx.length ? fx[fx.length - 1]! : null;
-  const read = b.lastHitRead?.trim() || "";
+  const read = formatCombatRead(b);
   if (!kind && !read) {
     return `<div class="lab-fx-stack lab-fx-empty" aria-hidden="true"></div>`;
   }

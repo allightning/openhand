@@ -3,10 +3,15 @@ import { artUrl } from "../art/artUrl";
 /**
  * 战斗音效 / BGM 管理。
  * 素材：public/art/audio/（见 docs/combat/ART_PIPELINE.md）。
+ * 版权来源只写本注释 / handoff，局内不堆说明。曲库为仓库内委托/自制文件，非抓取流媒体。
+ *
+ * 铁律：同一时间只播一首「音乐」（BGM 或胜负短句）。切曲先停再播，不做双文件交叉叠播。
+ * SFX 是短一次性，可与音乐并行，也可彼此叠（拟声点，不是第二首 BGM）。
+ *
  * 音量 0-100 持久化到 localStorage；Audio 在 node 测试环境不存在时全部降级为 no-op。
  *
  * 衔接策略：战斗曲首进跳过前奏；同档再进从离开点 +RESUME_SKIP；
- * 进战淡入短、回营淡入长。
+ * 进战淡入短、回营淡入长。胜负短句：先杀 BGM，短句结束（或离开结算屏 stopSting）再接营地曲。
  */
 
 export type SfxId = "swing" | "clash" | "page" | "drop";
@@ -116,8 +121,8 @@ export const HALL_PLAYLIST: { id: BgmId; label: string }[] = [
   { id: "court_gym", label: "朝廷 · 普馆" },
   { id: "court_lite", label: "朝廷 · 精简" },
   { id: "court_voice", label: "朝廷 · 座·和声" },
-  { id: "break", label: "读招" },
-  { id: "break_voice", label: "读招 · 和声" },
+  { id: "break", label: "登门" },
+  { id: "break_voice", label: "登门 · 和声" },
 ];
 
 export const BGM_LABEL: Partial<Record<BgmId, string>> = Object.fromEntries(
@@ -184,7 +189,7 @@ export type EnsureBgmOpts = {
   seekSec?: number | null;
   /** 淡入淡出时长 ms；0=硬切 */
   fadeMs?: number;
-  /** true：同曲也交叉淡入淡出（馆间营地↔战斗） */
+  /** 切场景标记。同曲仍不重开（铁律不叠两首，也不拿它做双文件交叉淡入）。 */
   forceCrossfade?: boolean;
   /** true：同曲也重开 */
   forceRestart?: boolean;
@@ -241,6 +246,15 @@ let bgmHandoff: {
   volScale: number;
   seekSec: number;
   fadeInMs: number;
+  resumeJump: boolean;
+} | null = null;
+/** 短句占用音乐席时，ensureBgm 只记账，等短句结束再起。 */
+let pendingAfterSting: {
+  track: BgmId;
+  volScale: number;
+  seekSec: number;
+  fadeMs: number;
+  forceRestart: boolean;
   resumeJump: boolean;
 } | null = null;
 
@@ -445,7 +459,42 @@ function reapFadingOut(): void {
   while (fadingOut.length) killAudioEl(fadingOut.pop() ?? null);
 }
 
+function audioElAlive(el: HTMLAudioElement | null | undefined): boolean {
+  if (!el || el.paused) return false;
+  const attr = typeof el.getAttribute === "function" ? el.getAttribute("src") : "";
+  const src = attr || el.src || "";
+  return src.length > 0;
+}
+
+/** 正在出声的音乐路数（BGM + 淡出残骸 + 短句）。铁律：≤1。SFX 不计。 */
+export function debugMusicLane(): {
+  bgmOn: boolean;
+  stingCount: number;
+  fadingCount: number;
+  musicSources: number;
+  pendingAfterSting: boolean;
+  track: BgmId;
+} {
+  const bgmOn = audioElAlive(bgm);
+  const stingCount = liveStings.filter((s) => audioElAlive(s)).length;
+  const fadingCount = fadingOut.filter((s) => audioElAlive(s) && s.volume > 0.01).length;
+  return {
+    bgmOn,
+    stingCount,
+    fadingCount,
+    musicSources: (bgmOn ? 1 : 0) + stingCount + fadingCount,
+    pendingAfterSting: pendingAfterSting != null,
+    track: bgmTrack,
+  };
+}
+
 function beginTrack(track: BgmId, seekSec: number, volScale: number, fadeInMs: number, resumeJump: boolean): void {
+  if (liveStings.length) return;
+  reapFadingOut();
+  if (bgm) {
+    killAudioEl(bgm);
+    bgm = null;
+  }
   const gain = targetGain(volScale);
   const next = new Audio(artUrl(BGM_PATHS[track]));
   next.dataset.track = track;
@@ -715,6 +764,11 @@ export function ensureBgm(track: BgmId = bgmTrack, opts: EnsureBgmOpts = {}): vo
   bgmVolScale = volScale;
   if (userPaused) return;
   if (!hasAudio()) return;
+  if (liveStings.length) {
+    pendingAfterSting = { track, volScale, seekSec, fadeMs, forceRestart, resumeJump };
+    return;
+  }
+  pendingAfterSting = null;
 
   const gain = targetGain(volScale);
 
@@ -775,21 +829,55 @@ export function ensureBgm(track: BgmId = bgmTrack, opts: EnsureBgmOpts = {}): vo
   beginTrack(track, seekSec, volScale, fadeMs, resumeJump);
 }
 
-/** 胜/负短句：叠在 BGM 上播一次（不换循环曲）。 */
+function dropSting(el: HTMLAudioElement): void {
+  const i = liveStings.indexOf(el);
+  if (i >= 0) liveStings.splice(i, 1);
+  killAudioEl(el);
+}
+
+function resumeBgmAfterSting(): void {
+  if (liveStings.length || userPaused) return;
+  const pending = pendingAfterSting;
+  pendingAfterSting = null;
+  if (pending && bgmWanted) {
+    ensureBgm(pending.track, {
+      volScale: pending.volScale,
+      seekSec: pending.seekSec,
+      fadeMs: pending.fadeMs || BGM_FADE_TO_CAMP_MS,
+      forceRestart: pending.forceRestart,
+    });
+    return;
+  }
+  if (bgmWanted) {
+    ensureBgm(bgmTrack, { volScale: bgmVolScale, fadeMs: BGM_FADE_TO_CAMP_MS });
+  }
+}
+
+/** 胜/负短句：先停循环曲，短句播完再接营地 BGM。期间不叠第二首。 */
 export function playSting(id: StingId): void {
   if (!hasAudio()) return;
+  bgmWanted = false;
+  bgmHandoff = null;
+  pendingAfterSting = null;
+  clearFadeTimer();
+  reapFadingOut();
+  killAudioEl(bgm);
+  bgm = null;
+  stopSting();
   const el = new Audio(artUrl(STING_PATHS[id]));
   el.volume = Math.min(1, targetGain(1) * 1.05);
   liveStings.push(el);
   el.onended = () => {
-    const i = liveStings.indexOf(el);
-    if (i >= 0) liveStings.splice(i, 1);
-    killAudioEl(el);
+    dropSting(el);
+    resumeBgmAfterSting();
   };
-  void el.play().catch(() => {});
+  void el.play().catch(() => {
+    dropSting(el);
+    resumeBgmAfterSting();
+  });
 }
 
-/** 胜/负短句离开结算屏即停，不跟 BGM 一起拖。 */
+/** 胜/负短句离开结算屏即停，不跟 BGM 一起拖。营地曲由随后的 ensureBgm 或短句 onended 接上。 */
 export function stopSting(): void {
   while (liveStings.length) killAudioEl(liveStings.pop() ?? null);
 }
@@ -798,6 +886,7 @@ export function stopSting(): void {
 export function stopBgm(): void {
   bgmWanted = false;
   bgmHandoff = null;
+  pendingAfterSting = null;
   clearFadeTimer();
   reapFadingOut();
   killAudioEl(bgm);
@@ -841,6 +930,7 @@ export function resetLabAudioForTest(): void {
   hallPickIndex = 0;
   playMode = "sequence";
   userPaused = false;
+  pendingAfterSting = null;
 }
 
 function hardSilence(): void {
@@ -851,10 +941,20 @@ if (typeof document !== "undefined") {
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
       if (bgm && !bgm.paused) bgm.pause();
-      for (const s of liveStings) killAudioEl(s);
-      liveStings.length = 0;
-    } else if (bgmWanted && !userPaused) {
-      void bgm?.play().catch(() => {});
+      for (const s of liveStings) {
+        try {
+          s.pause();
+        } catch {
+          /* ignore */
+        }
+      }
+    } else if (userPaused) {
+      return;
+    } else if (liveStings.length) {
+      for (const s of liveStings) void s.play().catch(() => {});
+    } else if (bgmWanted) {
+      if (bgm) void bgm.play().catch(() => {});
+      else ensureBgm(bgmTrack, { volScale: bgmVolScale, fadeMs: 400 });
     }
   });
 }

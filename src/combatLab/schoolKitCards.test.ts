@@ -110,4 +110,19 @@ describe("六系增补：状态 / 攻击 / 本系进退", () => {
     const after = playCard(b, "stp");
     expect(after.player.pos).not.toBe(1);
   });
+
+  it("刀步：前进 1 格且先机 +2（快刀副机制可经营）", () => {
+    setLabRuleset("break");
+    expect(CARDS[stepCardId("saber")]?.pace).toBe(2);
+    const run = createGauntletRun("shaolin", "saber");
+    const b = startLabBattle(buildGauntletPreset(run), false, 1);
+    b.player.pos = 1;
+    b.enemy.pos = 4;
+    b.energy = 6;
+    b.hand = [{ uid: "stp", defId: stepCardId("saber") }];
+    const before = b.paceBoost;
+    const after = playCard(b, "stp");
+    expect(after.paceBoost).toBe(before + 2);
+    expect(after.player.pos).not.toBe(1);
+  });
 });

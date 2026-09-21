@@ -1,10 +1,8 @@
 import { CARDS } from "./content";
 import { isLabMode, isLabV2 } from "./labTuning";
-import { addQi } from "./labV2";
 import { isSummonItem, SUMMON_ITEM_TO_SCHOOL } from "./labSummon";
 import { legalSummonCells, summonAssist } from "./sim";
 import {
-  computeResonance,
   initResonanceBattle,
   resonanceExtraQiOnGain,
   resonanceStrikeBonus,
@@ -14,6 +12,7 @@ import { initSignatureBattle } from "./labSignature";
 import { comboEffectiveCost, isComboCard } from "./labCombo";
 import { ITEM_DART_DMG, ITEM_GRANT_QTY, ITEM_HEAL_PCT, ITEM_QI_GAIN } from "./labV21Constants";
 import { BOARD_SIZE, type Battle, type CardDef, type CardId, type LabItemId } from "./types";
+import { gearById } from "./weapons";
 import { isBreakAlign } from "../combatLab/labRuleset";
 import { labPlayCost } from "../combatLab/climbEconomy";
 import { emptyV2Turn } from "./labV2";
@@ -192,20 +191,36 @@ export function variantActiveLabel(def: CardDef, b: Battle): string | null {
   return br === "a" ? def.variant.labelA : def.variant.labelB;
 }
 
+export function climbAttackFaceDamage(b: Battle, def: CardDef): number {
+  let dmg = def.damage ?? 0;
+  dmg += b.nextDamage;
+  const g = gearById(b.labGearId);
+  if (g) dmg += g.damage ?? 0;
+  if (b.active === "ananhuo") {
+    const dist = Math.abs(b.player.pos - b.enemy.pos);
+    if (dist >= 2) dmg += 2;
+  }
+  return Math.max(1, dmg);
+}
+
 export function labV21EffectiveCost(b: Battle, def: CardDef): number {
   const tax = def.stackTaxQi ?? 0;
   const discount = b.costDiscountNext ?? 0;
   const nick = def.type === "skill" ? (b.youSkillTax ?? 0) : 0;
+  // 所有牌按牌面 cost 计费（爬塔 floor 1）；实际伤害看悬停预演条，不再「费=伤」。
   const v = def.variant;
+  const token = def.id.startsWith("aura") || def.id.startsWith("fuse");
+  const floor = isLabMode() && !isBreakAlign() && !token ? 1 : 0;
+  if (b.v2Turn?.labFreeSkill && def.type === "skill") return 0;
   if (!v || !isLabV21()) {
-    const base = labPlayCost(def.cost) + tax;
+    const base = labPlayCost(Math.max(floor, def.cost)) + tax;
     const c = isComboCard(def.id) ? comboEffectiveCost(b, def.id, base) : base;
-    return Math.max(0, c - discount + nick);
+    return Math.max(floor, c - discount + nick);
   }
   const br = variantBranch(def, b);
-  let cost = br === "b" && v.costZeroOnB ? tax : labPlayCost(def.cost) + tax;
+  let cost = br === "b" && v.costZeroOnB ? Math.max(floor, tax) : labPlayCost(Math.max(floor, def.cost)) + tax;
   if (isComboCard(def.id)) cost = comboEffectiveCost(b, def.id, cost);
-  return Math.max(0, cost - discount + nick);
+  return Math.max(floor, cost - discount + nick);
 }
 
 export function labV21StrikeAdjust(b: Battle, def: CardDef, base: number): number {
@@ -275,8 +290,9 @@ export function useLabItem(b: Battle, item: LabItemId, pos?: number): { ok: bool
     next.foes = next.foes.map((f) => (f.id === foe.id ? { ...foe } : f));
     next.journal = [...next.journal, { side: "you", text: `袖箭 ${ITEM_DART_DMG}（无视格挡）` }];
   } else if (item === "huiqi") {
-    next.energy = Math.min(next.energyMax, next.energy + ITEM_QI_GAIN);
-    next.journal = [...next.journal, { side: "you", text: `回气散 +${ITEM_QI_GAIN} 劲` }];
+    const gain = isBreakAlign() ? ITEM_QI_GAIN : 4;
+    next.energy = Math.min(next.energyMax, next.energy + gain);
+    next.journal = [...next.journal, { side: "you", text: `回气散 +${gain} 劲` }];
   } else if (item === "lianhuan") {
     next.labComboPillActive = true;
     next.journal = [

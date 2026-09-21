@@ -15,7 +15,7 @@ export function renderCampaignCleared(run: BreakCampaignRun, chapterDone: boolea
         <header class="hall-chrome">
           <button type="button" class="lab-btn hall-back" id="campaign-back-home">回门厅</button>
           <div class="hall-chrome-title">
-            <h2>读招战役 · 通关</h2>
+            <h2>登门 · 通关</h2>
             <p>硬拆累计 ${run.totalHardBreaks} · 硬核试玩通关。周挑战仍制作中。</p>
           </div>
         </header>

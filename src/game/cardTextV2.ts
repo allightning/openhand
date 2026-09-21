@@ -15,8 +15,6 @@ const CARD_TEXT_V2: Partial<Record<CardId, string>> = {
   weave: "上一招是攻则挡 8 并势 +1；否则蓄劲 +3。",
   comboTax: "付 2 血积势 +1。抽 1。",
   comboPay: "消耗 1 势：伤 10。",
-  setupTax: "下回势 +1。抽 1。额外耗 1 劲。",
-  flowTax: "聚势 +1（上限 5）。额外耗 1 劲。",
   tide: "下回劲力 +1。有势则抽 1。",
   bindwound: "有势可爆：回 7 清裂创；否则回 2。",
   lateTide: "势拉满。抽 2。",
@@ -41,6 +39,39 @@ const CARD_TEXT_V2: Partial<Record<CardId, string>> = {
   brace: "格挡 6，抽 1。堆挡「让」半效更稳。",
 };
 
+/** 行路牌面：只写气血格挡位移，不教硬拆/让。 */
+const CARD_TEXT_CLIMB: Partial<Record<CardId, string>> = {
+  cut: "贴脸打 10。距 2 打 4。贴身叠 2 裂创。",
+  drawcut: "相邻打 8 叠裂创，否则 4。贴身补刀。",
+  saberBleed: "贴脸伤 7，距 2 伤 4。裂创 +2。",
+  strike: "造成 5。贴身轻反打。",
+  strike2: "造成 10。拳系重掌。",
+  push: "击退 2，撞壁再 8。",
+  push2: "击退 3，撞壁再 10。",
+  palmSeal: "伤 5，禁技 1 息。",
+  charge: "下攻 +4，势 +1。",
+  defend: "获得 8 格挡。",
+  brace: "格挡 6，抽 1。",
+};
+
+function stripBreakTeach(text: string): string {
+  return text
+    .replace(/。堆够可「让」半效。?/g, "。")
+    .replace(/。堆挡「让」半效更稳。?/g, "。")
+    .replace(/硬拆后带拆势，收官打出。?/g, "")
+    .replace(/硬拆后拖刀收口。?/g, "")
+    .replace(/贴身拆位后补刀。?/g, "贴身补刀。")
+    .replace(/ · 拆窗内好出手。?/g, "。")
+    .replace(/ · 拆后爆发。?/g, "。")
+    .replace(/推开他 = 制造红格外拆位。?/g, "")
+    .replace(/大推开场，给你拆步。?/g, "")
+    .replace(/封他招式，拉长拆窗。?/g, "")
+    .replace(/拆后加伤。?/g, "")
+    .replace(/\s+/g, " ")
+    .replace(/。+/g, "。")
+    .trim();
+}
+
 function migrateLegacyText(text: string): string {
   return text
     .replace(/连势/g, "势")
@@ -50,15 +81,36 @@ function migrateLegacyText(text: string): string {
     .replace(/每层势再 \+6/g, "每点势再 +3");
 }
 
-export function cardStatLine(def: Pick<CardDef, "cost" | "damage" | "block" | "knock" | "wall" | "steps" | "heal">): string {
+export function cardStatLine(def: Pick<CardDef, "cost" | "damage" | "block" | "knock" | "wall" | "steps" | "heal" | "bleed" | "expose" | "thorns" | "pace" | "pullEnemy" | "nearBonus" | "farBonus" | "energyNext" | "chargeBonus" | "foeStun" | "foeDisarm" | "mute" | "heal" | "type">): string {
   const bits = [`劲 ${def.cost}`];
-  if (def.damage) bits.push(`伤 ${def.damage}`);
-  if (def.block) bits.push(`挡 ${def.block}`);
-  if (def.heal) bits.push(`回 ${def.heal}`);
-  if (def.knock) bits.push(`推 ${def.knock}`);
+  if (def.type === "attack") bits.push("攻击");
+  if (def.type === "skill") bits.push("技能");
+  if (def.damage) bits.push(`牌面伤 ${def.damage}`);
+  if (def.block) bits.push(`格挡 ${def.block}`);
+  if (def.heal) bits.push(`回血 ${def.heal}`);
+  if (def.knock) bits.push(`击退 ${def.knock}`);
   if (def.wall) bits.push(`撞壁 ${def.wall}`);
-  if (def.steps) bits.push(`步 ${def.steps}`);
+  if (def.steps) bits.push(`位移 ${def.steps}`);
+  if (def.pullEnemy) bits.push(`拉近 ${def.pullEnemy}`);
+  if (def.bleed) bits.push(`裂创 ${def.bleed}`);
+  if (def.expose) bits.push(`破绽 ${def.expose}`);
+  if (def.thorns) bits.push(`反震 ${def.thorns}`);
+  if (def.pace) bits.push(`先机 ${def.pace > 0 ? "+" : ""}${def.pace}`);
+  if (def.energyNext) bits.push(`下回劲 ${def.energyNext}`);
+  if (def.chargeBonus) bits.push(`蓄劲 ${def.chargeBonus}`);
+  if (def.nearBonus) bits.push(`贴身+${def.nearBonus}`);
+  if (def.farBonus) bits.push(`隔步+${def.farBonus}`);
+  if (def.foeStun) bits.push(`眩晕 ${def.foeStun}`);
+  if (def.foeDisarm) bits.push(`缴械 ${def.foeDisarm}`);
+  if (def.mute) bits.push(`禁技 ${def.mute}`);
   return bits.join(" · ");
+}
+
+export function cardWikiBody(def: CardDef, opts?: { breakAlign?: boolean }): string {
+  const body = cardDisplayText(def, opts);
+  const stats = cardStatLine(def);
+  if (!stats || body.includes(stats)) return body;
+  return `${body}\n数值：${stats}`;
 }
 
 export function cardDisplayText(
@@ -66,9 +118,13 @@ export function cardDisplayText(
   opts?: { breakAlign?: boolean },
 ): string {
   if (!isLabV2()) return def.text;
-  let text = CARD_TEXT_V2[def.id] ?? migrateLegacyText(def.text);
-  if (opts?.breakAlign === false) text = text.replace(/[拆破]招充能 \+1/g, "走位 +1");
-  return text;
+  if (opts?.breakAlign !== true) {
+    const climb = CARD_TEXT_CLIMB[def.id];
+    if (climb) return climb;
+    return stripBreakTeach(CARD_TEXT_V2[def.id] ?? migrateLegacyText(def.text));
+  }
+  const text = CARD_TEXT_V2[def.id] ?? migrateLegacyText(def.text);
+  return text.replace(/[拆破]招充能 \+1/g, "走位 +1");
 }
 
 const PATH_SKILL_V2: Record<string, string> = {

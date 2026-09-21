@@ -1,5 +1,8 @@
 import { BOARD_SIZE, type Battle, type WeaponId } from "./types";
 import type { EnemyGearGrade } from "./enemyGear";
+import { isLabMode } from "./labTuning";
+import { isBreakAlign } from "../combatLab/labRuleset";
+import { CLIMB_STAKE_CAP } from "../combatLab/climbCaps";
 
 /** 低阶桩挡 1 次攻击；高阶挡 2 次。棍立的永远是高阶。 */
 export const STAKE_HITS_LOW = 1;
@@ -16,6 +19,7 @@ export function isHighStake(b: Battle, pos: number): boolean {
 
 export function addStake(b: Battle, pos: number, hits: number): boolean {
   if (pos < 0 || pos >= BOARD_SIZE || b.stakes.includes(pos)) return false;
+  if (isLabMode() && !isBreakAlign() && b.stakes.length >= CLIMB_STAKE_CAP) return false;
   b.stakes.push(pos);
   b.stakeHits = { ...(b.stakeHits ?? {}), [pos]: Math.max(1, hits) };
   return true;

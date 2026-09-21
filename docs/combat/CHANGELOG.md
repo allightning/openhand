@@ -1,5 +1,7 @@
 # 战斗线更新日志
 
+> 历史记录，不是现行板。现行见 [AGENT.md](./AGENT.md) 与 `.cursor/lanes/SYNC.md`。
+
 ---
 
 ## 2026-09-06 · 门厅墨字
@@ -62,11 +64,11 @@
 ## 2026-09-03 · P0 门厅二分
 
 - 门厅拆成 **踢馆** / **读招**；读招预习条 + 单一主构图（后改右半留白定位）。
-- [`PLAY.md`](./PLAY.md) 重写：双模式说明 + 玩家用语表。上架路线见 [`LAUNCH_ROADMAP.md`](./LAUNCH_ROADMAP.md)。
+- [`PLAY.md`](./PLAY.md) 重写：双模式说明 + 玩家用语表。上架路线当时见现已归档的 `archive/LAUNCH_ROADMAP.md`。
 
 ## 2026-09-03 · 上架总路线定稿
 
-- 新增 [`LAUNCH_ROADMAP.md`](./LAUNCH_ROADMAP.md)：从现在到 Steam 软发/1.0 的 P0–P5、双模式内容清单与验收。钩子优先读招竖切；肉鸽不破也能爬。
+- 新增 `LAUNCH_ROADMAP.md`（现 `archive/LAUNCH_ROADMAP.md`）：当时的上架 P0–P5。现行产品口径以 AGENT.md 为准。
 
 ## 2026-09-03 · 踢馆七项（枪/遭遇/牌/无尽）
 

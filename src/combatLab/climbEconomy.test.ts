@@ -13,25 +13,27 @@ describe("climbEconomy", () => {
     setLabMode(false);
   });
 
-  it("读招保持原费；爬塔 1 费变 6、2 费变 14，池 ×8 回劲 ×4", () => {
+  it("读招与爬塔牌费都按牌面，不再 ×8", () => {
     setLabMode(true);
     setLabRuleset("break");
     expect(labPlayCost(1)).toBe(1);
     expect(scaleClimbResource(5, "pool")).toBe(5);
     setLabRuleset("climb");
-    expect(climbCardCost(1)).toBe(6);
-    expect(climbCardCost(2)).toBe(14);
-    expect(labPlayCost(1)).toBe(6);
-    expect(scaleClimbResource(5, "pool")).toBe(40);
-    expect(scaleClimbResource(3, "regen")).toBe(12);
+    expect(climbCardCost(1)).toBe(1);
+    expect(climbCardCost(2)).toBe(2);
+    expect(labPlayCost(1)).toBe(1);
+    expect(scaleClimbResource(5, "pool")).toBe(5);
   });
 
-  it("爬塔开战劲池抬到数量级，牌费非等比", () => {
+  it("爬塔开战按角色档位给劲，一档刀客上限 10", () => {
     setLabRuleset("climb");
     setLabMode(true);
     const b = startLabBattle(buildGauntletPreset(createGauntletRun("bandit", "saber")), true, 1);
-    expect(b.energyMax).toBeGreaterThanOrEqual(40);
-    expect(b.energyRegen).toBeGreaterThanOrEqual(12);
-    expect(labV21EffectiveCost(b, CARDS.direct)).toBe(6);
+    expect(b.energyMax).toBe(10);
+    expect(b.energyRegen).toBe(4);
+    expect(b.energy).toBe(6);
+    expect(b.player.maxHp).toBe(50);
+    // 攻击牌费用回退为牌面 cost（爬塔 floor 1），实际伤害看悬停预演条
+    expect(labV21EffectiveCost(b, CARDS.direct)).toBe(Math.max(1, CARDS.direct.cost));
   });
 });

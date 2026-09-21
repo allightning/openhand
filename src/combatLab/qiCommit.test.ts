@@ -6,8 +6,11 @@ import {
   STARTER_DECK,
   assignToSegment,
   createQiFight,
+  firstHiddenTell,
+  isSegHidden,
   playAttackFree,
   playPass,
+  playPeek,
   playStep,
   playUlt,
   resolveTurn,
@@ -98,7 +101,7 @@ describe("qi commit kernel", () => {
 
   it("playguide T1: break pierce + brace sweep + attack windup", () => {
     let f = createQiFight({
-      playerHp: 30,
+      playerHp: 12,
       enemyHp: 18,
       hand: ["brace", "break_point", "dodge", "atk1"],
       queue: [
@@ -111,8 +114,8 @@ describe("qi commit kernel", () => {
     f = playOn(f, "brace", 0);
     f = playOn(f, "atk1", 2);
     f = resolveTurn(f);
-    expect(f.playerHp).toBe(29); // 4-3 graze
-    expect(f.enemyHp).toBe(12); // 3*2 windup interrupt
+    expect(f.playerStance).toBe(11); // 架 4-3
+    expect(f.enemyStance).toBe(16); // 硬拆 -2，断蓄不夺势
     expect(f.momentum).toBe(1);
     expect(f.lastRecap.map((r) => r.outcome)).toEqual(["擦", "破", "断"]);
     expect(f.windupArmed).toBe(false);
@@ -121,7 +124,7 @@ describe("qi commit kernel", () => {
 
   it("unblocked hit clears momentum and counts as 打", () => {
     let f = createQiFight({
-      playerHp: 30,
+      playerHp: 12,
       enemyHp: 18,
       hand: ["atk2"],
       queue: [{ move: "crash", damage: 5 }],
@@ -129,8 +132,8 @@ describe("qi commit kernel", () => {
     });
     f = playAttackFree(selectCard(f, handUid(f, "atk2")));
     f = resolveTurn(f);
-    expect(f.playerHp).toBe(25);
-    expect(f.enemyHp).toBe(11); // 6 + 收势时气势▲3 的 +1
+    expect(f.playerStance).toBe(7);
+    expect(f.enemyStance).toBe(18); // 无拆，直取不夺势
     expect(f.momentum).toBe(0);
     expect(f.lastRecap[0]!.outcome).toBe("打");
   });
@@ -146,7 +149,7 @@ describe("qi commit kernel", () => {
     f = playPass(f);
     f = resolveTurn(f);
     expect(f.qi).toBe(4);
-    expect(f.playerHp).toBe(30);
+    expect(f.playerStance).toBe(30);
   });
 
   it("ink auto-voids same cell next turn", () => {
@@ -167,7 +170,8 @@ describe("qi commit kernel", () => {
     });
     expect(f.lastRecap[0]!.outcome).toBe("墨");
     expect(f.momentum).toBe(2);
-    expect(f.playerHp).toBe(30);
+    expect(f.playerStance).toBe(30);
+    expect(f.enemyStance).toBe(14); // 18-2-2
     expect(f.inkCells).toContain(3);
   });
 
@@ -201,9 +205,9 @@ describe("qi commit kernel", () => {
     });
     f = playUlt(f, 0);
     f = resolveTurn(f);
-    expect(f.enemyHp).toBe(28);
+    expect(f.enemyStance).toBe(32); // 40-8
     expect(f.lastRecap[0]!.outcome).toBe("绝");
-    expect(f.playerHp).toBe(30);
+    expect(f.playerStance).toBe(30);
     expect(f.qi).toBe(4);
   });
 
@@ -231,8 +235,107 @@ describe("qi commit kernel", () => {
     expect(f.playerPos).toBe(2);
     expect(f.qi).toBe(2);
     f = resolveTurn(f);
-    expect(f.playerHp).toBe(30);
-    expect(f.lastRecap[0]!.outcome).toBe("空");
+    expect(f.playerStance).toBe(30);
+    expect(f.lastRecap[0]!.outcome).toBe("躲");
+    expect(f.momentum).toBe(0);
+  });
+
+  it("打空算躲：气势不清零、不算拆", () => {
+    let f = createQiFight({
+      playerHp: 12,
+      enemyHp: 8,
+      playerPos: 3,
+      momentum: 3,
+      hand: ["step_back"],
+      queue: [{ move: "pierce", damage: 6, cell: 3 }],
+    });
+    f = playStep(selectCard(f, handUid(f, "step_back")));
+    f = resolveTurn(f);
+    expect(f.lastRecap[0]!.outcome).toBe("躲");
+    expect(f.playerStance).toBe(12);
+    expect(f.enemyStance).toBe(8);
+    expect(f.momentum).toBe(3);
+  });
+
+  it("诱招：起手说谎，克的是真招", () => {
+    let f = createQiFight({
+      playerHp: 12,
+      enemyHp: 8,
+      hideFrom: 0,
+      hand: ["break_press", "break_point"],
+      queue: [{ move: "pierce", damage: 6, cell: 3, feintTell: "bladeDown" }],
+    });
+    expect(firstHiddenTell(f)?.tell).toBe("bladeDown");
+    f = playOn(f, "break_press", 0);
+    expect(f.queue[0]!.commit?.tier).toBe("miss");
+    f = resolveTurn(f);
+    expect(f.lastRecap.map((r) => r.outcome)).toContain("打");
+  });
+
+  it("盯梢拆穿诱招，看见真刺", () => {
+    const peeked = playPeek(
+      createQiFight({
+        playerHp: 12,
+        enemyHp: 8,
+        hideFrom: 0,
+        hand: ["break_point"],
+        queue: [{ move: "pierce", damage: 6, cell: 3, feintTell: "bladeDown" }],
+      }),
+    );
+    expect(isSegHidden(peeked, 0)).toBe(false);
+    expect(peeked.log.some((l) => l.includes("诱"))).toBe(true);
+  });
+
+  it("后续拍可诱：开局队列不诱", () => {
+    let f = createQiFight({
+      playerHp: 12,
+      enemyHp: 8,
+      hideFrom: 0,
+      allowFeint: true,
+      feintRng: () => 0,
+      hand: ["dodge"],
+      queue: [{ move: "sweep", damage: 4, cell: 3 }],
+      nextQueue: [{ move: "crash", damage: 5, cell: 3 }],
+    });
+    expect(f.queue[0]!.feintTell).toBeUndefined();
+    f = playOn(f, "dodge", 0);
+    f = resolveTurn(f);
+    expect(f.queue[0]!.move).toBe("crash");
+    expect(f.queue[0]!.feintTell).toBe("bladeDown");
+  });
+
+  it("招路：硬拆承则合作废", () => {
+    let f = createQiFight({
+      playerHp: 12,
+      enemyHp: 14,
+      hand: ["break_point"],
+      queue: [
+        { move: "pierce", damage: 6, cell: 3, node: "carry" },
+        { move: "crash", damage: 8, cell: 3, node: "close" },
+      ],
+    });
+    f = playOn(f, "break_point", 0);
+    f = resolveTurn(f);
+    expect(f.lastRecap.map((r) => r.outcome)).toEqual(["破", "滞"]);
+    expect(f.playerStance).toBe(12);
+    expect(f.enemyStance).toBe(12);
+  });
+
+  it("招路：承被拆，下一拍合仍滞", () => {
+    let f = createQiFight({
+      playerHp: 12,
+      enemyHp: 14,
+      hand: ["break_point"],
+      queue: [{ move: "pierce", damage: 6, cell: 3, node: "carry" }],
+      nextQueue: [{ move: "crash", damage: 8, cell: 3, node: "close" }],
+    });
+    f = playOn(f, "break_point", 0);
+    f = resolveTurn(f);
+    expect(f.throatCut).toBe(true);
+    f = resolveTurn(f);
+    expect(f.lastRecap.map((r) => r.outcome)).toEqual(["滞"]);
+    expect(f.playerStance).toBe(12);
+    expect(f.throatCut).toBe(false);
   });
 
   it("loopQueue: 脚本拍打完后循环来招，不会空队列", () => {
@@ -268,8 +371,8 @@ describe("qi commit kernel", () => {
     f = playAttackFree(selectCard(f, handUid(f, "atk1")));
     expect(f.pendingAttacks).toEqual([3]);
     f = resolveTurn(f);
-    expect(f.lastRecap.map((r) => r.outcome)).toEqual(["墨"]);
-    expect(f.enemyHp).toBe(14); // 3 + 气势刚到 3 的 +1
+    expect(f.lastRecap.map((r) => r.outcome)).toEqual(["墨", "夺"]);
+    expect(f.enemyStance).toBe(12); // 18-2 破，-2 墨，▲3 夺 2
     expect(f.momentum).toBe(3);
   });
 
@@ -283,6 +386,112 @@ describe("qi commit kernel", () => {
     });
     expect(() => playOn(f, "break_press", 0)).toThrow(/红格/);
     expect(() => playOn(f, "brace", 0)).toThrow(/红格/);
+  });
+
+  it("硬拆削敌架势 2，不掉你架势", () => {
+    let f = createQiFight({
+      playerHp: 12,
+      enemyHp: 8,
+      hand: ["break_point"],
+      queue: [{ move: "pierce", damage: 6, cell: 3 }],
+    });
+    f = playOn(f, "break_point", 0);
+    f = resolveTurn(f);
+    expect(f.playerStance).toBe(12);
+    expect(f.enemyStance).toBe(6);
+    expect(f.phase).toBe("play");
+  });
+
+  it("打谱高架势：一记硬拆不会当场胜", () => {
+    let f = createQiFight({
+      playerHp: 12,
+      enemyHp: 99,
+      hand: ["break_point"],
+      queue: [{ move: "pierce", damage: 6, cell: 3 }],
+    });
+    f = playOn(f, "break_point", 0);
+    f = resolveTurn(f);
+    expect(f.enemyStance).toBe(97);
+    expect(f.phase).toBe("play");
+  });
+
+  it("绝式削 8 架势，杂兵当场破尽", () => {
+    let f = createQiFight({
+      playerHp: 12,
+      enemyHp: 8,
+      hand: ["atk1"],
+      queue: [{ move: "crash", damage: 5 }],
+      momentum: 8,
+    });
+    f = playUlt(f, 0);
+    f = resolveTurn(f);
+    expect(f.enemyStance).toBe(0);
+    expect(f.phase).toBe("won");
+    expect(f.playerStance).toBe(12);
+  });
+
+  it("不拆只攻：敌架势不动，你挨打", () => {
+    let f = createQiFight({
+      playerHp: 12,
+      enemyHp: 8,
+      hand: ["atk1", "atk1"],
+      queue: [{ move: "pierce", damage: 6, cell: 3 }],
+    });
+    f = playAttackFree(selectCard(f, handUid(f, "atk1")));
+    f = resolveTurn(f);
+    expect(f.enemyStance).toBe(8);
+    expect(f.playerStance).toBe(6);
+    expect(f.phase).toBe("play");
+  });
+
+  it("半隐：起手式对应暗段，信读可硬拆，盯梢费 1 气", () => {
+    let f = createQiFight({
+      playerHp: 12,
+      enemyHp: 8,
+      hideFrom: 1,
+      hand: ["break_press", "break_point"],
+      queue: [
+        { move: "sweep", damage: 4, cell: 3 },
+        { move: "pierce", damage: 6, cell: 3 },
+      ],
+    });
+    expect(isSegHidden(f, 0)).toBe(false);
+    expect(isSegHidden(f, 1)).toBe(true);
+    expect(firstHiddenTell(f)?.move).toBe("pierce");
+    expect(firstHiddenTell(f)?.label).toMatch(/刀尖平指/);
+    f = playOn(f, "break_point", 1);
+    expect(f.queue[1]!.commit?.tier).toBe("hard");
+    const peeked = playPeek(
+      createQiFight({
+        playerHp: 12,
+        enemyHp: 8,
+        hideFrom: 1,
+        hand: ["break_point"],
+        queue: [
+          { move: "sweep", damage: 4, cell: 3 },
+          { move: "pierce", damage: 6, cell: 3 },
+        ],
+      }),
+    );
+    expect(peeked.qi).toBe(2);
+    expect(isSegHidden(peeked, 1)).toBe(false);
+  });
+
+  it("半隐：信错起手则拆空挨打", () => {
+    let f = createQiFight({
+      playerHp: 12,
+      enemyHp: 8,
+      hideFrom: 1,
+      hand: ["break_press"],
+      queue: [
+        { move: "sweep", damage: 4, cell: 3 },
+        { move: "pierce", damage: 6, cell: 3 },
+      ],
+    });
+    f = playOn(f, "break_press", 1);
+    f = resolveTurn(f);
+    expect(f.lastRecap.map((r) => r.outcome)).toContain("打");
+    expect(f.playerStance).toBeLessThan(12);
   });
 });
 
@@ -304,8 +513,27 @@ describe("qi commit UI", () => {
     expect(html).toContain("data-qi-cell");
     expect(html).toContain("红格");
     expect(html).toContain("qi-pick");
+    expect(html).toContain("架势");
     expect(html).toContain("气力");
     expect(html).toContain("气势");
-    expect(html).toContain("墨痕");
+  });
+
+  it("半隐对打不印标准答案，亮起手式", () => {
+    const f = createQiFight({
+      playerHp: 12,
+      enemyHp: 8,
+      hideFrom: 1,
+      hand: ["break_press", "break_point"],
+      queue: [
+        { move: "sweep", damage: 4, cell: 3 },
+        { move: "pierce", damage: 6, cell: 3 },
+      ],
+    });
+    const run = { ...createBreakCampaignRun(), stageId: "RB" as const, stageIndex: 8 };
+    const html = renderQiCommitBattle(f, run);
+    expect(html).not.toContain("用 拆·点");
+    expect(html).toContain("后段");
+    expect(html).toContain("刀尖平指");
+    expect(html).toContain("qi-peek");
   });
 });

@@ -1,17 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { startLabBattle } from "./factory";
-import { setLabMode, setLabTuning } from "../game/labTuning";
-import { setLabRuleset } from "./labRuleset";
 import {
   HALL_COURSES,
-  applyHallBattle,
-  buildHallPreset,
   createHallRun,
   hallAllowsCard,
   hallAllowsEndTurn,
   hallCourse,
   hallIsGuided,
   hallCoursesIn,
+  hallQiFight,
+  hallUsesQiCommit,
 } from "./trainingHall";
 import { renderTrainingHallCatalog } from "./trainingHallUi";
 
@@ -21,32 +18,29 @@ describe("training hall", () => {
     expect(hallCoursesIn("weapon").length).toBeGreaterThanOrEqual(6);
     expect(hallCoursesIn("camp").length).toBe(3);
     expect(HALL_COURSES.every((c) => c.title && c.drillCoach)).toBe(true);
-    expect(hallCourse("chase")?.title).toMatch(/追/);
-    expect(hallCourse("chase")?.intents?.some((i) => i.kind === "retreat")).toBe(true);
+    expect(hallCourse("chase")?.title).toMatch(/过/);
+    expect(hallCourse("hard")?.qiStage).toBe("R1");
+    expect(hallUsesQiCommit("hard")).toBe(true);
+    expect(hallUsesQiCommit("saber")).toBe(false);
   });
 
   it("guide bout locks cards; drill bout does not", () => {
     const guide = createHallRun("hard", 1);
     expect(hallIsGuided(guide)).toBe(true);
-    expect(hallAllowsCard(guide, "retreat")).toBe(true);
+    expect(hallAllowsCard(guide, "break_point")).toBe(true);
     expect(hallAllowsCard(guide, "cut")).toBe(false);
-    // 收势常亮：引导局任何一步都能主动结束回合
     expect(hallAllowsEndTurn(guide)).toBe(true);
 
     const drill = createHallRun("hard", 2);
     expect(hallIsGuided(drill)).toBe(false);
-    expect(hallAllowsCard(drill, "cut")).toBe(true);
-    expect(hallAllowsCard(drill, "retreat")).toBe(true);
+    expect(hallAllowsCard(drill, "break_press")).toBe(true);
     expect(hallAllowsEndTurn(drill)).toBe(true);
   });
 
-  it("guide hard-break deals only the scripted retreat", () => {
-    setLabRuleset("break");
-    setLabMode(true);
-    setLabTuning({ rulesV2: true, v2Fx: true });
+  it("guide 拆·点 only deals the stage hand", () => {
     const run = createHallRun("hard", 1);
-    const b = applyHallBattle(startLabBattle(buildHallPreset(run), true, 1), run);
-    expect(b.hand.map((c) => c.defId)).toEqual(["retreat"]);
+    const f = hallQiFight(run);
+    expect(f.hand.map((c) => c.defId)).toEqual(["break_point", "brace"]);
   });
 
   it("catalog pins back home, cabinet tabs, and a focused lesson", () => {
@@ -59,7 +53,7 @@ describe("training hall", () => {
     expect(html).toContain("data-hall-focus=\"hard\"");
     expect(html).toContain("data-hall-start=\"hard\"");
     expect(html).toContain("hall-rail");
-    expect(html).toContain("hall-detail");
+    expect(html).toContain("自我修行");
   });
 
   it("weapon cabinet focuses the requested course", () => {
@@ -69,12 +63,10 @@ describe("training hall", () => {
     expect(html).toContain('class="hall-rail-item active" data-hall-focus="saber"');
   });
 
-  it("drill keeps a real hand, not a one-card script", () => {
-    setLabRuleset("break");
-    setLabMode(true);
-    setLabTuning({ rulesV2: true, v2Fx: true });
+  it("drill 自我修行 draws from the starter deck", () => {
     const run = createHallRun("hard", 2);
-    const b = applyHallBattle(startLabBattle(buildHallPreset(run), true, 1), run);
-    expect(b.hand.length).toBeGreaterThan(1);
+    const f = hallQiFight(run);
+    expect(f.hand.length).toBe(4);
+    expect(f.lockedHand).toBeNull();
   });
 });

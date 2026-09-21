@@ -103,14 +103,22 @@ describe("v2.1 道具", () => {
   it("each item type usable when carried; charges start at 2", () => {
     for (const item of ALL_ITEMS) {
       let b = v2Battle();
-      b = { ...b, labItems: [item], labItemCharges: { [item]: 2 }, labItemUsedThisTurn: false, energy: 8, player: { ...b.player, hp: Math.max(1, b.player.maxHp - 10) } };
+      b = {
+        ...b,
+        labItems: [item],
+        labItemCharges: { [item]: 2 },
+        labItemUsedThisTurn: false,
+        energy: 2,
+        energyMax: Math.max(b.energyMax, 20),
+        player: { ...b.player, hp: Math.max(1, b.player.maxHp - 10) },
+      };
       const hp0 = b.player.hp;
       const r = useLabItem(b, item);
       expect(r.ok).toBe(true);
       b = r.battle!;
       expect(b.labItemCharges?.[item]).toBe(1);
       if (item === "jinchuang") expect(b.player.hp).toBeGreaterThan(hp0);
-      if (item === "huiqi") expect(b.energy).toBeGreaterThan(8);
+      if (item === "huiqi") expect(b.energy).toBeGreaterThan(2);
       if (item === "lianhuan") expect(b.labComboPillActive).toBe(true);
       if (item === "pojin") expect(b.labPojinFreeBreak).toBe(true);
     }

@@ -71,4 +71,16 @@ describe("营地续关", () => {
     touchClimbCamp(payload(run));
     expect(peekClimbContinue()?.replayLeft).toBe(1);
   });
+
+  it("耗尽后同一馆购买/刷新不再补满", () => {
+    const run = createGauntletRun("bandit", "palm");
+    touchClimbCamp(payload(run));
+    consumeClimbContinue();
+    consumeClimbContinue();
+    expect(peekClimbContinue()).toBeNull();
+    // 模拟营地购买后再次保存：同一馆不得重置为 2
+    touchClimbCamp(payload(run));
+    expect(peekClimbContinue()).toBeNull();
+    expect(consumeClimbContinue()).toBeNull();
+  });
 });

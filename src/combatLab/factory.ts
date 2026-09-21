@@ -1,10 +1,9 @@
-import { ENEMIES } from "../game/content";
 import { labEnemy, labMate } from "../game/labContent";
 import { sumMindArtBonuses } from "../game/mindArts";
 import { initBattleMateWeapons } from "../game/equippedWeapon";
 import { setLabMode, getLabTuning } from "../game/labTuning";
 import { makeRun } from "../game/run";
-import { applyLabFightScale, applyLabEnemyKit, battlePace, makeBattle, syncBattleGear } from "../game/sim";
+import { applyLabFightScale, applyLabEnemyKit, applyClimbOpeningPositions, battlePace, makeBattle, syncBattleGear, dealToHand } from "../game/sim";
 import { MATES, cardSchool } from "../game/party";
 import { starterGear } from "../game/weapons";
 import type { Battle, CardId, CompanionId, EnemyId, Run, Unit } from "../game/types";
@@ -14,6 +13,8 @@ import { clonePreset, fieldHero, normalizePreset, primaryWeapon } from "./draft"
 import { expandDeckRecipe } from "./rules";
 import { pruneDeckForWeapon } from "./cardUi";
 import { gearSlotMax } from "./loadout";
+import { isBreakAlign } from "./labRuleset";
+import { auraCardId } from "../game/rogueCards";
 import type { LabPreset } from "./types";
 import { battleEquippedSchool } from "../game/equippedWeapon";
 
@@ -116,11 +117,15 @@ export function startLabBattle(preset: LabPreset, ordered = false, deckMultiplie
     labResonanceTurn: false,
     labMateTechs: p.mateTechs,
     labMateMinds: p.mateMinds,
+    labMateTechRanks: p.mateTechRanks,
     techniques: [...(p.mateTechs[p.fieldMate] ?? [])],
   };
   const fieldMind = sumMindArtBonuses(p.mateMinds?.[p.fieldMate] ?? []);
   if (fieldMind.energyMax > 0) {
-    out = { ...out, energyMax: out.energyMax + fieldMind.energyMax, energy: Math.min(out.energy + fieldMind.energyMax, out.energyMax + fieldMind.energyMax) };
+    out = { ...out, energyMax: out.energyMax + fieldMind.energyMax };
+    if (isBreakAlign()) {
+      out = { ...out, energy: Math.min(out.energy + fieldMind.energyMax, out.energyMax) };
+    }
   }
   if (fieldMind.turnEnergy > 0) out = { ...out, energyRegen: out.energyRegen + fieldMind.turnEnergy };
   out = initLabAuditFromPreset(out, p);
@@ -131,7 +136,13 @@ export function startLabBattle(preset: LabPreset, ordered = false, deckMultiplie
   out.labGauntletStage = p.gauntletStage;
   if (p.hallLaw) out.labHallLaw = p.hallLaw;
   if (p.sceneBg) out.labSceneBg = p.sceneBg;
+  if (!isBreakAlign() && p.gauntletStage != null) applyClimbOpeningPositions(out);
   applyLabEnemyKit(out);
+  if (!isBreakAlign()) {
+    const fieldSch = battleEquippedSchool(out, p.fieldMate);
+    const same = p.party.filter((id) => battleEquippedSchool(out, id) === fieldSch).length;
+    if (same >= 3) dealToHand(out, auraCardId(fieldSch));
+  }
   return out;
 }
 

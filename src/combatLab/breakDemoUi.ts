@@ -85,7 +85,7 @@ export function renderDemoGraduate(run: BreakDemoRun): string {
     <div class="gauntlet-shell">
       <header class="gauntlet-head">
         <h2>训练营完成</h2>
-        <p>硬拆、充能、让、破架、破眼、换人都过了一遍。<br/>回门厅后可再练，或开踢。</p>
+        <p>硬拆、充能、让、破架、破眼、换人都过了一遍。<br/>回门厅后可再练，或开程。</p>
         <p>硬拆 ${run.totalBreaks} · 彩金 ${run.pot}</p>
       </header>
       <div class="gauntlet-wager-actions">

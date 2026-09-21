@@ -66,6 +66,8 @@ export type CampCardOpts = {
   /** 黑市：右下角彩金；免费奖励可省略。 */
   priceLabel?: string;
   tip?: string;
+  /** 非谱牌可指定水墨图，避免心法/外功共用一张。 */
+  artId?: string;
 };
 
 /** 与局内手牌同一套结构：劲力角标、水墨立绘、类型条、牌名、效果、风味。 */
@@ -79,7 +81,7 @@ export function campBattleCardHtml(opts: CampCardOpts): string {
   const name = def?.name ?? stripOfferPrefix(opts.title);
   const text = def ? cardDisplayText(def, { breakAlign: isBreakAlign() }) : opts.text;
   const flavor = def?.flavor ?? "";
-  const art = cardArt(def?.id ?? KIND_ART[opts.kind] ?? "strike");
+  const art = cardArt(def?.id ?? opts.artId ?? KIND_ART[opts.kind] ?? "strike");
   const cost = def ? `<span class="cost">${def.cost}</span>` : "";
   const dead = opts.disabled ? "dead" : "";
   const tip = opts.tip ?? [name, banner, text, flavor, opts.priceLabel].filter(Boolean).join("\n");

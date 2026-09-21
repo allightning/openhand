@@ -38,12 +38,12 @@ describe("§31.11 距离与先机", () => {
     expect(SCHOOL_REACH.staff).toBe(3);
   });
 
-  it("先机链：拳最快，刀最慢", () => {
+  it("先机链：拳最快，刀钩同档，枪棍最慢（2026-09-09 铁律）", () => {
     expect(WEAPON_PACE.palm).toBeGreaterThan(WEAPON_PACE.sword);
-    expect(WEAPON_PACE.sword).toBe(WEAPON_PACE.hook);
-    expect(WEAPON_PACE.sword).toBeGreaterThan(WEAPON_PACE.spear);
+    expect(WEAPON_PACE.sword).toBeGreaterThan(WEAPON_PACE.hook);
+    expect(WEAPON_PACE.hook).toBe(WEAPON_PACE.saber);
+    expect(WEAPON_PACE.saber).toBeGreaterThan(WEAPON_PACE.spear);
     expect(WEAPON_PACE.spear).toBe(WEAPON_PACE.staff);
-    expect(WEAPON_PACE.staff).toBeGreaterThan(WEAPON_PACE.saber);
   });
 
   it("拳掌贴身才打得到；拆招枪贴身可拨杆、2–4 可戳", () => {

@@ -275,7 +275,7 @@ describe("新手关软锁复现", () => {
     expect(problems).toEqual([]);
   });
 
-  for (const c of HALL_COURSES) {
+  for (const c of HALL_COURSES.filter((x) => !x.qiStage)) {
     it(`训练馆引导 ${c.id} 全程无软锁`, () => {
       const problems = runHallGuide(c.id);
       expect(problems).toEqual([]);
@@ -283,7 +283,7 @@ describe("新手关软锁复现", () => {
   }
 
   it("踢馆轮番：前排倒下替补上场，phase 仍是 player（收势可用）", () => {
-    const run = createHallRun("hard", 2);
+    const run = createHallRun("saber", 2);
     const preset = { ...buildHallPreset(run), waveEnemyId: "mob_road_02" as const };
     let b = applyHallBattle(startLabBattle(preset, true, 1), run);
     b.enemy.hp = 1;

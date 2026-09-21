@@ -21,7 +21,7 @@ export const MOVE_CARD_IDS: CardId[] = [
   ...SCHOOL_STEP_IDS,
 ];
 export const CHASE_CARD_IDS: CardId[] = ["advance", "advance2", "close", ...SCHOOL_CHASE_IDS];
-export const PLANT_STAKE_CARD_IDS: CardId[] = ["plant", "split"];
+export const PLANT_STAKE_CARD_IDS: CardId[] = ["plant", "split", "wardStaff", "statusStaff", "fuseSaberStaff", "auraStaff"];
 export const ANTI_GUARD_CARD_IDS: CardId[] = ["expose", "pierce", "rift", "marking"];
 
 /** Default weakness per intent kind (rules book §4.3). */
@@ -33,6 +33,7 @@ export const DEFAULT_WEAKNESS: Record<Intent["kind"], WeaknessDef> = {
   trap: { kind: "trapAvoided" },
   windup: { kind: "hitFoeThisTurn" },
   lunge: { kind: "endDistGt1" },
+  advance: { kind: "endDistGt1" },
   swap: { kind: "endBlockGt0" },
   barrage: { kind: "endBlockGte8", param: 8 },
   guard: { kind: "antiGuardPlayed" },

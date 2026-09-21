@@ -10,7 +10,8 @@ describe("party and weapons", () => {
     expect(WEAPON_PACE.sword).toBeGreaterThan(WEAPON_PACE.spear);
     expect(WEAPON_PACE.palm).toBeGreaterThan(WEAPON_PACE.sword);
     expect(WEAPON_PACE.sword).toBeGreaterThan(WEAPON_PACE.spear);
-    expect(WEAPON_PACE.staff).toBeGreaterThan(WEAPON_PACE.saber); // §31.11 刀最慢
+    expect(WEAPON_PACE.saber).toBe(WEAPON_PACE.hook); // 2026-09-09 铁律：刀钩同档 6
+    expect(WEAPON_PACE.saber).toBeGreaterThan(WEAPON_PACE.staff);
     expect(MATES.porter.bio?.length).toBeGreaterThan(4);
     expect(MATES.rail.bio?.length).toBeGreaterThan(4);
   });

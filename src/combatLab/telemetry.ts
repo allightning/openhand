@@ -140,7 +140,7 @@ export function balanceReport(tel: LabTelemetry): string {
     .join(" ");
   const avgTurns = playerTurns.length;
   const lines = [
-    `# 踢馆平衡报告`,
+    `# 行路平衡报告`,
     `- 预设：${tel.meta.presetName}`,
     `- 结果：${tel.outcome ?? "进行中"}`,
     `- 回合记录：${turns}（玩家 ${playerTurns.length}）`,
@@ -152,7 +152,7 @@ export function balanceReport(tel: LabTelemetry): string {
     `- 换人/共鸣：${tel.v2SwapCount ?? 0} / ${tel.v2ResonanceCount ?? 0}`,
     `- 变招触发：${tel.v2VariantTriggers ?? 0}`,
     `- 鏖战回合/率：${tel.v2GrudgeTurns ?? 0} / ${tel.v2GrudgeRatePct ?? "—"}%`,
-    `- 平均玩家回合：${avgTurns}`,
+    `- 玩家行动记录：${avgTurns}`,
     `- 卡关回合：${tel.stallTurn ?? "—"}`,
     `- 出牌 Top：${topCards || "—"}`,
     `- 空间标签分布：${spatial || "—"}`,
@@ -163,7 +163,7 @@ export function balanceReport(tel: LabTelemetry): string {
     `| # | 指标 | 值 | 健康参考 |`,
     `|---|------|-----|----------|`,
     `| 1 | 势均值 / 清零 | ${tel.v2QiMean ?? "—"} / ${tel.v2QiClears ?? 0} | 均值>0 且清零不过频 |`,
-    `| 2 | 平均回合 / 鏖战率 | ${avgTurns} / ${tel.v2GrudgeRatePct ?? "—"}% | 6–12 回 / <15% |`,
+    `| 2 | 平均行动记录 / 鏖战率 | ${avgTurns} / ${tel.v2GrudgeRatePct ?? "—"}% | 6–12 回 / <15% |`,
     `| 3 | 破招分型 | ${breakTypes || "—"} | 单型 <90% |`,
     `| 4 | 破招率 | ${breakRate} | 有收益感 |`,
     `| 5 | 助战率 / 承伤 | ${tel.v2AssistCalls ?? 0} / ${tel.v2AssistDamage ?? 0} | 批次三接线 |`,
@@ -201,7 +201,9 @@ export function scenarioKey(tel: LabTelemetry): string {
     tel.meta.enemyId ?? "?",
     `v2=${t.rulesV2}`,
     `combo=${t.rulesCombo}`,
-    `dmg=${t.dmgCoef}`,
+    `hp=${t.enemyHpMul}`,
+    `seg=${t.enemySegBonus}`,
+    `stress=${t.enemyStressCap}`,
   ].join("|");
 }
 

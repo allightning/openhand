@@ -5,9 +5,16 @@ import {
   canEndPlayerTurn,
   endTurn,
   refreshFoeIntentsIfPending,
+  applyPendingStatusTicks,
+  applyClimbPhaseBeat,
+  peekClimbPhaseQueue,
   labCanCycle,
   labCycleCard,
   labDiscardCard,
+  labEnterDiscardPhase,
+  labCanComboReplay,
+  labComboReplay,
+  isClimbQi,
   legalSummonCells,
   isBattleWon,
   needsDiscardToHandCap,
@@ -17,7 +24,7 @@ import {
   yourPace,
 } from "../game/sim";
 import { handRefillAmount } from "./rogueRoster";
-import { isBreakAlign, setLabRuleset } from "./labRuleset";
+import { BREAK_MODE_OPEN, isBreakAlign, setLabRuleset } from "./labRuleset";
 import { getLabTuning, isLabV2, setLabMode, setLabTuning } from "../game/labTuning";
 import { computeResonance, grantLabItem, itemChargeCount, labCanUseItem, useLabItem } from "../game/labV21";
 import { isSummonItem } from "../game/labSummon";
@@ -65,11 +72,24 @@ import {
   renderPickPanel,
   type PickFocus,
 } from "./setupUi";
-import { renderProdBattle, renderProdBoard } from "./prodBattleUi";
+import { renderProdBattle, renderProdBoard, renderHoverPreview } from "./prodBattleUi";
 import { moveGhostPreview } from "./moveGhost";
-import { recapDisplayAfter, recapDisplayStart, skipFoeRecap, type RecapDisplay } from "./foePlayback";
+import {
+  CLIMB_PHASE_BEAT_MS,
+  FOE_WINDUP_MS,
+  filterEmptyRecap,
+  foeFirstHoldMs,
+  foeSegGapMs,
+  intentBarFate,
+  outcomeToFxKind,
+  overlayRecapBattle,
+  recapDisplayAfter,
+  recapDisplayStart,
+  skipFoeRecap,
+  type RecapDisplay,
+} from "./foePlayback";
 import { clearClimbContinue, consumeClimbContinue, peekClimbContinue, touchClimbCamp } from "./climbContinue";
-import { battleFxClasses, formatIntentBroadcast, formatIntentCue, threatCellsForHover } from "./labV2Ui";
+import { battleFxClasses, formatIntentBroadcast, formatIntentCue, threatCellsForHover, foeStunCurtainMs, foeIntentIsStrike } from "./labV2Ui";
 import { renderWeaponSheet } from "./weaponSheet";
 import { bindLabTooltips } from "./labTooltip";
 import {
@@ -115,7 +135,6 @@ import {
   applyCompanion,
   applyGauntletReward,
   applySuperReward,
-  resolveWager,
   settleHallPot,
   wagerBattleStats,
   rollCompanionChoices,
@@ -145,6 +164,11 @@ import {
   runCompanions,
   gauntletFieldMate,
   sellPriceFor,
+  equipStashTech,
+  feedStashTech,
+  unequipTechToStash,
+  equipStashMind,
+  toggleGodUsing,
   GAUNTLET_SCHOOL_LOADOUT,
   wagerOffers,
   wagerStakeMax,
@@ -167,8 +191,16 @@ import {
   type EncounterKind,
   type FinaleKind,
 } from "./encounter";
+import {
+  applyStoryChoice,
+  continueStoryTravel,
+  dismissStoryOpening,
+  queuePostCampBeat,
+  rollStoryChoices,
+  usesBanditStory,
+} from "./storyBeats";
 import { combatBgPool, overlayPoolFor, takeSceneBg, HOME_BG, staticOverlayBg } from "./sceneBg";
-import { canStartBattle, moveDeckToStash, moveStashToDeck, sellStashCard } from "./loadout";
+import { canStartBattle, fuseOwnedCard, moveDeckToStash, moveStashToDeck, sellStashCard } from "./loadout";
 import { renderBreakIntro, shouldSkipWager } from "./breakOnboard";
 import {
   advanceDemoAfterWin,
@@ -214,6 +246,9 @@ import {
   syncHallBattle,
   syncHallLesson,
   hallTitle,
+  hallQiFight,
+  hallUsesQiCommit,
+  hallCampaignShell,
   type HallBout,
   type HallCabinet,
   type HallCourseId,
@@ -221,7 +256,6 @@ import {
 } from "./trainingHall";
 import { hallBadge, renderHallCleared, renderHallRetry, renderTrainingHallCatalog } from "./trainingHallUi";
 import {
-  afterCampaignEndTurn,
   afterCampaignPlayCard,
   afterCampaignSwap,
   applyCampaignBattle,
@@ -250,7 +284,7 @@ import {
 } from "./breakCampaign";
 import { renderCampaignCleared, renderCampaignRetry } from "./breakCampaignUi";
 import { renderQiCommitBattle } from "./qiCommitUi";
-import { assignToSegment, playAttackFree, playPass, playStep, playUlt, resolveTurn, selectCard, QI_CARDS, type QiFight } from "./qiCommit";
+import { assignToSegment, playAttackFree, playPass, playPeek, playStep, playUlt, resolveTurn, selectCard, QI_CARDS, type QiFight } from "./qiCommit";
 import { renderBattleSheet, type BattleSheetKind } from "./battleSheet";
 import {
   renderGauntletBadge,
@@ -258,6 +292,8 @@ import {
   renderGauntletBanker,
   renderGauntletLifeline,
   renderGauntletLoadout,
+  type LoadoutPage,
+  type LoadoutPick,
   renderGauntletHome,
   renderGauntletOverlay,
   renderGauntletResult,
@@ -267,6 +303,7 @@ import {
   renderGauntletSchoolPick,
   renderGauntletWager,
   renderGauntletEvent,
+  renderGauntletOpening,
   renderGauntletFinale,
   renderGauntletScar,
   renderGauntletSettle,
@@ -299,6 +336,7 @@ let pickFocus: PickFocus = "cards";
 let focusMate: CompanionId = draft.fieldMate;
 let wikiOpen: WikiBook | null = null;
 let wikiPage = 0;
+let wikiQuery = "";
 let guideOpen = false;
 let devPanelOpen = false;
 let audioPrevBattle: Battle | null = null;
@@ -325,18 +363,17 @@ let fxClearTimer: number | null = null;
 /** 收势前意图快照，供逐段详细播报 */
 let foePlaybackIntents: import("../game/types").Intent[] = [];
 
-const FOE_SEG_GAP_MS = 1500;
-const FOE_WINDUP_MS = 420;
-const FX_HOLD_MS = 1000;
-/** 敌先机开局：先亮场再动手，给玩家读招时间 */
-const FOE_FIRST_HOLD_MS = 1500;
+const FX_HOLD_MS = 480;
 /** 立绘逐步演出：windup / resolve 类名 */
 let foeSegAnim: "windup" | "break" | "hit" | "graze" | "miss" | "skip" | null = null;
 let foePlaybackSegIdx = -1;
 let foeFirstHoldTimer: number | null = null;
 let playbackShow: RecapDisplay | null = null;
+let playbackSegFate: Record<number, "gone" | "grey"> = {};
 let youPlayAnim: "swing" | "step" | "cast" | null = null;
 let youPlayAnimTimer: number | null = null;
+/** 同一句播报被整页重绘时不要再跳一次 */
+let fxPaintSig = "";
 let pendingWin: { foughtStage: number; texts: string[] } | null = null;
 let routeBookOpen = false;
 
@@ -347,15 +384,114 @@ function clearFoeFirstHold(): void {
   }
 }
 
-/** 敌先机时进战停顿 ~1.5s，再真正出手（削弱后的首轮），然后亮下一手。 */
-function scheduleFoeFirstHold(): void {
+/** 开战 / 换局：清掉上局残留的锁手与定时器，避免「敌方出招」卡死。 */
+function resetCombatPlayback(): void {
   clearFoeFirstHold();
-  if (!battle || yourPace(battle) >= battle.foePace) return;
+  clearFoePlaybackTimer();
+  if (fxClearTimer != null) {
+    window.clearTimeout(fxClearTimer);
+    fxClearTimer = null;
+  }
+  foePlaybackBusy = false;
+  foeSegAnim = null;
+  foePlaybackSegIdx = -1;
+  playbackShow = null;
+  playbackSegFate = {};
+  foePlaybackIntents = [];
+}
+
+/** 爬塔开局：场上摸牌 →（有则）后场摸牌 → 亮招 → 先机决定是否敌先。 */
+function scheduleClimbBattleOpen(): void {
+  resetCombatPlayback();
+  if (!battle || !isClimbQi()) {
+    scheduleFoeFirstHold();
+    return;
+  }
   foePlaybackBusy = true;
+  const logs = [...(battle.log ?? [])];
+  const fieldLine =
+    [...logs].reverse().find((l) => /【开局】/.test(l) && /摸 \d+ 张/.test(l) && !l.includes("后场")) ??
+    [...logs].reverse().find((l) => /摸 \d+ 张/.test(l) && !l.includes("后场"));
+  const benchLine = [...logs].reverse().find((l) => /【开局】/.test(l) && l.includes("后场") && /摸 \d+/.test(l));
+
+  const afterField = (): void => {
+    if (!battle || phase !== "battle") {
+      foePlaybackBusy = false;
+      return;
+    }
+    if (benchLine) {
+      battle = {
+        ...battle,
+        climbPhaseLabel: "【开始】后场摸牌",
+        lastHitRead: benchLine,
+      };
+      render();
+      window.setTimeout(afterBench, CLIMB_PHASE_BEAT_MS);
+      return;
+    }
+    afterBench();
+  };
+
+  const afterBench = (): void => {
+    if (!battle || phase !== "battle") {
+      foePlaybackBusy = false;
+      return;
+    }
+    battle = {
+      ...battle,
+      climbPhaseLabel: "【开始】亮招",
+      lastHitRead: `${battle.enemy.name}亮招`,
+    };
+    render();
+    window.setTimeout(() => {
+      if (!battle || phase !== "battle") {
+        foePlaybackBusy = false;
+        return;
+      }
+      battle = { ...battle, climbPhaseLabel: undefined, lastHitRead: "" };
+      if (yourPace(battle) < battle.foePace) {
+        scheduleFoeFirstHold();
+        render();
+        return;
+      }
+      foePlaybackBusy = false;
+      resetTurnTimer();
+      render();
+    }, CLIMB_PHASE_BEAT_MS);
+  };
+
   battle = {
     ...battle,
-    lastHitRead: `${battle.enemy.name}先机在握……`,
+    climbPhaseLabel: "【开始】摸牌",
+    lastHitRead: fieldLine ?? "【开始】摸牌",
   };
+  render();
+  window.setTimeout(afterField, CLIMB_PHASE_BEAT_MS);
+}
+
+/** 敌先机：先让意图条露出来，再按收势同一套兑一条、播一条。 */
+function scheduleFoeFirstHold(): void {
+  clearFoeFirstHold();
+  if (!battle || yourPace(battle) >= battle.foePace) {
+    foePlaybackBusy = false;
+    return;
+  }
+  foePlaybackBusy = true;
+  const climbOpen = !isBreakAlign();
+  if (!climbOpen) {
+    battle = {
+      ...battle,
+      climbPhaseLabel: undefined,
+      lastHitRead: `${battle.enemy.name}先出手……`,
+    };
+  } else {
+    battle = {
+      ...battle,
+      climbPhaseLabel: "【开始】敌招",
+      lastHitRead: "【开始】兑他整条意图",
+    };
+  }
+  const holdMs = foeFirstHoldMs([], climbOpen);
   foeFirstHoldTimer = window.setTimeout(() => {
     foeFirstHoldTimer = null;
     if (!battle || phase !== "battle") {
@@ -363,37 +499,25 @@ function scheduleFoeFirstHold(): void {
       return;
     }
     foePlaybackIntents = battle.intents.length ? battle.intents.map((x) => ({ ...x })) : [{ ...battle.intent }];
+    const origin = { playerPos: battle.player.pos, enemyPos: battle.enemy.pos };
     seizeOpening(battle);
-    if (battle.player.hp <= 0) {
-      foePlaybackBusy = false;
-      endBattle("loss");
-      return;
-    }
     playFoeRecapThen(() => {
       if (!battle) return;
       if (battle.player.hp <= 0) {
         endBattle("loss");
         return;
       }
+      battle = { ...battle, climbPhaseLabel: undefined, lastHitRead: "" };
+      foePlaybackBusy = false;
       resetTurnTimer();
       render();
-    });
-  }, FOE_FIRST_HOLD_MS);
+    }, origin);
+  }, holdMs);
 }
 
 /** 肉鸽爬塔：破招播报保留，声效/气势压低；读招战役 / 训练馆仍用满分量。 */
 function climbBreakLight(): boolean {
   return gauntletRun != null && campaignRun == null && breakDemoRun == null && hallRun == null;
-}
-
-function outcomeToFxKind(outcome: string): string {
-  if (outcome === "破" || outcome === "追") return "break";
-  if (outcome === "让") return "graze";
-  if (outcome === "空" || outcome === "放" || outcome === "躲") return "miss";
-  if (outcome === "打") return "hit";
-  // 劲尽/晕/散：仍占一段演出，听感按躲过/落空，不另开「补招」
-  if (outcome === "劲尽" || outcome === "晕" || outcome === "散") return "miss";
-  return "hit";
 }
 
 function clearFoePlaybackTimer(): void {
@@ -416,22 +540,40 @@ function scheduleFxClear(ms = FX_HOLD_MS): void {
 }
 
 /** 收势后按 recap 逐段播报：先起手（立绘+挥刀声），再结算（特效+结果声），总间隔约 1.2s */
-function playFoeRecapThen(onDone: () => void): void {
+function playFoeRecapThen(onDone: () => void, origin?: { playerPos: number; enemyPos: number }): void {
   clearFoePlaybackTimer();
   if (!battle) {
+    foePlaybackBusy = false;
     onDone();
     return;
   }
-  const recap = [...(battle.v2LastIntentRecap ?? [])];
+  const recapAll = [...(battle.v2LastIntentRecap ?? [])];
+  const keepEmpty = isClimbQi();
+  const recap = keepEmpty ? recapAll : filterEmptyRecap(recapAll);
+  const recapIdx = keepEmpty
+    ? recapAll.map((_, i) => i)
+    : recapAll.map((r, i) => (r.outcome === "空" ? -1 : i)).filter((i) => i >= 0);
+  const startPos = origin ??
+    (playbackShow
+      ? { playerPos: playbackShow.playerPos, enemyPos: playbackShow.enemyPos }
+      : { playerPos: battle.player.pos, enemyPos: battle.enemy.pos });
   if (!recap.length) {
+    foePlaybackBusy = false;
+    foeSegAnim = null;
+    foePlaybackSegIdx = -1;
+    playbackShow = null;
+    playbackSegFate = {};
     onDone();
     return;
   }
   foePlaybackBusy = true;
-  playbackShow = recapDisplayStart(battle.player.hp, battle.playerBlock, recap);
+  playbackSegFate = {};
+  playbackShow = recapDisplayStart(battle.player.hp, battle.playerBlock, recap, startPos.playerPos, startPos.enemyPos);
   let i = 0;
+  const origAt = (n: number) => recapIdx[n] ?? n;
   const finishAll = (): void => {
     playbackShow = null;
+    playbackSegFate = {};
     foePlaybackTimer = window.setTimeout(() => {
       foePlaybackTimer = null;
       foePlaybackBusy = false;
@@ -446,12 +588,15 @@ function playFoeRecapThen(onDone: () => void): void {
       foeSegAnim = null;
       foePlaybackSegIdx = -1;
       playbackShow = null;
+      playbackSegFate = {};
       onDone();
       return;
     }
     const r = recap[i]!;
-    const intent = foePlaybackIntents[i];
-    const kind = outcomeToFxKind(r.outcome);
+    const orig = origAt(i);
+    const intent = foePlaybackIntents[orig];
+    const strike = foeIntentIsStrike(intent);
+    const kind = strike ? outcomeToFxKind(r.outcome) : r.outcome === "晕" ? "miss" : "skip";
     const anim =
       kind === "break"
         ? "break"
@@ -462,44 +607,66 @@ function playFoeRecapThen(onDone: () => void): void {
             : kind === "miss"
               ? "miss"
               : "skip";
-    foeSegAnim = anim;
-    foePlaybackSegIdx = i;
-    if (playbackShow) playbackShow = recapDisplayAfter(playbackShow, r);
+    foeSegAnim = strike ? anim : "skip";
+    foePlaybackSegIdx = orig;
+    if (playbackShow) playbackShow = recapDisplayAfter(playbackShow, r, intent);
     battle = {
       ...battle,
-      v2FxQueue: [kind],
-      lastHitRead: formatIntentBroadcast(intent, r.outcome, r.name),
+      v2FxQueue: strike ? [kind] : [],
+      lastHitRead: formatIntentBroadcast(intent, r.outcome, r.name, r),
     };
     playFoeResolveSfx(kind, climbBreakLight() ? "light" : "full");
     render();
     i += 1;
-    if (i >= recap.length) {
+    const sealPrev = (): void => {
+      playbackSegFate = { ...playbackSegFate, [orig]: intentBarFate(r.outcome) };
+    };
+    if (i >= recap.length || (playbackShow && playbackShow.hp <= 0)) {
+      sealPrev();
       finishAll();
       return;
     }
-    foePlaybackTimer = window.setTimeout(windupStep, Math.max(200, FOE_SEG_GAP_MS - FOE_WINDUP_MS));
+    foePlaybackTimer = window.setTimeout(() => {
+      sealPrev();
+      windupStep();
+    }, Math.max(200, foeSegGapMs(r.outcome) - FOE_WINDUP_MS));
   };
   const windupStep = (): void => {
     if (!battle) {
       foePlaybackBusy = false;
       playbackShow = null;
+      playbackSegFate = {};
       onDone();
       return;
     }
     const r = recap[i]!;
-    const intent = foePlaybackIntents[i];
-    foeSegAnim = "windup";
-    foePlaybackSegIdx = i;
+    const orig = origAt(i);
+    const intent = foePlaybackIntents[orig];
+    foeSegAnim = foeIntentIsStrike(intent) ? "windup" : "skip";
+    foePlaybackSegIdx = orig;
     battle = {
       ...battle,
       v2FxQueue: [],
       lastHitRead: formatIntentCue(battle, intent, r.name),
     };
-    playSfx("swing", climbBreakLight() ? 0.55 : 0.85);
+    if (foeIntentIsStrike(intent)) playSfx("swing", climbBreakLight() ? 0.55 : 0.85);
     render();
     foePlaybackTimer = window.setTimeout(resolveStep, FOE_WINDUP_MS);
   };
-  windupStep();
+  const curtain = foeStunCurtainMs(recap);
+  if (curtain > 0) {
+    foeSegAnim = "skip";
+    foePlaybackSegIdx = -1;
+    battle = {
+      ...battle,
+      v2FxQueue: [],
+      lastHitRead: "敌眩晕——本回合有段出不了手",
+    };
+    render();
+    foePlaybackTimer = window.setTimeout(windupStep, curtain);
+  } else {
+    windupStep();
+  }
 }
 let hallCab: HallCabinet = "break";
 let hallFocus: HallCourseId = "hard";
@@ -522,6 +689,8 @@ let gauntletMarket: GauntletMarketOffer[] = [];
 let gauntletMarketBought: Set<string> = new Set();
 let gauntletMarketRefreshN = 0;
 let loadoutFocusMate: CompanionId | null = null;
+let loadoutPage: LoadoutPage = "deck";
+let loadoutPick: LoadoutPick = null;
 /** 结算屏是否挂着「赎身」分支——只有输馆能赎，见好就收不能。 */
 let gauntletEndedByLoss = false;
 let gauntletResultNote = "";
@@ -545,7 +714,7 @@ function paintGauntletOverlay(
 ): string {
   if (!gauntletRun) return renderGauntletOverlay(screen, inner, staticOverlayBg(screen));
   const placeStage =
-    screen === "wager" || screen === "lifeline" || screen === "finale" || screen === "scar"
+    screen === "wager" || screen === "lifeline" || screen === "finale" || screen === "scar" || screen === "opening"
       ? gauntletRun.stage
       : Math.max(1, gauntletRun.stage - (screen === "path" || screen === "pick" || screen === "banker" || screen === "intro" ? 0 : 1));
   const key = `${screen}:${gauntletRun.path}:${placeStage}`;
@@ -607,7 +776,8 @@ function stampRoutePlace(foughtStage: number): void {
 
 function openGauntletCamp(foughtStage: number): void {
   if (!gauntletRun) return;
-  stopSting();
+  // 不在此 stopSting：支线/直进营地也要先听完胜负短句，再由 ensureBgm 接营地曲。
+  // 离开告捷笺才 stopSting（continueAfterWinSettle / 出门厅）。
   stampRoutePlace(foughtStage);
   if (isMidtermSuperFought(foughtStage)) {
     gauntletRewards = rollSuperRewards(gauntletRun);
@@ -666,7 +836,7 @@ function detectStallTurn(b: Battle): number | undefined {
 function renderOverlays(): string {
   const parts: string[] = [];
   if (guideOpen) parts.push(renderGuideSheet());
-  if (wikiOpen) parts.push(renderWikiSheet(wikiOpen, wikiPage));
+  if (wikiOpen) parts.push(renderWikiSheet(wikiOpen, wikiPage, wikiQuery));
   if (devPanelOpen) parts.push(renderDevPanelModal());
   if (battleSheet && battle) parts.push(renderBattleSheet(battleSheet, battle));
   if (routeBookOpen && gauntletRun) {
@@ -761,7 +931,7 @@ function openSettings(): void {
   settingsHost = document.createElement("div");
   settingsHost.id = "lab-settings-root";
   settingsHost.innerHTML = renderSettingsSheet();
-  document.body.appendChild(settingsHost);
+  labShell().overlays.appendChild(settingsHost);
   settingsSeekDragging = false;
 
   settingsHost.querySelector("#lab-settings-close")?.addEventListener("click", closeSettings);
@@ -873,35 +1043,41 @@ function syncBattleAudio(next: Battle | null): void {
   if (next.player.hp < prev.player.hp) playSfx("clash");
 }
 
-function renderHeader(): string {
+function renderChromeActions(): string {
   const fsLabel = labFullscreen ? "退出全屏" : "全屏";
   const inGauntlet = gauntletRun != null || breakDemoRun != null || hallRun != null || campaignRun != null;
+  const backBtn =
+    phase === "battle" && inGauntlet
+      ? `<button type="button" class="lab-btn" id="gauntlet-exit-battle">${breakDemoRun ? "退出示范" : hallRun ? "退出训练馆" : campaignRun ? "退出登门" : "退出行路"}</button>`
+      : phase !== "setup" && !inGauntlet
+        ? `<button type="button" class="lab-btn" id="lab-back-setup">回装配</button>`
+        : "";
+  return `<div class="lab-actions">
+        <button type="button" class="lab-btn lab-guide-btn" id="lab-guide-open">攻略</button>
+        <button type="button" class="lab-btn" id="lab-codex-open">图鉴</button>
+        <button type="button" class="lab-btn" id="lab-settings-open">设置</button>
+        <button type="button" class="lab-btn" id="lab-dev-open">实验台</button>
+        <button type="button" class="lab-btn" id="lab-fullscreen">${fsLabel}</button>
+        ${backBtn}
+      </div>`;
+}
+
+function renderHeader(): string {
+  if (phase === "battle") return "";
   const subLine = breakDemoRun
     ? "训练营 ·"
     : hallRun
       ? "训练馆 ·"
         : campaignRun
-        ? "读招战役 ·"
-      : "十馆肉鸽 · 石台两种玩法 ·";
-  const backBtn =
-    phase === "battle" && inGauntlet
-      ? `<button type="button" class="lab-btn" id="gauntlet-exit-battle">${breakDemoRun ? "退出示范" : hallRun ? "退出训练馆" : campaignRun ? "退出战役" : "退出踢馆"}</button>`
-      : phase !== "setup" && !inGauntlet
-        ? `<button type="button" class="lab-btn" id="lab-back-setup">回装配</button>`
-        : "";
+        ? "登门 ·"
+      : "行路 · 石台两种玩法 ·";
   return `
-    <header class="lab-header ${phase === "battle" ? "lab-header-battle" : ""}">
+    <header class="lab-header">
       <div class="lab-title-block">
-        <h1>连胜踢馆</h1>
+        <h1>明手</h1>
         <p class="lab-sub">${subLine} <span class="lab-build-tag">第十二版</span></p>
       </div>
-      <div class="lab-actions">
-        <button type="button" class="lab-btn lab-guide-btn" id="lab-guide-open">攻略</button>
-        <button type="button" class="lab-btn" id="lab-settings-open">设置</button>
-        <button type="button" class="lab-btn" id="lab-dev-open">实验台</button>
-        <button type="button" class="lab-btn" id="lab-fullscreen">${fsLabel}</button>
-        ${backBtn}
-      </div>
+      ${renderChromeActions()}
     </header>`;
 }
 
@@ -940,13 +1116,16 @@ function renderSetup(): string {
     return `${renderHeader()}${renderGauntletOverlay(demoScreen, renderDemoShell(demoScreen, breakDemoRun, demoMarketBought))}`;
   }
   if (gauntletScreen === "path") {
-    return `${renderHeader()}${paintGauntletOverlay("path", renderGauntletPathPick(gauntletWantEndless))}`;
+    return `${renderHeader()}${paintGauntletOverlay("path", renderGauntletPathPick(gauntletWantEndless, gauntletRun ?? undefined))}`;
   }
   if (gauntletScreen === "pick") {
     return `${renderHeader()}${paintGauntletOverlay("pick", renderGauntletSchoolPick(gauntletPath ?? "bandit", gauntletError))}`;
   }
   if (gauntletScreen === "settle" && gauntletRun && pendingWin) {
     return `${renderHeader()}${paintGauntletOverlay("settle", renderGauntletSettle(gauntletRun, pendingWin.texts))}`;
+  }
+  if (gauntletScreen === "opening" && gauntletRun) {
+    return `${renderHeader()}${paintGauntletOverlay("opening", renderGauntletOpening(gauntletRun))}`;
   }
   if (gauntletScreen === "event" && gauntletRun && gauntletEventKind) {
     return `${renderHeader()}${paintGauntletOverlay("event", renderGauntletEvent(gauntletRun, gauntletEventKind, gauntletEventChoices))}`;
@@ -964,7 +1143,7 @@ function renderSetup(): string {
     return `${renderHeader()}${paintGauntletOverlay("reward", renderGauntletRewardPick(gauntletRun, gauntletRewards, gauntletMarket, gauntletMarketBought, gauntletRewardTakes, gauntletMarketRefreshN, gauntletRewardsAreSuper))}`;
   }
   if (gauntletScreen === "loadout" && gauntletRun) {
-    return `${renderHeader()}${paintGauntletOverlay("loadout", renderGauntletLoadout(gauntletRun, loadoutFocusMate ?? undefined))}`;
+    return `${renderHeader()}${paintGauntletOverlay("loadout", renderGauntletLoadout(gauntletRun, loadoutFocusMate ?? undefined, loadoutPage, loadoutPick))}`;
   }
   if (gauntletScreen === "banker" && gauntletRun) {
     return `${renderHeader()}${paintGauntletOverlay("banker", renderGauntletBanker())}`;
@@ -981,9 +1160,10 @@ function renderSetup(): string {
   }
   if (gauntletScreen === "result" && gauntletRun) {
     const elapsed = Math.max(0, Math.round((Date.now() - gauntletRun.startedAt) / 1000));
-    const note =
-      gauntletResultNote ||
-      (gauntletRun.bankruptUsed ? "本局已用过赊账" : gauntletRun.pot < reviveCost(gauntletRun.stage) ? "彩金不足破产线" : "");
+    const note = gauntletEndedByLoss
+      ? gauntletResultNote ||
+        (gauntletRun.bankruptUsed ? "本局已用过赊账" : gauntletRun.pot < reviveCost(gauntletRun.stage) ? "彩金不足破产线" : "")
+      : gauntletResultNote;
     return `${renderHeader()}${paintGauntletOverlay("result", renderGauntletResult(gauntletRun, elapsed, note))}`;
   }
   return `${renderHeader()}${renderGauntletOverlay("intro", renderGauntletHome("", peekClimbContinue()), `/${HOME_BG}`)}`;
@@ -995,13 +1175,13 @@ function renderSliders(enabled: boolean): string {
   const breakRow = `<div class="lab-slider-row"><label><span>破招窗口（遗留）</span><span id="val-break">${t.breakWindow}</span></label>
       <input type="range" id="sl-break" min="0" max="100" step="5" value="${t.breakWindow}" ${dis}/></div>`;
   return `
-    <p class="muted lab-pause-mode">肉鸽踢馆调参</p>
+    <p class="muted lab-pause-mode">行路调参</p>
     <div class="lab-slider-row"><label><span>伤害系数</span><span id="val-dmg">${t.dmgCoef.toFixed(2)}</span></label>
       <input type="range" id="sl-dmg" min="0.25" max="2" step="0.05" value="${t.dmgCoef}" ${dis}/></div>
     ${breakRow}
     <div class="lab-slider-row"><label><span>先机偏置</span><span id="val-pace">${t.paceBias}</span></label>
       <input type="range" id="sl-pace" min="-3" max="5" step="1" value="${t.paceBias}" ${dis}/></div>
-    <div class="lab-slider-row"><label><span>AI读招激进度</span><span id="val-ai">${t.aiAggression}</span></label>
+    <div class="lab-slider-row"><label><span>敌招激进度</span><span id="val-ai">${t.aiAggression}</span></label>
       <input type="range" id="sl-ai" min="0" max="100" step="5" value="${t.aiAggression}" ${dis}/></div>
     <div class="lab-slider-row"><label><span>单回合时限(秒)</span><span id="val-limit">${t.turnLimitSec}</span></label>
       <input type="range" id="sl-limit" min="0" max="120" step="5" value="${t.turnLimitSec}" ${dis}/></div>
@@ -1023,11 +1203,11 @@ function renderSliders(enabled: boolean): string {
 }
 
 /** 胜/负短句去重：同一结算屏不因重渲反复播。现行短句已停用。 */
-let lastStingKey = "";
 
 let lastBgmScene: "battle" | "lounge" | null = null;
 
 function syncBgmWithScreen(): void {
+  // 教学弹窗只挡交互，phase 仍是 battle/lounge，不得因此 stopBgm。
   const scene: "battle" | "lounge" = phase === "battle" ? "battle" : "lounge";
   const prev = lastBgmScene;
   const crossed = prev != null && prev !== scene;
@@ -1035,7 +1215,6 @@ function syncBgmWithScreen(): void {
   lastBgmScene = scene;
 
   if (phase === "battle") {
-    lastStingKey = "";
     const hallFade = crossed ? BGM_FADE_BETWEEN_HALL_MS : BGM_FADE_IN_COMBAT_MS;
     if (campaignRun) {
       ensureBgm("break", { volScale: 1, fadeMs: hallFade, forceCrossfade: crossed });
@@ -1054,8 +1233,6 @@ function syncBgmWithScreen(): void {
     return;
   }
 
-  lastStingKey = "";
-
   // 门厅/垫资/下注/营地同一首就接着放，不要 seek 回 0、不要交叉淡入。
   ensureBgm(campBgmId(gauntletRun?.path), {
     volScale: BGM_CAMP_VOL_SCALE,
@@ -1065,21 +1242,48 @@ function syncBgmWithScreen(): void {
   });
 }
 
+function labShell(): { content: HTMLElement; overlays: HTMLElement } {
+  let content = root.querySelector<HTMLElement>("#lab-content");
+  let overlays = root.querySelector<HTMLElement>("#lab-overlay-mount");
+  if (!content || !overlays) {
+    root.replaceChildren();
+    content = document.createElement("div");
+    content.id = "lab-content";
+    overlays = document.createElement("div");
+    overlays.id = "lab-overlay-mount";
+    root.append(content, overlays);
+  }
+  return { content, overlays };
+}
+
 function render(): void {
   setLabMode(phase === "battle" || gauntletRun != null);
   document.documentElement.classList.toggle("lab-fullscreen", labFullscreen);
   root.classList.toggle("lab-fullscreen", labFullscreen);
   syncBgmWithScreen();
   syncBattleAudio(phase === "battle" ? battle : null);
-  const overlays = renderOverlays();
-  if (phase === "setup") root.innerHTML = renderSetup() + overlays;
-  else if (phase === "battle") root.innerHTML = renderBattle() + overlays;
-  else root.innerHTML = renderReport() + overlays;
+  const overlayHtml = renderOverlays();
+  const { content } = labShell();
+  if (phase === "setup") content.innerHTML = renderSetup() + overlayHtml;
+  else if (phase === "battle") content.innerHTML = renderBattle() + overlayHtml;
+  else content.innerHTML = renderReport() + overlayHtml;
   bindEvents();
+  settleFxIfReplay();
   if (phase === "battle" && battle?.v2FxQueue?.length && !foePlaybackBusy) {
     scheduleFxClear(FX_HOLD_MS);
   }
   resetTurnTimer();
+}
+
+function settleFxIfReplay(): void {
+  const pop = root.querySelector(".lab-fx-pop");
+  if (!pop) {
+    fxPaintSig = "";
+    return;
+  }
+  const sig = `${pop.className.replace(/\s*lab-fx-settled\b/g, "")}|${pop.textContent ?? ""}`;
+  if (sig === fxPaintSig) pop.classList.add("lab-fx-settled");
+  else fxPaintSig = sig;
 }
 
 function exitGauntlet(): void {
@@ -1122,6 +1326,34 @@ function beginHallBattle(): void {
   if (!hallRun) return;
   try {
     enterGauntletTuning();
+    if (hallUsesQiCommit(hallRun.courseId)) {
+      setLabRuleset("break");
+      setLabMode(true);
+      hallRun = syncHallLesson({
+        ...hallRun,
+        lessonStep: hallRun.bout === 1 ? 0 : hallRun.lessonStep,
+        foeDebrief: null,
+        qiTick: hallCampaignShell(hallRun),
+      });
+      qiFight = hallQiFight(hallRun);
+      battle = null;
+      telemetry = startTelemetry({
+        presetId: `hall-${hallRun.courseId}-${hallRun.bout}`,
+        presetName: hallTitle(hallRun),
+        enemyId: "mob_road_01",
+        designerMode: false,
+        startedAt: Date.now(),
+      });
+      phase = "battle";
+      hallScreen = null;
+      paused = false;
+      hoverUid = null;
+      hoverIntentIdx = null;
+      weaponOpen = null;
+      resetCombatPlayback();
+      render();
+      return;
+    }
     setLabTuning({
       rulesV2: true,
       v2Fx: true,
@@ -1151,6 +1383,7 @@ function beginHallBattle(): void {
     hoverUid = null;
     hoverIntentIdx = null;
     weaponOpen = null;
+    resetCombatPlayback();
     scheduleFoeFirstHold();
     render();
   } catch (err) {
@@ -1197,6 +1430,7 @@ function beginDemoBattle(): void {
     hoverUid = null;
     hoverIntentIdx = null;
     weaponOpen = null;
+    resetCombatPlayback();
     scheduleFoeFirstHold();
     render();
   } catch (err) {
@@ -1218,8 +1452,9 @@ function startBreakDemo(track: "rookie" | "break" = "break"): void {
 }
 
 function finishHallBattle(outcome: "win" | "loss"): void {
-  if (!hallRun || !battle) return;
+  if (!hallRun) return;
   battle = null;
+  qiFight = null;
   phase = "setup";
   endLabMode();
   hallScreen = outcome === "win" ? "cleared" : "retry";
@@ -1246,27 +1481,27 @@ function beginCampaignBattle(): void {
       foeDebrief: null,
     });
     const preset = buildCampaignPreset(campaignRun);
-    telemetry = startTelemetry(preset.id, preset.name);
+    telemetry = startTelemetry({
+      presetId: `break-campaign-${campaignRun.stageId}`,
+      presetName: campaignBadge(campaignRun),
+      enemyId: preset.enemyId,
+      designerMode: false,
+      startedAt: Date.now(),
+    });
     battle = applyCampaignBattle(startLabBattle(preset, false, 1), campaignRun);
     qiFight = createQiFightFromStage(currentCampaignStage(campaignRun));
-    if (telemetry) {
-      telemetry = {
-        ...telemetry,
-        presetId: `break-campaign-${campaignRun.stageId}`,
-        presetName: campaignBadge(campaignRun),
-      };
-    }
     phase = "battle";
     campaignScreen = null;
     campaignChapterDone = false;
     gauntletScreen = null;
     demoScreen = null;
     hallScreen = null;
+    resetCombatPlayback();
     scheduleFoeFirstHold();
     render();
   } catch (err) {
     console.error("[break-campaign] beginCampaignBattle failed", err);
-    gauntletError = `读招开战失败：${err instanceof Error ? err.message : String(err)}`;
+    gauntletError = `登门开战失败：${err instanceof Error ? err.message : String(err)}`;
     campaignScreen = "retry";
     phase = "setup";
     render();
@@ -1436,6 +1671,7 @@ function beginGauntletBattle(): void {
       ...gauntletRun,
       pot: wager ? gauntletRun.pot - stake : gauntletRun.pot,
       wager,
+      pendingOpenWager: false,
     };
     wagerKind = null;
     wagerStake = null;
@@ -1470,7 +1706,7 @@ function beginGauntletBattle(): void {
     hoverUid = null;
     hoverIntentIdx = null;
     weaponOpen = null;
-    scheduleFoeFirstHold();
+    scheduleClimbBattleOpen();
     render();
   } catch (err) {
     console.error("[gauntlet] beginGauntletBattle failed", err);
@@ -1522,7 +1758,7 @@ function beginSkirmishBattle(): void {
     hoverUid = null;
     hoverIntentIdx = null;
     weaponOpen = null;
-    scheduleFoeFirstHold();
+    scheduleClimbBattleOpen();
     render();
   } catch (err) {
     console.error("[gauntlet] beginSkirmishBattle failed", err);
@@ -1558,9 +1794,9 @@ function leaveGauntletCamp(): void {
   gauntletRewardsAreSuper = false;
   gauntletRewardTakes = 0;
   gauntletRun = consumeCampMods(gauntletRun);
-  if (gauntletRun.streak >= getGauntletFinalStage() && !isGauntletEndless(gauntletRun)) {
+  if (gauntletRun.streak >= getGauntletFinalStage(gauntletRun) && !isGauntletEndless(gauntletRun)) {
     gauntletEndedByLoss = false;
-    gauntletResultNote = "通关 · 拆招短局结业";
+    gauntletResultNote = "通关 · 十程走完";
     saveGauntletBest(gauntletRun);
     gauntletScreen = "result";
     render();
@@ -1571,6 +1807,11 @@ function leaveGauntletCamp(): void {
     render();
     return;
   }
+  if (usesBanditStory(gauntletRun)) {
+    const fought = Math.max(1, gauntletRun.stage - 1);
+    gauntletRun = queuePostCampBeat(gauntletRun, fought);
+  }
+  if (openBanditStoryScreen()) return;
   goToWagerOrBattle();
 }
 
@@ -1585,7 +1826,8 @@ function goToWagerOrBattle(): void {
     beginGauntletBattle();
     return;
   }
-  if (shouldSkipWager(gauntletRun.stage)) {
+  if (shouldSkipWager(gauntletRun.stage, gauntletRun)) {
+    gauntletRun = { ...gauntletRun, pendingOpenWager: false, wager: null };
     gauntletScreen = null;
     beginGauntletBattle();
     return;
@@ -1614,15 +1856,19 @@ function startGauntletSchool(school: WeaponId): void {
     gauntletRun = createGauntletRun(path, school, gauntletBossRotation, { endless: gauntletWantEndless });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    gauntletError = `开踢失败：${msg}`;
+    gauntletError = `开程失败：${msg}`;
     console.error("[gauntlet] createGauntletRun failed", { path, school, err });
     render();
     return;
   }
   wagerKind = null;
   wagerStake = null;
-  gauntletScreen = "banker";
-  render();
+  if (usesBanditStory(gauntletRun) && gauntletRun.storyPending === "opening") {
+    gauntletScreen = "opening";
+    render();
+    return;
+  }
+  goToWagerOrBattle();
 }
 
 function finishGauntletBattle(outcome: "win" | "loss"): void {
@@ -1698,7 +1944,7 @@ function finishGauntletBattle(outcome: "win" | "loss"): void {
   }
   gauntletEndedByLoss = true;
   gauntletResultNote = gauntletRun.bankruptUsed
-    ? "本局已用过赊账，踢馆结束"
+    ? "本局已用过赊账，行路结束"
     : `彩金 ${gauntletRun.pot} 低于破产线 ${reviveCost(gauntletRun.stage)}，无法赊账`;
   saveGauntletBest(gauntletRun);
   gauntletBossRotation = nextBossId(gauntletRun.bossId);
@@ -1711,7 +1957,11 @@ function continueAfterWinSettle(): void {
   if (!gauntletRun || !pendingWin) return;
   const foughtStage = pendingWin.foughtStage;
   pendingWin = null;
-  const kind = eventAfterFought(foughtStage);
+  if (usesBanditStory(gauntletRun)) {
+    openGauntletCamp(foughtStage);
+    return;
+  }
+  const kind = eventAfterFought(foughtStage, getGauntletFinalStage(gauntletRun));
   if (kind && !gauntletRun.endless) {
     gauntletEventKind = kind;
     gauntletEventChoices = rollEventChoices(gauntletRun, kind);
@@ -1719,7 +1969,7 @@ function continueAfterWinSettle(): void {
     render();
     return;
   }
-  if (isCompanionMilestone(foughtStage) && runCompanions(gauntletRun).length < maxCompanions() && !gauntletRun.skipCompanionPick) {
+  if (isCompanionMilestone(foughtStage) && runCompanions(gauntletRun).length < maxCompanions(foughtStage) && !gauntletRun.skipCompanionPick) {
     gauntletCompanions = rollCompanionChoices(gauntletRun);
     gauntletScreen = "companion";
     render();
@@ -1728,9 +1978,47 @@ function continueAfterWinSettle(): void {
   openGauntletCamp(foughtStage);
 }
 
+function openBanditStoryScreen(): boolean {
+  if (!gauntletRun || !usesBanditStory(gauntletRun)) return false;
+  const pending = gauntletRun.storyPending;
+  if (pending === "choice" || pending === "followup") {
+    const choices = rollStoryChoices(gauntletRun);
+    if (choices.length === 0) {
+      gauntletRun = { ...gauntletRun, storyPending: "rest" };
+      return false;
+    }
+    gauntletEventKind = "story";
+    gauntletEventChoices = choices;
+    gauntletScreen = "event";
+    render();
+    return true;
+  }
+  if (pending === "stall" || pending === "market" || pending === "ambush") {
+    gauntletEventKind = pending;
+    gauntletEventChoices = rollEventChoices(gauntletRun, pending);
+    gauntletScreen = "event";
+    render();
+    return true;
+  }
+  if (pending === "travel") {
+    gauntletRun = continueStoryTravel(gauntletRun);
+    return false;
+  }
+  if (pending === "opening") {
+    gauntletScreen = "opening";
+    render();
+    return true;
+  }
+  return false;
+}
+
 function renderBattle(): string {
   if (campaignRun && qiFight && !gauntletRun) {
     return `${renderHeader()}${renderQiCommitBattle(qiFight, campaignRun)}`;
+  }
+  if (hallRun && qiFight && hallUsesQiCommit(hallRun.courseId) && !gauntletRun) {
+    const shell = hallRun.qiTick ?? hallCampaignShell(hallRun);
+    if (shell) return `${renderHeader()}${renderQiCommitBattle(qiFight, shell)}`;
   }
   if (!battle) return renderSetup();
   const inDemo = breakDemoRun != null;
@@ -1740,10 +2028,9 @@ function renderBattle(): string {
   const inCampGuide = Boolean(campaignRun && !campaignLessonDone(campaignRun));
   const inGauntlet = gauntletRun != null;
   let b = battle;
-  if (playbackShow) {
-    b = { ...b, player: { ...b.player, hp: playbackShow.hp }, playerBlock: playbackShow.block };
-  }
-  const prev = moveGhostPreview(b, hoverUid);
+  if (playbackShow) b = overlayRecapBattle(b, playbackShow);
+  // 悬停任意牌都给全量预演：位移牌照旧画落脚小人，所有牌驱动底部预演条
+  const prev = hoverUid ? previewCard(b, hoverUid) : null;
   const swapCost = labSwapCost();
   const partyMode = inDemo
     ? Boolean(breakDemoRun!.companion)
@@ -1870,19 +2157,52 @@ function renderBattle(): string {
   const overCap = needsDiscardToHandCap(b);
   const handCap = battleHandCap(b);
   const refillN = handRefillAmount(handCap);
-  const discardBtn = overCap
-    ? actionTipWrap(
-        `<button type="button" class="fy-btn lab-discard-toggle ${discardMode ? "on" : ""}" id="btn-discard">弃牌 ${b.hand.length}/${handCap}</button>`,
-        `手牌超过上限 ${handCap}：先点「弃牌」再点要丢掉的牌（不摸）。弃到上限后才能收势。`,
-      )
-    : "";
+  const climb = isClimbQi();
+  const discardBtn =
+    climb || overCap
+      ? actionTipWrap(
+          `<button type="button" class="fy-btn lab-discard-toggle ${discardMode || b.climbDiscardPhase ? "on" : ""}" id="btn-discard">弃牌 ${b.hand.length}/${handCap}</button>`,
+          climb
+            ? `点弃牌进入弃牌阶段：可弃任意张（含晕锁）。也可先打牌压张数。手牌 ≤ ${handCap} 才能收势。`
+            : `手牌超过上限 ${handCap}：可打牌压张数，或点「弃牌」丢掉（不摸）。≤ 上限才能收势。`,
+        )
+      : "";
   const cycleGate = labCanCycle(b);
   const cycleBtn =
-    isLabV2() && !overCap
+    isLabV2() && !(overCap && !climb)
       ? actionTipWrap(
           `<button type="button" class="fy-btn lab-discard-toggle ${cycleMode ? "on" : ""}" id="btn-cycle" ${cycleGate.ok || cycleMode ? "" : "disabled"}>置换</button>`,
-          cycleGate.ok || cycleMode ? "角色技：弃 1 张摸 1 张。每回一次。" : (cycleGate.reason ?? "本回已置换"),
+          climb
+            ? cycleGate.ok || cycleMode
+              ? "弃这张、摸 1。花费 = 牌费 − 1（1 费免费）。"
+              : (cycleGate.reason ?? "不能置换")
+            : cycleGate.ok || cycleMode
+              ? "角色技：弃 1 张摸 1 张。每回一次。"
+              : (cycleGate.reason ?? "本回已置换"),
         )
+      : "";
+  const comboGate = labCanComboReplay(b);
+  const comboBtn =
+    climb && (comboGate.ok || (b.combo ?? 0) > 0)
+      ? actionTipWrap(
+          `<button type="button" class="fy-btn" id="btn-combo-replay" ${comboGate.ok ? "" : "disabled"}>连击重放</button>`,
+          comboGate.ok
+            ? `花 2 层连击，再打一次「${b.climbLastAttackId ? "上一张攻击" : ""}」。不耗劲、不耗手牌。`
+            : (comboGate.reason ?? "不能重放"),
+        )
+      : "";
+  const entranceNote = [
+    summonPending
+      ? `<p class="lab-entrance-note summon-hint">点一个空格让${escapeHtml(LAB_ITEM_LABEL[summonPending] ?? "助战")}落位（放敌身后可当墙）；Esc 取消</p>`
+      : b.labEntranceActive && !b.labEntranceUsed
+        ? `<p class="lab-entrance-note">登场势 — 首张攻击 +2</p>`
+        : "",
+  ]
+    .filter(Boolean)
+    .join("");
+  const phaseBanner =
+    climb && b.climbPhaseLabel
+      ? `<p class="lab-phase-banner" data-tip="开始：摸牌→亮招。结束：敌招→裂创→回劲→敌回劲→霸体（有才播）。锁手至亮招结束。">${escapeHtml(b.climbPhaseLabel)}</p>`
       : "";
   const canEnd =
     b.phase === "player" &&
@@ -1892,15 +2212,13 @@ function renderBattle(): string {
     (!inCampaign || campaignAllowsEndTurn(campaignRun!));
   const endBtnClass = `endturn fy-btn ${endTeach ? "demo-end-teach" : ""}`;
   const endTip = overCap
-    ? `手牌 ${b.hand.length}/${handCap}，请先弃到上限再收势`
+    ? `手牌 ${b.hand.length}/${handCap}：可先打牌压张数，或点「弃牌」丢掉多余的。≤${handCap} 才能收势`
     : endTeach
       ? "本步：点收势，系统结算敌招并讲解"
       : isBreakAlign()
         ? `结束本回合：敌行动后摸 ${refillN} 张（上限 ${handCap}）`
-        : "结束本回合：敌按意图行动，然后抽牌。";
-  const handCapChip = isBreakAlign()
-    ? `<span class="lab-hand-cap" data-tip="手牌上限；收势摸 ⌈上限/2⌉；超过须先弃">手牌 ${b.hand.length}/${handCap} · 收势摸 ${refillN}</span>`
-    : "";
+        : `结束出牌。场上摸 ${refillN}，后场每人摸 ${Math.max(0, refillN - 1)}。格挡不清。`;
+  const handCapChip = `<span class="lab-hand-cap" data-tip="手牌上限；开始摸 ⌈上限/2⌉；超过可打牌或弃牌，收势须 ≤ 上限">手牌 ${b.hand.length}/${handCap} · 摸 ${refillN}</span>`;
   const actionRowHtml = inGauntlet || inDemo || inHall || inCampaign
     ? `
     ${partyMode ? `<span class="lab-action-group lab-action-swap">${swaps || `<span class="lab-action-muted" data-tip="后场无人可换">无后场</span>`}</span>` : ""}
@@ -1911,7 +2229,8 @@ function renderBattle(): string {
       ${handCapChip}
       ${discardBtn}
       ${cycleBtn}
-      ${actionTipWrap(`<button class="${endBtnClass}" id="btn-end" ${canEnd ? "" : "disabled"}>收势</button>`, endTip)}
+      ${comboBtn}
+      ${actionTipWrap(`<button class="${endBtnClass}" id="btn-end" data-sfx="end-turn" ${canEnd ? "" : "disabled"}>收势</button>`, endTip)}
       ${abortBtn}
     </span>`
     : `
@@ -1924,14 +2243,10 @@ function renderBattle(): string {
       ${handCapChip}
       ${discardBtn}
       ${cycleBtn}
-      ${actionTipWrap(`<button class="endturn fy-btn" id="btn-end" ${b.phase === "player" && canEndPlayerTurn(b).ok ? "" : "disabled"}>收势</button>`, endTip)}
+      ${comboBtn}
+      ${actionTipWrap(`<button class="endturn fy-btn" id="btn-end" data-sfx="end-turn" ${b.phase === "player" && canEndPlayerTurn(b).ok ? "" : "disabled"}>收势</button>`, endTip)}
       ${abortBtn}
     </span>`;
-  const entranceNote = summonPending
-    ? `<p class="lab-entrance-note summon-hint">点一个空格让${escapeHtml(LAB_ITEM_LABEL[summonPending] ?? "助战")}落位（放敌身后可当墙）；Esc 取消</p>`
-    : b.labEntranceActive && !b.labEntranceUsed
-      ? `<p class="lab-entrance-note">登场势 — 首张攻击 +2</p>`
-      : "";
   const summonPickCells = summonPending && battle ? legalSummonCells(battle) : [];
   const freshNote = !isLabV2() && b.labFreshSwap ? `<p class="lab-fresh-swap">刚换上场 — 本回合不能出招</p>` : "";
   const tuning = getLabTuning();
@@ -1974,11 +2289,12 @@ function renderBattle(): string {
       }
       return base;
     },
-    discardMode: discardMode || cycleMode,
+    discardMode: discardMode || cycleMode || Boolean(b.climbDiscardPhase),
     summonPickCells,
     actionRowHtml,
     entranceNote,
     freshNote,
+    phaseBanner,
     fxClass: battleFxClasses(b),
     pauseOverlay: `${pausePanel}${debriefOverlay}`,
     toolbarExtra: breakDemoRun
@@ -1990,6 +2306,7 @@ function renderBattle(): string {
         : gauntletRun
           ? renderGauntletBadge(gauntletRun)
           : "",
+    chromeHtml: renderChromeActions(),
     gauntletStage: breakDemoRun?.stage ?? hallRun?.bout ?? campaignRun?.stageIndex ?? gauntletRun?.stage,
     demoGuide: breakDemoRun
       ? {
@@ -2018,18 +2335,19 @@ function renderBattle(): string {
         : undefined,
     weaponSheetHtml: weaponOpen ? renderWeaponSheet(weaponOpen) : "",
     combatMode: campaignRun
-      ? { label: "读招谜题", tip: "硬核短拍：拆错或挨打即败；过关不靠砍血。" }
+      ? { label: "登门", tip: "硬核短拍：打谱看目标；对打破架势。不拆光攻赢不了。" }
       : breakDemoRun
         ? {
             label: (breakDemoRun.track ?? "break") === "rookie" ? "低阶入门" : "新手关",
-            tip: "预习破招规则；正式硬核在读招战役。",
+            tip: "预习破招规则；正式硬核在登门。",
           }
         : hallRun
           ? { label: "训练馆", tip: "专项回炉；引导锁牌，训练自由打。" }
-          : { label: "肉鸽踢馆", tip: "不破也能爬。读招另有硬核谜题入口。" },
+          : { label: "行路", tip: "不破也能走。登门另有硬核短拍入口。" },
     foeResolving: foePlaybackBusy,
     foeSegAnim,
     foePlaybackSegIdx,
+    foeSegFate: playbackSegFate,
     youPlayAnim,
     wagerHud: gauntletRun ? renderWagerPlate(gauntletRun) : "",
   })}`;
@@ -2088,7 +2406,11 @@ function beginBattle(): void {
   paused = false;
   hoverUid = null;
   weaponOpen = null;
-  scheduleFoeFirstHold();
+  if (isClimbQi()) scheduleClimbBattleOpen();
+  else {
+    resetCombatPlayback();
+    scheduleFoeFirstHold();
+  }
   render();
 }
 
@@ -2269,7 +2591,8 @@ function bindCardPanelEvents(): void {
 }
 
 function bindQiCommitEvents(): void {
-  if (!qiFight || !campaignRun) return;
+  const hallQi = Boolean(hallRun && qiFight && hallUsesQiCommit(hallRun.courseId));
+  if (!qiFight || (!campaignRun && !hallQi)) return;
   const paint = (): void => {
     render();
   };
@@ -2311,6 +2634,15 @@ function bindQiCommitEvents(): void {
     }
     paint();
   });
+  root.querySelector("#qi-peek")?.addEventListener("click", () => {
+    if (!qiFight) return;
+    try {
+      qiFight = playPeek(qiFight);
+    } catch {
+      return;
+    }
+    paint();
+  });
   root.querySelector("#qi-atk-free")?.addEventListener("click", () => {
     if (!qiFight) return;
     try {
@@ -2332,7 +2664,7 @@ function bindQiCommitEvents(): void {
     paint();
   });
   root.querySelector("#qi-end")?.addEventListener("click", () => {
-    if (!qiFight || !campaignRun) return;
+    if (!qiFight) return;
     qiFight = resolveTurn(qiFight);
     if (battle) {
       battle = {
@@ -2341,6 +2673,42 @@ function bindQiCommitEvents(): void {
         enemy: { ...battle.enemy, hp: qiFight.enemyHp },
       };
     }
+    if (hallRun && hallUsesQiCommit(hallRun.courseId)) {
+      if (hallRun.bout === 2) {
+        if (qiFight.phase === "won") {
+          finishHallBattle("win");
+          return;
+        }
+        if (qiFight.phase === "lost") {
+          finishHallBattle("loss");
+          return;
+        }
+        paint();
+        return;
+      }
+      if (qiFight.phase === "lost") {
+        finishHallBattle("loss");
+        return;
+      }
+      const tickRun = hallRun.qiTick ?? hallCampaignShell(hallRun);
+      if (!tickRun) {
+        paint();
+        return;
+      }
+      const tick = tickCampaignAfterResolve(tickRun, readQiResolveStats(qiFight));
+      hallRun = { ...hallRun, qiTick: tick.run };
+      if (tick.kind === "win") {
+        finishHallBattle("win");
+        return;
+      }
+      if (tick.kind === "lose") {
+        finishHallBattle("loss");
+        return;
+      }
+      paint();
+      return;
+    }
+    if (!campaignRun) return;
     if (qiFight.phase === "lost") {
       finishCampaignFromTick({
         kind: "lose",
@@ -2361,15 +2729,17 @@ function bindQiCommitEvents(): void {
 
 function paintHoverBoard(): void {
   if (phase !== "battle" || !battle) return;
+  let b = battle;
+  if (playbackShow) b = overlayRecapBattle(b, playbackShow);
+  // 悬停任意牌：全量预演同时驱动棋盘落点小人与底部预演条
+  const prev = hoverUid ? previewCard(b, hoverUid) : null;
+  const pslot = root.querySelector("#preview-slot");
+  if (pslot) pslot.outerHTML = renderHoverPreview(b, prev);
   const slot = root.querySelector("#strip");
   if (!slot) return;
-  let b = battle;
-  if (playbackShow) {
-    b = { ...b, player: { ...b.player, hp: playbackShow.hp }, playerBlock: playbackShow.block };
-  }
   slot.innerHTML = renderProdBoard(
     b,
-    moveGhostPreview(b, hoverUid),
+    prev,
     threatCellsForHover(b, hoverIntentIdx),
     summonPending && battle ? legalSummonCells(battle) : [],
     {
@@ -2407,6 +2777,17 @@ function bindEvents(): void {
   root.querySelector("#lab-guide-open")?.addEventListener("click", () => {
     guideOpen = true;
     wikiOpen = null;
+    wikiQuery = "";
+    devPanelOpen = false;
+    closeSettings();
+    playSfx("page");
+    render();
+  });
+  root.querySelector("#lab-codex-open")?.addEventListener("click", () => {
+    wikiOpen = "ult";
+    wikiPage = 0;
+    wikiQuery = "";
+    guideOpen = false;
     devPanelOpen = false;
     closeSettings();
     playSfx("page");
@@ -2426,6 +2807,7 @@ function bindEvents(): void {
     guideOpen = false;
     devPanelOpen = false;
     wikiOpen = null;
+    wikiQuery = "";
     playSfx("page");
     if (needRender) render();
     // 晚一帧挂设置层，避免与 render 抢同一次 DOM 刷新
@@ -2456,6 +2838,7 @@ function bindEvents(): void {
     el.addEventListener("click", () => {
       wikiOpen = el.dataset.wikiOpen as WikiBook;
       wikiPage = 0;
+      wikiQuery = "";
       guideOpen = false;
       devPanelOpen = false;
       playSfx("page");
@@ -2471,20 +2854,37 @@ function bindEvents(): void {
   }
   root.querySelector("#lab-wiki-close")?.addEventListener("click", () => {
     wikiOpen = null;
+    wikiQuery = "";
     render();
   });
   root.querySelector("#lab-wiki-mask")?.addEventListener("click", (e) => {
     if ((e.target as HTMLElement).id === "lab-wiki-mask") {
       wikiOpen = null;
+      wikiQuery = "";
       render();
     }
+  });
+  const wikiSearch = root.querySelector<HTMLInputElement>("#lab-wiki-search");
+  wikiSearch?.addEventListener("input", () => {
+    wikiQuery = wikiSearch.value;
+    wikiPage = 0;
+    const caret = wikiSearch.selectionStart ?? wikiQuery.length;
+    render();
+    const again = root.querySelector<HTMLInputElement>("#lab-wiki-search");
+    if (again) {
+      again.focus();
+      again.setSelectionRange(caret, caret);
+    }
+  });
+  wikiSearch?.addEventListener("keydown", (e) => {
+    e.stopPropagation();
   });
   root.querySelector("[data-wiki-prev]")?.addEventListener("click", () => {
     if (wikiOpen) wikiPage = Math.max(0, wikiPage - 1);
     render();
   });
   root.querySelector("[data-wiki-next]")?.addEventListener("click", () => {
-    if (wikiOpen) wikiPage = Math.min(wikiPageCount(wikiOpen) - 1, wikiPage + 1);
+    if (wikiOpen) wikiPage = Math.min(wikiPageCount(wikiOpen, wikiQuery) - 1, wikiPage + 1);
     render();
   });
   for (const el of root.querySelectorAll<HTMLButtonElement>("[data-pile]")) {
@@ -2614,24 +3014,25 @@ function bindEvents(): void {
     render();
   });
   root.querySelector("#start-rookie-demo")?.addEventListener("click", () => {
-    if (!isBreakAlign()) return;
     gauntletPath = null;
     startBreakDemo("rookie");
   });
   root.querySelector("#start-break-demo")?.addEventListener("click", () => {
-    if (!isBreakAlign()) return;
+    if (!BREAK_MODE_OPEN) return;
+    setLabRuleset("break");
     gauntletPath = null;
     gauntletScreen = "intro";
     render();
   });
   root.querySelector("#start-training-hall")?.addEventListener("click", () => {
-    if (!isBreakAlign()) return;
+    if (!BREAK_MODE_OPEN) return;
+    setLabRuleset("break");
     hallScreen = "catalog";
     hallRun = null;
     render();
   });
   root.querySelector("#start-break-campaign")?.addEventListener("click", () => {
-    if (!isBreakAlign()) return;
+    if (!BREAK_MODE_OPEN) return;
     startBreakCampaign();
   });
   root.querySelector("#campaign-retry")?.addEventListener("click", () => {
@@ -2846,7 +3247,7 @@ function bindEvents(): void {
       const opt = gauntletRewards[idx];
       if (!opt) return;
       if (!gauntletRewardsAreSuper && gauntletRewardTakes >= gauntletRewardTakeCount(gauntletRun)) return;
-      if (!gauntletRewardsAreSuper && (opt.kind === "tech" || opt.kind === "mind")) {
+      if (!gauntletRewardsAreSuper && (opt.kind === "tech" || opt.kind === "mind") && isBreakAlign()) {
         pendingReward = opt;
         gauntletScreen = "rewardTarget";
         render();
@@ -2934,7 +3335,7 @@ function bindEvents(): void {
       const id = el.dataset.marketId ?? "";
       const offer = gauntletMarket.find((o) => o.id === id);
       if (!offer || gauntletMarketBought.has(id)) return;
-      if (gauntletMarketBought.size >= marketBuyCap(gauntletRun.stage)) return;
+      if (gauntletMarketBought.size >= marketBuyCap(gauntletRun.stage, getGauntletFinalStage(gauntletRun))) return;
       const next = buyMarketOffer(gauntletRun, offer);
       if (!next) return;
       gauntletRun = next;
@@ -2974,48 +3375,159 @@ function bindEvents(): void {
   });
   root.querySelector("#gauntlet-open-loadout")?.addEventListener("click", () => {
     if (gauntletRun) loadoutFocusMate = gauntletFieldMate(gauntletRun.school);
+    loadoutPage = "deck";
+    loadoutPick = null;
     gauntletScreen = "loadout";
     render();
   });
   root.querySelector("#gauntlet-loadout-back")?.addEventListener("click", () => {
+    loadoutPick = null;
     gauntletScreen = "reward";
     render();
   });
+  for (const el of root.querySelectorAll<HTMLButtonElement>("[data-loadout-page]")) {
+    el.addEventListener("click", () => {
+      const raw = el.dataset.loadoutPage;
+      loadoutPage = raw === "tech" || raw === "arts" ? "tech" : raw === "mind" ? "mind" : raw === "weapon" ? "weapon" : "deck";
+      loadoutPick = null;
+      render();
+    });
+  }
   for (const el of root.querySelectorAll<HTMLButtonElement>("[data-loadout-mate]")) {
     el.addEventListener("click", () => {
       loadoutFocusMate = el.dataset.loadoutMate as CompanionId;
+      loadoutPick = null;
       render();
     });
   }
-  for (const el of root.querySelectorAll<HTMLButtonElement>("[data-equip-idx]")) {
-    el.addEventListener("click", () => {
+  const loadoutMate = () =>
+    gauntletRun ? (loadoutFocusMate ?? gauntletFieldMate(gauntletRun.school)) : null;
+  const applyLoadoutDrag = (from: string, drop: string) => {
+    if (!gauntletRun) return;
+    const mate = loadoutMate();
+    if (!mate) return;
+    const [zone, idxRaw] = from.split(":");
+    const idx = Number(idxRaw);
+    if (!Number.isFinite(idx)) return;
+    if (drop === "board" && zone === "stash") {
+      if (loadoutPage === "deck") gauntletRun = moveStashToDeck(gauntletRun, mate, idx);
+      else if (loadoutPage === "tech") {
+        const id = (gauntletRun.stashTechs ?? [])[idx];
+        const learned = gauntletRun.mateTechs[mate] ?? [];
+        if (id && learned.includes(id)) gauntletRun = feedStashTech(gauntletRun, mate, idx);
+        else gauntletRun = equipStashTech(gauntletRun, mate, idx);
+      } else if (loadoutPage === "mind") gauntletRun = equipStashMind(gauntletRun, mate, idx);
+    } else if (drop === "stash" && zone === "board") {
+      if (loadoutPage === "deck") gauntletRun = moveDeckToStash(gauntletRun, mate, idx);
+      else if (loadoutPage === "tech") {
+        const id = (gauntletRun.mateTechs[mate] ?? [])[idx];
+        if (id) gauntletRun = unequipTechToStash(gauntletRun, mate, id);
+      }
+    } else if (drop === "sell" && zone === "stash" && loadoutPage === "deck") {
+      gauntletRun = sellStashCard(gauntletRun, idx, sellPriceFor("card", gauntletRun.stage, ladderEntryForRun(gauntletRun).tier));
+    } else if (drop === "craft" && zone === "stash") {
+      if (loadoutPage === "deck") {
+        const id = (gauntletRun.stashCards ?? [])[idx];
+        if (id) gauntletRun = fuseOwnedCard(gauntletRun, id);
+      } else if (loadoutPage === "tech") gauntletRun = feedStashTech(gauntletRun, mate, idx);
+    }
+    loadoutPick = null;
+    render();
+  };
+  for (const el of root.querySelectorAll<HTMLElement>("[data-drag]")) {
+    el.addEventListener("dragstart", (e) => {
+      const dt = (e as DragEvent).dataTransfer;
+      if (!dt) return;
+      dt.setData("text/plain", el.dataset.drag ?? "");
+      dt.effectAllowed = "move";
+    });
+  }
+  for (const el of root.querySelectorAll<HTMLElement>("[data-drop]")) {
+    el.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      const dt = (e as DragEvent).dataTransfer;
+      if (dt) dt.dropEffect = "move";
+    });
+    el.addEventListener("drop", (e) => {
+      e.preventDefault();
+      const from = (e as DragEvent).dataTransfer?.getData("text/plain") ?? "";
+      const drop = el.dataset.drop ?? "";
+      if (from && drop) applyLoadoutDrag(from, drop);
+    });
+  }
+  for (const el of root.querySelectorAll<HTMLButtonElement>("[data-pick-zone]")) {
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
       if (!gauntletRun) return;
-      const mate = loadoutFocusMate ?? gauntletFieldMate(gauntletRun.school);
-      gauntletRun = moveStashToDeck(gauntletRun, mate, Number(el.dataset.equipIdx));
+      const zone = el.dataset.pickZone === "stash" ? "stash" : "board";
+      const idx = Number(el.dataset.pickIdx);
+      if (!Number.isFinite(idx)) return;
+      const again = loadoutPick?.zone === zone && loadoutPick.idx === idx;
+      if (!again) {
+        loadoutPick = { zone, idx };
+        render();
+        return;
+      }
+      const mate = loadoutMate();
+      if (!mate) return;
+      if (el.dataset.equipIdx != null) gauntletRun = moveStashToDeck(gauntletRun, mate, Number(el.dataset.equipIdx));
+      else if (el.dataset.unequipMate != null) {
+        gauntletRun = moveDeckToStash(gauntletRun, el.dataset.unequipMate as import("../game/types").CompanionId, Number(el.dataset.unequipIdx));
+      } else if (el.dataset.equipTechIdx != null) gauntletRun = equipStashTech(gauntletRun, mate, Number(el.dataset.equipTechIdx));
+      else if (el.dataset.feedTechIdx != null) gauntletRun = feedStashTech(gauntletRun, mate, Number(el.dataset.feedTechIdx));
+      else if (el.dataset.unequipTech != null) gauntletRun = unequipTechToStash(gauntletRun, mate, el.dataset.unequipTech as TechniqueId);
+      else if (el.dataset.equipMindIdx != null) gauntletRun = equipStashMind(gauntletRun, mate, Number(el.dataset.equipMindIdx));
+      loadoutPick = null;
       render();
     });
   }
-  for (const el of root.querySelectorAll<HTMLButtonElement>("[data-unequip-mate]")) {
-    el.addEventListener("click", () => {
-      if (!gauntletRun) return;
-      const mate = el.dataset.unequipMate as import("../game/types").CompanionId;
-      gauntletRun = moveDeckToStash(gauntletRun, mate, Number(el.dataset.unequipIdx));
+  root.querySelector("#gauntlet-stash-sell")?.addEventListener("click", () => {
+    if (!gauntletRun || loadoutPage !== "deck" || loadoutPick?.zone !== "stash") return;
+    gauntletRun = sellStashCard(gauntletRun, loadoutPick.idx, sellPriceFor("card", gauntletRun.stage, ladderEntryForRun(gauntletRun).tier));
+    loadoutPick = null;
+    render();
+  });
+  root.querySelector("#gauntlet-stash-craft")?.addEventListener("click", () => {
+    if (!gauntletRun) return;
+    const mate = loadoutMate();
+    if (loadoutPage === "weapon") {
+      gauntletRun = toggleGodUsing(gauntletRun);
       render();
-    });
-  }
-  for (const el of root.querySelectorAll<HTMLButtonElement>("[data-sell-idx]")) {
-    el.addEventListener("click", () => {
-      if (!gauntletRun) return;
-      gauntletRun = sellStashCard(gauntletRun, Number(el.dataset.sellIdx), sellPriceFor("card", gauntletRun.stage, ladderEntryForRun(gauntletRun).tier));
-      render();
-    });
-  }
+      return;
+    }
+    if (loadoutPick?.zone !== "stash" || !mate) return;
+    if (loadoutPage === "deck") {
+      const id = (gauntletRun.stashCards ?? [])[loadoutPick.idx];
+      if (id) gauntletRun = fuseOwnedCard(gauntletRun, id);
+    } else if (loadoutPage === "tech") gauntletRun = feedStashTech(gauntletRun, mate, loadoutPick.idx);
+    loadoutPick = null;
+    render();
+  });
   bindGauntletDevPanel(root, () => render());
+  const finishOpening = () => {
+    if (!gauntletRun) return;
+    gauntletRun = dismissStoryOpening(gauntletRun);
+    goToWagerOrBattle();
+  };
+  root.querySelector("#story-opening-continue")?.addEventListener("click", finishOpening);
+  root.querySelector("#story-opening-skip")?.addEventListener("click", finishOpening);
+  root.querySelector("#story-travel-continue")?.addEventListener("click", () => {
+    if (!gauntletRun) return;
+    gauntletRun = continueStoryTravel(gauntletRun);
+    gauntletEventKind = null;
+    gauntletEventChoices = [];
+    goToWagerOrBattle();
+  });
   for (const el of root.querySelectorAll<HTMLButtonElement>("[data-banker-mult]")) {
     el.addEventListener("click", () => {
       if (!gauntletRun) return;
       const mult = Number(el.dataset.bankerMult) as 2 | 3;
       gauntletRun = applyBankerBoost(gauntletRun, mult);
+      if (usesBanditStory(gauntletRun) && gauntletRun.storyPending === "opening") {
+        gauntletScreen = "opening";
+        render();
+        return;
+      }
       goToWagerOrBattle();
     });
   }
@@ -3053,7 +3565,7 @@ function bindEvents(): void {
       if (!gauntletRun || !gauntletEventKind) return;
       const choice = gauntletEventChoices[Number(el.dataset.eventIdx)];
       if (!choice) return;
-      gauntletRun = applyEncounterChoice(gauntletRun, choice);
+      gauntletRun = (usesBanditStory(gauntletRun) ? applyStoryChoice : applyEncounterChoice)(gauntletRun, choice);
       gauntletEventKind = null;
       gauntletEventChoices = [];
       const fought = Math.max(1, gauntletRun.stage - 1);
@@ -3063,6 +3575,24 @@ function bindEvents(): void {
       }
       if (choice.companionId && !choice.skirmish) {
         gauntletRun = { ...applyCompanion(gauntletRun, choice.companionId), pendingRecruit: undefined };
+      }
+      if (usesBanditStory(gauntletRun)) {
+        if (gauntletRun.storyPending === "followup" || gauntletRun.storyPending === "choice") {
+          openBanditStoryScreen();
+          return;
+        }
+        if (choice.openMarket) {
+          gauntletRewards = [];
+          gauntletRewardsAreSuper = false;
+          gauntletRewardTakes = gauntletRewardTakeCount(gauntletRun);
+          rollGauntletMarket();
+          gauntletScreen = "reward";
+          persistCampContinue();
+          render();
+          return;
+        }
+        goToWagerOrBattle();
+        return;
       }
       openGauntletCamp(fought);
     });
@@ -3138,9 +3668,9 @@ function bindEvents(): void {
       if (!battle || battle.phase !== "player" || paused || foePlaybackBusy) return;
       const uid = el.dataset.uid!;
       // 弃牌/置换：须先点按钮，超上限不会自动改点牌为弃牌
-      if (discardMode && needsDiscardToHandCap(battle)) {
+      if ((discardMode || battle.climbDiscardPhase) && (isClimbQi() || needsDiscardToHandCap(battle))) {
         battle = labDiscardCard(battle, uid);
-        if (!needsDiscardToHandCap(battle)) discardMode = false;
+        if (!isClimbQi() && !needsDiscardToHandCap(battle)) discardMode = false;
         render();
         return;
       }
@@ -3206,7 +3736,7 @@ function bindEvents(): void {
         youPlayAnimTimer = window.setTimeout(() => {
           youPlayAnim = null;
           youPlayAnimTimer = null;
-          if (phase === "battle") render();
+          if (phase === "battle") paintHoverBoard();
         }, 420);
       }
       // 敌全灭即胜——不管教案走到哪一步。否则 checkWin 已把 phase 置 "won"，
@@ -3295,6 +3825,13 @@ function bindEvents(): void {
   });
   root.querySelector("#btn-discard")?.addEventListener("click", () => {
     if (!battle || battle.phase !== "player" || paused) return;
+    if (isClimbQi()) {
+      battle = labEnterDiscardPhase(battle);
+      discardMode = true;
+      cycleMode = false;
+      render();
+      return;
+    }
     discardMode = !discardMode;
     cycleMode = false;
     render();
@@ -3304,6 +3841,13 @@ function bindEvents(): void {
     if (!labCanCycle(battle).ok && !cycleMode) return;
     cycleMode = !cycleMode;
     discardMode = false;
+    render();
+  });
+  root.querySelector("#btn-combo-replay")?.addEventListener("click", () => {
+    if (!battle || battle.phase !== "player" || paused || foePlaybackBusy) return;
+    if (!labCanComboReplay(battle).ok) return;
+    battle = labComboReplay(battle);
+    playSfx("swing");
     render();
   });
   root.querySelector("#btn-end")?.addEventListener("click", () => {
@@ -3316,6 +3860,7 @@ function bindEvents(): void {
     if (breakDemoRun && !demoAllowsEndTurn(breakDemoRun)) return;
     if (hallRun && !hallAllowsEndTurn(hallRun)) return;
     if (campaignRun && !campaignAllowsEndTurn(campaignRun)) return;
+    foePlaybackBusy = true;
     discardMode = false;
     cycleMode = false;
     const ms = Math.round(performance.now() - turnStartedAt);
@@ -3323,8 +3868,9 @@ function bindEvents(): void {
     playSfx("drop");
     const campBreaksBefore = campaignRun ? (battle.v2BreakCount ?? 0) : 0;
     foePlaybackIntents = battle.intents.length ? battle.intents.map((x) => ({ ...x })) : [{ ...battle.intent }];
+    const origin = { playerPos: battle.player.pos, enemyPos: battle.enemy.pos };
     // 先兑完整队、暂不刷下一手；播报完再亮下回合全套意图
-    battle = endTurn(battle, { deferIntentRefresh: true });
+    battle = endTurn(battle, { deferIntentRefresh: true, deferStatusTicks: !isBreakAlign() });
     if (!campaignRun && skipFoeRecap(battle)) {
       endBattle("win");
       return;
@@ -3346,30 +3892,140 @@ function bindEvents(): void {
     }
     const afterPlayback = (): void => {
       if (!battle) return;
-      battle = refreshFoeIntentsIfPending(battle);
-      if (campaignRun) {
-        const stats = readCampaignResolveStats(battle, campBreaksBefore);
-        const tick = tickCampaignAfterResolve(campaignRun, stats);
-        if (tick.kind === "win" || tick.kind === "lose") {
-          finishCampaignFromTick(tick);
+      // playFoeRecapThen 会先放开 busy；爬塔尾部仍锁手，直到【中期】出牌
+      if (isClimbQi()) foePlaybackBusy = true;
+
+      const unlockMid = (): void => {
+        if (!battle) return;
+        if (isClimbQi() && battle.climbNeedFoeOpenPlayback) {
+          battle = { ...battle, climbNeedFoeOpenPlayback: false, climbPhaseLabel: "【开始】敌招", lastHitRead: "【开始】兑他整条意图" };
+          const origin = { playerPos: battle.player.pos, enemyPos: battle.enemy.pos };
+          foePlaybackBusy = true;
+          foePlaybackIntents = battle.intents.length ? battle.intents.map((x) => ({ ...x })) : [{ ...battle.intent }];
+          seizeOpening(battle);
+          const recap = [...(battle.v2LastIntentRecap ?? [])];
+          playbackSegFate = {};
+          playbackShow = recapDisplayStart(
+            battle.player.hp,
+            battle.playerBlock,
+            isClimbQi() ? recap : filterEmptyRecap(recap),
+            origin.playerPos,
+            origin.enemyPos,
+          );
+          render();
+          playFoeRecapThen(() => {
+            if (!battle) return;
+            if (battle.player.hp <= 0) {
+              foePlaybackBusy = false;
+              endBattle("loss");
+              return;
+            }
+            battle = { ...battle, climbPhaseLabel: undefined, lastHitRead: "" };
+            unlockMidAfterFoeOpen();
+          }, origin);
           return;
         }
-        campaignRun = tick.run;
-        refreshCampaignIntents(battle, campaignRun);
-        battle = syncCampaignBattle(battle, campaignRun);
-      }
-      if (battle.player.hp <= 0) {
-        endBattle("loss");
+        unlockMidAfterFoeOpen();
+      };
+
+      const unlockMidAfterFoeOpen = (): void => {
+        if (!battle) return;
+        if (campaignRun) {
+          const stats = readCampaignResolveStats(battle, campBreaksBefore);
+          const tick = tickCampaignAfterResolve(campaignRun, stats);
+          if (tick.kind === "win" || tick.kind === "lose") {
+            foePlaybackBusy = false;
+            finishCampaignFromTick(tick);
+            return;
+          }
+          campaignRun = tick.run;
+          refreshCampaignIntents(battle, campaignRun);
+          battle = syncCampaignBattle(battle, campaignRun);
+        }
+        if (battle.player.hp <= 0) {
+          foePlaybackBusy = false;
+          endBattle("loss");
+          return;
+        }
+        if (!campaignRun && isBattleWon(battle)) {
+          foePlaybackBusy = false;
+          endBattle("win");
+          return;
+        }
+        if ((battle.youStun ?? 0) > 0) {
+          battle = { ...battle, lastHitRead: "你眩晕——这一回合打不出攻击" };
+        }
+        battle = {
+          ...battle,
+          climbPhaseLabel: isClimbQi() ? undefined : battle.climbPhaseLabel,
+          lastHitRead: (battle.youStun ?? 0) > 0 ? battle.lastHitRead : "",
+        };
+        foePlaybackBusy = false;
+        resetTurnTimer();
+        render();
+      };
+
+      const playClimbBeatsThenUnlock = (): void => {
+        if (!battle) return;
+        if (!peekClimbPhaseQueue(battle).length) {
+          unlockMid();
+          return;
+        }
+        const beat = applyClimbPhaseBeat(battle);
+        battle = beat.battle;
+        if (battle.player.hp <= 0) {
+          foePlaybackBusy = false;
+          endBattle("loss");
+          return;
+        }
+        if (!campaignRun && isBattleWon(battle)) {
+          foePlaybackBusy = false;
+          endBattle("win");
+          return;
+        }
+        if (beat.skip) {
+          playClimbBeatsThenUnlock();
+          return;
+        }
+        render();
+        window.setTimeout(playClimbBeatsThenUnlock, CLIMB_PHASE_BEAT_MS);
+      };
+
+      if (isClimbQi() && peekClimbPhaseQueue(battle).length) {
+        playClimbBeatsThenUnlock();
         return;
       }
-      if (!campaignRun && isBattleWon(battle)) {
-        endBattle("win");
+
+      // 非爬塔 / 无队列：沿用原裂创补丁 + 亮招
+      if (battle.v2PendingStatusTicks) {
+        battle = applyPendingStatusTicks(battle);
+        render();
+        window.setTimeout(() => {
+          if (!battle) return;
+          battle = refreshFoeIntentsIfPending(battle);
+          unlockMid();
+        }, 520);
         return;
       }
-      resetTurnTimer();
-      render();
+      battle = refreshFoeIntentsIfPending(battle);
+      unlockMid();
     };
-    playFoeRecapThen(afterPlayback);
+    if (isClimbQi() && battle) {
+      battle = { ...battle, climbPhaseLabel: "【结束】敌招", lastHitRead: "【结束】兑他整条意图" };
+      const recap = [...(battle.v2LastIntentRecap ?? [])];
+      playbackSegFate = {};
+      playbackShow = recapDisplayStart(
+        battle.player.hp,
+        battle.playerBlock,
+        recap,
+        origin.playerPos,
+        origin.enemyPos,
+      );
+      render();
+      window.setTimeout(() => playFoeRecapThen(afterPlayback, origin), 1800);
+      return;
+    }
+    playFoeRecapThen(afterPlayback, origin);
   });
   root.querySelector("#demo-foe-debrief-ok")?.addEventListener("click", () => {
     if (breakDemoRun && battle) {

@@ -146,7 +146,7 @@ function buildAll(): GearWeapon[] {
     for (const path of ["a", "b"] as WeaponPath[]) {
       for (let g = 1; g <= 5; g++) {
         const tier = TIER_OF[g - 1];
-        const damage = g - 1 + (g >= 4 ? g - 3 : 0);
+        const damage = Math.min(4, g - 1);
         const knock =
           school === "palm" || school === "staff" || school === "hook" ? Math.floor((g - 1) / 2) : 0;
         const ward = school === "staff" || school === "saber" ? Math.floor((g - 1) / 2) : 0;
@@ -267,6 +267,8 @@ export function pathSkillMods(
   pullDmg?: number;
   pullStrip?: number;
   qiRegen?: number;
+  foeSlow?: number;
+  pokeDraw?: number;
   /** Resolved hit bonus for this strike. */
   damage?: number;
   ward?: number;
@@ -284,9 +286,13 @@ export function pathSkillMods(
           ? { nearDmg: 1 }
           : g.skill === "saber-b"
             ? { paceDmg: 1 }
-            : g.skill === "spear-b"
+            : g.skill === "spear-a"
+              ? { foeSlow: 1 }
+              : g.skill === "spear-b"
               ? { expose: 1 }
-              : g.skill === "sword-b"
+              : g.skill === "sword-a"
+                ? { pokeDraw: 1 }
+                : g.skill === "sword-b"
                 ? { thorns: 1 }
                 : g.skill === "staff-a"
                   ? { blockExtra: 1 }

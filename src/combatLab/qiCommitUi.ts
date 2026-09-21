@@ -4,6 +4,8 @@ import {
   MOVE_LABEL,
   QI_BOARD,
   QI_CARDS,
+  firstHiddenTell,
+  isSegHidden,
   qiCardTip,
   qiCoachLine,
   threatCell,
@@ -20,7 +22,7 @@ function moveHint(move: FoeMove): string {
   if (move === "sweep") return "用 拆·压";
   if (move === "pierce") return "用 拆·点";
   if (move === "crash") return "用 拆·引";
-  return "攻牌打断 · 伤×2";
+  return "攻牌打断 · 只断蓄";
 }
 
 function kindLabel(kind: QiCardKind): string {
@@ -51,21 +53,35 @@ function meter(label: string, cur: number, max: number, extra = ""): string {
 }
 
 export function renderQiCommitBattle(f: QiFight, run: BreakCampaignRun): string {
+  const showHint = run.stageId === "R1";
+  const tell = firstHiddenTell(f);
   const segs = f.queue
     .map((s, i) => {
+      const hidden = isSegHidden(f, i);
       const red = threatCell(s);
       const ink = red != null && f.inkCells.includes(red) ? " is-ink" : "";
       const committed = s.commit ? " is-locked" : "";
       const tag = s.commit ? commitLabel(s.commit.tier) : `${i + 1}`;
-      const dmg = s.move === "windup" ? "不掉血" : `${s.damage} 伤`;
+      if (hidden) {
+        return `<button type="button" class="qi-seg qi-seg-hidden${committed}" data-qi-seg="${i}" ${
+          s.commit ? "disabled" : ""
+        } data-tip="${escapeAttr(tell?.label ?? "后段 · 看起手式")}">
+        <span class="qi-seg-ord">${escapeHtml(tag)}</span>
+        <strong class="qi-seg-move">后段</strong>
+        <b class="qi-seg-dmg">${escapeHtml(tell ? tell.label : "起手式")}</b>
+        <small class="qi-seg-how">信起手，或盯梢</small>
+      </button>`;
+      }
+      const dmg = s.move === "windup" ? "断蓄" : `架势 ${s.damage}`;
       const cellTxt = red != null ? `${red + 1} 格` : "无红格";
+      const how = showHint ? moveHint(s.move) : s.move === "windup" ? "攻牌断蓄" : "";
       return `<button type="button" class="qi-seg qi-seg-${s.move}${ink}${committed}" data-qi-seg="${i}" ${
         s.commit ? "disabled" : ""
-      } data-tip="${escapeAttr(`${MOVE_LABEL[s.move]} · ${cellTxt} · ${dmg} · ${moveHint(s.move)}`)}">
+      } data-tip="${escapeAttr(`${MOVE_LABEL[s.move]} · ${cellTxt} · ${dmg}`)}">
         <span class="qi-seg-ord">${escapeHtml(tag)}</span>
         <strong class="qi-seg-move">${MOVE_LABEL[s.move]}</strong>
         <b class="qi-seg-dmg">${escapeHtml(dmg)} · ${escapeHtml(cellTxt)}</b>
-        <small class="qi-seg-how">${escapeHtml(moveHint(s.move))}</small>
+        ${how ? `<small class="qi-seg-how">${escapeHtml(how)}</small>` : ""}
       </button>`;
     })
     .join("");
@@ -94,9 +110,9 @@ export function renderQiCommitBattle(f: QiFight, run: BreakCampaignRun): string 
   const ultOk = f.momentum >= 8 && !f.ultUsedThisTurn;
   const pickHint = selected
     ? QI_CARDS[selected.defId].kind === "step"
-      ? `已走位。看石台：红格会打中你，非红格会打空。`
+      ? `已走位。看石台：红格会打中你，非红格会打空（算躲）。`
       : QI_CARDS[selected.defId].kind === "attack"
-        ? `已选攻牌 → 点蓄力段才是双倍；点「攻·直取」只打基础伤`
+        ? `已选攻牌 → 点蓄力段只断蓄；点「攻·直取」须本拍已拆才夺势`
         : `已选「${QI_CARDS[selected.defId].name}」→ 点中间带红格的来招`
     : qiCoachLine(f);
 
@@ -125,9 +141,10 @@ export function renderQiCommitBattle(f: QiFight, run: BreakCampaignRun): string 
 
   const incoming = f.queue.length
     ? f.queue
-        .map((s) => {
+        .map((s, i) => {
+          if (isSegHidden(f, i)) return "后段";
           const red = threatCell(s);
-          return `${MOVE_LABEL[s.move]}${red != null ? `${red + 1}格` : ""}${s.damage ? `${s.damage}伤` : ""}`;
+          return `${MOVE_LABEL[s.move]}${red != null ? `${red + 1}格` : ""}${s.damage ? `架${s.damage}` : ""}`;
         })
         .join(" · ")
     : "无";
@@ -141,29 +158,33 @@ export function renderQiCommitBattle(f: QiFight, run: BreakCampaignRun): string 
             <h1>气力承诺</h1>
           </div>
           <p class="qi-goal">${escapeHtml(campaignGoalLine(run))}</p>
-          <p class="qi-glossary">气力：本拍能花的点。拆 2、架/闪/步/攻 1；硬拆立刻还 1；每拍回 3，「过」再给下拍存 1（上限 5）。气势：硬拆或墨痕每段 +1。▲3 直取收势 +1 伤，▲5 每拍回 4 气，▲8 开绝式。墨痕：硬拆印在红格上，他再打这格会自动破，并再留一轮。</p>
+          ${
+            tell
+              ? `<p class="qi-tell">起手 ${escapeHtml(tell.label)}　刀下=扫 · 刀平=刺 · 收刀=撞</p>`
+              : ""
+          }
           <span class="qi-beat">第 ${f.turn} 拍</span>
         </header>
 
         <div class="qi-table">
           <aside class="qi-side qi-side-you">
             <b>你</b>
-            ${meter("气血", f.playerHp, f.playerHpMax)}
+            ${meter("架势", f.playerStance, f.playerStanceMax)}
             ${meter("气力", f.qi, f.qiCap, f.banked ? `存${f.banked}` : "")}
             ${meter("气势", f.momentum, 8, f.momentum >= 8 ? "绝式可开" : "")}
           </aside>
           <div class="qi-mid">
             <div class="qi-mid-label">七步石台 · 红格来招才打得到你</div>
             <div class="qi-board" id="qi-board">${board}</div>
-            <div class="qi-queue" id="qi-queue">${segs || "<span class='qi-empty'>本拍无来招——用攻直取砍血</span>"}</div>
+            <div class="qi-queue" id="qi-queue">${segs || "<span class='qi-empty'>本拍无来招——已拆才能直取夺势</span>"}</div>
             <p class="qi-pick">${escapeHtml(pickHint)}</p>
             ${recap}
           </div>
           <aside class="qi-side qi-side-foe">
             <b>敌</b>
-            ${meter("气血", f.enemyHp, f.enemyHpMax)}
+            ${meter("架势", f.enemyStance, f.enemyStanceMax)}
             <p class="qi-foe-in">${escapeHtml(incoming)}</p>
-            ${f.enemyHpMax >= 50 ? `<p class="qi-foe-note">过关看上方目标，不靠砍血。</p>` : `<p class="qi-foe-note">砍到 0 才过。有来招先处理红格。</p>`}
+            ${f.enemyStanceMax >= 50 ? `<p class="qi-foe-note">过关看上方目标。</p>` : ""}
           </aside>
         </div>
 
@@ -171,6 +192,7 @@ export function renderQiCommitBattle(f: QiFight, run: BreakCampaignRun): string 
           <div class="qi-hand">${cards}</div>
           <div class="qi-actions">
             <button type="button" class="lab-btn" id="qi-pass" ${f.passed ? "disabled" : ""}>过 · 存 1 气</button>
+            <button type="button" class="lab-btn" id="qi-peek" ${tell && f.qi >= 1 ? "" : "disabled"}>盯梢 · 1 气</button>
             <button type="button" class="lab-btn" id="qi-atk-free" ${atkReady ? "" : "disabled"}>攻 · 直取</button>
             <button type="button" class="lab-btn" id="qi-ult" ${ultOk ? "" : "disabled"}>绝式 ▲8</button>
             <button type="button" class="lab-btn primary" id="qi-end">收势结算</button>

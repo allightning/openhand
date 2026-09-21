@@ -5,6 +5,7 @@
 .gauntlet-path-card,
 .gauntlet-reward-card,
 .gauntlet-head,
+.gauntlet-camp-story,
 .gauntlet-best-card,
 .gauntlet-error-banner,
 .gauntlet-home-cta-hint,
@@ -33,7 +34,9 @@
 }
 
 .gauntlet-overlay {
-  flex: 1;
+  flex: 1 1 auto;
+  align-self: stretch;
+  width: 100%;
   min-height: 0;
   display: flex;
   align-items: stretch;
@@ -45,6 +48,7 @@
   background-image: var(--gauntlet-bg, none);
   background-size: cover;
   background-position: center;
+  background-repeat: no-repeat;
 }
 
 .gauntlet-overlay::before {
@@ -58,6 +62,9 @@
 .gauntlet-overlay > * {
   position: relative;
   z-index: 1;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
 }
 
 .gauntlet-shell {
@@ -70,6 +77,7 @@
   justify-content: center;
   gap: 0.65rem;
   min-height: 0;
+  height: 100%;
   max-height: 100%;
   overflow: hidden;
 }
@@ -1064,6 +1072,7 @@ button.hall-gate.primary:hover b {
 
 .gauntlet-wager-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   gap: 0.75rem;
 }
@@ -1151,7 +1160,7 @@ button.hall-gate.primary:hover b {
 }
 
 .hall-chrome-title {
-  text-align: left;
+  text-align: center;
   min-width: 0;
 }
 
@@ -1411,13 +1420,18 @@ button.hall-gate.primary:hover b {
   justify-content: center;
   align-items: stretch;
   flex-wrap: wrap;
-  margin-top: 0.75rem;
+  margin-top: 1rem;
   flex: 0 0 auto;
   width: 100%;
   max-width: 52rem;
   margin-left: auto;
   margin-right: auto;
-  padding: 0.35rem 0.5rem 0.15rem;
+  padding: 0.75rem 0.5rem 0.35rem;
+  position: sticky;
+  bottom: 0;
+  isolation: isolate;
+  z-index: 8;
+  background: linear-gradient(180deg, transparent, rgba(244, 234, 214, 0.96) 22%);
 }
 
 .gauntlet-camp-foot .lab-btn {
@@ -1437,29 +1451,51 @@ button.hall-gate.primary:hover b {
   grid-template-columns: 9.5rem minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) auto;
   grid-template-areas:
-    "mates main"
+    "left main"
     "stash stash";
   align-items: stretch;
   justify-items: stretch;
-  gap: 0.55rem 0.65rem;
+  gap: 0.45rem 0.65rem;
   width: 100%;
   height: 100%;
   max-width: none;
-  /* 仓库整卡要露全，允许底栏占位，勿整屏裁切成空气框 */
   overflow: hidden;
-  overflow-y: auto;
+}
+
+.gauntlet-loadout-left {
+  grid-area: left;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  gap: 0.4rem;
 }
 
 .gauntlet-loadout-mates {
-  grid-area: mates;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
+.gauntlet-loadout-mate.is-empty {
+  min-height: 4.8rem;
+  border: 1px dashed rgba(232, 214, 176, 0.32);
+  background: rgba(12, 8, 6, 0.28);
+  pointer-events: none;
+}
+
+.gauntlet-loadout-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0;
+}
 .gauntlet-loadout-main {
   grid-area: main;
-}
-
-.gauntlet-loadout-stash {
-  grid-area: stash;
+  background: rgba(18, 12, 10, 0.72);
+  border: 1px solid rgba(232, 214, 176, 0.22);
+  padding: 0.45rem 0.55rem;
+  min-height: 0;
+  color: #f4ead6;
 }
 
 .gauntlet-loadout-rail {
@@ -1467,12 +1503,16 @@ button.hall-gate.primary:hover b {
   flex-direction: column;
   gap: 0.45rem;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
 }
 
 .gauntlet-loadout-mates #gauntlet-loadout-back {
   flex: 0 0 auto;
   width: 100%;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: #1a1410;
 }
 
 .gauntlet-loadout-mate {
@@ -1523,25 +1563,33 @@ button.hall-gate.primary:hover b {
 .gauntlet-loadout-head {
   text-align: left;
   flex: 0 0 auto;
-  padding: 0 0.2rem 0.45rem;
+  padding: 0 0.15rem 0.35rem;
 }
 
 .gauntlet-loadout-head h2 {
-  margin: 0 0 0.2rem;
-  font-size: 1.2rem;
-  letter-spacing: 0.08em;
+  display: none;
 }
 
 .gauntlet-loadout-head p {
-  margin: 0;
-  font-size: 0.86rem;
-  line-height: 1.4;
-  opacity: 0.85;
+  display: none;
+}
+
+.gauntlet-loadout-arts h3,
+.gauntlet-loadout-arts,
+.gauntlet-loadout .gauntlet-reward-sub,
+.gauntlet-loadout-tech,
+.gauntlet-loadout-mind {
+  color: #f4ead6;
+}
+
+.gauntlet-loadout-arts h3 {
+  margin: 0.35rem 0 0.25rem;
+  font-size: 0.95rem;
 }
 
 .gauntlet-loadout-warn {
   margin: 0.25rem 0 0;
-  color: #c45a48;
+  color: #f0a090;
   font-size: 0.8rem;
 }
 
@@ -1549,68 +1597,109 @@ button.hall-gate.primary:hover b {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
   align-content: start;
-  gap: 0.65rem;
+  gap: 0.55rem;
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  padding: 0.2rem 0.25rem 0.35rem;
+  padding: 0.1rem 0.15rem 0.2rem;
 }
 
 .gauntlet-loadout-stash {
+  grid-area: stash;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: stretch;
   gap: 0.35rem;
   min-width: 0;
-  /* 勿用百分比 max-height 裁切：仓库卡与出战同高，必须整张露出 */
-  flex: 0 0 auto;
-  overflow: visible;
-  padding: 0.35rem 0.15rem 0.25rem;
-  border-top: 1px solid rgba(26, 20, 16, 0.28);
+  max-height: none;
+  height: 11.5rem;
+  overflow: hidden;
+  padding: 0.35rem 0.4rem;
+  background: rgba(18, 12, 10, 0.62);
+  border: 1px solid rgba(232, 214, 176, 0.22);
 }
 
 .gauntlet-loadout-stash h3 {
-  margin: 0;
-  flex: 0 0 auto;
-  align-self: flex-start;
-  font-size: 0.9rem;
-  letter-spacing: 0.12em;
-  background: #f4ead6;
-  color: #1a1410;
-  padding: 0.2rem 0.65rem;
+  display: none;
 }
 
 .gauntlet-loadout-stash-list {
   display: flex;
   flex-direction: row;
   flex-wrap: nowrap;
-  align-items: flex-start;
-  gap: 0.65rem;
+  align-items: stretch;
+  gap: 0.45rem;
   min-height: 0;
-  overflow-x: auto;
-  overflow-y: visible;
-  padding: 0.2rem 0.1rem 0.45rem;
+  flex: 1 1 auto;
+  overflow: hidden;
+  padding: 0;
 }
 
 .gauntlet-stash-slot {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 0.25rem;
+  min-height: 0;
+  min-width: 0;
+  flex: 1 1 8.5rem;
+  max-width: 10.5rem;
+}
+
+.gauntlet-stash-slot.is-empty {
+  border: 1px dashed rgba(232, 214, 176, 0.28);
+  background: rgba(12, 8, 6, 0.35);
+  min-height: 0;
+}
+
+.gauntlet-loadout-ops {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.35rem;
   flex: 0 0 auto;
-  width: 168px;
 }
 
-.gauntlet-stash-sell {
+.gauntlet-loadout-ops .lab-btn {
   width: 100%;
-  min-height: 2.1rem;
+  min-height: 2.55rem;
+  margin: 0;
 }
 
-.gauntlet-loadout .gauntlet-camp-card {
-  width: 100%;
-  max-width: 168px;
+.gauntlet-loadout .gauntlet-camp-card.is-picked {
+  outline: 2px solid var(--lab-gold, #c9a227);
+  outline-offset: 1px;
+}
+
+.gauntlet-loadout-stash .gauntlet-camp-card {
+  height: 100%;
+  min-height: 0;
+  max-width: none;
+}
+.gauntlet-loadout-stash .gauntlet-camp-card .flavor {
+  display: none;
+}
+.gauntlet-loadout-stash .gauntlet-camp-card .art {
+  height: 2.4rem;
+  overflow: hidden;
+}
+.gauntlet-loadout-stash .gauntlet-camp-card .text {
+  -webkit-line-clamp: 2;
+}
+
+.gauntlet-loadout-deck .gauntlet-camp-card {
   height: 228px;
-  font-size: 0.8rem;
-  margin: 0 auto;
+  max-width: 168px;
+  margin: 0;
+}
+
+.gauntlet-loadout-weapon .art {
+  min-height: 5.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.gauntlet-loadout-weapon .weapon-art {
+  max-height: 5.6rem;
+  width: auto;
 }
 
 .gauntlet-loadout .gauntlet-camp-card .flavor {
@@ -1638,12 +1727,41 @@ button.hall-gate.primary:hover b {
   transform: translateY(-4px);
 }
 
+@media (max-width: 900px) {
+  .gauntlet-shell.gauntlet-loadout.work-screen {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "left"
+      "main"
+      "stash";
+  }
+  .gauntlet-loadout-left {
+    flex-direction: row;
+    flex-wrap: wrap;
+    max-height: none;
+  }
+  .gauntlet-loadout-mates {
+    flex: 1 1 8rem;
+  }
+  .gauntlet-loadout-stash {
+    height: 10.5rem;
+  }
+  .gauntlet-loadout-ops {
+    flex: 0 0 7rem;
+  }
+}
+
 .gauntlet-overlay .gauntlet-head h2,
 .gauntlet-overlay .gauntlet-head p,
 .gauntlet-overlay .gauntlet-pager,
 .gauntlet-overlay .gauntlet-reward-sub {
   color: #1a1410;
   text-shadow: none;
+}
+
+.gauntlet-overlay[data-gauntlet-screen="reward"]::before {
+  background: rgba(232, 220, 196, 0.08);
 }
 
 .gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-shell.gauntlet-reward {
@@ -1653,78 +1771,129 @@ button.hall-gate.primary:hover b {
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  align-items: center;
-  gap: 0.45rem;
+  align-items: stretch;
+  gap: 0.55rem;
   overflow: hidden;
-  overflow-y: auto;
-  padding: 0.35rem 1rem 0.55rem;
-  scrollbar-width: none;
+  padding: 0.25rem 0.85rem 0.4rem;
 }
 
-.gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-shell.gauntlet-reward::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-  display: none;
-}
-
-.gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-head {
+.gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-head.gauntlet-camp-head {
   width: 100%;
-  max-width: 64rem;
-  text-align: center;
+  max-width: none;
   flex: 0 0 auto;
+  max-height: none;
+  overflow: visible;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 1.25rem;
+  text-align: left;
+  padding: 0.35rem 0.85rem 0.45rem;
+}
+
+.gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-camp-meta {
+  min-width: 0;
+  flex: 1 1 16rem;
+}
+
+.gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-camp-head .gauntlet-reward-sub {
+  flex: 1 1 22rem;
+  margin: 0;
+  max-width: none;
+  text-align: right;
+}
+
+.gauntlet-camp-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(15rem, 24%) minmax(0, 1fr);
+  gap: 0.7rem 1rem;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+.gauntlet-camp-story {
+  min-width: 0;
+  padding: 0.55rem 0.7rem 0.65rem;
+  text-align: left;
+  color: #1a1410;
+  overflow: visible;
+  align-self: start;
+  background: rgba(244, 234, 214, 0.88);
+}
+
+.gauntlet-camp-goods {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 0.45rem;
+  overflow: visible;
+  background: transparent;
+  color: #1a1410;
+  padding: 0.15rem 0.2rem;
 }
 
 .gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-head h2 {
-  font-size: 1.45rem;
+  font-size: 1.35rem;
   margin: 0;
 }
 
 .gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-pager {
-  margin: 0.1rem 0 0;
-  font-size: 0.92rem;
+  margin: 0.08rem 0 0;
+  font-size: 0.88rem;
   font-weight: 700;
   opacity: 1;
+  letter-spacing: 0.08em;
 }
 
 .gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-reward-sub {
-  font-size: 0.92rem;
+  font-size: 0.9rem;
   font-weight: 650;
-  margin: 0.15rem auto 0;
-  max-width: 56em;
-  text-align: center;
+  margin: 0;
+  max-width: none;
+  text-align: inherit;
 }
 
 .gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-event-lead,
 .gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-place-blurb {
   font-size: 0.95rem !important;
   font-weight: 650;
+  max-width: none !important;
+  margin: 0 0 0.55rem !important;
+  text-align: left;
+}
+
+.gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-place-blurb {
+  margin-bottom: 0 !important;
+  opacity: 0.88;
 }
 
 .gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-reward-row,
 .gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-market-row {
   flex-wrap: wrap;
   overflow: visible;
-  padding-top: 0.35rem;
-  gap: 0.85rem;
+  padding-top: 0.15rem;
+  gap: 0.7rem 0.85rem;
   min-height: 0;
   flex: 0 0 auto;
-  justify-content: center;
-  align-content: center;
+  justify-content: flex-start;
+  align-content: flex-start;
   width: 100%;
-  max-width: 64rem;
-  scrollbar-width: none;
-}
-
-.gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-reward-row::-webkit-scrollbar,
-.gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-market-row::-webkit-scrollbar {
-  display: none;
+  max-width: none;
 }
 
 .gauntlet-overlay[data-gauntlet-screen="reward"] .card {
-  height: 248px;
-  width: 176px;
-  flex: 0 0 auto;
-  min-width: 0;
+  height: auto;
+  min-height: 14.5rem;
+  width: auto;
+  flex: 1 1 11rem;
+  max-width: 13.25rem;
+  min-width: 10.25rem;
 }
 
 .gauntlet-overlay[data-gauntlet-screen="reward"] .card .flavor {
@@ -1742,27 +1911,28 @@ button.hall-gate.primary:hover b {
 }
 
 .gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-market {
-  margin-top: 0.2rem;
-  padding-top: 0.25rem;
+  margin-top: 0.15rem;
+  padding-top: 0.15rem;
+  padding-bottom: 0;
   width: 100%;
-  max-width: 64rem;
+  max-width: none;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  flex: 1 1 auto;
+  align-items: stretch;
+  flex: 0 0 auto;
   min-height: 0;
 }
 
 .gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-market h3 {
   color: #1a1410;
   text-shadow: none;
-  margin: 0 0 0.25rem;
-  display: inline-block;
-  background: #f4ead6;
-  padding: 0.2rem 0.85rem;
+  margin: 0 0 0.2rem;
+  display: block;
+  background: transparent;
+  padding: 0;
   font-size: 0.95rem;
   letter-spacing: 0.06em;
-  text-align: center;
+  text-align: left;
 }
 
 .gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-market-actions {
@@ -1770,8 +1940,39 @@ button.hall-gate.primary:hover b {
 }
 
 .gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-camp-foot {
-  margin-top: 0.35rem;
-  margin-bottom: 0.15rem;
+  margin: 0;
+  padding: 0.35rem 0.65rem 0.2rem;
+  position: relative;
+  bottom: auto;
+  z-index: 8;
+  flex: 0 0 auto;
+  max-width: none;
+  width: 100%;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-image: none;
+}
+
+.gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-camp-savehint {
+  margin: 0;
+  text-align: right;
+  opacity: 0.75;
+  font-size: 0.78rem;
+}
+
+@media (max-width: 900px) {
+  .gauntlet-camp-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: auto;
+  }
+  .gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-camp-head .gauntlet-reward-sub {
+    text-align: left;
+  }
+  .gauntlet-overlay[data-gauntlet-screen="reward"] .gauntlet-camp-foot {
+    justify-content: center;
+  }
 }
 
 .gauntlet-place-blurb {

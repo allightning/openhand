@@ -166,7 +166,7 @@ export function initResonanceBattle(b: Battle): void {
 
 const BOARD_SIZE = 7;
 
-export function resonanceStrikeBonus(b: Battle, cardId: CardId, base: number, adjacent: boolean, dist: number): number {
+export function resonanceStrikeBonus(b: Battle, cardId: CardId, _base: number, adjacent: boolean, dist: number): number {
   if (!isLabV2()) return 0;
   const cs = cardSchool(cardId);
   if (cs === "any") return 0;

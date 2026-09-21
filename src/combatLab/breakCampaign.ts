@@ -1,6 +1,6 @@
 /**
  * 读招战役 · 气力承诺制（顶替旧空间拆招谜题）
- * 规则核：`qiCommit.ts` / `docs/combat/CORE_PLAYGUIDE.md`
+ * 规则核：`qiCommit.ts` / Notion 读招破招 · 胜负与资源页
  */
 import type { Battle, CompanionId, EnemyId, Intent } from "../game/types";
 import { emptyV2Turn } from "../game/labV2";
@@ -24,6 +24,7 @@ export type CampaignGoal =
   | { type: "interrupt"; min: number }
   | { type: "dodge"; min: number }
   | { type: "kill" }
+  | { type: "breakStance" }
   | { type: "noHit" }
   | { type: "withinTurns"; max: number };
 
@@ -47,6 +48,7 @@ export interface CampaignStage {
   goals: CampaignGoal[];
   failTip: string;
   maxTurns: number;
+  hideFrom?: number;
 }
 
 export interface BreakCampaignRun {
@@ -175,11 +177,12 @@ export const CAMPAIGN_STAGES: CampaignStage[] = [
   {
     id: "R5",
     title: "气势",
-    blurb: "硬拆和墨痕都会叠气势。▲3 后直取收势多 1 伤。",
-    teach: "气势：拆/墨每段 +1。▲3 直取 +1，▲5 每拍回 4 气，▲8 绝式。本关靠第三拍 +1 砍满。",
+    blurb: "硬拆和墨痕削敌架势。▲3 后直取夺势 2。三拍内破尽架势 8。",
+    hideFrom: 0,
+    teach: "刀平=刺。点拆·点到后段。目标：破尽架势 · 3 拍内",
     enemyId: "mob_road_01",
-    enemyHp: 10,
-    playerHp: 20,
+    enemyHp: 8,
+    playerHp: 12,
     playerPos: 3,
     enemyPos: 4,
     qiQueue: [{ move: "pierce", damage: 6, cell: 3 }],
@@ -188,10 +191,10 @@ export const CAMPAIGN_STAGES: CampaignStage[] = [
     hand: ["break_point", "atk1"],
     energy: 3,
     goals: [
-      { type: "kill" },
+      { type: "breakStance" },
       { type: "withinTurns", max: 3 },
     ],
-    failTip: "第一拍拆刺并直取，后两拍他再刺同格会吃墨。第三拍气势到 3，直取才是 4，合计 10。",
+    failTip: "刀尖平指是刺。拆·点点后段，再直取。",
     maxTurns: 3,
   },
   {
@@ -269,30 +272,31 @@ export const CAMPAIGN_STAGES: CampaignStage[] = [
   {
     id: "RB",
     title: "座前试刃",
-    blurb: "气力不够全防。换血也行，砍倒他。",
-    teach: "目标：击倒对方 · 4 拍内。第一拍拆刺、撤步、把攻点在蓄力上（×2）；后三拍直取。气势▲3 后直取收势 +1。",
+    blurb: "气力不够全防。拆掉他的架势。",
+    hideFrom: 1,
+    teach: "亮的拆，扣的看起手。盯梢 1 气。目标：破尽架势 14 · 4 拍内",
     enemyId: "mob_monk_01",
-    enemyHp: 18,
-    playerHp: 30,
+    enemyHp: 14,
+    playerHp: 12,
     playerPos: 3,
     enemyPos: 4,
     qiQueue: [
-      { move: "sweep", damage: 4, cell: 3 },
-      { move: "pierce", damage: 6, cell: 3 },
+      { move: "sweep", damage: 4, cell: 3, node: "open" },
+      { move: "pierce", damage: 6, cell: 3, node: "carry" },
       { move: "windup", damage: 0 },
     ],
     qiNextQueue: [
-      { move: "crash", damage: 5, cell: 3 },
-      { move: "sweep", damage: 4, cell: 3 },
+      { move: "crash", damage: 5, cell: 3, node: "close" },
+      { move: "sweep", damage: 4, cell: 3, node: "open" },
     ],
     eyeIdx: -1,
     hand: ["break_press", "break_point", "break_yield", "step_back", "step_fwd", "atk1"],
     energy: 3,
     goals: [
-      { type: "kill" },
+      { type: "breakStance" },
       { type: "withinTurns", max: 4 },
     ],
-    failTip: "攻要点在蓄力上才是 6。拆刺+撤步躲开扫，后三拍直取；墨痕叠气势后收势 +1 才能砍满 18。",
+    failTip: "刀平是刺。拆·压点扫，拆·点点后段。盯梢会少一气。",
     maxTurns: 4,
   },
 ];
@@ -380,7 +384,7 @@ export function campaignLessonDone(_run: BreakCampaignRun): boolean {
 }
 
 export function currentCampaignLesson(_run: BreakCampaignRun): {
-  kind: "play";
+  kind: "play" | "swap" | "end";
   allowCardIds: string[];
   teachBanner: string;
   coach: string;
@@ -459,7 +463,7 @@ export function readQiResolveStats(f: QiFight): CampaignResolveStats {
     interruptDelta: outcomes.filter((o) => o === "断").length,
     dodgeDelta: outcomes.filter((o) => o === "闪").length,
     hitCount: outcomes.filter((o) => o === "打").length,
-    enemyDead: f.enemyHp <= 0 || f.phase === "won",
+    enemyDead: f.enemyStance <= 0 || f.phase === "won",
     outcomes,
   };
 }
@@ -468,6 +472,8 @@ export function createQiFightFromStage(stage: CampaignStage): QiFight {
   return createQiFight({
     playerHp: stage.playerHp,
     enemyHp: stage.enemyHp,
+    playerStance: stage.playerHp,
+    enemyStance: stage.enemyHp,
     playerPos: stage.playerPos,
     enemyPos: stage.enemyPos,
     hand: stage.hand,
@@ -475,6 +481,8 @@ export function createQiFightFromStage(stage: CampaignStage): QiFight {
     nextQueue: stage.qiNextQueue,
     qi: stage.energy,
     loopQueue: stage.maxTurns > 2,
+    hideFrom: stage.hideFrom,
+    allowFeint: stage.id === "R5" || stage.id === "RB",
   });
 }
 
@@ -520,6 +528,7 @@ function goalsMet(run: BreakCampaignRun, stage: CampaignStage, enemyDead = false
     if (g.type === "dodge" && (run.sessionDodges ?? 0) < g.min) return false;
     if (g.type === "withinTurns" && run.puzzleTurn > g.max) return false;
     if (g.type === "kill" && !enemyDead) return false;
+    if (g.type === "breakStance" && !enemyDead) return false;
   }
   return true;
 }
@@ -642,9 +651,9 @@ export function buildCampaignPreset(run: BreakCampaignRun): LabPreset {
   const mate = DEMO_FIELD_MATE;
   return normalizePreset({
     id: `break-campaign-${stage.id}`,
-    name: `读招谜题 · ${stage.title}`,
+    name: `登门 · ${stage.title}`,
     blurb: stage.blurb,
-    tags: ["读招", "谜题", "saber"],
+    tags: ["登门", "谜题", "saber"],
     enemyId: stage.enemyId,
     party: [mate],
     fieldMate: mate,

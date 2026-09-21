@@ -21,6 +21,12 @@ describe("路程地名", () => {
     expect(climbPlace("bandit", 1).name).toContain("开封");
     expect(climbPlace("shaolin", 1).name).toContain("山门");
     expect(climbPlace("court", 2).name).toContain("天街");
+    const all = [...climbPlaces("bandit"), ...climbPlaces("shaolin"), ...climbPlaces("court")];
+    for (const p of all) {
+      expect(p.blurb, p.id).not.toMatch(/等你开口|开口的是|关的是嘴|进门不等于|空的才危险|茶是冷的/);
+      expect(p.blurb, p.id).not.toMatch(/不问姓|不问来路|没叫你的号|不报上姓|不报信|没抬头看你|不认名号|不问你从哪来|从不报上号/);
+      expect(p.blurb, p.id).not.toMatch(/像|仿佛|如同/);
+    }
   });
 
   it("赌馆与配装按线分图，且不是歇脚图", () => {

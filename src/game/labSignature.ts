@@ -1,7 +1,6 @@
 import { CARDS } from "./content";
 import { isLabMode, isLabV2, getLabTuning } from "./labTuning";
 import {
-  DEFAULT_SIGNATURE_COOLDOWN,
   DEFAULT_SIGNATURE_USES,
   LAB_SIGNATURE,
   type SignatureDef,

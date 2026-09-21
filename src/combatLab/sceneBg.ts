@@ -103,6 +103,7 @@ export function staticOverlayBg(screen: OverlayScreenKind): string {
   if (screen === "path") return "/art/scenes/scene-quiet-fork.png";
   if (screen === "pick") return "/art/scenes/scene-quiet-gate.png";
   if (screen === "banker") return "/art/scenes/scene-quiet-inn.png";
+  if (screen === "opening") return "/art/scenes/scene-quiet-lane.png";
   return `/${HOME_BG}`;
 }
 
@@ -136,7 +137,8 @@ export type OverlayScreenKind =
   | "event"
   | "settle"
   | "finale"
-  | "scar";
+  | "scar"
+  | "opening";
 
 export function campPlaceName(path: string, stage = 1): { title: string; pager: string } {
   const p = climbPlace((path === "shaolin" || path === "court" ? path : "bandit") as GauntletPath, stage);
@@ -148,8 +150,10 @@ export function eventBgPool(kind?: string): string[] {
   if (kind === "fork") return ["art/scenes/scene-fork.png", "art/scenes/scene-quiet-fork.png"];
   if (kind === "ambush") return ["art/scenes/scene-fight-jianghu-ambush.png", ...EVENT_BG_POOL];
   if (kind === "stall") return ["art/scenes/scene-quiet-lane.png", ...EVENT_BG_POOL];
+  if (kind === "market") return ["art/scenes/scene-quiet-lane.png", ...EVENT_BG_POOL];
   if (kind === "companion") return ["art/scenes/scene-quiet-tea.png", ...EVENT_BG_POOL];
   if (kind === "finaleHint") return ["art/scenes/scene-moon-bridge.png", ...EVENT_BG_POOL];
+  if (kind === "story" || kind === "travel" || kind === "market") return ["art/scenes/scene-quiet-lane.png", ...EVENT_BG_POOL];
   return EVENT_BG_POOL;
 }
 
@@ -168,8 +172,8 @@ export function overlayPoolFor(
     preferred = [loadoutBgFor(line), place.restBg];
   } else if (screen === "reward" || screen === "settle") {
     preferred = [place.restBg, ...(line === "shaolin" ? CAMP_BG_SHAOLIN : line === "court" ? CAMP_BG_COURT : CAMP_BG_BANDIT)];
-  } else if (screen === "event" || screen === "companion" || screen === "finale" || screen === "scar") {
-    preferred = eventBgPool(eventKind);
+  } else if (screen === "event" || screen === "companion" || screen === "finale" || screen === "scar" || screen === "opening") {
+    preferred = eventBgPool(eventKind ?? (screen === "opening" ? "story" : undefined));
   } else {
     preferred = LOBBY_BG_POOL;
   }
@@ -190,7 +194,7 @@ function pickFile(_uses: Record<string, number>, preferred: string[], fallback: 
   const canon = preferred[0];
   if (canon) return canon;
   for (const file of fallback) {
-    if ((uses[file] ?? 0) < SCENE_BG_CAP) return file;
+    if ((_uses[file] ?? 0) < SCENE_BG_CAP) return file;
   }
   return fallback[0] ?? COMBAT_BG_POOL[0]!;
 }

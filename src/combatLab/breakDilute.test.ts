@@ -84,7 +84,7 @@ describe("肉鸽拆招降权", () => {
     ).toBe(true);
   });
 
-  it("新盘：不贴身 / 堆挡 / 本系刀", () => {
+  it("新盘：不贴身 / 堆挡 / 本系", () => {
     const base = { breaks: 0, turns: 5, hpEndRatio: 0.9, won: true, eyes: 0, itemsUsed: false };
     const rangeRun = { ...createGauntletRun("bandit", "palm"), wager: { kind: "range" as const, stake: 10, target: 2, odds: 3 } };
     expect(resolveWager(rangeRun, { ...base, endDist: 2 }).won).toBe(true);

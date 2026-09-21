@@ -23,6 +23,7 @@ import {
   marketPrice,
   resolveWager,
   wagerOffers,
+  gauntletFieldMate,
   type GauntletRun,
 } from "./gauntlet";
 import { setLabRuleset } from "./labRuleset";
@@ -563,13 +564,16 @@ describe("§31.13/§31.14 赌馆 · 彩金与下注", () => {
     expect(lifed.statBoostMul).toBe(1.5);
     const divine = applyLifeline(run, "divineWeapons");
     expect(divine.divineWeapons).toBe(true);
+    const preset = buildGauntletPreset({ ...divine, weaponId: "palm-a-3" });
+    expect(preset.mateWeapons?.[gauntletFieldMate("palm")]).toBe("palm-a-5");
   });
 
   it("§31.16 领奖屏黑市行：买得起可点、买不起置灰、已收锁定", () => {
     const run = { ...runWithPot(200), hp: 30, stage: 4, streak: 3, weaponId: "palm-a-1" };
     const market = marketOffers(run, () => 0);
     const html = renderGauntletRewardPick(run, [], market, new Set());
-    expect(html).toContain("顺路黑市");
+    expect(html).toContain("当铺");
+    expect(html).toContain("黑市");
     const heal = market.find((o) => o.kind === "heal")!;
     expect(heal.price).toBe(marketPrice("heal", run.stage, "mid", run.pot));
     const forge = market.find((o) => o.kind === "forge")!;

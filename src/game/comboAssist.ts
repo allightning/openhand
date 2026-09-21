@@ -24,8 +24,3 @@ export function comboAssistMods(assistSchool: WeaponId, fieldSchool: WeaponId): 
   if (assistSchool === fieldSchool) return null;
   return { ...COMBO_ASSIST[assistSchool] };
 }
-
-/** @deprecated 请传 fieldSchool；缺省时不做跨系门控（测试兼容） */
-export function comboAssistModsLegacy(school: WeaponId): ComboAssistMods {
-  return { ...COMBO_ASSIST[school] };
-}
