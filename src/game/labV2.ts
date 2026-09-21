@@ -20,7 +20,7 @@ import { tryAppendStressIntent } from "./labEnemyStress";
 import { battleEquippedSchool, battleMateGearId } from "./equippedWeapon";
 import { gearById } from "./weapons";
 import type { Battle, CardId, Intent, TechniqueId, V2TurnFlags, WeaponId } from "./types";
-import { isBreakAlign } from "../combatLab/labRuleset";
+import { isBreakAlign } from "./labRuleset";
 
 function hasTech(b: Battle, id: TechniqueId): boolean {
   return b.techniques.includes(id);

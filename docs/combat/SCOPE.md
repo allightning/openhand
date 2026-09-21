@@ -4,8 +4,9 @@
 
 ## 必碰（战斗线）
 
-- `src/combatLab/**`
-- `src/game/` 里战斗内核：`sim.ts`、`rogueCards.ts`、`content.ts`、`weapons.ts` 等
+- `src/combatLab/**`（产品壳；同名 `labRuleset` / `climbCaps` / `climbVitals` / `rogueRoster` 是 `src/game` 的 re-export）
+- `src/game/` 里战斗内核：`sim.ts`、规则核（`labRuleset.ts`、`climbCaps.ts`、`climbVitals.ts`、`rogueRoster.ts`）、`rogueCards.ts`、`content.ts`、`weapons.ts` 等
+  - **分层铁律：** `src/game` 不得 import `src/combatLab`。回归：`src/game/layerBoundary.test.ts`
 - `combat-lab.html`、相关 CSS
 - `docs/combat/**`（真源：本目录 + Notion；不要另开第二套 md 真源）
 

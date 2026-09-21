@@ -13,8 +13,8 @@ import { comboEffectiveCost, isComboCard } from "./labCombo";
 import { ITEM_DART_DMG, ITEM_GRANT_QTY, ITEM_HEAL_PCT, ITEM_QI_GAIN } from "./labV21Constants";
 import { BOARD_SIZE, type Battle, type CardDef, type CardId, type LabItemId } from "./types";
 import { gearById } from "./weapons";
-import { isBreakAlign } from "../combatLab/labRuleset";
-import { labPlayCost } from "../combatLab/climbEconomy";
+import { isBreakAlign } from "./labRuleset";
+import { labPlayCost } from "./climbEconomy";
 import { emptyV2Turn } from "./labV2";
 
 export type { ResonanceStatus as AuraStatus };

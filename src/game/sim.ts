@@ -64,8 +64,8 @@ import { BREAK_COUNTER_CHAIN } from "./labV2Constants";
 import { MOVE_CARD_IDS, planEyeIdx, registerThreatProvider, registerQueueThreatProvider } from "./intentWeakness";
 import { SUMMON_DEFS } from "./labSummon";
 import { addStake, adjacentStakePos, enemyPlantHits, playerPlantHits, removeStake, smashHitsForSchool, smashStake, stakeHitsAt } from "./stake";
-import { isBreakAlign } from "../combatLab/labRuleset";
-import { climbEnergyStart, climbVitals } from "../combatLab/climbVitals";
+import { isBreakAlign } from "./labRuleset";
+import { climbEnergyStart, climbVitals } from "./climbVitals";
 import {
   bleedTickDamage,
   clampHandCap,
@@ -74,7 +74,7 @@ import {
   saberReachDamage,
   HAND_CAP_DEFAULT,
   HAND_CAP_HARD_MAX,
-} from "../combatLab/rogueRoster";
+} from "./rogueRoster";
 import {
   CLIMB_BLOCK_CAP,
   CLIMB_BLEED_CAP,
@@ -95,7 +95,7 @@ import {
   climbEnemyPaceBonus,
   climbOpeningDistance,
   climbOpeningPositions,
-} from "../combatLab/climbCaps";
+} from "./climbCaps";
 
 export { techBonus, battleTechRank, techRankMul } from "./techRank";
 

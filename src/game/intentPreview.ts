@@ -1,4 +1,4 @@
-import { isBreakAlign } from "../combatLab/labRuleset";
+import { isBreakAlign } from "./labRuleset";
 import { intentEnergyCost } from "./labEnemyStress";
 import { intentIncoming } from "./sim";
 import type { Battle, Intent } from "./types";

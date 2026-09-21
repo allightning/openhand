@@ -1,7 +1,7 @@
 import { CARDS, ENEMIES, TECHNIQUES } from "./content";
 import { getContentOverrides } from "./labContentOverrides";
 import { isLabMode } from "./labTuning";
-import { isBreakAlign } from "../combatLab/labRuleset";
+import { isBreakAlign } from "./labRuleset";
 import { MATES } from "./party";
 import type { CardDef, CardId, CompanionId, EnemyDef, EnemyId, TechniqueDef, TechniqueId } from "./types";
 import { remapLegacyCardId } from "./rogueCards";
