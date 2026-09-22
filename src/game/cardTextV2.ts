@@ -1,4 +1,4 @@
-import { isLabV2 } from "./labTuning";
+import { contextNow, labV2, type RunContext } from "./runContext";
 import type { CardDef, CardId } from "./types";
 import { GOD_SKILL, PATH_SKILL } from "./weapons";
 
@@ -116,8 +116,9 @@ export function cardWikiBody(def: CardDef, opts?: { breakAlign?: boolean }): str
 export function cardDisplayText(
   def: Pick<CardDef, "id" | "text">,
   opts?: { breakAlign?: boolean },
+  rc: RunContext = contextNow(),
 ): string {
-  if (!isLabV2()) return def.text;
+  if (!labV2(rc)) return def.text;
   if (opts?.breakAlign !== true) {
     const climb = CARD_TEXT_CLIMB[def.id];
     if (climb) return climb;
@@ -136,13 +137,13 @@ const GOD_SKILL_V2: Record<string, string> = {
   "palm-b": "叠浪三连：势≥2时本息第三击免费",
 };
 
-export function pathSkillDisplay(key: string, fallback: string): string {
-  if (!isLabV2()) return fallback;
+export function pathSkillDisplay(key: string, fallback: string, rc: RunContext = contextNow()): string {
+  if (!labV2(rc)) return fallback;
   return PATH_SKILL_V2[key] ?? migrateLegacyText(fallback);
 }
 
-export function godSkillDisplay(key: string, fallback: string): string {
-  if (!isLabV2()) return fallback;
+export function godSkillDisplay(key: string, fallback: string, rc: RunContext = contextNow()): string {
+  if (!labV2(rc)) return fallback;
   return GOD_SKILL_V2[key] ?? migrateLegacyText(fallback);
 }
 

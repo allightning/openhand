@@ -1,5 +1,5 @@
 import { CARDS } from "./content";
-import { isLabMode, isLabV2, getLabTuning } from "./labTuning";
+import { contextNow, labV2, type RunContext } from "./runContext";
 import {
   DEFAULT_SIGNATURE_USES,
   LAB_SIGNATURE,
@@ -29,19 +29,19 @@ export function signatureActionCopy(mateId: CompanionId): { name: string; text: 
   return def ? { name: def.name, text: def.text } : null;
 }
 
-export function initSignatureBattle(b: Battle): void {
-  if (!isLabV2()) return;
-  const mode = getLabTuning().signatureLimitMode;
-  b.labSigUsesLeft = mode === "perBattle" ? getLabTuning().signatureUsesPerBattle : DEFAULT_SIGNATURE_USES;
+export function initSignatureBattle(b: Battle, rc: RunContext = contextNow()): void {
+  if (!labV2(rc)) return;
+  const mode = rc.tuning.signatureLimitMode;
+  b.labSigUsesLeft = mode === "perBattle" ? rc.tuning.signatureUsesPerBattle : DEFAULT_SIGNATURE_USES;
   b.labSigCooldownLeft = 0;
   b.labSigMeleeBonus = 0;
   b.labSigPullBuff = false;
 }
 
-export function canUseSignature(b: Battle): { ok: boolean; reason?: string } {
-  if (!isLabMode() || !isLabV2()) return { ok: false, reason: "仅 Lab v2" };
+export function canUseSignature(b: Battle, rc: RunContext = contextNow()): { ok: boolean; reason?: string } {
+  if (!rc.lab || !labV2(rc)) return { ok: false, reason: "仅 Lab v2" };
   if (b.phase !== "player") return { ok: false, reason: "不是你的回合" };
-  const mode = getLabTuning().signatureLimitMode;
+  const mode = rc.tuning.signatureLimitMode;
   if (mode === "cooldown" && (b.labSigCooldownLeft ?? 0) > 0) {
     return { ok: false, reason: `冷却 ${b.labSigCooldownLeft} 回` };
   }
@@ -55,8 +55,11 @@ function adjacent(b: Battle): boolean {
   return Math.abs(b.player.pos - b.enemy.pos) === 1;
 }
 
-export function useSignature(b: Battle): { ok: boolean; reason?: string; battle?: Battle; notes: string[] } {
-  const gate = canUseSignature(b);
+export function useSignature(
+  b: Battle,
+  rc: RunContext = contextNow(),
+): { ok: boolean; reason?: string; battle?: Battle; notes: string[] } {
+  const gate = canUseSignature(b, rc);
   if (!gate.ok) return { ok: false, reason: gate.reason, notes: [] };
   const def = signatureDef(b.active);
   if (!def) return { ok: false, reason: "无主动技", notes: [] };
@@ -69,9 +72,9 @@ export function useSignature(b: Battle): { ok: boolean; reason?: string; battle?
     v2SignatureUses: (b.v2SignatureUses ?? 0) + 1,
   };
   const notes: string[] = [];
-  const mode = getLabTuning().signatureLimitMode;
+  const mode = rc.tuning.signatureLimitMode;
   if (mode === "perBattle") next.labSigUsesLeft = Math.max(0, (next.labSigUsesLeft ?? 0) - 1);
-  else next.labSigCooldownLeft = getLabTuning().signatureCooldownTurns;
+  else next.labSigCooldownLeft = rc.tuning.signatureCooldownTurns;
 
   switch (def.kind) {
     case "blockAfterKnock":

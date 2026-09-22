@@ -1,7 +1,7 @@
 import { comboAssistMods } from "./comboAssist";
 import { battleEquippedSchool } from "./equippedWeapon";
 import { LAB_ASSIST_COST, LAB_HUNDRED_FLOWERS } from "./labV25Constants";
-import { isLabMode, isLabV2, getLabTuning } from "./labTuning";
+import { contextNow, labV2, type RunContext } from "./runContext";
 import { v2IncomingBonus } from "./labV2";
 import { tryAppendStressIntent } from "./labEnemyStress";
 import { MATES } from "./party";
@@ -11,8 +11,8 @@ import { BOARD_SIZE } from "./types";
 
 export { LAB_ASSIST_COST };
 
-export function isComboRulesEnabled(): boolean {
-  return isLabMode() && isLabV2() && getLabTuning().rulesCombo;
+export function isComboRulesEnabled(rc: RunContext = contextNow()): boolean {
+  return rc.lab && labV2(rc) && rc.tuning.rulesCombo;
 }
 
 export function assistEnergyCost(b: Battle): number {
