@@ -25,7 +25,7 @@ export interface BreakdownCaps {
   hookLifestealPct: number;
 }
 
-/** 按域加字段。不把预演 / 意图 / 桩帽 / 组合技 / 敌压 / 资源倍率摊进同一个 interface。 */
+/** 按域加字段。不把预演 / 意图 / 桩帽 / 组合技 / 敌压 / 资源倍率 / 牌面摊进同一个 interface。 */
 export interface IntentCaps {
   /** 登门用回合开始站位；行路用收势站位。 */
   aimAtTurnStart: boolean;
@@ -48,6 +48,11 @@ export interface EconomyCaps {
   applyScale: boolean;
 }
 
+export interface ContentCaps {
+  /** 行路用爬塔牌面。只看 mode，实验室门在访问器里。 */
+  applyClimbCardFace: boolean;
+}
+
 export interface StakeCaps {
   /** 场上立桩上限，0 = 不限。行路实验室为 CLIMB_STAKE_CAP。 */
   cap: number;
@@ -60,6 +65,7 @@ export interface RunCaps {
   combo: ComboCaps;
   enemy: EnemyCaps;
   economy: EconomyCaps;
+  content: ContentCaps;
 }
 
 export interface RunContext {
@@ -84,6 +90,10 @@ function enemyCaps(mode: LabRuleset): EnemyCaps {
 
 function economyCaps(lab: boolean, mode: LabRuleset): EconomyCaps {
   return { applyScale: lab && mode === "climb" };
+}
+
+function contentCaps(mode: LabRuleset): ContentCaps {
+  return { applyClimbCardFace: mode === "climb" };
 }
 
 /** 实验室且开了 v2 规则。结算函数用这个，不要各抄一份。 */
@@ -124,6 +134,7 @@ export function makeContext(mode: LabRuleset, tuning: LabTuning, lab: boolean): 
       combo: comboCaps(mode),
       enemy: enemyCaps(mode),
       economy: economyCaps(lab, mode),
+      content: contentCaps(mode),
     },
   };
 }
