@@ -129,7 +129,7 @@ PR #1 的合并判定标准 = **`src/game` 零 import `src/combatLab` + layerBou
 - **入场券**：先补一组 `qiCommit` 黄金脚本（固定种子，录架势 / 气势 / 气力，以及每拍拆中 / 放生 / 墨痕 / 绝式）。现在的 `break-*` 基线走的是 sim 里 `ruleset="break"` 的分支，没有打到 `qiCommit.ts`。
 - **登门两套结算，阶段 1 不合并：** sim 里 `ruleset="break"` 是训练馆仍在走的旧读招结算。qiCommit 才是登门终态核。阶段 1 不把旧分支并进 qiCommit；break 语义的 `isBreakAlign` 只许收成 `ctx.ruleset`，或沉进 `engine/break/` 里与 qiCommit 并列的旧核。
 - **对账口径（写死）：** `rg -n "isBreakAlign\\(" src -g '*.ts' -g '!**/*.test.ts' | wc -l`。2026-09-22 开工锁 **123**（含 `labRuleset.ts` 定义行，不含 `*.test.ts`）。全库含测试是 127，多出的 4 行在 `lab.test.ts` 与 `labRuleset.test.ts`。阶段 1 清零验收仍是 `rg "isBreakAlign|getLabTuning|getLabRuleset" src/game` 无结果。
-- **caps 形状：** `ctx.caps` 按域分组（现有 `caps.breakdown`）。下一刀只加域（如 `caps.wager`），不把预演 / 下注 / 出牌摊进同一个 interface。
+- **caps 形状：** `ctx.caps` 按域分组（`breakdown` / `intent` / `stake`）。`stake` 是场上立桩，不是彩金。彩金以后另开域名。不把预演 / 意图 / 立桩摊进同一个 interface。
 - **验收**：typecheck + test:combat 绿；**黄金对局逐拍 diff 为空**；共享结算路径 `rg "ruleset.mode" src/game` 仅出现在入口 / content 参数化字段；`rg "isBreakAlign|getLabTuning|getLabRuleset" src/game` 无结果；`rg "contextNow" src/game` 在引擎结算函数里为 0（桥接默认参数全部去掉，调用点显式传 ctx；`contextNow` 只许留在壳层入口）；`layerBoundary` 的 `PERSIST_DEBT` 白名单缩为空。
 - **中止 / 回滚**：黄金 diff 不为空且 3 次修复内不收敛 → 回滚本阶段，保住分支现场报主窗。
 

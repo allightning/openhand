@@ -1,5 +1,5 @@
-import { isBreakAlign } from "./labRuleset";
 import { intentEnergyCost } from "./labEnemyStress";
+import { contextNow, type RunContext } from "./runContext";
 import { intentIncoming } from "./sim";
 import type { Battle, Intent } from "./types";
 
@@ -31,8 +31,13 @@ function selfIntent(intent: Intent): boolean {
 }
 
 /** 意图条预演：跟 sim 投影链 + 劲/晕/缴械/收势位。 */
-export function previewIntentSegments(b: Battle, queue: Intent[], projectedCells: number[][]): IntentSegmentPreview[] {
-  const aimPos = isBreakAlign()
+export function previewIntentSegments(
+  b: Battle,
+  queue: Intent[],
+  projectedCells: number[][],
+  ctx: RunContext = contextNow(),
+): IntentSegmentPreview[] {
+  const aimPos = ctx.caps.intent.aimAtTurnStart
     ? (b.v2Turn?.turnStartPos ?? b.player.pos)
     : (b.v2Turn?.endPos ?? b.player.pos);
   let foeStun = b.foeStun ?? 0;

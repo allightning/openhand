@@ -1,4 +1,4 @@
-import { CLIMB_EXPOSE_THROUGH_BLOCK, CLIMB_LIFESTEAL_PCT } from "./climbCaps";
+import { CLIMB_EXPOSE_THROUGH_BLOCK, CLIMB_LIFESTEAL_PCT, CLIMB_STAKE_CAP } from "./climbCaps";
 import {
   BREAK_EXPOSE_BEFORE_BLOCK,
   BREAK_SABER_ON_HIT,
@@ -25,9 +25,21 @@ export interface BreakdownCaps {
   hookLifestealPct: number;
 }
 
-/** 按域加字段。下一刀加 caps.wager，不要把预演 / 下注 / 出牌摊进同一个 interface。 */
+/** 按域加字段。不把预演 / 意图 / 桩帽摊进同一个 interface。 */
+export interface IntentCaps {
+  /** 登门用回合开始站位；行路用收势站位。 */
+  aimAtTurnStart: boolean;
+}
+
+export interface StakeCaps {
+  /** 场上立桩上限，0 = 不限。行路实验室为 CLIMB_STAKE_CAP。 */
+  cap: number;
+}
+
 export interface RunCaps {
   breakdown: BreakdownCaps;
+  intent: IntentCaps;
+  stake: StakeCaps;
 }
 
 export interface RunContext {
@@ -35,6 +47,14 @@ export interface RunContext {
   tuning: LabTuning;
   lab: boolean;
   caps: RunCaps;
+}
+
+function intentCaps(mode: LabRuleset): IntentCaps {
+  return { aimAtTurnStart: mode === "break" };
+}
+
+function stakeCaps(lab: boolean, mode: LabRuleset): StakeCaps {
+  return { cap: lab && mode === "climb" ? CLIMB_STAKE_CAP : 0 };
 }
 
 function breakdownCaps(lab: boolean, mode: LabRuleset): BreakdownCaps {
@@ -55,7 +75,16 @@ function breakdownCaps(lab: boolean, mode: LabRuleset): BreakdownCaps {
 }
 
 export function makeContext(mode: LabRuleset, tuning: LabTuning, lab: boolean): RunContext {
-  return { ruleset: { mode }, tuning, lab, caps: { breakdown: breakdownCaps(lab, mode) } };
+  return {
+    ruleset: { mode },
+    tuning,
+    lab,
+    caps: {
+      breakdown: breakdownCaps(lab, mode),
+      intent: intentCaps(mode),
+      stake: stakeCaps(lab, mode),
+    },
+  };
 }
 
 export function climbContext(tuning: LabTuning = getLabTuning(), lab = true): RunContext {
