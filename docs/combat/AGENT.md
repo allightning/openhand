@@ -1,7 +1,8 @@
 # Openhand · Combat Lab — 给新对话的完整底子
 
-> **2026-09-21。** 新开对话先读本文件，再读 [`.cursor/lanes/SYNC.md`](../../.cursor/lanes/SYNC.md)（当日收件箱）。不要从旧聊天猜现行规则；设计真源在 Notion。  
-> 机制表真源仍是 [RULES.md](./RULES.md)。待定数字总表在 Notion [待定清单](https://app.notion.com/p/3dd427beba9c815d9101c5ad3b76bb4c)。常量 `src/combatLab/climbCaps.ts`。
+> **2026-09-22。** 新开对话先读本文件，再读 [`.cursor/lanes/SYNC.md`](../../.cursor/lanes/SYNC.md)（当日收件箱）。不要从旧聊天猜现行规则；设计真源在 Notion。  
+> 机制表真源仍是 [RULES.md](./RULES.md)。待定数字总表在 Notion [待定清单](https://app.notion.com/p/3dd427beba9c815d9101c5ad3b76bb4c)。常量 `src/combatLab/climbCaps.ts`。  
+> 代码怎么放、重构认领哪一阶段：[ARCHITECTURE.md](./ARCHITECTURE.md)。加新内容查 skill `combat-architecture`。
 
 ---
 
