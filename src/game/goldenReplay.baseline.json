@@ -16160,6 +16160,52 @@
       "pot": 70,
       "hp": 50,
       "bankruptUsed": true
-    }
+    },
+    "qiCommit": [
+      {
+        "tag": "拆中",
+        "playerStance": 12,
+        "enemyStance": 16,
+        "qi": 3,
+        "momentum": 1,
+        "ink": [
+          3
+        ],
+        "recap": "刺破",
+        "phase": "play"
+      },
+      {
+        "tag": "放生",
+        "playerStance": 12,
+        "enemyStance": 18,
+        "qi": 3,
+        "momentum": 0,
+        "ink": [],
+        "recap": "刺闪",
+        "phase": "play"
+      },
+      {
+        "tag": "墨痕",
+        "playerStance": 12,
+        "enemyStance": 14,
+        "qi": 3,
+        "momentum": 2,
+        "ink": [
+          3
+        ],
+        "recap": "刺墨",
+        "phase": "play"
+      },
+      {
+        "tag": "绝式",
+        "playerStance": 12,
+        "enemyStance": 6,
+        "qi": 4,
+        "momentum": 8,
+        "ink": [],
+        "recap": "撞绝",
+        "phase": "play"
+      }
+    ]
   }
 }

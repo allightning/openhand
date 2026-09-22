@@ -6,6 +6,7 @@ import { applyAutoLoadout } from "../combatLab/autoLoadouts";
 import { applyFinale } from "../combatLab/encounter";
 import { startLabBattle } from "../combatLab/factory";
 import { createGauntletRun, resolveWager, reviveGauntletRun } from "../combatLab/gauntlet";
+import { assignToSegment, createQiFight, playUlt, resolveTurn, selectCard, type QiFight } from "../combatLab/qiCommit";
 import { setLabMode } from "./labTuning";
 import { setLabRuleset } from "./labRuleset";
 import { canPlay, endTurn, livingFoes, playCard, setBattleRng, setSegmentProbe } from "./sim";
@@ -253,6 +254,7 @@ function buildCorpus(): Corpus {
     };
   });
   const revived = reviveGauntletRun({ ...run, pot: 99, bankruptUsed: false });
+  const qiCommit = scriptQiCommit();
 
   return {
     random,
@@ -265,8 +267,68 @@ function buildCorpus(): Corpus {
       revive: revived
         ? { pot: revived.pot, hp: revived.hp, bankruptUsed: revived.bankruptUsed }
         : null,
+      qiCommit,
     },
   };
+}
+
+function qiHand(f: QiFight, defId: string): string {
+  const card = f.hand.find((x) => x.defId === defId);
+  if (!card) throw new Error(`qi hand missing ${defId}`);
+  return card.uid;
+}
+
+function qiPlay(f: QiFight, defId: string, seg: number): QiFight {
+  return assignToSegment(selectCard(f, qiHand(f, defId)), seg);
+}
+
+/** 登门承诺核逐拍。放生 = 站在红格上闪开该段（播报「闪」），不算拆。 */
+function qiBeat(f: QiFight, tag: string) {
+  return {
+    tag,
+    playerStance: f.playerStance,
+    enemyStance: f.enemyStance,
+    qi: f.qi,
+    momentum: f.momentum,
+    ink: [...f.inkCells],
+    recap: f.lastRecap.map((r) => `${r.name}${r.outcome}`).join(","),
+    phase: f.phase,
+  };
+}
+
+function scriptQiCommit() {
+  let broken = createQiFight({
+    playerHp: 12,
+    enemyHp: 18,
+    playerPos: 3,
+    hand: ["break_point", "dodge", "step_back", "atk1"],
+    queue: [{ move: "pierce", damage: 6, cell: 3 }],
+    nextQueue: [{ move: "pierce", damage: 6, cell: 3 }],
+  });
+  broken = resolveTurn(qiPlay(broken, "break_point", 0));
+  const hard = qiBeat(broken, "拆中");
+  const inked = qiBeat(resolveTurn(broken), "墨痕");
+
+  let released = createQiFight({
+    playerHp: 12,
+    enemyHp: 18,
+    playerPos: 3,
+    hand: ["dodge", "break_point", "step_back", "atk1"],
+    queue: [{ move: "pierce", damage: 6, cell: 3 }],
+  });
+  released = resolveTurn(qiPlay(released, "dodge", 0));
+
+  let ult = createQiFight({
+    playerHp: 12,
+    enemyHp: 14,
+    playerPos: 3,
+    momentum: 8,
+    hand: ["atk1", "dodge", "break_point", "step_back"],
+    queue: [{ move: "crash", damage: 5, cell: 3 }],
+  });
+  ult = resolveTurn(playUlt(ult, 0));
+
+  return [hard, qiBeat(released, "放生"), inked, qiBeat(ult, "绝式")];
 }
 
 describe("黄金对局", () => {
@@ -290,5 +352,8 @@ describe("黄金对局", () => {
     expect(keys).toHaveLength(20);
     expect(keys.filter((k) => k.startsWith("climb-")).length).toBe(12);
     expect(keys.filter((k) => k.startsWith("break-")).length).toBe(8);
+    const qi = next.mechanism.directed.qiCommit as Array<{ tag: string; recap: string }>;
+    expect(qi.map((row) => row.tag)).toEqual(["拆中", "放生", "墨痕", "绝式"]);
+    expect(qi.map((row) => row.recap)).toEqual(["刺破", "刺闪", "刺墨", "撞绝"]);
   }, 60_000);
 });
