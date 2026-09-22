@@ -126,7 +126,8 @@ PR #1 的合并判定标准 = **`src/game` 零 import `src/combatLab` + layerBou
 3. **按 §1 双模式矩阵拆分**：共享层只留石台 / 距离 / types / content / caps / 纯工具；`isBreakAlign()` 146 处归并进共享参数或沉入 `engine/climb/`、`engine/break/` 各自核内。
 4. 动 sim 时**先按摸牌 / 出牌 / 结算 / 状态做文件内分区**（零行为变化），为阶段 5 预埋边界（M2）。
 
-- **验收**：typecheck + test:combat 绿；**黄金对局逐拍 diff 为空**；共享结算路径 `rg "ruleset.mode" src/game` 仅出现在入口 / content 参数化字段；`rg "isBreakAlign|getLabTuning|getLabRuleset" src/game` 无结果。
+- **入场券**：先补一组 `qiCommit` 黄金脚本（固定种子，录架势 / 气势 / 气力，以及每拍拆中 / 放生 / 墨痕 / 绝式）。现在的 `break-*` 基线走的是 sim 里 `ruleset="break"` 的分支，没有打到 `qiCommit.ts`。
+- **验收**：typecheck + test:combat 绿；**黄金对局逐拍 diff 为空**；共享结算路径 `rg "ruleset.mode" src/game` 仅出现在入口 / content 参数化字段；`rg "isBreakAlign|getLabTuning|getLabRuleset" src/game` 无结果；`layerBoundary` 的 `PERSIST_DEBT` 白名单缩为空。
 - **中止 / 回滚**：黄金 diff 不为空且 3 次修复内不收敛 → 回滚本阶段，保住分支现场报主窗。
 
 ### 阶段 2：gauntlet.ts 规则平移
@@ -183,7 +184,7 @@ export const CARD_REGISTRY: Readonly<Record<CardId, CardDef>> = { /* ... */ };
 
 - 清剿 `@deprecated` 兼容壳与死代码（`redeemGauntletRun` 等），不留历史包袱。
 - sim（4877 行）按阶段 1 预埋的摸牌 / 出牌 / 结算 / 状态分区切 `src/game/sim/` 子模块。
-- **验收**：sim 无文件超 800 行；测试全绿；黄金对局 diff 为空。
+- **验收**：sim 无文件超 800 行；测试全绿；黄金对局 diff 为空。黄金帧在阶段 5 动六系之前补上结构化层数：敌方裂创、双方破绽 / 连击 / 剑势 / 霸体 / 缴械 / 桩。不要只靠播报文本。
 
 ### 阶段 6：规范收口 + 分发
 
@@ -198,7 +199,7 @@ export const CARD_REGISTRY: Readonly<Record<CardId, CardDef>> = { /* ... */ };
 4. **规则函数必须纯**：入 state + ctx，出新 state；不改全局、不读时间。**rng 在引擎内必传无默认值，默认值只允许壳层注入。**
 5. **不可变更新约定**：返回新 state 时对改动路径做结构化拷贝；嵌套对象禁止浅拷贝后共享突变（拷贝边界 = 被修改的字段路径，未动字段可共享引用）。
 6. **双轨判断只查一处**：共享结算路径 mode 判断数 = 0；mode 只在壳层入口选核 + content 参数化字段。
-7. **每次改动后**跑 `npm run test:combat` + `npm run typecheck:combat`；不开页面手测；执行车道不 commit。
+7. **每次改动后**跑 `npm run test:combat` + `npm run typecheck:combat`；不开页面手测；执行车道不 commit。吃随机发牌或敌方队列的单测必须 `setBattleRng` 或有序发牌，禁止裸 `Math.random`。全套件偶发失败算测试没写完。
 8. **冻结区**不读不改：`src/map/**`、`src/story/**`、`docs/frozen/**`。
 9. **体量红线**：文件超 300 行 = 该拆；函数超 80 行 = 该抽。**豁免：纯数据表 / 文案表**（storyBeats、content 注册表、ladder 表）不按行数计。
 10. **命名约定**：规则文件 `src/game/rules/xxxRules.ts`；注册表导出 `XXX_REGISTRY`；ctx 字段固定 `ruleset / tuning / caps`；内容 id 用 kebab-case。

@@ -55,8 +55,8 @@ describe("engine layer boundary", () => {
   it("src/game 生产代码不得新碰 document / window / localStorage", () => {
     const offenders: string[] = [];
     for (const file of walkTs(GAME_DIR)) {
-      const base = file.split("/").pop() ?? file;
-      if (FROZEN_DOM.has(base) || PERSIST_DEBT.has(base)) continue;
+      const rel = relative(GAME_DIR, file);
+      if (FROZEN_DOM.has(rel) || PERSIST_DEBT.has(rel)) continue;
       const src = stripComments(readFileSync(file, "utf8"));
       if (DOM_API.test(src)) offenders.push(relative(GAME_DIR, file));
     }

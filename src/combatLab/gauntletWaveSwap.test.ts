@@ -1,18 +1,29 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setLabRuleset } from "./labRuleset";
 import { setLabMode, setLabTuning } from "../game/labTuning";
 import { startLabBattle } from "./factory";
 import { buildGauntletPreset, createGauntletRun } from "./gauntlet";
-import { playCard, endTurn, canEndPlayerTurn, livingFoes, canPlay, needsDiscardToHandCap, labDiscardCard } from "../game/sim";
+import { playCard, endTurn, canEndPlayerTurn, livingFoes, canPlay, needsDiscardToHandCap, labDiscardCard, setBattleRng } from "../game/sim";
 import { CARDS } from "../game/content";
 import type { Battle } from "../game/types";
+
+function mulberry32(seed: number): () => number {
+  let a = seed;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 function v2Battle(stage = 6): Battle {
   setLabRuleset("break");
   setLabMode(true);
   setLabTuning({ rulesV2: true, v2Fx: false, v2VariantAi: false, enemyStressCap: 0 });
-  const run = { ...createGauntletRun("shaolin", "saber"), stage };
-  const b = startLabBattle(buildGauntletPreset(run), false, 1);
+  const run = { ...createGauntletRun("shaolin", "saber", "usurper", { rng: mulberry32(stage + 11) }), stage };
+  const b = startLabBattle(buildGauntletPreset(run), true, 1);
   b.player.pos = 1;
   b.enemy.pos = 4;
   return b;
@@ -40,9 +51,14 @@ function killFrontFoe(b: Battle): Battle {
 
 describe("拆招轮番接力不软锁", () => {
   beforeEach(() => {
+    setBattleRng(mulberry32(20260922));
     setLabRuleset("break");
     setLabMode(true);
     setLabTuning({ rulesV2: true, v2Fx: false, v2VariantAi: false, enemyStressCap: 0 });
+  });
+
+  afterEach(() => {
+    setBattleRng(null);
   });
 
   it("前排倒下替补上场，phase 仍为 player，收势/出牌可用", () => {

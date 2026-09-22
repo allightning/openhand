@@ -12,7 +12,9 @@ import { canPlay, endTurn, livingFoes, playCard, setBattleRng, setSegmentProbe }
 import { addStake } from "./stake";
 import type { Battle, CardId } from "./types";
 
-const BASELINE = join(dirname(fileURLToPath(import.meta.url)), "goldenReplay.baseline.json");
+const DIR = dirname(fileURLToPath(import.meta.url));
+const MECHANISM_BASELINE = join(DIR, "goldenReplay.baseline.json");
+const PRESENT_BASELINE = join(DIR, "goldenReplay.present.json");
 
 type Frame = {
   tag: string;
@@ -40,6 +42,26 @@ type Corpus = {
   random: Record<string, Frame[]>;
   directed: Record<string, unknown>;
 };
+
+function splitCorpus(corpus: Corpus): { mechanism: Corpus; present: Record<string, string[]> } {
+  const present: Record<string, string[]> = {};
+  const random: Record<string, Frame[]> = {};
+  for (const [key, frames] of Object.entries(corpus.random)) {
+    present[key] = frames.map((f) => f.present);
+    random[key] = frames.map(({ present: _present, ...rest }) => ({ ...rest, present: "" }));
+  }
+  const directed: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(corpus.directed)) {
+    if (Array.isArray(value) && value.every((row) => row && typeof row === "object" && "present" in row)) {
+      const frames = value as Frame[];
+      present[key] = frames.map((f) => f.present);
+      directed[key] = frames.map(({ present: _present, ...rest }) => ({ ...rest, present: "" }));
+    } else {
+      directed[key] = value;
+    }
+  }
+  return { mechanism: { random, directed }, present };
+}
 
 const SCHOOLS: Array<[string, string]> = [
   ["palm", "t1-four-palm"],
@@ -255,13 +277,16 @@ describe("黄金对局", () => {
   }, 60_000);
 
   it("对照已录基线，逐拍 diff 为空", () => {
-    const next = buildCorpus();
+    const next = splitCorpus(buildCorpus());
     if (process.env.UPDATE_GOLDEN === "1") {
-      writeFileSync(BASELINE, JSON.stringify(next));
+      writeFileSync(MECHANISM_BASELINE, `${JSON.stringify(next.mechanism, null, 2)}\n`);
+      writeFileSync(PRESENT_BASELINE, `${JSON.stringify(next.present, null, 2)}\n`);
     }
-    const saved = JSON.parse(readFileSync(BASELINE, "utf8")) as Corpus;
-    expect(next).toEqual(saved);
-    const keys = Object.keys(next.random);
+    const saved = JSON.parse(readFileSync(MECHANISM_BASELINE, "utf8")) as Corpus;
+    const savedPresent = JSON.parse(readFileSync(PRESENT_BASELINE, "utf8")) as Record<string, string[]>;
+    expect(next.mechanism).toEqual(saved);
+    expect(next.present).toEqual(savedPresent);
+    const keys = Object.keys(next.mechanism.random);
     expect(keys).toHaveLength(20);
     expect(keys.filter((k) => k.startsWith("climb-")).length).toBe(12);
     expect(keys.filter((k) => k.startsWith("break-")).length).toBe(8);

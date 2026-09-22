@@ -393,6 +393,9 @@ describe("stance, swap, and mates", () => {
     b = playNamed(b, "burySlash");
     const held = b.youRiposteTurns;
     expect(held).toBeGreaterThanOrEqual(4);
+    // 走私客自然队列在卸力后会接打击，埋招会被打中触发。这里只钉「没挨打」的衰减。
+    b.intents = [{ kind: "guard", block: 12 }];
+    b.intent = b.intents[0]!;
     b = endTurn(b);
     expect(b.youRiposte).toBe("slash");
     expect(b.youRiposteTurns).toBe(held - 1);
