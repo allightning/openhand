@@ -1,7 +1,7 @@
 import type { WeaponId } from "./types";
 import { WEAPON_NAME } from "./party";
 import { getContentOverrides } from "./labContentOverrides";
-import { isLabMode } from "./labTuning";
+import { contextNow, type RunContext } from "./runContext";
 
 /** 凡良精玄神 — five combat gear tiers. */
 export type WeaponTier = "fan" | "liang" | "jing" | "xuan" | "shen";
@@ -192,7 +192,7 @@ export function nextGrade(id: string): string | null {
   return `${g.school}-${g.path}-${g.grade + 1}`;
 }
 
-export function gearById(id: string | null | undefined): GearWeapon | null {
+export function gearById(id: string | null | undefined, ctx: RunContext = contextNow()): GearWeapon | null {
   if (!id) return null;
   let base = GEAR_WEAPONS.find((g) => g.id === id) ?? null;
   if (!base) {
@@ -206,7 +206,7 @@ export function gearById(id: string | null | undefined): GearWeapon | null {
     base = GEAR_WEAPONS.find((g) => g.school === school && g.path === path && g.grade === grade) ?? null;
   }
   if (!base) return null;
-  if (!isLabMode()) return base;
+  if (!ctx.lab) return base;
   const ov = getContentOverrides().weapons[base.id];
   return ov ? { ...base, ...ov } : base;
 }
