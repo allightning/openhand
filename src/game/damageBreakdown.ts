@@ -1,15 +1,15 @@
 import type { Battle, CardDef, TechniqueId } from "./types";
 import { gearById, pathSkillMods } from "./weapons";
 import { battleEquippedSchool } from "./equippedWeapon";
-import { saberReachDamage } from "../combatLab/rogueRoster";
+import { saberReachDamage } from "./rogueRoster";
 import { getLabTuning, isLabMode, isLabV2 } from "./labTuning";
 import { LAB_ENTRANCE_BONUS, OFFBALANCE_MULT } from "./labV2Constants";
 import { cardSchool, WEAPON_PACE } from "./party";
 import { schoolTier, tierFx, resonancePaceBonus } from "./labResonance";
 import { techBonus } from "./techRank";
 import { comboAssistMods } from "./comboAssist";
-import { isBreakAlign } from "../combatLab/labRuleset";
-import { CLIMB_LIFESTEAL_PCT } from "../combatLab/climbCaps";
+import { isBreakAlign } from "./labRuleset";
+import { CLIMB_LIFESTEAL_PCT } from "./climbCaps";
 
 export interface BreakdownPart {
   label: string;

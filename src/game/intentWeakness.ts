@@ -1,5 +1,5 @@
 import type { Battle, CardId, Intent, V2TurnFlags, WeaknessDef, WeaknessKind } from "./types";
-import { isBreakAlign } from "../combatLab/labRuleset";
+import { isBreakAlign } from "./labRuleset";
 import { SIGNATURE_BREAK } from "./enemySignatures";
 import { ROGUE_SCHOOLS, stepCardId } from "./rogueCards";
 

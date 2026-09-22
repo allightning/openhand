@@ -64,8 +64,8 @@ import { BREAK_COUNTER_CHAIN } from "./labV2Constants";
 import { MOVE_CARD_IDS, planEyeIdx, registerThreatProvider, registerQueueThreatProvider } from "./intentWeakness";
 import { SUMMON_DEFS } from "./labSummon";
 import { addStake, adjacentStakePos, enemyPlantHits, playerPlantHits, removeStake, smashHitsForSchool, smashStake, stakeHitsAt } from "./stake";
-import { isBreakAlign } from "../combatLab/labRuleset";
-import { climbEnergyStart, climbVitals } from "../combatLab/climbVitals";
+import { isBreakAlign } from "./labRuleset";
+import { climbEnergyStart, climbVitals } from "./climbVitals";
 import {
   bleedTickDamage,
   clampHandCap,
@@ -74,7 +74,7 @@ import {
   saberReachDamage,
   HAND_CAP_DEFAULT,
   HAND_CAP_HARD_MAX,
-} from "../combatLab/rogueRoster";
+} from "./rogueRoster";
 import {
   CLIMB_BLOCK_CAP,
   CLIMB_BLEED_CAP,
@@ -95,7 +95,7 @@ import {
   climbEnemyPaceBonus,
   climbOpeningDistance,
   climbOpeningPositions,
-} from "../combatLab/climbCaps";
+} from "./climbCaps";
 
 export { techBonus, battleTechRank, techRankMul } from "./techRank";
 
@@ -273,13 +273,31 @@ export function hasTech(b: Battle, id: TechniqueId): boolean {
   return b.techniques.includes(id);
 }
 
+/** 战斗内随机。默认 Math.random；黄金对局与测试可注入种子。生产不传则行为不变。 */
+let battleRng: () => number = Math.random;
+
+export function setBattleRng(fn: (() => number) | null): void {
+  battleRng = fn ?? Math.random;
+}
+
+function roll(): number {
+  return battleRng();
+}
+
 function shuffle<T>(items: T[]): T[] {
   const next = [...items];
   for (let i = next.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(roll() * (i + 1));
     [next[i], next[j]] = [next[j], next[i]];
   }
   return next;
+}
+
+/** 每个意图段结算后的测试探针。null 时结算路径不分支。 */
+let segmentProbe: ((b: Battle, tag: string) => void) | null = null;
+
+export function setSegmentProbe(fn: ((b: Battle, tag: string) => void) | null): void {
+  segmentProbe = fn;
 }
 
 function deal(deck: CardId[], ordered: boolean): { hand: CardInst[]; drawPile: CardInst[] } {
@@ -3357,6 +3375,7 @@ function resolveAllIntents(b: Battle): void {
       b.enemyEnergy = Math.max(0, b.enemyEnergy - intentCost(intent));
       if (idx > 0) note(b, "foe", `${b.enemy.name}接招：${labelIntent(intent)}`);
       resolveIntent(b);
+      segmentProbe?.(b, `intent:${idx}`);
       if (livingFoes(b).length === 0) checkWin(b);
     });
     if (livingFoes(b).length === 0) checkWin(b);
@@ -3376,6 +3395,7 @@ function resolveAllIntents(b: Battle): void {
     b.enemyEnergy = Math.max(0, b.enemyEnergy - intentCost(queue[i]));
     if (i > 0) note(b, "foe", `${b.enemy.name}接招：${labelIntent(queue[i])}`);
     resolveIntent(b);
+    segmentProbe?.(b, `intent:${i}`);
   }
 }
 
@@ -3405,7 +3425,7 @@ function resolveIntent(b: Battle): void {
     if (b.labEnemyGrade && ENEMY_WEAPON[b.enemyId] === "hook" && b.hand.length) {
       const n = b.labEnemyGrade === "shen" ? 2 : 1;
       for (let i = 0; i < n && b.hand.length; i++) {
-        const card = b.hand.splice(Math.floor(Math.random() * b.hand.length), 1)[0];
+        const card = b.hand.splice(Math.floor(roll() * b.hand.length), 1)[0];
         if (card) b.discardPile.push(card);
       }
       note(b, "foe", `${b.enemy.name}绊钩卸了你的牌。`);

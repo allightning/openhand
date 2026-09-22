@@ -1,7 +1,7 @@
 # Openhand · Combat Lab — 给新对话的完整底子
 
 > **2026-09-22。** 新开对话先读本文件，再读 [`.cursor/lanes/SYNC.md`](../../.cursor/lanes/SYNC.md)（当日收件箱）。不要从旧聊天猜现行规则；设计真源在 Notion。  
-> 机制表真源仍是 [RULES.md](./RULES.md)。待定数字总表在 Notion [待定清单](https://app.notion.com/p/3dd427beba9c815d9101c5ad3b76bb4c)。常量 `src/combatLab/climbCaps.ts`。  
+> 机制表真源仍是 [RULES.md](./RULES.md)。待定数字总表在 Notion [待定清单](https://app.notion.com/p/3dd427beba9c815d9101c5ad3b76bb4c)。常量 `src/game/climbCaps.ts`（壳层 `src/combatLab/climbCaps.ts` 只 re-export）。  
 > 代码怎么放、重构认领哪一阶段：[ARCHITECTURE.md](./ARCHITECTURE.md)。加新内容查 skill `combat-architecture`。
 
 ---
@@ -130,10 +130,11 @@ Notion：
 | 路径 | 干什么 |
 |---|---|
 | `combat-lab.html` | 唯一活跃入口 |
-| `src/combatLab/` | 门厅、爬塔、遭遇、UI、音频、图鉴、实验台 |
+| `src/combatLab/` | 产品壳：门厅、爬塔流程、遭遇、UI、音频、图鉴、实验台 |
 | `src/combatLab/gauntlet.ts` 等 | 十馆流程、经济 |
 | `src/combatLab/climbPlaces.ts`、`encounter.ts` | 馆间遭遇文案 |
 | `src/game/sim.ts` | 战斗引擎（核玩与读招 **同时只开一窗**） |
+| `src/game/labRuleset.ts`、`climbCaps.ts`、`climbVitals.ts`、`rogueRoster.ts` | 规则核：模式开关 / 爬塔常量 / 花名册。`src/game` **不得** import `src/combatLab`（产品壳有同名 re-export） |
 | `src/game/rogueCards.ts`、`content.ts`、`weapons.ts` | 牌 / 数据 |
 | `src/combatLab/qiCommit.ts`、`break*`、`trainingHall.ts` | **读招专用** |
 | `src/game/intentWeakness.ts`、`labV2*.ts` | 破法 / 旧拆招；默认只给读招窗 |

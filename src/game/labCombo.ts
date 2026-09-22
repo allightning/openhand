@@ -8,7 +8,7 @@ import {
 import { isLabV2 } from "./labTuning";
 import { MATES } from "./party";
 import type { Battle, CardId, WeaponId } from "./types";
-import { isBreakAlign } from "../combatLab/labRuleset";
+import { isBreakAlign } from "./labRuleset";
 
 export const COMBO_CARD_BY_SCHOOL: Record<WeaponId, CardId> = {
   palm: "comboPalm",

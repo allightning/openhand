@@ -1,6 +1,6 @@
 import { ENEMIES, ENEMY_ENERGY } from "./content";
 import { getLabTuning, isLabMode } from "./labTuning";
-import { isBreakAlign } from "../combatLab/labRuleset";
+import { isBreakAlign } from "./labRuleset";
 import type { Battle, EnemyId, Intent } from "./types";
 
 export type StressSource = "break" | "burst" | "assist" | "signature";

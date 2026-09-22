@@ -3,7 +3,7 @@ import { isLabMode, isLabV2, getLabTuning } from "./labTuning";
 import { VARIANT_BREAK_THRESHOLD } from "./labV2Constants";
 import { initLabV21Battle, refreshBreakPromised } from "./labV21";
 import { planBreaks, queuedThreatCells } from "./intentWeakness";
-import { isBreakAlign } from "../combatLab/labRuleset";
+import { isBreakAlign } from "./labRuleset";
 import {
   addQi,
   applyBreak,

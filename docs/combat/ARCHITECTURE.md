@@ -84,7 +84,7 @@ graph TD
 |---|---|---|
 | 新牌 / 外功 / 心法 / 符 | `src/game/content/` 注册表加一行数据（注册表未落地前：labContent.ts / rogueCards.ts） | 数值先登记 Notion 待定页；跑 contentValidation 测试 |
 | 新敌人 / 意图编排 | `src/game/content/enemies.ts`（落地前：labEnemyStress.ts） | 壳层 foes.ts 只做拼装 |
-| 新常量 / 层帽 / 数值 | `src/game/climbCaps.ts`（PR #1 合并前改 `src/combatLab/climbCaps.ts` 同一份） | 先改 Notion / 文档再改码 |
+| 新常量 / 层帽 / 数值 | 行路 `src/game/climbCaps.ts`，登门 `breakCaps.ts`（壳层同名文件只 re-export） | 先改 Notion / 文档再改码 |
 | 新赌注 / 奖励 / 黑市货 | **`src/game/rules/` 对应文件（目录随阶段 0 提前建好）** | 纯函数，入 ctx 出结果；**生效即冻结：gauntlet.ts 只减不增，不留 TODO-C 口子** |
 | 新界面 / 新屏 | `src/combatLab/render/renderXxx.ts`（落地前：main.ts 加一个 case） | main.ts 不写渲染细节 |
 | 新遭遇 / 事页 | `src/combatLab/storyBeats.ts` | 白描 6–10 句 + 2–3 选项，选项带机制数字（铁律 §3） |
