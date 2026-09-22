@@ -14,6 +14,8 @@ export const CLIMB_HALL_COUNT_DEFAULT = 10;
 export const CLIMB_GUARD_WAGER = 10;
 export const CLIMB_SPEAR_CUT_QI = 3;
 export const CLIMB_LIFESTEAL_PCT = 0.3;
+/** 预演：破绽在卸力之后另加的伤害。 */
+export const CLIMB_EXPOSE_THROUGH_BLOCK = 4;
 export const CLIMB_UNSEAT_PACE = 1;
 export const CLIMB_POOL_COPIES = 3;
 /** 我裂桩爆炸：双方各吃这么多伤。 */
