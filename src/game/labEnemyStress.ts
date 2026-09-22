@@ -1,6 +1,5 @@
 import { ENEMIES, ENEMY_ENERGY } from "./content";
-import { getLabTuning, isLabMode } from "./labTuning";
-import { isBreakAlign } from "./labRuleset";
+import { contextNow, type RunContext } from "./runContext";
 import type { Battle, EnemyId, Intent } from "./types";
 
 export type StressSource = "break" | "burst" | "assist" | "signature";
@@ -24,12 +23,12 @@ export function isEliteEnemy(id: EnemyId): boolean {
   return ELITE_IDS.has(id) || Boolean(ENEMIES[id]?.elite);
 }
 
-export function enemyRoundBudgetCap(b: Battle): number {
+export function enemyRoundBudgetCap(b: Battle, ctx: RunContext = contextNow()): number {
   const base = ENEMY_ENERGY[b.enemyId] ?? 2;
-  if (!isLabMode()) return base;
-  const bonus = getLabTuning().enemySegBonus;
+  if (!ctx.lab) return base;
+  const bonus = ctx.tuning.enemySegBonus;
   // §31.6 踢馆线：杂兵也吃段预算加成（甲方手测「前面随便点就赢」的结构性修正）。
-  if (getLabTuning().enemySegAll) return base + bonus;
+  if (ctx.tuning.enemySegAll) return base + bonus;
   if (isBossEnemy(b.enemyId) || isEliteEnemy(b.enemyId)) return base + bonus;
   return base;
 }
@@ -94,10 +93,14 @@ function stressIntentFor(b: Battle): Intent {
  * 下次敌规划时带着「应」签入场（全亮、可拆、吃总督）。
  * 旧版当场追加攻击段 = 你越拆他打得越多（死亡螺旋，也是「满血被一招秒」的主因）。
  */
-export function tryAppendStressIntent(b: Battle, source: StressSource): boolean {
-  if (!isLabMode()) return false;
-  if (source === "break" && !isBreakAlign()) return false;
-  const cap = getLabTuning().enemyStressCap;
+export function tryAppendStressIntent(
+  b: Battle,
+  source: StressSource,
+  ctx: RunContext = contextNow(),
+): boolean {
+  if (!ctx.lab) return false;
+  if (source === "break" && !ctx.caps.enemy.allowBreakStress) return false;
+  const cap = ctx.tuning.enemyStressCap;
   if ((b.v2StressCount ?? 0) >= cap) return false;
   b.v2PendingStress = [...(b.v2PendingStress ?? []), { source, label: STRESS_LABELS[source] }];
   b.v2StressCount = (b.v2StressCount ?? 0) + 1;

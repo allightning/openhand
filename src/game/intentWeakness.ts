@@ -1,5 +1,5 @@
 import type { Battle, CardId, Intent, V2TurnFlags, WeaknessDef, WeaknessKind } from "./types";
-import { isBreakAlign } from "./labRuleset";
+import { contextNow, type RunContext } from "./runContext";
 import { SIGNATURE_BREAK } from "./enemySignatures";
 import { ROGUE_SCHOOLS, stepCardId } from "./rogueCards";
 
@@ -245,6 +245,7 @@ export function evalWeakness(
   flags: V2TurnFlags,
   phase: "preview" | "resolve",
   resolveCtx?: { bleedcutRaw?: number; bleedcutBlocked?: number },
+  ctx: RunContext = contextNow(),
 ): boolean {
   if (intent.kind === "charge") {
     if (b.stakes.length > 0) return true;
@@ -276,7 +277,9 @@ export function evalWeakness(
       return flags.endTurnCommitted && (flags.endBlock ?? b.playerBlock) > 0;
     case "endBlockGte8": {
       let need = w.param ?? 8;
-      if (isBreakAlign() && b.techniques.includes("softPalm")) need = Math.max(1, need - 2);
+      if (b.techniques.includes("softPalm")) {
+        need = Math.max(1, need - ctx.caps.intent.softPalmBlockRelax);
+      }
       return flags.endTurnCommitted && (flags.endBlock ?? b.playerBlock) >= need;
     }
     case "antiGuardPlayed":

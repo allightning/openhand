@@ -7,7 +7,7 @@ import { cardSchool, WEAPON_PACE } from "./party";
 import { schoolTier, tierFx, resonancePaceBonus } from "./labResonance";
 import { techBonus } from "./techRank";
 import { comboAssistMods } from "./comboAssist";
-import { contextNow, type RunContext } from "./runContext";
+import { contextNow, labV2, type RunContext } from "./runContext";
 
 export interface BreakdownPart {
   label: string;
@@ -21,10 +21,6 @@ function hasTech(b: Battle, id: TechniqueId): boolean {
 function add(parts: BreakdownPart[], label: string, n: number): void {
   if (!n) return;
   parts.push({ label, n });
-}
-
-function labV2(ctx: RunContext): boolean {
-  return ctx.lab && ctx.tuning.rulesV2;
 }
 
 function youPaceNow(b: Battle, ctx: RunContext): number {

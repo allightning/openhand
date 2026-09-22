@@ -25,10 +25,27 @@ export interface BreakdownCaps {
   hookLifestealPct: number;
 }
 
-/** 按域加字段。不把预演 / 意图 / 桩帽摊进同一个 interface。 */
+/** 按域加字段。不把预演 / 意图 / 桩帽 / 组合技 / 敌压 / 资源倍率摊进同一个 interface。 */
 export interface IntentCaps {
   /** 登门用回合开始站位；行路用收势站位。 */
   aimAtTurnStart: boolean;
+  /** 带绵掌时，结束格挡门槛少减这么多。登门 2，行路 0。 */
+  softPalmBlockRelax: number;
+}
+
+export interface ComboCaps {
+  /** 行路允许组合技卡。登门关闭，异系走融合卡。 */
+  allowComboCards: boolean;
+}
+
+export interface EnemyCaps {
+  /** source 为 break 的施压意图是否生效。仅登门。 */
+  allowBreakStress: boolean;
+}
+
+export interface EconomyCaps {
+  /** 行路实验室才进资源倍率。登门或非实验室原样返回。 */
+  applyScale: boolean;
 }
 
 export interface StakeCaps {
@@ -40,6 +57,9 @@ export interface RunCaps {
   breakdown: BreakdownCaps;
   intent: IntentCaps;
   stake: StakeCaps;
+  combo: ComboCaps;
+  enemy: EnemyCaps;
+  economy: EconomyCaps;
 }
 
 export interface RunContext {
@@ -50,7 +70,25 @@ export interface RunContext {
 }
 
 function intentCaps(mode: LabRuleset): IntentCaps {
-  return { aimAtTurnStart: mode === "break" };
+  const brk = mode === "break";
+  return { aimAtTurnStart: brk, softPalmBlockRelax: brk ? 2 : 0 };
+}
+
+function comboCaps(mode: LabRuleset): ComboCaps {
+  return { allowComboCards: mode === "climb" };
+}
+
+function enemyCaps(mode: LabRuleset): EnemyCaps {
+  return { allowBreakStress: mode === "break" };
+}
+
+function economyCaps(lab: boolean, mode: LabRuleset): EconomyCaps {
+  return { applyScale: lab && mode === "climb" };
+}
+
+/** 实验室且开了 v2 规则。结算函数用这个，不要各抄一份。 */
+export function labV2(ctx: RunContext): boolean {
+  return ctx.lab && ctx.tuning.rulesV2;
 }
 
 function stakeCaps(lab: boolean, mode: LabRuleset): StakeCaps {
@@ -83,6 +121,9 @@ export function makeContext(mode: LabRuleset, tuning: LabTuning, lab: boolean): 
       breakdown: breakdownCaps(lab, mode),
       intent: intentCaps(mode),
       stake: stakeCaps(lab, mode),
+      combo: comboCaps(mode),
+      enemy: enemyCaps(mode),
+      economy: economyCaps(lab, mode),
     },
   };
 }

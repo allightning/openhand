@@ -5,10 +5,9 @@ import {
   comboCardCostCut,
   isComboRulesEnabled,
 } from "./labAssist";
-import { isLabV2 } from "./labTuning";
 import { MATES } from "./party";
+import { contextNow, labV2, type RunContext } from "./runContext";
 import type { Battle, CardId, WeaponId } from "./types";
-import { isBreakAlign } from "./labRuleset";
 
 export const COMBO_CARD_BY_SCHOOL: Record<WeaponId, CardId> = {
   palm: "comboPalm",
@@ -33,14 +32,18 @@ export function comboCardSchool(id: CardId): WeaponId | null {
   return null;
 }
 
-export function comboPlayGate(b: Battle, defId: CardId): { ok: boolean; reason?: string } {
+export function comboPlayGate(
+  b: Battle,
+  defId: CardId,
+  ctx: RunContext = contextNow(),
+): { ok: boolean; reason?: string } {
   if (!isComboCard(defId)) return { ok: true };
-  if (isBreakAlign()) return { ok: false, reason: "开踢无组合技，异系走融合卡" };
+  if (!ctx.caps.combo.allowComboCards) return { ok: false, reason: "开踢无组合技，异系走融合卡" };
   if (!isComboRulesEnabled()) return { ok: false, reason: "组合技未开启" };
   const school = comboCardSchool(defId);
   if (!school) return { ok: false, reason: "未知组合卡" };
   // §31.12 助战与同行分家：v2 组合技看「后场活着的异系同行」，不再要助战在场。
-  if (isLabV2()) {
+  if (labV2(ctx)) {
     const mate = b.bench.find((m) => m.hp > 0 && battleEquippedSchool(b, m.id) === school);
     if (!mate) return { ok: false, reason: `需后场有${school}系同行（异系伙伴=组合技）` };
     return { ok: true };
@@ -53,8 +56,13 @@ export function comboPlayGate(b: Battle, defId: CardId): { ok: boolean; reason?:
   return { ok: true };
 }
 
-export function comboEffectiveCost(b: Battle, defId: CardId, base: number): number {
-  if (!isLabV2() || !isComboCard(defId)) return base;
+export function comboEffectiveCost(
+  b: Battle,
+  defId: CardId,
+  base: number,
+  ctx: RunContext = contextNow(),
+): number {
+  if (!labV2(ctx) || !isComboCard(defId)) return base;
   return Math.max(0, base - comboCardCostCut(b, defId));
 }
 
@@ -65,12 +73,12 @@ export function markComboCardPlayed(b: Battle, defId: CardId): void {
 }
 
 /** §16.4 同门合击效果 — 迁移自旧主动共鸣技。 */
-export function comboCardNotes(b: Battle, defId: CardId): string[] {
+export function comboCardNotes(b: Battle, defId: CardId, ctx: RunContext = contextNow()): string[] {
   const notes: string[] = [];
   const school = comboCardSchool(defId);
   if (!school) return notes;
   // §31.12 v2：组合技挂后场同行；v1 旧制挂在场助战。
-  const mateId = isLabV2()
+  const mateId = labV2(ctx)
     ? b.bench.find((m) => m.hp > 0 && battleEquippedSchool(b, m.id) === school)?.id
     : b.labAssistActive;
   if (!mateId) return notes;
