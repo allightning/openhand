@@ -21,6 +21,7 @@ import {
   rewardGate,
   rollCompanionChoices,
   banditCompanionChoices,
+  breakRewardCardPool,
   rollGauntletRewards,
   rollSuperRewards,
   saveGauntletBest,
@@ -459,12 +460,8 @@ describe("ROGUE_GRADIENT 淬刃/换页/绝招池", () => {
   it("7 馆后本系绝招进奖励池，更早没有", () => {
     const early = rollGauntletRewards({ ...createGauntletRun("bandit", "saber"), stage: 5 }, () => 0.55);
     expect(early.every((o) => o.id !== "ultSaber")).toBe(true);
-    let found = false;
-    for (let i = 0; i < 200; i++) {
-      const opts = rollGauntletRewards({ ...createGauntletRun("bandit", "saber"), stage: 8 }, () => Math.random());
-      if (opts.some((o) => o.kind === "card" && o.id === "ultSaber")) found = true;
-    }
-    expect(found).toBe(true);
+    const late = { ...createGauntletRun("bandit", "saber"), stage: 8 };
+    expect(breakRewardCardPool(late)).toContain("ultSaber");
   });
 });
 
