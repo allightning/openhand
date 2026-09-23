@@ -11,13 +11,13 @@ import { BOARD_SIZE } from "./types";
 
 export { LAB_ASSIST_COST };
 
-export function isComboRulesEnabled(rc: RunContext = contextNow()): boolean {
+export function isComboRulesEnabled(rc: RunContext): boolean {
   return rc.lab && labV2(rc) && rc.tuning.rulesCombo;
 }
 
 export function assistEnergyCost(b: Battle): number {
   let cost = LAB_ASSIST_COST;
-  if (isComboRulesEnabled() && b.v2HundredFlowers) {
+  if (isComboRulesEnabled(contextNow()) && b.v2HundredFlowers) {
     cost = Math.max(1, cost - LAB_HUNDRED_FLOWERS.assistCostCut);
   }
   return cost;
@@ -43,7 +43,7 @@ export function pickAssistPos(b: Battle): number | null {
 }
 
 export function assistOccupies(b: Battle, pos: number): boolean {
-  return isComboRulesEnabled() && b.labAssistActive != null && b.labAssistPos === pos;
+  return isComboRulesEnabled(contextNow()) && b.labAssistActive != null && b.labAssistPos === pos;
 }
 
 /** §16.2 v2.3：助战 HP 归零 → 立即退回后场，本局禁止再助战。 */
@@ -63,7 +63,7 @@ export function retreatAssistIfDown(b: Battle): Battle {
 }
 
 export function canCallAssist(b: Battle, mateId?: CompanionId): { ok: boolean; reason?: string } {
-  if (!isComboRulesEnabled()) return { ok: false, reason: "组合技未开启" };
+  if (!isComboRulesEnabled(contextNow())) return { ok: false, reason: "组合技未开启" };
   if (b.labAssistBanned) return { ok: false, reason: "本局助战已禁用" };
   if (b.labAssistActive) return { ok: false, reason: "已有助战在场" };
   if (b.labFreshSwap) return { ok: false, reason: "刚换上场，不可助战" };
@@ -88,7 +88,7 @@ export function recordAssistDamage(b: Battle, hpLoss: number): void {
 }
 
 export function hitAssist(b: Battle, raw: number, verb: string): void {
-  if (!isComboRulesEnabled() || !b.labAssistActive) return;
+  if (!isComboRulesEnabled(contextNow()) || !b.labAssistActive) return;
   const id = b.labAssistActive;
   const bag = b.bench.find((m) => m.id === id);
   if (!bag) return;
@@ -134,7 +134,7 @@ export function callAssist(b: Battle, mateId: CompanionId): Battle {
 
 /** §16.3 跨系助战属性附加（仅攻击类牌）。 */
 export function assistAttackBonus(b: Battle, def: CardDef, base: number, dist: number): number {
-  if (!isComboRulesEnabled() || !b.labAssistActive || def.type !== "attack") return base;
+  if (!isComboRulesEnabled(contextNow()) || !b.labAssistActive || def.type !== "attack") return base;
   const assistId = b.labAssistActive;
   const assistSchool = battleEquippedSchool(b, assistId);
   const fieldSchool = battleEquippedSchool(b, b.active);
@@ -148,7 +148,7 @@ export function assistAttackBonus(b: Battle, def: CardDef, base: number, dist: n
 }
 
 export function assistBlockBonus(b: Battle, def: CardDef): number {
-  if (!isComboRulesEnabled() || !b.labAssistActive || def.type !== "attack") return 0;
+  if (!isComboRulesEnabled(contextNow()) || !b.labAssistActive || def.type !== "attack") return 0;
   const mods = comboAssistMods(
     battleEquippedSchool(b, b.labAssistActive),
     battleEquippedSchool(b, b.active),
@@ -157,7 +157,7 @@ export function assistBlockBonus(b: Battle, def: CardDef): number {
 }
 
 export function assistPullAfterHit(b: Battle, def: CardDef, hit: boolean): number {
-  if (!hit || !isComboRulesEnabled() || !b.labAssistActive || def.type !== "attack") return 0;
+  if (!hit || !isComboRulesEnabled(contextNow()) || !b.labAssistActive || def.type !== "attack") return 0;
   const mods = comboAssistMods(
     battleEquippedSchool(b, b.labAssistActive),
     battleEquippedSchool(b, b.active),
@@ -166,7 +166,7 @@ export function assistPullAfterHit(b: Battle, def: CardDef, hit: boolean): numbe
 }
 
 export function assistKnockBonus(b: Battle, def: CardDef): number {
-  if (!isComboRulesEnabled() || !b.labAssistActive || def.type !== "attack") return 0;
+  if (!isComboRulesEnabled(contextNow()) || !b.labAssistActive || def.type !== "attack") return 0;
   const mods = comboAssistMods(
     battleEquippedSchool(b, b.labAssistActive),
     battleEquippedSchool(b, b.active),
@@ -184,7 +184,7 @@ export function syncDoubleHitTelemetry(b: Battle): void {
 
 /** 组合卡耗劲减免（§17.3 百花 · 首张组合卡 -1 劲）。 */
 export function comboCardCostCut(b: Battle, defId: CardId): number {
-  if (!isComboRulesEnabled() || !b.v2HundredFlowers || b.labComboCardPlayedThisTurn) return 0;
+  if (!isComboRulesEnabled(contextNow()) || !b.v2HundredFlowers || b.labComboCardPlayedThisTurn) return 0;
   if (!defId.startsWith("combo")) return 0;
   return LAB_HUNDRED_FLOWERS.firstComboCardCostCut;
 }

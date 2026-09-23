@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ENEMIES, ENEMY_WEAPON } from "../game/content";
 import { enemyGradeForStage, enemyStrikeAtDist } from "../game/enemyGear";
 import { followFromKit, GAUNTLET_FOE_IDENTITY, profileFor, schoolForGeneratedEnemy } from "../game/enemyKit";
+import { breakTestContext } from "../game/testContext";
 import { ALL_SIGNATURE_IDS, SIGNATURE_BREAK } from "../game/enemySignatures";
 import { DEFAULT_WEAKNESS, planBreaks, weaknessForIntent, weaknessTip } from "../game/intentWeakness";
 import { intentFirePlan } from "../game/labEnemyStress";
@@ -187,6 +188,7 @@ describe("D 对线 AI + 撤", () => {
         sigs: [],
       },
       { kind: "retreat", steps: 1 },
+      breakTestContext(),
     );
     expect(["strike", "bleedcut", "barrage", "pestle"]).not.toContain(afterRetreat.kind);
 
@@ -239,6 +241,7 @@ describe("D 对线 AI + 撤", () => {
         sigs: [],
       },
       { kind: "stake" },
+      breakTestContext(),
     );
     expect(afterStake.kind).not.toBe("retreat");
     expect(["pestle", "strike", "lunge", "bleedcut"]).toContain(afterStake.kind);
@@ -265,6 +268,7 @@ describe("D 对线 AI + 撤", () => {
         sigs: [],
       },
       { kind: "strike", damage: 10 },
+      breakTestContext(),
     );
     expect(intent.kind).not.toBe("breathe");
   });
@@ -290,6 +294,7 @@ describe("D 对线 AI + 撤", () => {
         sigs: [],
       },
       { kind: "strike", damage: 6 },
+      breakTestContext(),
     );
     expect(intent.kind).toBe("breathe");
   });

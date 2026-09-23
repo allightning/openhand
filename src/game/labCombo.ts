@@ -39,7 +39,7 @@ export function comboPlayGate(
 ): { ok: boolean; reason?: string } {
   if (!isComboCard(defId)) return { ok: true };
   if (!ctx.caps.combo.allowComboCards) return { ok: false, reason: "开踢无组合技，异系走融合卡" };
-  if (!isComboRulesEnabled()) return { ok: false, reason: "组合技未开启" };
+  if (!isComboRulesEnabled(ctx)) return { ok: false, reason: "组合技未开启" };
   const school = comboCardSchool(defId);
   if (!school) return { ok: false, reason: "未知组合卡" };
   // §31.12 助战与同行分家：v2 组合技看「后场活着的异系同行」，不再要助战在场。

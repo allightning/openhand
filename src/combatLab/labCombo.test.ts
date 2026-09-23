@@ -15,6 +15,7 @@ import {
 } from "../game/labCombo";
 import { comboAssistMods } from "../game/comboAssist";
 import { setLabMode, setLabTuning } from "../game/labTuning";
+import { breakTestContext } from "../game/testContext";
 import { setLabRuleset } from "./labRuleset";
 import { canPlay } from "../game/sim";
 import { startLabBattle } from "./factory";
@@ -47,7 +48,7 @@ afterEach(() => {
 describe("§16 labTuning 总开关", () => {
   it("rulesCombo off keeps v2.5 baseline", () => {
     setLabTuning({ rulesV2: true, rulesCombo: false });
-    expect(isComboRulesEnabled()).toBe(false);
+    expect(isComboRulesEnabled(breakTestContext({ rulesCombo: false }))).toBe(false);
     setLabMode(true);
     const b = startLabBattle({ ...BUILTIN_PRESETS[0]!, enemyId: "catcher" }, true);
     expect(canCallAssist(b).ok).toBe(false);
@@ -55,7 +56,7 @@ describe("§16 labTuning 总开关", () => {
 
   it("rulesCombo on enables assist", () => {
     setLabTuning({ rulesV2: true, rulesCombo: true });
-    expect(isComboRulesEnabled()).toBe(true);
+    expect(isComboRulesEnabled(breakTestContext())).toBe(true);
   });
 });
 

@@ -2084,7 +2084,7 @@ function renderBattle(): string {
   const fieldSchool = battleEquippedSchool(b, b.active);
   // §31.12 助战与同行分家：v2 不再有「叫队友上场」的助战按钮（助战=助战符，同行=换人/光环/组合技）
   const assists =
-    partyMode && isComboRulesEnabled() && !isLabV2()
+    partyMode && isComboRulesEnabled(shellRunContext()) && !isLabV2()
       ? b.bench
           .map((m) => {
             const gate = canCallAssist(b, m.id);
@@ -2100,7 +2100,7 @@ function renderBattle(): string {
           .join("")
       : "";
   const assistBadge =
-    !inGauntlet && !isLabV2() && b.labAssistActive && isComboRulesEnabled()
+    !inGauntlet && !isLabV2() && b.labAssistActive && isComboRulesEnabled(shellRunContext())
       ? (() => {
           const id = b.labAssistActive!;
           const segs = Math.max(1, (b.intents?.length ?? 1) - (b.v2ResolveIntentIdx ?? 0));

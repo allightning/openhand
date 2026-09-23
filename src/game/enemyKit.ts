@@ -286,7 +286,7 @@ export interface KitCtx {
   sigs: EnemySigId[];
 }
 
-export function followFromKit(ctx: KitCtx, prior: Intent, rc: RunContext = contextNow()): Intent {
+export function followFromKit(ctx: KitCtx, prior: Intent, rc: RunContext): Intent {
   const inReach = ctx.dist <= ctx.reach;
   const lowEnergy = ctx.energy <= Math.floor(ctx.energyMax / 3);
   const retreatSteps = ctx.stage >= 5 ? 2 : 1;
@@ -371,7 +371,7 @@ export function chooseFromKit(ctx: KitCtx): Intent {
     }
     return first;
   }
-  return followFromKit(ctx, { kind: "breathe", amount: 3 });
+  return followFromKit(ctx, { kind: "breathe", amount: 3 }, contextNow());
 }
 
 const KIT_REACH: Record<WeaponId, number> = {

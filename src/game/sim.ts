@@ -1058,7 +1058,7 @@ function cardPlaySchoolGate(b: Battle, defId: CardId, rc: RunContext = contextNo
   if (labV2(rc)) {
     const mate = b.bench.find((m) => m.hp > 0 && battleEquippedSchool(b, m.id) === cs);
     if (mate) return { ok: true };
-  } else if (isComboRulesEnabled() && b.labAssistActive) {
+  } else if (isComboRulesEnabled(rc) && b.labAssistActive) {
     const assistSchool = battleEquippedSchool(b, b.labAssistActive);
     if (cs === assistSchool && assistSchool !== fieldSchool) return { ok: true };
   }
@@ -1066,7 +1066,7 @@ function cardPlaySchoolGate(b: Battle, defId: CardId, rc: RunContext = contextNo
 }
 
 export function isComboUnlockCard(b: Battle, defId: CardId, rc: RunContext = contextNow()): boolean {
-  if (!rc.lab || !isComboRulesEnabled() || !b.labAssistActive) return false;
+  if (!rc.lab || !isComboRulesEnabled(rc) || !b.labAssistActive) return false;
   const cs = cardSchool(defId);
   if (cs === "any") return false;
   const fieldSchool = battleEquippedSchool(b, b.active);
@@ -3257,7 +3257,7 @@ function resolveCharge(b: Battle, damage: number, rc: RunContext = contextNow())
       hits = true;
       break;
     }
-    if (isComboRulesEnabled() && b.labAssistPos != null && next === b.labAssistPos) {
+    if (isComboRulesEnabled(rc) && b.labAssistPos != null && next === b.labAssistPos) {
       hitAssist(b, damage, "冲锋 ");
       hits = true;
       break;
@@ -4055,7 +4055,7 @@ export function applyClimbOpeningPositions(b: Battle, rc: RunContext = contextNo
 
 function followIntent(b: Battle, prior: Intent, rc: RunContext = contextNow()): Intent {
   if (rc.lab && usesGeneratedKit(b.enemyId) && b.labEnemyGrade) {
-    return scaleIntent(followFromKit(kitCtx(b), prior));
+    return scaleIntent(followFromKit(kitCtx(b), prior, rc));
   }
   const d = distTo(b);
   // §31.10 距离感知与长兵器只在踢馆线生效；主线行为冻结（reach 视作 1）。
