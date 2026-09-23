@@ -27,6 +27,7 @@ import {
   type GauntletRun,
 } from "./gauntlet";
 import { setLabRuleset } from "./labRuleset";
+import { climbTestContext } from "../game/testContext";
 import { gearById } from "../game/weapons";
 import { renderGauntletResult, renderGauntletRewardPick } from "./gauntletUi";
 import type { WeaponId } from "../game/types";
@@ -536,7 +537,7 @@ describe("§31.13/§31.14 赌馆 · 彩金与下注", () => {
     const tech = stall.find((o) => o.kind === "tech");
     if (tech) expect(buyMarketOffer(run, tech)!.techniques).toContain(tech.id.slice(5));
     const forge = stall.find((o) => o.kind === "forge")!;
-    expect(gearById(buyMarketOffer(run, forge)!.weaponId)!.grade).toBe(2);
+    expect(gearById(buyMarketOffer(run, forge)!.weaponId, climbTestContext())!.grade).toBe(2);
     // 彩金不够 → null
     expect(buyMarketOffer(runWithPot(5), forge)).toBeNull();
   });

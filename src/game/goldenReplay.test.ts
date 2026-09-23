@@ -11,6 +11,7 @@ import { setLabMode } from "./labTuning";
 import { setLabRuleset } from "./labRuleset";
 import { canPlay, endTurn, livingFoes, playCard, setBattleRng, setSegmentProbe } from "./sim";
 import { addStake } from "./stake";
+import { climbTestContext } from "./testContext";
 import type { Battle, CardId } from "./types";
 
 const DIR = dirname(fileURLToPath(import.meta.url));
@@ -208,7 +209,7 @@ function buildCorpus(): Corpus {
     b.energy = 20;
     b.player.pos = 2;
     b.enemy.pos = 5;
-    addStake(b, 3, 1);
+    addStake(b, 3, 1, climbTestContext());
     b.hand = [{ uid: "spl", defId: "split" as CardId }, ...b.hand];
     const before = b.log.length;
     b = playCard(b, "spl");

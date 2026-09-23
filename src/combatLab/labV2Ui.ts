@@ -184,7 +184,7 @@ function segmentHtml(
   const isEye = breakMode && i === eyeIdx && eyeIdx >= 0;
   const previewRow =
     segPreview ??
-    previewIntentSegments(b, [intent], [projectedCells ?? dangerCellsForIntent(b, intent)])[0]!;
+    previewIntentSegments(b, [intent], [projectedCells ?? dangerCellsForIntent(b, intent)], shellRunContext())[0]!;
   const cellsArr = previewRow.threatCells;
   const num = intentOneNumber(b, intent, previewRow);
   const skip = previewRow.tierCode === "劲尽";
@@ -264,7 +264,7 @@ function timelineRow(
 ): string {
   const fire = intentFirePlan(b.enemyEnergy, queue);
   const threat = projected ?? projectedQueueThreat(b);
-  const segPreviews = previewIntentSegments(b, queue, threat);
+  const segPreviews = previewIntentSegments(b, queue, threat, shellRunContext());
   const cards = queue
     .map((intent, i) => {
       if (segFate?.[i] === "gone") return "";

@@ -3,6 +3,7 @@
 import { bossCount } from "./hero";
 import { softUpgradeBlockReason, softUpgradeTarget } from "./economy";
 import type { EnemyId, HeroId, Run } from "./types";
+import { contextNow } from "./runContext";
 import { gearById, nextGrade } from "./weapons";
 
 /** Beat this foe in this scene → scar flag that softens a gate. */
@@ -226,7 +227,7 @@ export function checkBountyOnWin(run: Run, enemyId: EnemyId): { run: Run; payout
         weapon: up,
         weapons: next.weapons.includes(up) ? next.weapons : [...next.weapons, up],
       };
-      return { run: next, payout: `差事结了。兵刃升到「${gearById(up)?.name ?? up}」。` };
+      return { run: next, payout: `差事结了。兵刃升到「${gearById(up, contextNow())?.name ?? up}」。` };
     }
     next = { ...next, silver: (next.silver ?? 0) + 8 };
     return {

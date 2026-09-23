@@ -1,10 +1,11 @@
 import { MATES, canMateLearnSchool } from "./party";
+import { contextNow } from "./runContext";
 import type { Battle, CompanionId, WeaponId } from "./types";
 import { gearById, starterGear } from "./weapons";
 
 export function schoolFromGearId(gearId: string | undefined, fallback: WeaponId): WeaponId {
   if (!gearId) return fallback;
-  return gearById(gearId)?.school ?? fallback;
+  return gearById(gearId, contextNow())?.school ?? fallback;
 }
 
 export function defaultMateGear(mateId: CompanionId, school?: WeaponId): string {
@@ -33,7 +34,7 @@ export function initBattleMateWeapons(b: Battle, weapons: Partial<Record<Compani
 
 /** 兵器 id 须落在角色主/副系之一。 */
 export function canMateEquipGear(mateId: CompanionId, gearId: string): boolean {
-  const school = gearById(gearId)?.school;
+  const school = gearById(gearId, contextNow())?.school;
   if (!school) return false;
   return canMateLearnSchool(mateId, school);
 }
@@ -43,7 +44,7 @@ export function gearIdsForMateSchools(mateId: CompanionId, allGearIds: string[])
   const main: string[] = [];
   const alt: string[] = [];
   for (const id of allGearIds) {
-    const s = gearById(id)?.school;
+    const s = gearById(id, contextNow())?.school;
     if (s === m.weapon) main.push(id);
     else if (s === m.secondFamily) alt.push(id);
   }

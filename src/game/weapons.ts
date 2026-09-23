@@ -187,12 +187,12 @@ function buildAll(): GearWeapon[] {
 export const GEAR_WEAPONS: GearWeapon[] = buildAll();
 
 export function nextGrade(id: string): string | null {
-  const g = gearById(id);
+  const g = gearById(id, contextNow());
   if (!g || g.grade >= 5) return null;
   return `${g.school}-${g.path}-${g.grade + 1}`;
 }
 
-export function gearById(id: string | null | undefined, ctx: RunContext = contextNow()): GearWeapon | null {
+export function gearById(id: string | null | undefined, ctx: RunContext): GearWeapon | null {
   if (!id) return null;
   let base = GEAR_WEAPONS.find((g) => g.id === id) ?? null;
   if (!base) {
@@ -274,7 +274,7 @@ export function pathSkillMods(
   ward?: number;
   note?: string;
 } {
-  const g = typeof idOrGear === "object" && idOrGear ? idOrGear : gearById(idOrGear ?? null);
+  const g = typeof idOrGear === "object" && idOrGear ? idOrGear : gearById(idOrGear ?? null, contextNow());
   if (!g?.skill) return { qiRegen: g?.secondary.qiRegen };
   const sec = g.secondary;
   const base =

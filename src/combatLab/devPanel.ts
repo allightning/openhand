@@ -1,3 +1,4 @@
+import { shellRunContext } from "./shellContext";
 import { cardStatLine } from "../game/cardTextV2";
 import { CARDS, ENEMIES, TECHNIQUES } from "../game/content";
 import {
@@ -307,11 +308,11 @@ function renderFoeGearEditor(): string {
 }
 
 function renderWeaponEditor(): string {
-  const base = gearById(pickWeapon);
+  const base = gearById(pickWeapon, shellRunContext());
   if (!base) return "<p class='muted'>无效兵刃</p>";
   const ov = getContentOverrides().weapons[pickWeapon] ?? {};
   const options = ALL_WEAPON_IDS.map((id) => {
-    const g = gearById(id);
+    const g = gearById(id, shellRunContext());
     return { value: id, label: g ? `${g.name} (${id})` : id };
   });
   return `

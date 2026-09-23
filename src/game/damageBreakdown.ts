@@ -120,7 +120,7 @@ export function damageBreakdown(
     add(parts, "难度", Math.max(1, Math.round(now * youDmg)) - now);
   }
 
-  const g = gearById(b.labGearId);
+  const g = gearById(b.labGearId, ctx);
   add(parts, "兵器", g?.damage ?? 0);
   const mods = pathSkillMods(g, {
     dist,

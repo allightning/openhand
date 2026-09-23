@@ -231,7 +231,7 @@ export function shouldBreakIntent(
 
 /** §31.13 反拆真伤 = 底数 + 场上角色兵器品阶（精3/玄4/神5 → 5/6/7）。 */
 export function breakCounterDamage(b: Battle): number {
-  const grade = gearById(battleMateGearId(b, b.active))?.grade ?? 3;
+  const grade = gearById(battleMateGearId(b, b.active), contextNow())?.grade ?? 3;
   return BREAK_COUNTER_BASE + grade;
 }
 

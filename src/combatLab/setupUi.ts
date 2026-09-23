@@ -1,3 +1,4 @@
+import { shellRunContext } from "./shellContext";
 import { ENEMIES, TECHNIQUES } from "../game/content";
 import { gearIdsForMateSchools, schoolFromGearId } from "../game/equippedWeapon";
 import { computeResonance, type ResonanceStatus } from "../game/labResonance";
@@ -133,7 +134,7 @@ function renderWeaponPick(draft: LabPreset, mateId: CompanionId): string {
   const renderGroup = (_label: string, ids: string[]) =>
     ids
       .map((wid) => {
-        const g = gearById(wid);
+        const g = gearById(wid, shellRunContext());
         if (!g) return "";
         const on = current === wid ? "active" : "";
         return `<button type="button" class="lab-pick-item weapon ${on}" data-pick-weapon="${wid}" data-weapon-mate="${mateId}">
@@ -240,7 +241,7 @@ function renderMateRow(draft: LabPreset, id: CompanionId, focus: PickFocus, focu
   const m = MATES[id];
   const techs = mateTechList(draft, id);
   const weaponId = draft.mateWeapons[id] ?? "";
-  const weaponName = gearById(weaponId)?.name ?? "选兵器";
+  const weaponName = gearById(weaponId, shellRunContext())?.name ?? "选兵器";
   const equippedSchool = schoolFromGearId(weaponId, m.weapon);
   const isField = draft.fieldMate === id;
   const mateFocused = focus === "mates" && focusMate === id;

@@ -1,3 +1,4 @@
+import { shellRunContext } from "./shellContext";
 import { CARDS, TECHNIQUES } from "../game/content";
 import { cardWikiBody, godSkillText, pathSkillText } from "../game/cardTextV2";
 import { MIND_ARTS } from "../game/mindArts";
@@ -50,7 +51,7 @@ function cardRelated(id: CardId): CodexRelated[] {
 }
 
 function weaponRelated(weaponId: string): CodexRelated[] {
-  const g = gearById(weaponId);
+  const g = gearById(weaponId, shellRunContext());
   if (!g) return [];
   return ALL_CARD_IDS.filter((id) => CARDS[id]?.school === g.school)
     .slice(0, 10)

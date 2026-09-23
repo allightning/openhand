@@ -764,7 +764,7 @@ export function weakenLabOpeningQueue(b: Battle, rc: RunContext = contextNow()):
 function setupBattle(b: Battle): void {
   if (hasTech(b, "heelStake")) {
     const at = 1;
-    if (!occupied(b, at)) addStake(b, at, 2);
+    if (!occupied(b, at)) addStake(b, at, 2, contextNow());
   }
   hardenFoe(b);
   if (isClimbQi()) climbDrawRound(b, true);
@@ -1495,7 +1495,7 @@ function hitEnemy(b: Battle, raw: number, verb: string, spendCharge = true, rc: 
     b.youDust = 0;
     if (mistDist > 1) return ["迷眼：隔位打空"];
   }
-  const gear = gearById(battleGearId);
+  const gear = gearById(battleGearId, rc);
   let dmg = raw + (gear?.damage ?? 0);
   const notes: string[] = [];
   const dist = Math.abs(b.player.pos - foe.pos);
@@ -2046,7 +2046,7 @@ function applyCard(b: Battle, defId: CardId, rc: RunContext = contextNow()): str
     const at = b.player.pos + towardDir(b.player.pos, foe.pos);
     if (climbStakeBehindFoe(b, at)) notes.push("敌身后落不下");
     else if (at >= 0 && at < BOARD_SIZE && !occupied(b, at)) {
-      addStake(b, at, playerPlantHits(battleEquippedSchool(b, b.active)));
+      addStake(b, at, playerPlantHits(battleEquippedSchool(b, b.active)), rc);
       notes.push(`桩落在第 ${at + 1} 步`);
     } else notes.push("身前落不下");
     return notes;
@@ -2551,7 +2551,7 @@ function applyCard(b: Battle, defId: CardId, rc: RunContext = contextNow()): str
     const at = b.player.pos + towardDir(b.player.pos, foe.pos);
     if (climbStakeBehindFoe(b, at)) notes.push("敌身后落不下");
     else if (at >= 0 && at < BOARD_SIZE && !occupied(b, at)) {
-      addStake(b, at, playerPlantHits(battleEquippedSchool(b, b.active)));
+      addStake(b, at, playerPlantHits(battleEquippedSchool(b, b.active)), rc);
       notes.push(`桩落在第 ${at + 1} 步`);
     } else notes.push("身前落不下");
   }
@@ -2950,7 +2950,7 @@ export function summonAssist(b: Battle, school: WeaponId, pos: number, rc: RunCo
   if (b.labSummon && b.labSummon.hp > 0) return b;
   if (!legalSummonCells(b).includes(pos)) return b;
   const def = SUMMON_DEFS[school];
-  const gear = gearById(battleMateGearId(b, b.active));
+  const gear = gearById(battleMateGearId(b, b.active), rc);
   const grade = gear?.grade ?? 3;
   const maxHp = def.hp(grade);
   const next = cloneBattle(b);
@@ -3299,7 +3299,7 @@ function resolveStake(b: Battle): void {
   const at = b.enemy.pos + dir;
   if (at >= 0 && at < BOARD_SIZE && !occupied(b, at, b.enemy.id)) {
     const school = ENEMY_WEAPON[b.enemyId];
-    addStake(b, at, enemyPlantHits(school, b.labEnemyGrade));
+    addStake(b, at, enemyPlantHits(school, b.labEnemyGrade), contextNow());
     b.log.push(`${b.enemy.name}落了一根桩。`);
     return;
   }
@@ -3563,7 +3563,7 @@ function resolveSignature(b: Battle, id: string): void {
     if (id === "staff-circle") {
       const extra = b.enemy.pos + towardDir(b.enemy.pos, b.player.pos);
       if (extra >= 0 && extra < BOARD_SIZE && !b.stakes.includes(extra)) {
-        addStake(b, extra, enemyPlantHits(ENEMY_WEAPON[b.enemyId], b.labEnemyGrade));
+        addStake(b, extra, enemyPlantHits(ENEMY_WEAPON[b.enemyId], b.labEnemyGrade), contextNow());
       }
     }
     note(b, "foe", `${b.enemy.name}使出${label}。`);

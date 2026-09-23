@@ -1,3 +1,4 @@
+import { shellRunContext } from "./shellContext";
 import { CARDS, ENEMIES, TECHNIQUES } from "../game/content";
 import { tierFx } from "../game/labResonance";
 import { MATES, ROLE_LABEL, WEAPON_NAME } from "../game/party";
@@ -530,7 +531,7 @@ export function renderGauntletResult(run: GauntletRun, elapsedSec: number, bankr
         <span data-tip="从选系到结算">用时 ${timeStr}</span>
         <span data-tip="localStorage · openhand-gauntlet-best">历史最佳 ${best ? `${best.streak} 馆 / 彩金 ${best.pot ?? 0}` : "—"}</span>
         <span data-tip="${escapeAttr(WEAPON_NAME[run.school])} 系起手脚">系别 ${escapeHtml(WEAPON_NAME[run.school])}</span>
-        <span data-tip="本局兵刃最终品阶">兵器 ${escapeHtml(gearById(run.weaponId)?.name ?? run.weaponId)}</span>
+        <span data-tip="本局兵刃最终品阶">兵器 ${escapeHtml(gearById(run.weaponId, shellRunContext())?.name ?? run.weaponId)}</span>
       </div>
       <div class="gauntlet-result-actions">
         <button type="button" class="lab-btn primary large" id="gauntlet-retry">再来一局</button>
@@ -735,7 +736,7 @@ export function renderGauntletLoadout(
     return `<div class="gauntlet-stash-slot" data-drop="stash">${card}</div>`;
   });
   const weaponId = run.mateWeapons?.[focus] ?? run.weaponId;
-  const gear = gearById(weaponId);
+  const gear = gearById(weaponId, shellRunContext());
   const weaponHtml = gear
     ? `<button type="button" class="card skill gauntlet-camp-card gauntlet-loadout-card gauntlet-loadout-weapon" data-weapon-open="${escapeAttr(weaponId)}" data-tip="${escapeAttr(`${gear.name} · ${gear.tip}`)}">
         <div class="art">${weaponArt(weaponId)}</div>

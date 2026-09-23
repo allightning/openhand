@@ -4,6 +4,7 @@ import { economyLoopNote, SOFT_GRADE_CAP } from "./economy";
 import { bountyTarget, bountyWhere } from "./hooks";
 import { ENEMIES } from "./content";
 import type { HeroId, Run } from "./types";
+import { contextNow } from "./runContext";
 import { gearById } from "./weapons";
 
 function enemyLabel(id: string): string {
@@ -264,7 +265,7 @@ export function questLog(run: Run): QuestLog {
   sides.push(...brandSides(run, shut));
 
   if (!shut && has(run, "branded")) {
-    const g = gearById(run.weapon);
+    const g = gearById(run.weapon, contextNow());
     const grade = g?.grade ?? 1;
     if (grade < 5) {
       sides.push(

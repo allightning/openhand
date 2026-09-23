@@ -202,7 +202,7 @@ export function variantActiveLabel(def: CardDef, b: Battle): string | null {
 export function climbAttackFaceDamage(b: Battle, def: CardDef): number {
   let dmg = def.damage ?? 0;
   dmg += b.nextDamage;
-  const g = gearById(b.labGearId);
+  const g = gearById(b.labGearId, contextNow());
   if (g) dmg += g.damage ?? 0;
   if (b.active === "ananhuo") {
     const dist = Math.abs(b.player.pos - b.enemy.pos);

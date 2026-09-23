@@ -1,6 +1,7 @@
 /** Weapon 立绘 — AI ink plates per school (like character stands), named in UI. */
 
 import { gearById, type GearWeapon } from "../game/weapons";
+import { contextNow } from "../game/runContext";
 import { WEAPON_NAME } from "../game/party";
 import type { WeaponId } from "../game/types";
 import { artUrl } from "./artUrl";
@@ -20,7 +21,7 @@ export function weaponSrc(school: WeaponId): string {
 
 /** Tall plate: PNG 立绘 + grade seal. Readable at a glance. */
 export function weaponArt(id: string | null | undefined): string {
-  const g = gearById(id);
+  const g = gearById(id, contextNow());
   if (!g) {
     return `<span class="weapon-art weapon-art-empty" aria-hidden="true"></span>`;
   }
@@ -28,7 +29,7 @@ export function weaponArt(id: string | null | undefined): string {
 }
 
 export function weaponArtMarkup(id: string | null | undefined, opts?: { title?: string; button?: boolean }): string {
-  const g = gearById(id);
+  const g = gearById(id, contextNow());
   const tip = opts?.title ?? (g ? `${g.name} · ${g.tip}` : "");
   const art = weaponArt(id);
   const caption = g ? `<b class="weapon-caption">${g.name}</b>` : "";
@@ -39,7 +40,7 @@ export function weaponArtMarkup(id: string | null | undefined, opts?: { title?: 
 }
 
 export function weaponDetail(id: string): { name: string; school: string; tip: string; text: string } | null {
-  const g = gearById(id);
+  const g = gearById(id, contextNow());
   if (!g) return null;
   const bits = [
     `伤 +${g.damage}`,

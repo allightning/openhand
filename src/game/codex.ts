@@ -1,6 +1,7 @@
 import { CARDS, TECHNIQUES } from "./content";
 import { WEAPON_NAME } from "./party";
 import type { CardId, Run, TechniqueId } from "./types";
+import { contextNow } from "./runContext";
 import { GEAR_WEAPONS, gearById, type GearWeapon } from "./weapons";
 
 /** 三本：明注 / 兵籍 / 势录 — 烫印后由账房发给，顶栏才出现。 */
@@ -270,12 +271,12 @@ export function upgradeCompareLine(from: CardId, to: CardId): string {
 export function ownedWeaponIds(run: Run): Set<string> {
   const set = new Set<string>();
   for (const id of run.weapons ?? []) {
-    const g = gearById(id);
+    const g = gearById(id, contextNow());
     if (g) set.add(g.id);
     else set.add(id);
   }
   if (run.weapon) {
-    const g = gearById(run.weapon);
+    const g = gearById(run.weapon, contextNow());
     if (g) set.add(g.id);
   }
   return set;

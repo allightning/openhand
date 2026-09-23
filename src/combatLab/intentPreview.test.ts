@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { previewIntentSegments } from "../game/intentPreview";
+import { climbTestContext } from "../game/testContext";
 import { projectedQueueThreat } from "../game/sim";
 import type { Battle, Intent } from "../game/types";
 import { setLabMode } from "../game/labTuning";
@@ -107,7 +108,7 @@ describe("intentPreview", () => {
       enemyEnergy: 4,
       v2Turn: { turnStartPos: 2, endPos: 2, turnStartHand: 5 },
     });
-    const prev = previewIntentSegments(b, queue, projectedQueueThreat(b));
+    const prev = previewIntentSegments(b, queue, projectedQueueThreat(b), climbTestContext());
     expect(prev[0]!.tierCode).toBe("");
     expect(prev[0]!.fate).toBe("self");
   });
@@ -123,7 +124,7 @@ describe("intentPreview", () => {
       intent: queue[0]!,
       v2Turn: { turnStartPos: 2, endPos: 1, turnStartHand: 5 },
     });
-    const prev = previewIntentSegments(b, queue, projectedQueueThreat(b));
+    const prev = previewIntentSegments(b, queue, projectedQueueThreat(b), climbTestContext());
     expect(prev[0]!.tierCode).toBe("空");
   });
 });

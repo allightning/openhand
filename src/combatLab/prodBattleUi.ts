@@ -250,7 +250,7 @@ export function renderHoverPreview(b: Battle, prev: Preview | null): string {
 }
 
 function weaponPlate(id: string, _side: "you" | "foe"): string {
-  const g = gearById(id);
+  const g = gearById(id, shellRunContext());
   const tip = g ? `${g.name} · ${g.tip}（点开细看）` : "兵刃";
   return weaponArtMarkup(id, { button: true }).replace(
     'class="weapon-plate"',

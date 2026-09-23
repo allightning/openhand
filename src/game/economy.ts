@@ -14,6 +14,7 @@ import type { BagGoodsId } from "./bag";
 import { BAG_NAME, bagCount } from "./bag";
 import { stageOfScene, stageSilver, type Stage } from "./progress";
 import type { CompanionId, EnemyId, Reward, Run } from "./types";
+import { contextNow } from "./runContext";
 import { gearById, nextGrade } from "./weapons";
 
 export type PillTier = "fan" | "liang" | "xuan";
@@ -239,13 +240,13 @@ export function matchForgeNeed(run: Run, grade: number): Partial<Record<BagGoods
 export const SOFT_GRADE_CAP = 2;
 
 export function softUpgradeTarget(weaponId: string): string | null {
-  const g = gearById(weaponId);
+  const g = gearById(weaponId, contextNow());
   if (!g || g.grade >= SOFT_GRADE_CAP) return null;
   return nextGrade(weaponId);
 }
 
 export function softUpgradeBlockReason(weaponId: string): string {
-  const g = gearById(weaponId);
+  const g = gearById(weaponId, contextNow());
   if (!g) return "认不出这柄刃。";
   if (g.grade >= 5) return "成色到顶了。砂坑也淬不动。";
   if (g.grade >= SOFT_GRADE_CAP) {

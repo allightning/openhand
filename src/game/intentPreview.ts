@@ -1,5 +1,5 @@
 import { intentEnergyCost } from "./labEnemyStress";
-import { contextNow, type RunContext } from "./runContext";
+import type { RunContext } from "./runContext";
 import { intentIncoming } from "./sim";
 import type { Battle, Intent } from "./types";
 
@@ -35,7 +35,7 @@ export function previewIntentSegments(
   b: Battle,
   queue: Intent[],
   projectedCells: number[][],
-  ctx: RunContext = contextNow(),
+  ctx: RunContext,
 ): IntentSegmentPreview[] {
   const aimPos = ctx.caps.intent.aimAtTurnStart
     ? (b.v2Turn?.turnStartPos ?? b.player.pos)

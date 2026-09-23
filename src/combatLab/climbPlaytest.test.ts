@@ -159,9 +159,9 @@ describe("爬塔试玩默认 2026-09-17", () => {
 
   it("桩帽 2", () => {
     const b = climbBattle();
-    expect(addStake(b, 1, 1)).toBe(true);
-    expect(addStake(b, 2, 1)).toBe(true);
-    expect(addStake(b, 3, 1)).toBe(false);
+    expect(addStake(b, 1, 1, climbTestContext())).toBe(true);
+    expect(addStake(b, 2, 1, climbTestContext())).toBe(true);
+    expect(addStake(b, 3, 1, climbTestContext())).toBe(false);
     expect(b.stakes).toHaveLength(2);
   });
 });
