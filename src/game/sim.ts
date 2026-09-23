@@ -20,7 +20,7 @@ import {
 import { resonancePaceBonus, staffBlockRetain } from "./labResonance";
 import { tickSignatureCooldown } from "./labSignature";
 import { makeRun } from "./run";
-import { isLabMode, isLabV2, labAiAllowsReaction, labPaceBias, resolveFightScale, getLabTuning } from "./labTuning";
+import { isLabMode, isLabV2, labAiAllowsReaction, labPaceBias, resolveFightScale } from "./labTuning";
 import {
   drainPendingStress,
   enemyRoundBudgetCap,
@@ -3043,12 +3043,12 @@ export function chargePath(b: Battle): number[] {
   return path;
 }
 
-function dangerCellsForIntentOnly(b: Battle, intent: Intent): number[] {
+function dangerCellsForIntentOnly(b: Battle, intent: Intent, rc: RunContext = contextNow()): number[] {
   // §31.9 打击/抢步的红格锁定在「回合开始你站的那一格/那一条线」——出红格才算拆，红圈不再追着你跑。
   const lockPos = intentLockPos(b);
   if (intent.kind === "strike") {
     // §31.14 打击红格 = 身前兵刃覆盖（身后打不到；显示与结算同一公式）
-    if (isLabV2()) return facingReachCells(b.enemy.pos, lockPos, enemyReach(b));
+    if (labV2(rc)) return facingReachCells(b.enemy.pos, lockPos, enemyReach(b));
     return [lockPos];
   }
   if (intent.kind === "charge") {
@@ -3058,7 +3058,7 @@ function dangerCellsForIntentOnly(b: Battle, intent: Intent): number[] {
     b.intent = saved;
     // §31.12 红格必须覆盖所有能打到你的格子：冲锋终点（或原地）的兵刃覆盖圈也算——
     // 否则「红格不在我这儿却被打到」（终点贴脸判定在结算里是有的，显示上漏了）。
-    if (isLabV2()) {
+    if (labV2(rc)) {
       const end = path.length ? path[path.length - 1]! : b.enemy.pos;
       const set = new Set(path);
       for (const c of facingReachCells(end, lockPos, enemyReach(b))) set.add(c);
@@ -3072,7 +3072,7 @@ function dangerCellsForIntentOnly(b: Battle, intent: Intent): number[] {
   }
   if (intent.kind === "trap") return [b.player.pos];
   if (intent.kind === "lunge") {
-    if (!isLabV2()) {
+    if (!labV2(rc)) {
       const dir = towardDir(b.enemy.pos, lockPos);
       const step = b.enemy.pos + dir;
       if (Math.abs(b.enemy.pos - lockPos) === 1 || step === lockPos) return [lockPos];
@@ -3102,12 +3102,12 @@ function dangerCellsForIntentOnly(b: Battle, intent: Intent): number[] {
   if (intent.kind === "swap" && adjacent(b)) return [b.player.pos, b.enemy.pos];
   if (intent.kind === "barrage") {
     // §31.14 连打：红格 = 身前兵刃覆盖（收势跑出圈 / 到身后 = 全落空）
-    if (isLabV2()) return facingReachCells(b.enemy.pos, lockPos, enemyReach(b));
+    if (labV2(rc)) return facingReachCells(b.enemy.pos, lockPos, enemyReach(b));
     return [b.player.pos];
   }
   if (intent.kind === "bleedcut" || intent.kind === "seal" || intent.kind === "shatter") return [b.player.pos];
   if (intent.kind === "pestle" || (intent.kind === "sig" && (intent.damage ?? 0) > 0)) {
-    if (isLabV2()) return facingReachCells(b.enemy.pos, lockPos, enemyReach(b));
+    if (labV2(rc)) return facingReachCells(b.enemy.pos, lockPos, enemyReach(b));
     return [lockPos];
   }
   if (intent.kind === "retreat") {
@@ -3125,8 +3125,8 @@ export function dangerCellsForIntent(b: Battle, intent: Intent): number[] {
   return cells;
 }
 
-export function dangerCells(b: Battle): number[] {
-  if (isLabV2()) return [...new Set(projectedQueueThreat(b).flat())];
+export function dangerCells(b: Battle, rc: RunContext = contextNow()): number[] {
+  if (labV2(rc)) return [...new Set(projectedQueueThreat(b).flat())];
   return dangerCellsForIntentOnly(b, b.intent);
 }
 
@@ -3151,8 +3151,8 @@ export function projectedQueueThreat(b: Battle): number[][] {
 }
 
 /** 与 resolveLunge/resolveCharge/resolveSwap 的走位同公式（只挪投影、不出伤）。 */
-function advanceThreatProjection(b: Battle, intent: Intent): void {
-  if (!isLabV2()) return;
+function advanceThreatProjection(b: Battle, intent: Intent, rc: RunContext = contextNow()): void {
+  if (!labV2(rc)) return;
   if (intent.kind === "lunge") {
     const lockPos = intentLockPos(b);
     if ((b.foeRootTurns ?? 0) <= 0 && Math.abs(b.enemy.pos - lockPos) > 1) {
@@ -3209,7 +3209,7 @@ function chaseCellsFromLand(land: number): number[] {
  * 与 hitPlayer 同一套算法——缴械减半 → 鏖战加伤 → 滞手/醉态/礼数。
  * 返回 total 与逐项拆解，UI 显示 total，悬停给 parts。
  */
-export function intentIncoming(b: Battle, intent: Intent): { total: number; parts: string[] } {
+export function intentIncoming(b: Battle, intent: Intent, rc: RunContext = contextNow()): { total: number; parts: string[] } {
   if (!("damage" in intent) || !(intent.damage ?? 0)) return { total: 0, parts: [] };
   let raw = intent.damage ?? 0;
   const parts: string[] = [`基础 ${raw}`];
@@ -3217,7 +3217,7 @@ export function intentIncoming(b: Battle, intent: Intent): { total: number; part
     raw = Math.max(1, Math.floor(raw / 2));
     parts.push(`缴械减半 → ${raw}`);
   }
-  const grudge = isLabV2() ? (b.v2GrudgeBonus ?? 0) : 0;
+  const grudge = labV2(rc) ? (b.v2GrudgeBonus ?? 0) : 0;
   if (grudge) parts.push(`鏖战 +${grudge}`);
   let total = raw + grudge;
   if (b.frail > 0) {
@@ -3359,8 +3359,8 @@ function resolveSwap(b: Battle): void {
   }
 }
 
-function resolveAllIntents(b: Battle): void {
-  if (isLabV2()) {
+function resolveAllIntents(b: Battle, rc: RunContext = contextNow()): void {
+  if (labV2(rc)) {
     simV2ResolveIntentQueue(b, (intent, idx) => {
       // §31.12 拳助嘲讽：在场时敌第一段攻击只认铁牛——替你挡下且算你拆。
       const sm = b.labSummon;
@@ -3406,11 +3406,11 @@ function resolveAllIntents(b: Battle): void {
   }
 }
 
-function resolveIntent(b: Battle): void {
+function resolveIntent(b: Battle, rc: RunContext = contextNow()): void {
   const intent = b.intent;
   if (intent.kind === "strike") {
     // §31.14 打击按身前兵刃结算：够不着或在身后 = 劈空（与红格同一公式）
-    if (isLabV2() && !enemyCanHitPlayerPos(b, b.player.pos)) {
+    if (labV2(rc) && !enemyCanHitPlayerPos(b, b.player.pos)) {
       b.log.push(`${b.enemy.name}劈了个空。`);
       b.journal.push({ side: "you", text: "他劈空了" });
     } else {
@@ -3442,7 +3442,7 @@ function resolveIntent(b: Battle): void {
   else if (intent.kind === "lunge") resolveLunge(b, intent.damage);
   else if (intent.kind === "barrage") {
     // §31.14 连打守身前兵刃：跑出圈或到身后 = 全落空
-    if (isLabV2() && !enemyCanHitPlayerPos(b, b.player.pos)) {
+    if (labV2(rc) && !enemyCanHitPlayerPos(b, b.player.pos)) {
       b.log.push(`${b.enemy.name}连打够不着你，全落空。`);
       b.journal.push({ side: "you", text: "连打落空" });
     } else {
@@ -3457,7 +3457,7 @@ function resolveIntent(b: Battle): void {
     const gained = b.enemyBlock - before;
     note(b, "foe", `${b.enemy.name}架住了 ${gained}${b.enemyBlock >= ENEMY_BLOCK_CAP ? "（已顶满）" : ""}。`);
   } else if (intent.kind === "bleedcut") {
-    if (isLabV2() && !enemyCanHitPlayerPos(b, b.player.pos)) {
+    if (labV2(rc) && !enemyCanHitPlayerPos(b, b.player.pos)) {
       b.log.push(`${b.enemy.name}刀创够不着。`);
       b.journal.push({ side: "you", text: "刀创落空" });
     } else {
@@ -3493,7 +3493,7 @@ function resolveIntent(b: Battle): void {
     b.enemyEnergy = Math.min(b.enemyEnergyMax, b.enemyEnergy + intent.amount);
     note(b, "foe", `${b.enemy.name}吐纳，敌劲 ${before}→${b.enemyEnergy}。`);
   } else if (intent.kind === "shatter") {
-    if (isLabV2() && !enemyCanHitPlayerPos(b, b.player.pos)) {
+    if (labV2(rc) && !enemyCanHitPlayerPos(b, b.player.pos)) {
       b.log.push(`${b.enemy.name}裂盾够不着。`);
     } else {
       const before = b.playerBlock;
@@ -3504,7 +3504,7 @@ function resolveIntent(b: Battle): void {
   } else if (intent.kind === "retreat") {
     resolveRetreat(b, intent.steps);
   } else if (intent.kind === "pestle") {
-    if (isLabV2() && !enemyCanHitPlayerPos(b, b.player.pos)) {
+    if (labV2(rc) && !enemyCanHitPlayerPos(b, b.player.pos)) {
       b.log.push(`${b.enemy.name}韦陀杵打空。`);
     } else {
       hitPlayer(b, intent.damage, "韦陀杵 ");
@@ -3684,8 +3684,8 @@ export function applyLabEnemyKit(b: Battle, role: "main" | "extra" = "main", rc:
   if (yourPace(b) < b.foePace) weakenLabOpeningQueue(b);
 }
 
-function honestifyQueue(b: Battle, planned: Intent[]): Intent[] {
-  if (!isLabMode() || (b.labGauntletStage ?? 1) < 5) return planned.slice();
+function honestifyQueue(b: Battle, planned: Intent[], rc: RunContext = contextNow()): Intent[] {
+  if (!rc.lab || (b.labGauntletStage ?? 1) < 5) return planned.slice();
   const fire = intentFirePlan(b.enemyEnergy, planned);
   return planned.map((it, i) => (fire[i]?.skip ? { kind: "guard" as const, block: 6 } : it));
 }
@@ -3777,7 +3777,7 @@ function chooseIntent(b: Battle): Intent {
   return simV2ChooseIntent(b, scaleIntent(pickIntent(b)));
 }
 
-function pickIntent(b: Battle): Intent {
+function pickIntent(b: Battle, rc: RunContext = contextNow()): Intent {
   const def = labEnemy(b.enemyId);
   const d = distTo(b);
   if (def.id === "delay") {
@@ -3795,7 +3795,7 @@ function pickIntent(b: Battle): Intent {
       if (labAiAllowsReaction(reacted.kind, defensive)) return reacted;
     }
   }
-  if (isLabMode() && usesGeneratedKit(def.id) && b.labEnemyGrade) return chooseFromKit(kitCtx(b));
+  if (rc.lab && usesGeneratedKit(def.id) && b.labEnemyGrade) return chooseFromKit(kitCtx(b));
   if (def.id === "catcher") {
     if (b.playerBlock >= 12 && d === 1) return { kind: "barrage", damage: 9, hits: 2 };
     if (b.playerBlock >= 8 && d > 1) return { kind: "lunge", damage: 15 };
@@ -3946,9 +3946,10 @@ export function facingReachCells(origin: number, faceToward: number, reach: numb
 }
 
 /** 读招：锁定回合开始格；爬塔：跟收势位/现位。 */
-function intentLockPos(b: Battle): number {
-  if (!isLabV2()) return b.player.pos;
-  if (isBreakAlign()) return b.v2Turn?.turnStartPos ?? b.player.pos;
+function intentLockPos(b: Battle, rc: RunContext = contextNow()): number {
+  if (!labV2(rc)) return b.player.pos;
+  // 旧核选路，阶段3沉 engine/break，勿仿此新增
+  if (rc.ruleset.mode === "break") return b.v2Turn?.turnStartPos ?? b.player.pos;
   return b.v2Turn?.endPos ?? b.player.pos;
 }
 
@@ -4049,17 +4050,18 @@ export function applyClimbOpeningPositions(b: Battle, rc: RunContext = contextNo
   syncFront(b);
 }
 
-function followIntent(b: Battle, prior: Intent): Intent {
-  if (isLabMode() && usesGeneratedKit(b.enemyId) && b.labEnemyGrade) {
+function followIntent(b: Battle, prior: Intent, rc: RunContext = contextNow()): Intent {
+  if (rc.lab && usesGeneratedKit(b.enemyId) && b.labEnemyGrade) {
     return scaleIntent(followFromKit(kitCtx(b), prior));
   }
   const d = distTo(b);
   // §31.10 距离感知与长兵器只在踢馆线生效；主线行为冻结（reach 视作 1）。
-  const reach = isLabMode() ? enemyReach(b) : 1;
+  const reach = rc.lab ? enemyReach(b) : 1;
   const inReach = d <= reach;
   const approachOr = (melee: Intent): Intent => {
-    if (!isLabMode() || inReach) return melee;
-    if (isBreakAlign()) return { kind: "lunge", damage: 12 };
+    if (!rc.lab || inReach) return melee;
+    // 旧核选路，阶段3沉 engine/break，勿仿此新增
+    if (rc.ruleset.mode === "break") return { kind: "lunge", damage: 12 };
     return pickApproachFromBattle(b);
   };
   let next: Intent;
@@ -4072,12 +4074,12 @@ function followIntent(b: Battle, prior: Intent): Intent {
   else if (prior.kind === "shatter") next = inReach ? { kind: "strike", damage: 15 } : approachOr({ kind: "strike", damage: 15 });
   else if (prior.kind === "charge" || prior.kind === "pull" || prior.kind === "advance") next = approachOr({ kind: "strike", damage: 12 });
   else if (prior.kind === "strike" || prior.kind === "lunge" || prior.kind === "barrage") {
-    if (isLabMode() && isBreakAlign()) {
+    if (rc.lab && rc.ruleset.mode === "break") {
       if (b.enemyEnergy <= Math.floor(b.enemyEnergyMax / 3)) next = { kind: "breathe", amount: 3 };
       else if (b.turn % 2 === 0) next = { kind: "guard", block: 8 };
       else if (b.turn % 3 === 0 && b.enemy.hp < b.enemy.maxHp) next = { kind: "mend", heal: 6 };
       else next = inReach ? { kind: "strike", damage: 12 } : { kind: "lunge", damage: 12 };
-    } else if (isLabMode() && getLabTuning().enemySegAll) {
+    } else if (rc.lab && rc.tuning.enemySegAll) {
       // §31.6 踢馆线：攻击段密度优先，水段（卸力/吐纳）只在固定节拍出现——拆招频率靠攻击段数量撑起来
       if (b.turn % 3 === 0 && b.enemyBlock < 6) next = { kind: "guard", block: 8 };
       else next = inReach ? { kind: "strike", damage: 12 } : { kind: "lunge", damage: 12 };
@@ -4089,16 +4091,16 @@ function followIntent(b: Battle, prior: Intent): Intent {
   else if (isClimbQi()) next = pickApproachFromBattle(b);
   else if (d >= 3) next = { kind: "lunge", damage: 11 };
   // §31.10 踢馆线：隔 1 格（d=2 且够不着）不再缩架势，直接抢步逼近——「打不到就移动直到打到」
-  else if (isLabMode()) next = { kind: "lunge", damage: 11 };
+  else if (rc.lab) next = { kind: "lunge", damage: 11 };
   else next = { kind: "guard", block: 6 };
   return scaleIntent(next);
 }
 
 /** §31.14 单回合攻击总伤总督（踢馆线）：不拆不躲全吃的伤害 ≤ 玩家气血上限 × ratio。
  * 保留最大的一段攻招（大招可读可拆），尾部攻招转成守势——段数不变，不再满血秒。 */
-export function applyTurnDamageGovernor(b: Battle, queue: Intent[]): void {
-  if (!isLabV2()) return;
-  const ratio = getLabTuning().enemyTurnCapRatio;
+export function applyTurnDamageGovernor(b: Battle, queue: Intent[], rc: RunContext = contextNow()): void {
+  if (!labV2(rc)) return;
+  const ratio = rc.tuning.enemyTurnCapRatio;
   if (!ratio || ratio <= 0) return;
   const potential = (it: Intent): number => {
     if (it.kind === "barrage") return it.damage * it.hits;
@@ -4142,13 +4144,14 @@ function planFromFirst(b: Battle, first: Intent): void {
   }
 }
 
-function planFromFirstAtPos(b: Battle, first: Intent): void {
+function planFromFirstAtPos(b: Battle, first: Intent, rc: RunContext = contextNow()): void {
   // §31.10 够不着不出贴身招：起手段是近战攻击但距离不够 → 换成逼近段。
-  if (isLabMode() && isMeleeIntent(first) && distTo(b) > enemyReach(b)) {
-    first = isBreakAlign() ? { kind: "lunge", damage: 11 } : pickApproachFromBattle(b);
+  if (rc.lab && isMeleeIntent(first) && distTo(b) > enemyReach(b)) {
+    // 旧核选路，阶段3沉 engine/break，勿仿此新增
+    first = rc.ruleset.mode === "break" ? { kind: "lunge", damage: 11 } : pickApproachFromBattle(b);
   }
   const planned: Intent[] = [first];
-  if (isLabMode()) advanceThreatProjection(b, first);
+  if (rc.lab) advanceThreatProjection(b, first);
   const budgetCap = enemyRoundBudgetCap(b);
   let budget = Math.max(0, budgetCap - intentCost(first));
   let last = first;
@@ -4157,11 +4160,11 @@ function planFromFirstAtPos(b: Battle, first: Intent): void {
   while (budget > 0 && guard < 8) {
     guard += 1;
     let next = followIntent(b, last);
-    if (isLabMode() && isMeleeIntent(next) && distTo(b) > enemyReach(b)) {
+    if (rc.lab && isMeleeIntent(next) && distTo(b) > enemyReach(b)) {
       next =
         last.kind === "retreat"
           ? { kind: "breathe", amount: 3 }
-          : isBreakAlign()
+          : rc.ruleset.mode === "break"
             ? { kind: "lunge", damage: 11 }
             : pickApproachFromBattle(b);
     }
@@ -4175,8 +4178,8 @@ function planFromFirstAtPos(b: Battle, first: Intent): void {
       if (heavyUsed) {
         next =
           budget >= 1
-            ? isLabMode() && distTo(b) > enemyReach(b)
-              ? isBreakAlign()
+            ? rc.lab && distTo(b) > enemyReach(b)
+              ? rc.ruleset.mode === "break"
                 ? { kind: "lunge", damage: 11 }
                 : pickApproachFromBattle(b)
               : { kind: "strike", damage: 11 }
@@ -4196,23 +4199,23 @@ function planFromFirstAtPos(b: Battle, first: Intent): void {
     planned.push(next);
     budget -= cost;
     last = next;
-    if (isLabMode()) advanceThreatProjection(b, next);
+    if (rc.lab) advanceThreatProjection(b, next);
   }
   if (
-    isLabMode() &&
-    (isBossEnemy(b.enemyId) || isEliteEnemy(b.enemyId) || getLabTuning().enemySegAll) &&
+    rc.lab &&
+    (isBossEnemy(b.enemyId) || isEliteEnemy(b.enemyId) || rc.tuning.enemySegAll) &&
     !planned.some(isAttackIntent) &&
     budgetCap >= 1
   ) {
     // §31.10 兜底攻击也守距离：够不着就逼近，不远距离空挥送拆。
     planned.push(
       scaleIntent(
-        distTo(b) <= enemyReach(b) ? { kind: "strike", damage: 12 } : isBreakAlign() ? { kind: "lunge", damage: 12 } : pickApproachFromBattle(b),
+        distTo(b) <= enemyReach(b) ? { kind: "strike", damage: 12 } : rc.ruleset.mode === "break" ? { kind: "lunge", damage: 12 } : pickApproachFromBattle(b),
       ),
     );
   }
   // §31.14 应激「下一手」入场：带着应签进队尾，吃同一个总督。
-  if (isLabV2()) {
+  if (labV2(rc)) {
     // 队列重排，应签索引随旧队列作废——每手从空表重建
     b.v2StressMeta = [];
     const drained = drainPendingStress(b);
@@ -4226,13 +4229,13 @@ function planFromFirstAtPos(b: Battle, first: Intent): void {
     }
   }
   const honest = honestifyQueue(b, planned);
-  if (isLabV2()) applyTurnDamageGovernor(b, honest);
+  if (labV2(rc)) applyTurnDamageGovernor(b, honest);
   b.intents = honest.length ? honest : [{ kind: "guard", block: 6 }];
   b.intent = b.intents[0]!;
-  if (isLabMode()) {
+  if (rc.lab) {
     b.v2FoeSegments = (b.v2FoeSegments ?? 0) + planned.length;
     // §31.8 v3：每手套路定招眼（起手第一个可硬拆的攻击段）。
-    b.v2EyeIdx = isLabV2() && isBreakAlign() ? planEyeIdx(planned) : -1;
+    b.v2EyeIdx = labV2(rc) && rc.ruleset.mode === "break" ? planEyeIdx(planned) : -1;
     if (b.labHallLaw === "earlyEye") b.v2EyeIdx = 0;
   }
 }
