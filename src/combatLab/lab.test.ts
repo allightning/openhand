@@ -13,6 +13,7 @@ import { normalizePreset } from "./draft";
 import { escapeHtml } from "./setupUi";
 import { clearEntityOverride, setContentOverride } from "../game/labContentOverrides";
 import { labEnemy } from "../game/labContent";
+import { breakTestContext } from "../game/testContext";
 import type { LabPreset } from "./types";
 import { labCanPlay, labSwapFighter } from "./labCombat";
 import { setLabMode, setLabTuning } from "../game/labTuning";
@@ -128,7 +129,7 @@ describe("Combat Lab entry smoke", () => {
   it("content overrides merge into lab battle entities", () => {
     setLabMode(true);
     setContentOverride("enemies", "catcher", { hp: 99 });
-    const def = labEnemy("catcher");
+    const def = labEnemy("catcher", breakTestContext());
     expect(def.hp).toBe(99);
     clearEntityOverride("enemies", "catcher");
     setLabMode(false);

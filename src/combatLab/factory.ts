@@ -50,7 +50,7 @@ function fieldSchoolDeckPct(p: LabPreset, expanded: CardId[]): number {
 }
 
 function extraUnit(id: EnemyId, hpScale: number): Unit {
-  const def = labEnemy(id);
+  const def = labEnemy(id, shellRunContext());
   const hp = Math.max(8, Math.round(def.hp * hpScale));
   return { id: def.id, name: def.name, title: def.title, hp, maxHp: hp, pos: def.pos };
 }
@@ -74,7 +74,7 @@ export function runFromPreset(preset: LabPreset): Run {
   run.companionHp = {};
   for (const id of p.party) {
     const mindHp = sumMindArtBonuses(p.mateMinds?.[id] ?? []).hpMax;
-    run.companionHp[id] = id === p.fieldMate ? run.hp : labMate(id).hp + mindHp;
+    run.companionHp[id] = id === p.fieldMate ? run.hp : labMate(id, shellRunContext()).hp + mindHp;
   }
   run.silver = 999;
   run.bag = [];
@@ -89,7 +89,7 @@ export function startLabBattle(preset: LabPreset, ordered = false, deckMultiplie
   const run = runFromPreset(p);
   let b = makeBattle(p.enemyId, run, ordered, p.enemyId.startsWith("tutor"), shellRunContext());
   if (p.extraFoeIds?.length) {
-    const hpScale = b.enemy.maxHp / labEnemy(p.enemyId).hp;
+    const hpScale = b.enemy.maxHp / labEnemy(p.enemyId, shellRunContext()).hp;
     const extras = p.extraFoeIds.map((id) => extraUnit(id, hpScale));
     b = { ...b, foes: [...b.foes, ...extras] };
   }

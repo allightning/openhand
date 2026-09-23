@@ -25,7 +25,7 @@ function add(parts: BreakdownPart[], label: string, n: number): void {
 
 function youPaceNow(b: Battle, ctx: RunContext): number {
   const school = battleEquippedSchool(b, b.active);
-  const res = labV2(ctx) ? resonancePaceBonus(b) : 0;
+  const res = labV2(ctx) ? resonancePaceBonus(b, ctx) : 0;
   return Math.max(1, WEAPON_PACE[school] + res + (b.paceBoost ?? 0) - (b.youSlow ?? 0));
 }
 
@@ -77,7 +77,7 @@ export function damageBreakdown(
 
   const cs = cardSchool(def.id);
   if (labV2(ctx) && cs !== "any") {
-    const fx = tierFx(cs, schoolTier(b, cs));
+    const fx = tierFx(cs, schoolTier(b, cs, ctx));
     if (fx?.meleeBonus && adj) add(parts, "系贴身", fx.meleeBonus);
     if (fx?.rangeAttackBonus && dist >= 3) add(parts, "系远攻", fx.rangeAttackBonus);
   }

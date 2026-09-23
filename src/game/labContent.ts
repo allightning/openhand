@@ -1,7 +1,7 @@
 import { CARDS, ENEMIES, TECHNIQUES } from "./content";
 import { getContentOverrides } from "./labContentOverrides";
 import { MATES } from "./party";
-import { contextNow, type RunContext } from "./runContext";
+import type { RunContext } from "./runContext";
 import type { CardDef, CardId, CompanionId, EnemyDef, EnemyId, TechniqueDef, TechniqueId } from "./types";
 import { remapLegacyCardId } from "./rogueCards";
 import { GEAR_WEAPONS, type GearWeapon } from "./weapons";
@@ -20,7 +20,7 @@ function merge<T extends object>(base: T, patch: Partial<T> | undefined): T {
   return patch ? { ...base, ...patch } : base;
 }
 
-export function labCard(id: CardId, ctx: RunContext = contextNow()): CardDef {
+export function labCard(id: CardId, ctx: RunContext): CardDef {
   const nid = remapLegacyCardId(id);
   const base = CARDS[nid];
   if (!ctx.lab) return base;
@@ -28,19 +28,19 @@ export function labCard(id: CardId, ctx: RunContext = contextNow()): CardDef {
   return merge(merge(base, climb), getContentOverrides().cards[nid] as Partial<CardDef> | undefined);
 }
 
-export function labEnemy(id: EnemyId, ctx: RunContext = contextNow()): EnemyDef {
+export function labEnemy(id: EnemyId, ctx: RunContext): EnemyDef {
   const base = ENEMIES[id];
   if (!ctx.lab) return base;
   return merge(base, getContentOverrides().enemies[id] as Partial<EnemyDef> | undefined);
 }
 
-export function labTechnique(id: TechniqueId, ctx: RunContext = contextNow()): TechniqueDef {
+export function labTechnique(id: TechniqueId, ctx: RunContext): TechniqueDef {
   const base = TECHNIQUES[id];
   if (!ctx.lab) return base;
   return merge(base, getContentOverrides().techniques[id] as Partial<TechniqueDef> | undefined);
 }
 
-export function labMate(id: CompanionId, ctx: RunContext = contextNow()): (typeof MATES)[CompanionId] {
+export function labMate(id: CompanionId, ctx: RunContext): (typeof MATES)[CompanionId] {
   const base = MATES[id];
   if (!ctx.lab) return base;
   const ov = getContentOverrides().mates[id];
@@ -49,7 +49,7 @@ export function labMate(id: CompanionId, ctx: RunContext = contextNow()): (typeo
   return { ...base, hp };
 }
 
-export function labGearById(id: string | null | undefined, ctx: RunContext = contextNow()): GearWeapon | null {
+export function labGearById(id: string | null | undefined, ctx: RunContext): GearWeapon | null {
   if (!id) return null;
   const hit = GEAR_WEAPONS.find((g) => g.id === id);
   if (!hit) return null;

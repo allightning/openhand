@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { labCard } from "../game/labContent";
+import { breakTestContext } from "../game/testContext";
 import { getContentOverrides, resetContentOverrides } from "../game/labContentOverrides";
 import { setLabMode } from "../game/labTuning";
 import {
@@ -41,7 +42,7 @@ describe("实验台确认修改", () => {
     confirmDevEntityOverride();
     expect(getContentOverrides().cards.strike?.cost).toBe(4);
     expect(getContentOverrides().cards.strike?.damage).toBe(9);
-    expect(labCard("strike").cost).toBe(4);
-    expect(labCard("strike").damage).toBe(9);
+    expect(labCard("strike", breakTestContext()).cost).toBe(4);
+    expect(labCard("strike", breakTestContext()).damage).toBe(9);
   });
 });

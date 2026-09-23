@@ -47,7 +47,7 @@ describe("v2.5 §17 共鸣阶梯", () => {
       },
     );
     let res = computeAurasFromPreset({ ...p, party: ["rail", "hermit"] });
-    expect(schoolTier({ ...p, active: "rail", party: ["rail", "hermit"], bench: [], labMateWeapons: p.mateWeapons } as never, "palm")).toBe(1);
+    expect(schoolTier({ ...p, active: "rail", party: ["rail", "hermit"], bench: [], labMateWeapons: p.mateWeapons } as never, "palm", breakTestContext())).toBe(1);
 
     res = computeAurasFromPreset({ ...p, party: ["rail", "hermit", "bard"] });
     const mock3 = {
@@ -56,7 +56,7 @@ describe("v2.5 §17 共鸣阶梯", () => {
       bench: [{ id: "hermit", hp: 1, maxHp: 1 }],
       labMateWeapons: { ...p.mateWeapons, bard: starterGear("palm") },
     };
-    expect(schoolTier(mock3 as never, "palm")).toBe(2);
+    expect(schoolTier(mock3 as never, "palm", breakTestContext())).toBe(2);
 
     const mock4 = {
       active: "rail",
@@ -69,7 +69,7 @@ describe("v2.5 §17 共鸣阶梯", () => {
         porter: starterGear("palm"),
       },
     };
-    expect(schoolTier(mock4 as never, "palm")).toBe(3);
+    expect(schoolTier(mock4 as never, "palm", breakTestContext())).toBe(3);
   });
 
   it("includes field mate in team count", () => {
@@ -81,7 +81,7 @@ describe("v2.5 §17 共鸣阶梯", () => {
       true,
     );
     expect(teamSchoolCounts(b).palm).toBe(2);
-    expect(schoolTier(b, "palm")).toBe(1);
+    expect(schoolTier(b, "palm", breakTestContext())).toBe(1);
   });
 
   it("recounts when secondary weapon changes equipped school", () => {

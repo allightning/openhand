@@ -74,7 +74,7 @@ export function labSwapFighter(b: Battle, id: CompanionId): Battle {
     const fid = pairFusionId(battleEquippedSchool(b, prevActive), battleEquippedSchool(next, id));
     if (fid) {
       dealToHand(next, fid);
-      next = note(next, `${MATES[id].name}换上场，连携「${labCard(fid).name}」入手`);
+      next = note(next, `${MATES[id].name}换上场，连携「${labCard(fid, shellRunContext()).name}」入手`);
     }
   }
   if (isLabV2()) {

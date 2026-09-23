@@ -312,7 +312,7 @@ function defaultRun(): Run {
 }
 
 function foePack(id: EnemyId, rc: RunContext = contextNow()): Unit[] {
-  const def = labEnemy(id);
+  const def = labEnemy(id, rc);
   let hpMul = rc.lab ? rc.tuning.enemyHpMul : 1;
   if (rc.lab && isBossEnemy(id) && id === "lord") {
     hpMul *= 1.4;
@@ -548,7 +548,7 @@ export function makeBattle(
   seq = 0;
   fightScale = resolveFightScale();
   battleGearId = run.weapon ?? null;
-  const def = labEnemy(enemyId);
+  const def = labEnemy(enemyId, contextNow());
   const active = run.active ?? "rail";
   const deck = deal(deckFor(run, active, rc), ordered);
   const foes = foePack(enemyId);
@@ -715,7 +715,7 @@ export function weaponPace(id: CompanionId): number {
 
 export function battlePace(b: Battle, rc: RunContext = contextNow()): number {
   const base = WEAPON_PACE[battleEquippedSchool(b, b.active)];
-  return base + (labV2(rc) ? resonancePaceBonus(b) : 0);
+  return base + (labV2(rc) ? resonancePaceBonus(b, rc) : 0);
 }
 
 export function yourPace(b: Battle): number {
@@ -783,7 +783,7 @@ function setupBattle(b: Battle): void {
 /** Tough outdoor / midboss hands: read the board, not just stack HP. */
 function hardenFoe(b: Battle): void {
   const id = b.enemyId;
-  const def = labEnemy(id);
+  const def = labEnemy(id, contextNow());
   const block = (n: number) => Math.max(1, Math.round(n * fightScale.dmg));
   if (id === "bandit") {
     armRiposte(b, "foe", "slash");
@@ -925,7 +925,7 @@ export function labCanCycle(b: Battle, rc: RunContext = contextNow()): { ok: boo
   if (isClimbQi() && b.climbDiscardPhase) return { ok: false, reason: "弃牌阶段不能置换" };
   if (b.hand.length === 0) return { ok: false, reason: "没牌可换" };
   if (isClimbQi()) {
-    const cheapest = Math.min(...b.hand.map((c) => climbCycleCost(labCard(c.defId)?.cost ?? 1)));
+    const cheapest = Math.min(...b.hand.map((c) => climbCycleCost(labCard(c.defId, rc)?.cost ?? 1)));
     if (b.energy < cheapest) return { ok: false, reason: "劲力不够置换" };
     return { ok: true };
   }
@@ -991,7 +991,7 @@ export function labComboReplay(b: Battle): Battle {
   const next = cloneBattle(b);
   next.combo = Math.max(0, (next.combo ?? 0) - CLIMB_COMBO_REPLAY_COST);
   const notes = applyCard(next, defId);
-  note(next, "you", `连击重放「${labCard(defId).name}」：${notes.join("，") || "无效果"}（−${CLIMB_COMBO_REPLAY_COST} 连击）`);
+  note(next, "you", `连击重放「${labCard(defId, contextNow()).name}」：${notes.join("，") || "无效果"}（−${CLIMB_COMBO_REPLAY_COST} 连击）`);
   checkWin(next);
   clampClimbStatus(next);
   return next;
@@ -1004,7 +1004,7 @@ export function labCycleCard(b: Battle, uid: string): Battle {
   const idx = b.hand.findIndex((c) => c.uid === uid);
   if (idx < 0) return b;
   const inst = b.hand[idx]!;
-  const spend = isClimbQi() ? climbCycleCost(labCard(inst.defId)?.cost ?? 1) : 0;
+  const spend = isClimbQi() ? climbCycleCost(labCard(inst.defId, contextNow())?.cost ?? 1) : 0;
   if (isClimbQi() && b.energy < spend) return b;
   const [cycled] = b.hand.splice(idx, 1);
   b.discardPile.push(cycled);
@@ -1016,8 +1016,8 @@ export function labCycleCard(b: Battle, uid: string): Battle {
   }
   drawOne(b);
   const paid = isClimbQi() && spend > 0 ? `，耗 ${spend} 劲` : "";
-  b.log.push(`置换：弃 ${labCard(cycled.defId).name}，摸 1${paid}`);
-  b.journal.push({ side: "you", text: `置换 ${labCard(cycled.defId).name}` });
+  b.log.push(`置换：弃 ${labCard(cycled.defId, contextNow()).name}，摸 1${paid}`);
+  b.journal.push({ side: "you", text: `置换 ${labCard(cycled.defId, contextNow()).name}` });
   return b;
 }
 
@@ -1030,8 +1030,8 @@ export function labDiscardCard(b: Battle, uid: string): Battle {
     const [tossed] = b.hand.splice(idx, 1);
     b.discardPile.push(tossed);
     b.climbDiscardPhase = true;
-    b.log.push(`弃 ${labCard(tossed.defId).name}`);
-    b.journal.push({ side: "you", text: `弃 ${labCard(tossed.defId).name}` });
+    b.log.push(`弃 ${labCard(tossed.defId, contextNow()).name}`);
+    b.journal.push({ side: "you", text: `弃 ${labCard(tossed.defId, contextNow()).name}` });
     return b;
   }
   if (!overCap) return labCycleCard(b, uid);
@@ -1040,10 +1040,10 @@ export function labDiscardCard(b: Battle, uid: string): Battle {
   if (idx < 0) return b;
   const [card] = b.hand.splice(idx, 1);
   b.discardPile.push(card);
-  b.log.push(`弃 ${labCard(card.defId).name}（压到上限 ${handCap(b)}）`);
+  b.log.push(`弃 ${labCard(card.defId, contextNow()).name}（压到上限 ${handCap(b)}）`);
   b.journal.push({
     side: "you",
-    text: `弃 ${labCard(card.defId).name} → 手牌 ${b.hand.length}/${handCap(b)}`,
+    text: `弃 ${labCard(card.defId, contextNow()).name} → 手牌 ${b.hand.length}/${handCap(b)}`,
   });
   return b;
 }
@@ -1805,7 +1805,7 @@ function canPlayerStepOne(b: Battle, dir: 1 | -1, ignoreStakes: boolean): boolea
  * 对撞技贴脸进步仍可出；有鬼步则忽略桩。
  */
 function playerMovePathGate(b: Battle, defId: CardId): { ok: boolean; reason?: string } {
-  const def = labCard(defId);
+  const def = labCard(defId, contextNow());
   if (!def) return { ok: true };
   const foe = targetFoe(b) ?? b.enemy;
   const ignore = hasTech(b, "ghostStep");
@@ -1846,7 +1846,7 @@ function playerMovePathGate(b: Battle, defId: CardId): { ok: boolean; reason?: s
 }
 
 function applyCard(b: Battle, defId: CardId, rc: RunContext = contextNow()): string[] {
-  const def = labCard(defId);
+  const def = labCard(defId, rc);
   const notes: string[] = [];
 
   if (defId === "strike" || defId === "strike2" || defId === "elbow") {
@@ -2610,7 +2610,7 @@ function tryGauntletWaveSpawn(b: Battle, rc: RunContext = contextNow()): boolean
   const queue = b.gauntletWaveQueue ?? [];
   b.gauntletWaveEnemy = queue[0];
   b.gauntletWaveQueue = queue.length > 1 ? queue.slice(1) : undefined;
-  const def = labEnemy(waveId);
+  const def = labEnemy(waveId, rc);
   let hpMul = rc.lab ? rc.tuning.enemyHpMul : 1;
   const hp = Math.max(8, Math.round(def.hp * hpMul));
   const unit: Unit = {
@@ -2653,7 +2653,7 @@ export function canPlay(b: Battle, uid: string, rc: RunContext = contextNow()): 
   if (b.phase !== "player") return { ok: false, reason: "现在不是你的回合" };
   const inst = b.hand.find((c) => c.uid === uid);
   if (!inst) return { ok: false, reason: "不在手牌里" };
-  const def = labCard(inst.defId);
+  const def = labCard(inst.defId, rc);
   if (!def) return { ok: false, reason: "残谱缺损" };
   if (isClimbQi() && b.climbDiscardPhase) return { ok: false, reason: "弃牌阶段不能出牌" };
   if (climbCardLocked(b, uid)) return { ok: false, reason: `晕：最左 ${b.youStun} 张锁着` };
@@ -2730,7 +2730,7 @@ function snapshot(b: Battle, notes: string[], legal: boolean, reason?: string, b
 }
 
 function applyPlayedAttackMomentum(b: Battle, defId: CardId, notes: string[]): void {
-  if (labCard(defId).type !== "attack") return;
+  if (labCard(defId, contextNow()).type !== "attack") return;
   const extra = applyBreakMomentumOnAttack(b);
   notes.push(...extra.notes);
   if (extra.notes.length) {
@@ -2746,14 +2746,14 @@ export function previewCard(b: Battle, uid: string, rc: RunContext = contextNow(
   const next = cloneBattle(b);
   const notes = applyCard(next, inst.defId, rc);
   applyPlayedAttackMomentum(next, inst.defId, notes);
-  const def = labCard(inst.defId);
+  const def = labCard(inst.defId, rc);
   const shown = def.type === "attack" || def.block ? breakdownDisplay(b, def, rc) : undefined;
   return snapshot(next, notes, gate.ok, gate.reason, shown?.inner || undefined, shown?.riders);
 }
 
 export function playCard(b: Battle, uid: string, rc: RunContext = contextNow()): Battle {
   const inst0 = b.hand.find((c) => c.uid === uid);
-  const def0 = inst0 ? labCard(inst0.defId) : undefined;
+  const def0 = inst0 ? labCard(inst0.defId, rc) : undefined;
   const gate = canPlay(b, uid);
   if (!gate.ok) {
     if (labV2(rc) && def0?.ultimate) {
@@ -2767,7 +2767,7 @@ export function playCard(b: Battle, uid: string, rc: RunContext = contextNow()):
   next.foeDodgedHit = false;
   const inst = next.hand.find((c) => c.uid === uid);
   if (!inst) return b;
-  const def = labCard(inst.defId);
+  const def = labCard(inst.defId, rc);
   if (labV2(rc) && def.ultimate) next.v2UltGateAttempts = (next.v2UltGateAttempts ?? 0) + 1;
   if (isComboUnlockCard(next, inst.defId)) {
     next.v2ComboUnlockPlays = (next.v2ComboUnlockPlays ?? 0) + 1;
@@ -3517,7 +3517,7 @@ function resolveIntent(b: Battle, rc: RunContext = contextNow()): void {
       }
     }
   } else if (intent.kind === "dust") {
-    const elite = Boolean(labEnemy(b.enemyId)?.elite) || b.labEnemyGrade === "xuan" || b.labEnemyGrade === "shen";
+    const elite = Boolean(labEnemy(b.enemyId, rc)?.elite) || b.labEnemyGrade === "xuan" || b.labEnemyGrade === "shen";
     if (isClimbQi() && !climbDustAllowed(b.labGauntletStage ?? 1, elite)) {
       note(b, "foe", `${b.enemy.name}扬尘，没迷住。`);
     } else {
@@ -3702,7 +3702,7 @@ function weaponRiposte(id: EnemyId): RiposteKind {
 }
 
 function reactToPlayer(b: Battle): Intent | null {
-  const def = labEnemy(b.enemyId);
+  const def = labEnemy(b.enemyId, contextNow());
   const elite =
     b.enemyId === "bandit" ||
     b.enemyId === "brute" ||
@@ -3781,7 +3781,7 @@ function chooseIntent(b: Battle): Intent {
 }
 
 function pickIntent(b: Battle, rc: RunContext = contextNow()): Intent {
-  const def = labEnemy(b.enemyId);
+  const def = labEnemy(b.enemyId, rc);
   const d = distTo(b);
   if (def.id === "delay") {
     b.intentIndex = (b.intentIndex + 1) % def.pattern.length;
@@ -3926,7 +3926,7 @@ function actAlly(b: Battle, unit: Unit): void {
 
 /** §31.10 敌兵刃攻击距离：默认跟六系一致（拳1 / 刀剑钩2 / 枪棍3）；EnemyDef.reach 可覆盖。 */
 export function enemyReach(b: Battle): number {
-  const def = labEnemy(b.enemyId);
+  const def = labEnemy(b.enemyId, contextNow());
   if (def?.reach != null) return def.reach;
   const w = ENEMY_WEAPON[b.enemyId];
   return w ? SCHOOL_REACH[w] : 1;
@@ -4248,7 +4248,7 @@ function rollIntent(b: Battle): void {
 }
 
 function seedIntents(b: Battle): void {
-  const def = labEnemy(b.enemyId);
+  const def = labEnemy(b.enemyId, contextNow());
   const first = scaleIntent(def.pattern[b.intentIndex % def.pattern.length]);
   planFromFirst(b, first);
 }
@@ -4440,7 +4440,7 @@ function climbAdvanceTurnClock(next: Battle, rc: RunContext = contextNow()): voi
       note(next, "you", `铁布开局 ${retained}`);
     }
     let block = Math.max(kept, retained);
-    if (staffBlockRetain(next)) block = Math.max(block, next.playerBlock);
+    if (staffBlockRetain(next, rc)) block = Math.max(block, next.playerBlock);
     next.playerBlock = block;
   }
 }

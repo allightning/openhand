@@ -378,7 +378,7 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
 
   const hand = b.hand
     .map((c, idx) => {
-      const def = labCard(c.defId);
+      const def = labCard(c.defId, shellRunContext());
       const gate = discardMode ? { ok: true as const } : canPlay(c.uid);
       const active = hoverUid === c.uid;
       const vBranch = isLabV2() ? variantBranch(def, b) : null;

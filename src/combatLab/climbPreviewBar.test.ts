@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { labCard } from "../game/labContent";
+import { climbTestContext } from "../game/testContext";
 import { labV21EffectiveCost } from "../game/labV21";
 import { setLabMode } from "../game/labTuning";
 import { previewCard } from "../game/sim";
@@ -43,7 +44,7 @@ describe("预演条与耗蓝角标", () => {
     expect(html).not.toContain("card-qi-cost");
     expect(html).toContain('id="preview-slot"');
     for (const c of b.hand) {
-      const def = labCard(c.defId);
+      const def = labCard(c.defId, climbTestContext());
       expect(html).toContain(`<span class="cost">${labV21EffectiveCost(b, def)}</span>`);
     }
   });
@@ -60,7 +61,7 @@ describe("预演条与耗蓝角标", () => {
     const b = climbBattle();
     b.enemy.pos = 2; // 拉近到刀程内
     const atk = b.hand.find((c) => {
-      const def = labCard(c.defId);
+      const def = labCard(c.defId, climbTestContext());
       return def.type === "attack" && (def.damage ?? 0) > 0 && previewCard(b, c.uid).legal;
     });
     expect(atk).toBeTruthy();
@@ -78,7 +79,7 @@ describe("预演条与耗蓝角标", () => {
 
   it("劲力不足时悬停亮原因（bad 态）", () => {
     const b = climbBattle();
-    const atk = b.hand.find((c) => labCard(c.defId).type === "attack");
+    const atk = b.hand.find((c) => labCard(c.defId, climbTestContext()).type === "attack");
     expect(atk).toBeTruthy();
     const broke = { ...b, energy: 0 };
     const prev = previewCard(broke, atk!.uid);
@@ -90,7 +91,7 @@ describe("预演条与耗蓝角标", () => {
 
   it("够不着时悬停亮距离原因（bad 态）", () => {
     const b = climbBattle(); // 敌在 4 格，刀程 2
-    const atk = b.hand.find((c) => labCard(c.defId).type === "attack");
+    const atk = b.hand.find((c) => labCard(c.defId, climbTestContext()).type === "attack");
     expect(atk).toBeTruthy();
     const prev = previewCard(b, atk!.uid);
     expect(prev.legal).toBe(false);

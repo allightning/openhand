@@ -66,7 +66,7 @@ describe("爬塔试玩默认 2026-09-17", () => {
     b.energy = 10;
     b.drawPile = [{ uid: "d1", defId: "direct" }, { uid: "d2", defId: "direct" }];
     const uid = b.hand[0]!.uid;
-    const cost = climbCycleCost(labCard(b.hand[0]!.defId).cost);
+    const cost = climbCycleCost(labCard(b.hand[0]!.defId, climbTestContext()).cost);
     expect(labCanCycle(b).ok).toBe(true);
     const before = b.energy;
     b = labCycleCard(b, uid);
@@ -94,7 +94,7 @@ describe("爬塔试玩默认 2026-09-17", () => {
     b.paceBoost = 8;
     b.player.pos = 3;
     b.enemy.pos = 4;
-    const def = labCard("hitSaber");
+    const def = labCard("hitSaber", climbTestContext());
     const br = damageBreakdown(b, def, climbTestContext());
     expect(br.parts.some((p) => p.label === "快刀")).toBe(false);
   });

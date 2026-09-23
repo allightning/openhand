@@ -103,12 +103,12 @@ export function initLabV21Battle(b: Battle, rc: RunContext = contextNow()): void
 /** @deprecated v2.5 用 resonanceStrikeBonus */
 export function auraDamageBonus(b: Battle, cardId: CardId): number {
   const adj = dist(b) === 1;
-  return resonanceStrikeBonus(b, cardId, 0, adj, dist(b));
+  return resonanceStrikeBonus(b, cardId, 0, adj, dist(b), contextNow());
 }
 
 export function auraExtraQiOnGain(b: Battle, cardId?: CardId): number {
   if (!cardId) return 0;
-  return resonanceExtraQiOnGain(b, cardId);
+  return resonanceExtraQiOnGain(b, cardId, contextNow());
 }
 
 /** 拆招绝招：门槛只看本系资源，不走通用势。 */
