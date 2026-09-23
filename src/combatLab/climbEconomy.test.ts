@@ -35,6 +35,6 @@ describe("climbEconomy", () => {
     expect(b.energy).toBe(6);
     expect(b.player.maxHp).toBe(50);
     // 攻击牌费用回退为牌面 cost（爬塔 floor 1），实际伤害看悬停预演条
-    expect(labV21EffectiveCost(b, CARDS.direct)).toBe(Math.max(1, CARDS.direct.cost));
+    expect(labV21EffectiveCost(b, CARDS.direct, climbTestContext())).toBe(Math.max(1, CARDS.direct.cost));
   });
 });

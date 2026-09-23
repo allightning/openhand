@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { canCallAssist, retreatAssistIfDown } from "../game/labAssist";
 import { simV2OnHitPlayer } from "../game/simV2Hooks";
+import { breakTestContext } from "../game/testContext";
 import { setLabMode, setLabTuning } from "../game/labTuning";
 import { balanceReport, startTelemetry } from "./telemetry";
 import { startLabBattle } from "./factory";
@@ -61,7 +62,7 @@ describe("v2.3 §2.2 势穿盾", () => {
   it("simV2OnHitPlayer ignores zero pierce", () => {
     const b = v2Battle();
     b.qi = 3;
-    simV2OnHitPlayer(b, 0);
+    simV2OnHitPlayer(b, 0, breakTestContext());
     expect(b.qi).toBe(3);
   });
 });

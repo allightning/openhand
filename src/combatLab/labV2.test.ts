@@ -40,18 +40,18 @@ afterEach(() => {
 describe("Combat v2 势", () => {
   it("adds qi up to cap", () => {
     const b = v2Battle();
-    addQi(b, 3);
+    addQi(b, 3, breakTestContext());
     expect(b.qi).toBe(3);
-    addQi(b, 99);
+    addQi(b, 99, breakTestContext());
     expect(b.qi).toBe(QI_MAX);
   });
 
   it("clears qi on pierce only (§2.2 v2.3)", () => {
     const b = v2Battle();
     b.qi = 4;
-    simV2OnHitPlayer(b, 0);
+    simV2OnHitPlayer(b, 0, breakTestContext());
     expect(b.qi).toBe(4);
-    simV2OnHitPlayer(b, 2);
+    simV2OnHitPlayer(b, 2, breakTestContext());
     expect(b.qi).toBe(0);
     expect(b.v2QiClearCount).toBe(1);
   });
@@ -59,7 +59,7 @@ describe("Combat v2 势", () => {
   it("clears qi helper", () => {
     const b = v2Battle();
     b.qi = 4;
-    clearQi(b);
+    clearQi(b, breakTestContext());
     expect(b.qi).toBe(0);
   });
 
@@ -121,8 +121,8 @@ describe("Combat v2 破招", () => {
     b.enemy.pos = 4;
     b.v2Turn = emptyV2Turn(b);
     b.player.pos = 1;
-    commitV2EndTurn(b);
-    expect(previewBrokenSegments(b)).not.toContain(0);
+    commitV2EndTurn(b, breakTestContext());
+    expect(previewBrokenSegments(b, breakTestContext())).not.toContain(0);
     expect(b.v2GrazePreview).toContain(0);
   });
 
@@ -191,7 +191,7 @@ describe("Combat v2 变招", () => {
     const b = v2Battle();
     b.v2BreakByKind = { strike: 2 };
     const picked = { kind: "strike" as const, damage: 18 };
-    const alt = simV2ChooseIntent(b, picked);
+    const alt = simV2ChooseIntent(b, picked, breakTestContext());
     expect(alt.kind).not.toBe("strike");
   });
 });

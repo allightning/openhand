@@ -8,6 +8,7 @@ import {
   summonAssist,
 } from "../game/sim";
 import { useLabItem } from "../game/labV21";
+import { breakTestContext } from "../game/testContext";
 import { CARDS } from "../game/content";
 import type { Battle } from "../game/types";
 import { startLabBattle } from "./factory";
@@ -117,7 +118,7 @@ describe("§31.12 助战符（与同行分家的客座好手）", () => {
     const b = v2Battle();
     b.labItems = ["aidStaff"];
     b.labItemCharges = { aidStaff: 2 };
-    const r = useLabItem(b, "aidStaff", 0);
+    const r = useLabItem(b, "aidStaff", breakTestContext(), 0);
     expect(r.ok).toBe(true);
     expect(r.battle?.labSummon?.school).toBe("staff");
     expect(r.battle?.labItemCharges?.aidStaff).toBe(1);

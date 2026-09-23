@@ -31,7 +31,7 @@ export {
   resonanceChargeStepsCut,
 } from "./labResonance";
 
-export function isLabV21(rc: RunContext = contextNow()): boolean {
+export function isLabV21(rc: RunContext): boolean {
   return labV2(rc);
 }
 
@@ -88,7 +88,7 @@ function dist(b: Battle): number {
   return Math.abs(b.player.pos - b.enemy.pos);
 }
 
-export function initLabV21Battle(b: Battle, rc: RunContext = contextNow()): void {
+export function initLabV21Battle(b: Battle, rc: RunContext): void {
   if (!labV2(rc)) return;
   b.v2AuraQiBonusUsed = false;
   b.labItemUsedThisTurn = false;
@@ -115,7 +115,7 @@ export function auraExtraQiOnGain(b: Battle, cardId?: CardId): number {
 function breakUltimateGate(
   b: Battle,
   def: CardDef,
-  rc: RunContext = contextNow(),
+  rc: RunContext,
 ): { ok: boolean; reason?: string } | null {
   // 旧破招核物品/绝招，阶段3拆 engine/break 时沉走，勿仿此新增
   if (rc.ruleset.mode !== "break" || !def.ultimate) return null;
@@ -157,7 +157,7 @@ function breakUltimateGate(
 export function ultimateGate(
   b: Battle,
   def: CardDef,
-  rc: RunContext = contextNow(),
+  rc: RunContext,
 ): { ok: boolean; reason?: string } {
   if (!def.ultimate || !labV2(rc)) return { ok: true };
   if (b.labUnlockUltimate) return { ok: true };
@@ -182,7 +182,7 @@ export function ultimateGate(
   return { ok: true };
 }
 
-export function variantBranch(def: CardDef, b: Battle, rc: RunContext = contextNow()): "a" | "b" | null {
+export function variantBranch(def: CardDef, b: Battle, rc: RunContext): "a" | "b" | null {
   const v = def.variant;
   if (!v || !labV2(rc)) return null;
   const hpPct = b.player.hp / Math.max(1, b.player.maxHp);
@@ -194,7 +194,7 @@ export function variantBranch(def: CardDef, b: Battle, rc: RunContext = contextN
 }
 
 export function variantActiveLabel(def: CardDef, b: Battle): string | null {
-  const br = variantBranch(def, b);
+  const br = variantBranch(def, b, contextNow());
   if (!br || !def.variant) return null;
   return br === "a" ? def.variant.labelA : def.variant.labelB;
 }
@@ -211,7 +211,7 @@ export function climbAttackFaceDamage(b: Battle, def: CardDef): number {
   return Math.max(1, dmg);
 }
 
-export function labV21EffectiveCost(b: Battle, def: CardDef, rc: RunContext = contextNow()): number {
+export function labV21EffectiveCost(b: Battle, def: CardDef, rc: RunContext): number {
   const tax = def.stackTaxQi ?? 0;
   const discount = b.costDiscountNext ?? 0;
   const nick = def.type === "skill" ? (b.youSkillTax ?? 0) : 0;
@@ -232,7 +232,7 @@ export function labV21EffectiveCost(b: Battle, def: CardDef, rc: RunContext = co
   return Math.max(floor, cost - discount + nick);
 }
 
-export function labV21StrikeAdjust(b: Battle, def: CardDef, base: number, rc: RunContext = contextNow()): number {
+export function labV21StrikeAdjust(b: Battle, def: CardDef, base: number, rc: RunContext): number {
   const adj = dist(b) === 1;
   let dmg = base + resonanceStrikeBonus(b, def.id, base, adj, dist(b), rc);
   if (b.labSigPullBuff && def.type === "attack") {
@@ -247,7 +247,7 @@ export function labV21StrikeAdjust(b: Battle, def: CardDef, base: number, rc: Ru
   return dmg;
 }
 
-export function labV21BlockAdjust(b: Battle, def: CardDef, block: number, rc: RunContext = contextNow()): number {
+export function labV21BlockAdjust(b: Battle, def: CardDef, block: number, rc: RunContext): number {
   let out = block;
   if (def.ultimate?.doubleBlock && labV2(rc) && (ultimateGate(b, def, rc).ok || b.labUnlockUltimate)) {
     out *= 2;
@@ -255,7 +255,7 @@ export function labV21BlockAdjust(b: Battle, def: CardDef, block: number, rc: Ru
   return out;
 }
 
-export function labV21AfterCard(b: Battle, defId: CardId, rc: RunContext = contextNow()): void {
+export function labV21AfterCard(b: Battle, defId: CardId, rc: RunContext): void {
   if (!labV2(rc) || !b.v2Turn) return;
   if (isSpatialCard(defId)) b.v2Turn.spatialPlayed = true;
   const def = CARDS[defId];
@@ -275,7 +275,7 @@ export function refreshBreakPromised(b: Battle): void {
 export function labCanUseItem(
   b: Battle,
   item: LabItemId,
-  rc: RunContext = contextNow(),
+  rc: RunContext,
 ): { ok: boolean; reason?: string } {
   if (!rc.lab) return { ok: false, reason: "仅踢馆" };
   if (b.phase !== "player") return { ok: false, reason: "不是你的回合" };
@@ -287,8 +287,8 @@ export function labCanUseItem(
 export function useLabItem(
   b: Battle,
   item: LabItemId,
+  rc: RunContext,
   pos?: number,
-  rc: RunContext = contextNow(),
 ): { ok: boolean; reason?: string; battle?: Battle } {
   const gate = labCanUseItem(b, item, rc);
   if (!gate.ok) return gate;

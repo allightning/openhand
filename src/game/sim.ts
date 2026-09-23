@@ -111,23 +111,23 @@ function spearRulerGain(dist: number): number {
 function pushCardPlayFx(b: Battle, def: CardDef, rc: RunContext = contextNow()): void {
   if (!labV2(rc)) return;
   if ((def.damage ?? 0) > 0 || (def.nearBonus ?? 0) > 0 || (def.farBonus ?? 0) > 0) {
-    pushFx(b, "cardHit");
+    pushFx(b, "cardHit", rc);
     return;
   }
   if ((def.block ?? 0) > 0) {
-    pushFx(b, "cardWard");
+    pushFx(b, "cardWard", rc);
     return;
   }
   if ((def.heal ?? 0) > 0 || (def.regen ?? 0) > 0) {
-    pushFx(b, "cardHeal");
+    pushFx(b, "cardHeal", rc);
     return;
   }
   if (def.steps) {
-    pushFx(b, "cardStep");
+    pushFx(b, "cardStep", rc);
     return;
   }
   if ((def.knock ?? 0) > 0 || (def.pullEnemy ?? 0) > 0) {
-    pushFx(b, "cardKnock");
+    pushFx(b, "cardKnock", rc);
     return;
   }
   if (
@@ -139,7 +139,7 @@ function pushCardPlayFx(b: Battle, def: CardDef, rc: RunContext = contextNow()):
     (def.mute ?? 0) > 0 ||
     (def.foeMute ?? 0) > 0
   ) {
-    pushFx(b, "cardStatus");
+    pushFx(b, "cardStatus", rc);
   }
 }
 
@@ -701,7 +701,7 @@ export function makeBattle(
   };
   setupBattle(battle);
   battle.spar = spar;
-  simV2Init(battle);
+  simV2Init(battle, rc);
   return battle;
 }
 
@@ -1345,10 +1345,10 @@ function schoolIdentityMods(b: Battle, cardDef: CardDef | undefined, dmg: number
 
 function strikeDamage(b: Battle, base: number, forceMelee = false, cardDef?: CardDef, rc: RunContext = contextNow()): number {
   if (labV2(rc)) {
-    let dmg = simV2StrikeDamage(b, base);
-    dmg = v2StrikeBonus(b, dmg, true);
+    let dmg = simV2StrikeDamage(b, base, rc);
+    dmg = v2StrikeBonus(b, dmg, true, rc);
     if (cardDef) {
-      dmg = labV21StrikeAdjust(b, cardDef, dmg);
+      dmg = labV21StrikeAdjust(b, cardDef, dmg, rc);
       const dist = Math.abs(b.player.pos - b.enemy.pos);
       dmg = assistAttackBonus(b, cardDef, dmg, dist);
     }
@@ -1606,7 +1606,7 @@ function hitEnemy(b: Battle, raw: number, verb: string, spendCharge = true, rc: 
     b.bleed = Math.min(9, (b.bleed ?? 0) + 1);
     notes.push("霜叠");
   }
-  if (raw > 0 && dmg > 0) simV2OnHitEnemy(b, raw, dmg);
+  if (raw > 0 && dmg > 0) simV2OnHitEnemy(b, raw, dmg, rc);
   if (raw > 0) notes.push(...tryRiposte(b, "foe"));
   if (mods.thorns && raw > 0 && b.playerBlock > 0) {
     const th = Math.min(3, mods.thorns);
@@ -1617,7 +1617,7 @@ function hitEnemy(b: Battle, raw: number, verb: string, spendCharge = true, rc: 
   }
   if (foe.hp <= 0) {
     notes.push(`${foe.name}倒下`);
-    if (raw > 0) pushFx(b, "kill");
+    if (raw > 0) pushFx(b, "kill", rc);
   }
   b.lastHitRead = `伤${dmg}${notes.length ? ` · ${notes.join(" · ")}` : ""}`;
   syncFront(b);
@@ -1651,7 +1651,7 @@ function knockAway(b: Battle, who: "player" | "enemy", dist: number, wall?: numb
       }
       unit.hp -= wh;
       notes.push(`撞壁 ${wh}`);
-      if (who === "enemy") pushFx(b, "wall");
+      if (who === "enemy") pushFx(b, "wall", rc);
       if (who === "player" && unit.hp <= 0) collapseOrDeathSwap(b);
       break;
     }
@@ -1667,7 +1667,7 @@ function knockAway(b: Battle, who: "player" | "enemy", dist: number, wall?: numb
         unit.hp -= wh;
         notes.push(`撞上${b.labSummon.name} ${wh}`);
         hitSummon(b, 2, "垫背 ");
-        pushFx(b, "wall");
+        pushFx(b, "wall", rc);
         if (unit.hp <= 0) notes.push(`${unit.name}倒下`);
         break;
       }
@@ -1906,7 +1906,7 @@ function applyCard(b: Battle, defId: CardId, rc: RunContext = contextNow()): str
     b.nextDamage += bonus;
     notes.push(`下一招伤害 +${bonus}`);
     // §31.12 各系起手都有蓄劲——让它顺手攒 1 势，任何系都有稳定的攒势手段（不只靠解禁丹）。
-    if (labV2(rc)) notes.push(...simV2ApplyGather(b, 1));
+    if (labV2(rc)) notes.push(...simV2ApplyGather(b, 1, rc));
     return notes;
   }
 
@@ -2097,7 +2097,7 @@ function applyCard(b: Battle, defId: CardId, rc: RunContext = contextNow()): str
   }
 
   if (defId === "combo") {
-    if (labV2(rc)) return simV2ApplyComboCard(b, defId, def.stackTaxHp);
+    if (labV2(rc)) return simV2ApplyComboCard(b, defId, rc, def.stackTaxHp);
     if ((def.stackTaxHp ?? 0) > 0) {
       b.player.hp = Math.max(1, b.player.hp - (def.stackTaxHp ?? 0));
       notes.push(`付血 ${def.stackTaxHp}`);
@@ -2135,7 +2135,7 @@ function applyCard(b: Battle, defId: CardId, rc: RunContext = contextNow()): str
   }
 
   if (defId === "chain" || defId === "chain2") {
-    const linked = simV2IsLinked(b);
+    const linked = simV2IsLinked(b, rc);
     const base = defId === "chain2" ? (linked ? 11 : 7) : linked ? 9 : 5;
     notes.push(...hitEnemy(b, strikeDamage(b, base), linked ? "连环 " : "单掌 "));
     if (linked && drawOne(b)) notes.push("抽 1");
@@ -2151,7 +2151,7 @@ function applyCard(b: Battle, defId: CardId, rc: RunContext = contextNow()): str
 
   if (defId === "gather" || defId === "gather2") {
     if (labV2(rc)) {
-      notes.push(...simV2ApplyGather(b, def.flow ?? 1));
+      notes.push(...simV2ApplyGather(b, def.flow ?? 1, rc));
       if (drawOne(b)) notes.push("抽 1");
       return notes;
     }
@@ -2163,7 +2163,7 @@ function applyCard(b: Battle, defId: CardId, rc: RunContext = contextNow()): str
 
   if (defId === "setup") {
     if (labV2(rc)) {
-      notes.push(...simV2ApplySetup(b, def.setupGain ?? 1));
+      notes.push(...simV2ApplySetup(b, def.setupGain ?? 1, rc));
       if (drawOne(b)) notes.push("抽 1");
       return notes;
     }
@@ -2175,7 +2175,7 @@ function applyCard(b: Battle, defId: CardId, rc: RunContext = contextNow()): str
 
   if (defId === "finisher" || defId === "finisher2") {
     if (labV2(rc)) {
-      const { base, notes: qn } = simV2ApplyFinisher(b, defId, def.damage ?? 4);
+      const { base, notes: qn } = simV2ApplyFinisher(b, defId, def.damage ?? 4, rc);
       notes.push(...qn);
       notes.push(...hitEnemy(b, strikeDamage(b, base), qn.length ? "势爆 " : "空爆 "));
       return notes;
@@ -2460,7 +2460,7 @@ function applyCard(b: Battle, defId: CardId, rc: RunContext = contextNow()): str
   }
   if (def.block) {
     const rawBlock = def.block + (pathSkillMods(battleGearId).blockExtra ?? 0) + techBlockBonus(b);
-    const block = labV2(rc) ? labV21BlockAdjust(b, def, rawBlock) : rawBlock;
+    const block = labV2(rc) ? labV21BlockAdjust(b, def, rawBlock, rc) : rawBlock;
     b.playerBlock += block;
     notes.push(`格挡 ${block}`);
   }
@@ -2659,7 +2659,7 @@ export function canPlay(b: Battle, uid: string, rc: RunContext = contextNow()): 
   if (climbCardLocked(b, uid)) return { ok: false, reason: `晕：最左 ${b.youStun} 张锁着` };
   if (def.type === "skill" && b.youMute > 0) return { ok: false, reason: "禁技：这一息打不出技能" };
   if (!isClimbQi() && (b.youStun ?? 0) > 0 && def.type === "attack") return { ok: false, reason: "你眩晕，打不出攻击" };
-  const need = labV2(rc) ? labV21EffectiveCost(b, def) : def.cost + (def.stackTaxQi ?? 0);
+  const need = labV2(rc) ? labV21EffectiveCost(b, def, rc) : def.cost + (def.stackTaxQi ?? 0);
   if (b.energy < need) return { ok: false, reason: "劲力不足" };
   const schoolGate = cardPlaySchoolGate(b, inst.defId);
   if (!schoolGate.ok) return schoolGate;
@@ -2695,11 +2695,11 @@ export function canPlay(b: Battle, uid: string, rc: RunContext = contextNow()): 
     }
   }
   if (labV2(rc)) {
-    const ug = ultimateGate(b, def);
+    const ug = ultimateGate(b, def, rc);
     if (!ug.ok) return { ok: false, reason: ug.reason };
     const cg = comboPlayGate(b, inst.defId, rc);
     if (!cg.ok) return { ok: false, reason: cg.reason };
-    if (!simV2CanPlayResources(b, def.comboCost ?? 0, def.flowCost ?? 0, def.setupCost ?? 0))
+    if (!simV2CanPlayResources(b, def.comboCost ?? 0, def.flowCost ?? 0, def.setupCost ?? 0, rc))
       return { ok: false, reason: "势不够" };
   } else {
     if ((def.comboCost ?? 0) > 0 && b.combo < (def.comboCost ?? 0)) return { ok: false, reason: "连势不够" };
@@ -2731,7 +2731,7 @@ function snapshot(b: Battle, notes: string[], legal: boolean, reason?: string, b
 
 function applyPlayedAttackMomentum(b: Battle, defId: CardId, notes: string[]): void {
   if (labCard(defId, contextNow()).type !== "attack") return;
-  const extra = applyBreakMomentumOnAttack(b);
+  const extra = applyBreakMomentumOnAttack(b, contextNow());
   notes.push(...extra.notes);
   if (extra.notes.length) {
     b.lastHitRead = [b.lastHitRead, ...extra.notes].filter(Boolean).join(" · ");
@@ -2776,10 +2776,10 @@ export function playCard(b: Battle, uid: string, rc: RunContext = contextNow()):
   const notes = applyCard(next, inst.defId);
   pushCardPlayFx(next, def);
   applyPlayedAttackMomentum(next, inst.defId, notes);
-  const spend = labV2(rc) ? labV21EffectiveCost(next, def) : def.cost + (def.stackTaxQi ?? 0);
+  const spend = labV2(rc) ? labV21EffectiveCost(next, def, rc) : def.cost + (def.stackTaxQi ?? 0);
   next.energy -= spend;
   if (def.type === "skill" && next.v2Turn?.labFreeSkill) next.v2Turn.labFreeSkill = false;
-  if (labV2(rc)) simV2SpendResources(next, def.comboCost ?? 0, def.flowCost ?? 0, def.setupCost ?? 0);
+  if (labV2(rc)) simV2SpendResources(next, def.comboCost ?? 0, def.flowCost ?? 0, def.setupCost ?? 0, rc);
   else {
     if (def.comboCost) next.combo = Math.max(0, next.combo - def.comboCost);
     if (def.flowCost) next.flow = Math.max(0, next.flow - def.flowCost);
@@ -2821,8 +2821,8 @@ export function playCard(b: Battle, uid: string, rc: RunContext = contextNow()):
   }
   next.playedThisTurn.push(def.name);
   const hitFoe = notes.some((n) => /\d/.test(n) && (n.includes("掌") || n.includes("伤") || n.includes("刺") || n.includes("砍")));
-  simV2OnCard(next, inst.defId, notes, hitFoe);
-  labV21AfterCard(next, inst.defId);
+  simV2OnCard(next, inst.defId, notes, hitFoe, rc);
+  labV21AfterCard(next, inst.defId, rc);
   note(next, "you", `${def.name}：${notes.join("，") || "无效果"}`);
   checkWin(next);
   clampClimbStatus(next);
@@ -2872,7 +2872,7 @@ function hitPlayer(b: Battle, raw: number, verb: string): void {
   if ((b.foeSway ?? 0) > 0 || (b.foeUnseat ?? 0) > 0) raw = Math.max(1, raw - 2);
   if (raw > 0) b.foeStrikesThisTurn = (b.foeStrikesThisTurn ?? 0) + 1;
   const extraThorn = companionOn(b) && b.active === "sapper" && b.playerBlock > 0 ? 2 : 0;
-  let incoming = Math.max(1, simV2Incoming(raw, b) - cut + sway + gift - (b.active === "zhangshoushan" && b.stakes.length > 0 ? 2 : 0));
+  let incoming = Math.max(1, simV2Incoming(raw, b, contextNow()) - cut + sway + gift - (b.active === "zhangshoushan" && b.stakes.length > 0 ? 2 : 0));
   if ((b.youExpose ?? 0) > 0) {
     incoming += 4;
     b.youExpose = (b.youExpose ?? 0) - 1;
@@ -2882,7 +2882,7 @@ function hitPlayer(b: Battle, raw: number, verb: string): void {
   b.playerBlock -= blocked;
   b.player.hp -= taken;
   if (taken > 0) b.labFoeTurnPlayerHit = true;
-  simV2OnHitPlayer(b, taken);
+  simV2OnHitPlayer(b, taken, contextNow());
   const line =
     taken === 0
       ? `${b.enemy.name}${verb}${incoming}，全部卸掉。`
@@ -2926,7 +2926,7 @@ function collapseOrDeathSwap(b: Battle, rc: RunContext = contextNow()): void {
       rebindMindStats(b, prevActive);
       b.log.push(`${fallen} 倒下，${b.player.name} 抢入场内顶上！`);
       note(b, "you", `${fallen} 倒了——${b.player.name} 顶上！`);
-      pushFx(b, "swap");
+      pushFx(b, "swap", rc);
       return;
     }
   }
@@ -2980,7 +2980,7 @@ export function summonAssist(b: Battle, school: WeaponId, pos: number, rc: RunCo
     next.foeDisarm = (next.foeDisarm ?? 0) + 2;
     next.log.push(`${def.name}链钩一绞：敌缴械 2 息。`);
   }
-  pushFx(next, "resonance");
+  pushFx(next, "resonance", rc);
   return next;
 }
 
@@ -2988,7 +2988,7 @@ export function summonAssist(b: Battle, school: WeaponId, pos: number, rc: RunCo
 export function hitSummon(b: Battle, raw: number, verb: string): void {
   const s = b.labSummon;
   if (!s) return;
-  const incoming = Math.max(1, simV2Incoming(raw, b));
+  const incoming = Math.max(1, simV2Incoming(raw, b, contextNow()));
   s.hp = Math.max(0, s.hp - incoming);
   b.labFoeTurnAssistHit = true;
   b.log.push(`${s.name}${verb}${incoming}（助战 ${s.hp}/${s.maxHp}）`);
@@ -3002,15 +3002,15 @@ export function hitSummon(b: Battle, raw: number, verb: string): void {
 /** §31.12 助战入拆招：召唤体替你化掉的攻击段，算你拆（得势 +1、计入已拆、§31.13 同吃反拆真伤）。 */
 function summonBreakCredit(b: Battle, what: string): void {
   b.v2BreakCount = (b.v2BreakCount ?? 0) + 1;
-  addQi(b, 1);
-  pushFx(b, "break");
+  addQi(b, 1, contextNow());
+  pushFx(b, "break", contextNow());
   b.journal.push({ side: "you", text: `拆！${what}` });
   b.log.push(`【拆】${what}`);
   b.v2TurnBreakCount = (b.v2TurnBreakCount ?? 0) + 1;
   const chain = b.v2TurnBreakCount >= 2;
   let extra = chain ? BREAK_COUNTER_CHAIN : 0;
-  if (chain) addQi(b, 1);
-  grantBreakMomentum(b, extra);
+  if (chain) addQi(b, 1, contextNow());
+  grantBreakMomentum(b, contextNow(), extra);
 }
 
 /** 玩家回合开始时召唤体离场（一回合约定）。 */
@@ -3387,7 +3387,7 @@ function resolveAllIntents(b: Battle, rc: RunContext = contextNow()): void {
       resolveIntent(b);
       segmentProbe?.(b, `intent:${idx}`);
       if (livingFoes(b).length === 0) checkWin(b);
-    });
+    }, rc);
     if (livingFoes(b).length === 0) checkWin(b);
     // 死士在场但没挡到招：收势前主动出手一次。
     if (b.labDeathSquad && b.phase === "player") {
@@ -3777,7 +3777,7 @@ function scaleIntent(intent: Intent): Intent {
 }
 
 function chooseIntent(b: Battle): Intent {
-  return simV2ChooseIntent(b, scaleIntent(pickIntent(b)));
+  return simV2ChooseIntent(b, scaleIntent(pickIntent(b)), contextNow());
 }
 
 function pickIntent(b: Battle, rc: RunContext = contextNow()): Intent {
@@ -4389,7 +4389,7 @@ function applyStatusTicksAtTurnEnd(next: Battle, rc: RunContext = contextNow()):
     const pierce = raw - blocked;
     next.playerBlock -= blocked;
     next.player.hp -= pierce;
-    simV2OnHitPlayer(next, pierce);
+    simV2OnHitPlayer(next, pierce, rc);
     note(
       next,
       "foe",
@@ -4415,9 +4415,9 @@ function climbAdvanceTurnClock(next: Battle, rc: RunContext = contextNow()): voi
   next.foeEnteredMelee = false;
   next.foeStrikesThisTurn = 0;
   next.turn += 1;
-  simV2AfterEndTurnSetup(next);
+  simV2AfterEndTurnSetup(next, rc);
   tickSignatureCooldown(next);
-  simV2StartPlayerTurn(next);
+  simV2StartPlayerTurn(next, rc);
   dismissSummonAtTurnStart(next);
   // 旧核选路，阶段3沉 engine/break，勿仿此新增
   if (rc.lab && rc.ruleset.mode === "break" && Math.abs(next.player.pos - next.enemy.pos) <= 1) {
@@ -4739,7 +4739,7 @@ export function endTurn(b: Battle, opts: EndTurnOpts = {}, rc: RunContext = cont
   const foeTurnMark = labV2(rc) ? next.log.length : -1;
   applyTether(next);
   springTraps(next);
-  simV2BeforeEndTurn(next);
+  simV2BeforeEndTurn(next, rc);
   if (next.phase !== "player") return next;
   // §31.11 刀系埋招前置只记「最近一轮敌出手」——结算前清，结算中由 simV2OnHitPlayer 重立。
   next.foeHitLastTurn = false;
@@ -4821,7 +4821,7 @@ export function statusChips(b: Battle, side: "you" | "foe", rc: RunContext = con
         "硬拆攒的下一击。打出攻击牌时吃掉 1 层，带无视架势的真伤和兵器系效果。",
       );
     }
-    const qiSt = simV2StatusQi(b);
+    const qiSt = simV2StatusQi(b, rc);
     if (!climb && qiSt.show) push("qi", "势", qiSt.value, `叠层输出资源，上限 ${5}。穿盾受损清零。`);
     else if (!climb) {
       push("combo", "连势", b.combo, "下一掌更重，或让连环接上。");

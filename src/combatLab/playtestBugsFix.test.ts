@@ -56,7 +56,7 @@ describe("试玩反馈修复 2026-09-17", () => {
     let b = startLabBattle(buildGauntletPreset(createGauntletRun("bandit", "palm")), true, 1);
     b.hand = [{ uid: "sk1", defId: "defend" }, ...b.hand];
     b.youSkillTax = 3;
-    expect(labV21EffectiveCost(b, labCard("defend", climbTestContext()))).toBeGreaterThan(labCard("defend", climbTestContext()).cost);
+    expect(labV21EffectiveCost(b, labCard("defend", climbTestContext()), climbTestContext())).toBeGreaterThan(labCard("defend", climbTestContext()).cost);
     b = endTurn(b, { deferIntentRefresh: true, deferStatusTicks: false });
     expect(b.youSkillTax ?? 0).toBe(0);
   });

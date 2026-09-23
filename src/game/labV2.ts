@@ -66,7 +66,7 @@ export function emptyV2Turn(b: Battle): V2TurnFlags {
   };
 }
 
-export function initV2Battle(b: Battle, rc: RunContext = contextNow()): void {
+export function initV2Battle(b: Battle, rc: RunContext): void {
   b.qi = b.qi ?? 0;
   b.v2Turn = emptyV2Turn(b);
   // 旧破招核专属，阶段3拆 engine/break 时沉走，勿仿此新增
@@ -87,14 +87,14 @@ export function initV2Battle(b: Battle, rc: RunContext = contextNow()): void {
   }
 }
 
-export function addQi(b: Battle, n: number, note?: (t: string) => void, rc: RunContext = contextNow()): void {
+export function addQi(b: Battle, n: number, rc: RunContext, note?: (t: string) => void): void {
   if (!labV2(rc)) return;
   const before = b.qi ?? 0;
   b.qi = Math.min(QI_MAX, Math.max(0, before + n));
   if (note && b.qi !== before) note(`势 ${b.qi}`);
 }
 
-export function clearQi(b: Battle, note?: (t: string) => void, rc: RunContext = contextNow()): void {
+export function clearQi(b: Battle, rc: RunContext, note?: (t: string) => void): void {
   if (!labV2(rc) || !(b.qi ?? 0)) return;
   b.qi = 0;
   note?.("势散");
@@ -104,7 +104,7 @@ export function qiBurstDamage(b: Battle): number {
   return (b.qi ?? 0) * QI_BURST_DMG;
 }
 
-export function v2StrikeBonus(b: Battle, base: number, isAttack: boolean, rc: RunContext = contextNow()): number {
+export function v2StrikeBonus(b: Battle, base: number, isAttack: boolean, rc: RunContext): number {
   let dmg = base;
   if (!labV2(rc)) return dmg;
   if (isAttack && b.labEntranceActive && !b.labEntranceUsed) {
@@ -133,7 +133,7 @@ export function v2StrikeBonus(b: Battle, base: number, isAttack: boolean, rc: Ru
   return dmg;
 }
 
-export function v2IncomingBonus(raw: number, b: Battle, rc: RunContext = contextNow()): number {
+export function v2IncomingBonus(raw: number, b: Battle, rc: RunContext): number {
   if (!labV2(rc)) return raw;
   return raw + (b.v2GrudgeBonus ?? 0);
 }
@@ -144,7 +144,7 @@ export function onV2CardPlayed(
   movedPlayer: boolean,
   hitFoe: boolean,
   adjacentHit: boolean,
-  rc: RunContext = contextNow(),
+  rc: RunContext,
 ): void {
   if (!labV2(rc)) return;
   const f = b.v2Turn ?? emptyV2Turn(b);
@@ -170,14 +170,14 @@ export function onV2CardPlayed(
   refreshBreakPromised(b);
 }
 
-export function onV2AttackPlayed(b: Battle, rc: RunContext = contextNow()): void {
+export function onV2AttackPlayed(b: Battle, rc: RunContext): void {
   if (!labV2(rc)) return;
   const f = b.v2Turn ?? emptyV2Turn(b);
   f.attackPlayed = true;
   b.v2Turn = f;
 }
 
-export function commitV2EndTurn(b: Battle, rc: RunContext = contextNow()): void {
+export function commitV2EndTurn(b: Battle, rc: RunContext): void {
   if (!labV2(rc)) return;
   const f = b.v2Turn ?? emptyV2Turn(b);
   f.endTurnCommitted = true;
@@ -191,7 +191,7 @@ export function commitV2EndTurn(b: Battle, rc: RunContext = contextNow()): void 
   refreshBreakPromised(b);
 }
 
-export function previewBrokenSegments(b: Battle, rc: RunContext = contextNow()): number[] {
+export function previewBrokenSegments(b: Battle, rc: RunContext): number[] {
   // 旧破招核专属，阶段3拆 engine/break 时沉走，勿仿此新增
   if (!labV2(rc) || rc.ruleset.mode !== "break") {
     b.v2GrazePreview = [];
@@ -204,7 +204,7 @@ export function previewBrokenSegments(b: Battle, rc: RunContext = contextNow()):
 }
 
 /** §31.8 v3 软拆「让」：段仍结算但效果减半，不得势、不算破招、不能破眼。 */
-export function applyGraze(b: Battle, intent: Intent, index: number, rc: RunContext = contextNow()): void {
+export function applyGraze(b: Battle, intent: Intent, index: number, rc: RunContext): void {
   // 旧破招核专属，阶段3拆 engine/break 时沉走，勿仿此新增
   if (!labV2(rc) || rc.ruleset.mode !== "break") return;
   b.v2GrazedSegments = [...(b.v2GrazedSegments ?? []), index];
@@ -220,8 +220,8 @@ export function shouldBreakIntent(
   b: Battle,
   intent: Intent,
   _index: number,
+  rc: RunContext,
   resolveCtx?: { bleedcutRaw?: number; bleedcutBlocked?: number },
-  rc: RunContext = contextNow(),
 ): boolean {
   // 旧破招核专属，阶段3拆 engine/break 时沉走，勿仿此新增
   if (!labV2(rc) || rc.ruleset.mode !== "break") return false;
@@ -236,7 +236,7 @@ export function breakCounterDamage(b: Battle): number {
 }
 
 /** 硬拆成功：叠一层拆势（不扣血）。连环/破招针加在真伤池里。 */
-export function grantBreakMomentum(b: Battle, extraTrue = 0, rc: RunContext = contextNow()): void {
+export function grantBreakMomentum(b: Battle, rc: RunContext, extraTrue = 0): void {
   // 旧破招核专属，阶段3拆 engine/break 时沉走，勿仿此新增
   if (!labV2(rc) || rc.ruleset.mode !== "break") return;
   const add = breakCounterDamage(b) + extraTrue;
@@ -248,7 +248,7 @@ export function grantBreakMomentum(b: Battle, extraTrue = 0, rc: RunContext = co
 }
 
 /** 破眼等：只加真伤池，不加层。 */
-export function addBreakMomentumTrue(b: Battle, n: number, why: string, rc: RunContext = contextNow()): void {
+export function addBreakMomentumTrue(b: Battle, n: number, why: string, rc: RunContext): void {
   // 旧破招核专属，阶段3拆 engine/break 时沉走，勿仿此新增
   if (!labV2(rc) || rc.ruleset.mode !== "break" || n <= 0) return;
   b.v2BreakMomentumTrue = (b.v2BreakMomentumTrue ?? 0) + n;
@@ -267,7 +267,7 @@ export function breakMomentumRiderLabel(school: WeaponId): string {
 /** 打出攻击牌时吃 1 层拆势。knock>0 时由 sim 做击退。 */
 export function applyBreakMomentumOnAttack(
   b: Battle,
-  rc: RunContext = contextNow(),
+  rc: RunContext,
 ): { notes: string[]; knock: number } {
   const stacks = b.v2BreakMomentum ?? 0;
   // 旧破招核专属，阶段3拆 engine/break 时沉走，勿仿此新增
@@ -312,7 +312,7 @@ export function applyBreakMomentumOnAttack(
 /** §31.13 真伤出口：打前排敌（拆势打出 / 让震）。
  * 击杀只扣血，不在这里判胜——交给 sim.checkWin / tryGauntletWaveSpawn，
  * 否则会先 phase=won 再轮番上场，留下「有敌人但不能操作」软锁。 */
-export function counterHitFoe(b: Battle, n: number, label: string, rc: RunContext = contextNow()): void {
+export function counterHitFoe(b: Battle, n: number, label: string, rc: RunContext): void {
   if (!labV2(rc) || n <= 0) return;
   const foe = b.enemy;
   if (!foe || foe.hp <= 0) return;
@@ -344,14 +344,14 @@ export function breakLootFor(intent: Intent): BreakLoot | null {
   return null;
 }
 
-export function applyBreak(b: Battle, intent: Intent, index: number, rc: RunContext = contextNow()): void {
+export function applyBreak(b: Battle, intent: Intent, index: number, rc: RunContext): void {
   // 旧破招核专属，阶段3拆 engine/break 时沉走，勿仿此新增
   if (!labV2(rc) || rc.ruleset.mode !== "break") return;
   b.v2BrokenSegments = [...(b.v2BrokenSegments ?? []), index];
   const kind = intent.kind;
   b.v2BreakByKind = { ...(b.v2BreakByKind ?? {}), [kind]: (b.v2BreakByKind?.[kind] ?? 0) + 1 };
-  addQi(b, 1, undefined, rc);
-  if (b.labComboPillActive) addQi(b, 1, undefined, rc);
+  addQi(b, 1, rc);
+  if (b.labComboPillActive) addQi(b, 1, rc);
   pushFx(b, "break", rc);
   b.log.push(intent.kind === "retreat" ? "【破招】追上" : `【破招】${kind} 被破`);
   b.journal.push({ side: "you", text: intent.kind === "retreat" ? "追！" : "破！" });
@@ -367,8 +367,8 @@ export function applyBreak(b: Battle, intent: Intent, index: number, rc: RunCont
   if (hasTech(b, "saberGrudge") && b.foeHitLastTurn) {
     extra += 2;
   }
-  if (chain) addQi(b, 1, undefined, rc);
-  grantBreakMomentum(b, extra, rc);
+  if (chain) addQi(b, 1, rc);
+  grantBreakMomentum(b, rc, extra);
   if (battleEquippedSchool(b, b.active) === "spear") {
     const dist = Math.abs(b.player.pos - b.enemy.pos);
     if (dist > 1) {
@@ -385,7 +385,7 @@ export function applyBreak(b: Battle, intent: Intent, index: number, rc: RunCont
   tryAppendStressIntent(b, "break", rc);
 }
 
-export function pushFx(b: Battle, kind: LabFxKind, rc: RunContext = contextNow()): void {
+export function pushFx(b: Battle, kind: LabFxKind, rc: RunContext): void {
   if (!rc.tuning.v2Fx) return;
   b.v2FxQueue = [...(b.v2FxQueue ?? []), kind];
 }
@@ -398,7 +398,7 @@ export function grudgeThreshold(enemyId: string): number {
   return GRUDGE_NORMAL;
 }
 
-export function tickGrudge(b: Battle, rc: RunContext = contextNow()): void {
+export function tickGrudge(b: Battle, rc: RunContext): void {
   if (!labV2(rc) || !rc.tuning.v2Grudge) return;
   const th = grudgeThreshold(b.enemyId);
   if (b.turn > th) {
@@ -407,9 +407,9 @@ export function tickGrudge(b: Battle, rc: RunContext = contextNow()): void {
   }
 }
 
-export function applyPendingQi(b: Battle, rc: RunContext = contextNow()): void {
+export function applyPendingQi(b: Battle, rc: RunContext): void {
   if (!labV2(rc) || !(b.v2PendingQi ?? 0)) return;
-  addQi(b, b.v2PendingQi!, undefined, rc);
+  addQi(b, b.v2PendingQi!, rc);
   b.v2PendingQi = 0;
 }
 
@@ -418,7 +418,7 @@ export function v2ResourceCheck(
   comboCost: number,
   flowCost: number,
   setupCost: number,
-  rc: RunContext = contextNow(),
+  rc: RunContext,
 ): boolean {
   if (!labV2(rc)) return true;
   const q = b.qi ?? 0;
@@ -433,14 +433,14 @@ export function v2SpendResource(
   comboCost: number,
   flowCost: number,
   setupCost: number,
-  rc: RunContext = contextNow(),
+  rc: RunContext,
 ): void {
   if (!labV2(rc)) return;
   const spend = comboCost + flowCost + setupCost;
   if (spend > 0) b.qi = Math.max(0, (b.qi ?? 0) - spend);
 }
 
-export function v2LinkedAttack(b: Battle, rc: RunContext = contextNow()): boolean {
+export function v2LinkedAttack(b: Battle, rc: RunContext): boolean {
   if (!labV2(rc)) return b.combo > 0;
   return (b.qi ?? 0) > 0;
 }
@@ -449,7 +449,7 @@ export function variantBreakCount(b: Battle, kind: string): number {
   return b.v2BreakByKind?.[kind] ?? 0;
 }
 
-export function shouldUseVariantPattern(b: Battle, rc: RunContext = contextNow()): boolean {
+export function shouldUseVariantPattern(b: Battle, rc: RunContext): boolean {
   if (!labV2(rc) || !rc.tuning.v2VariantAi) return false;
   const isBoss = b.enemyId === "lord" || b.enemyId === "usurper" || b.enemyId === "twin";
   const total = Object.values(b.v2BreakByKind ?? {}).reduce<number>((s, n) => s + (n ?? 0), 0);

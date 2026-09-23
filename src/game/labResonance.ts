@@ -150,7 +150,7 @@ export function resonancePaceBonus(b: Battle, rc: RunContext): number {
 export function initResonanceBattle(b: Battle, rc: RunContext): void {
   if (!labV2(rc)) return;
   const res = computeResonance(b);
-  if (res.duoHeroes) addQi(b, AURA_DUO_START_QI);
+  if (res.duoHeroes) addQi(b, AURA_DUO_START_QI, rc);
   const swordFx = tierFx("sword", schoolTier(b, "sword", rc));
   if (swordFx?.startExpose) b.expose += swordFx.startExpose;
   const staffFx = tierFx("staff", schoolTier(b, "staff", rc));

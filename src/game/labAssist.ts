@@ -92,7 +92,7 @@ export function hitAssist(b: Battle, raw: number, verb: string): void {
   const id = b.labAssistActive;
   const bag = b.bench.find((m) => m.id === id);
   if (!bag) return;
-  const incoming = Math.max(1, v2IncomingBonus(raw, b));
+  const incoming = Math.max(1, v2IncomingBonus(raw, b, contextNow()));
   bag.hp = Math.max(0, bag.hp - incoming);
   recordAssistDamage(b, incoming);
   b.labFoeTurnAssistHit = true;

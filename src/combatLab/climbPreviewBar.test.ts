@@ -45,7 +45,7 @@ describe("预演条与耗蓝角标", () => {
     expect(html).toContain('id="preview-slot"');
     for (const c of b.hand) {
       const def = labCard(c.defId, climbTestContext());
-      expect(html).toContain(`<span class="cost">${labV21EffectiveCost(b, def)}</span>`);
+      expect(html).toContain(`<span class="cost">${labV21EffectiveCost(b, def, climbTestContext())}</span>`);
     }
   });
 

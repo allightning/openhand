@@ -7,6 +7,7 @@ import {
   useLabItem,
   variantBranch,
 } from "../game/labV21";
+import { breakTestContext } from "../game/testContext";
 import { AURA_DUO_START_QI } from "../game/labV21Constants";
 import { starterGear } from "../game/weapons";
 import {
@@ -60,7 +61,7 @@ describe("v2.1 绝招", () => {
   it("pojin in 开踢 gives a free hard-break charge, not ult unlock", () => {
     let b = withCard(v2Battle(), "ultQiBurst", { qi: 0, labItems: ["pojin"] });
     expect(canPlay(b, "t1").ok).toBe(false);
-    const used = useLabItem(b, "pojin");
+    const used = useLabItem(b, "pojin", breakTestContext());
     expect(used.ok).toBe(true);
     b = used.battle!;
     expect(b.labPojinFreeBreak).toBe(true);
@@ -75,15 +76,15 @@ describe("v2.1 变式", () => {
     const def = CARDS.varOverhand;
     const low = v2Battle();
     low.player = { ...low.player, hp: 4, maxHp: 28 };
-    expect(variantBranch(def, low)).toBe(null);
+    expect(variantBranch(def, low, breakTestContext())).toBe(null);
 
     const high = v2Battle();
     high.player = { ...high.player, hp: 26, maxHp: 28 };
-    expect(variantBranch(def, high)).toBe("a");
+    expect(variantBranch(def, high, breakTestContext())).toBe("a");
 
     const back = v2Battle();
     back.player = { ...back.player, hp: 4, maxHp: 28 };
-    expect(variantBranch(CARDS.varBackwater, back)).toBe("b");
+    expect(variantBranch(CARDS.varBackwater, back, breakTestContext())).toBe("b");
   });
 
   it("preview matches play for active variant branch (D4)", () => {
@@ -113,7 +114,7 @@ describe("v2.1 道具", () => {
         player: { ...b.player, hp: Math.max(1, b.player.maxHp - 10) },
       };
       const hp0 = b.player.hp;
-      const r = useLabItem(b, item);
+      const r = useLabItem(b, item, breakTestContext());
       expect(r.ok).toBe(true);
       b = r.battle!;
       expect(b.labItemCharges?.[item]).toBe(1);
@@ -128,10 +129,10 @@ describe("v2.1 道具", () => {
     let b = v2Battle();
     b = { ...b, labItems: ["jinchuang", "huiqi"], labItemCharges: { jinchuang: 2, huiqi: 2 }, energy: 4 };
     expect(b.labItems!.length).toBeLessThanOrEqual(2);
-    const first = useLabItem(b, "jinchuang");
+    const first = useLabItem(b, "jinchuang", breakTestContext());
     b = first.battle!;
-    expect(labCanUseItem(b, "huiqi").ok).toBe(true);
-    const second = useLabItem(b, "huiqi");
+    expect(labCanUseItem(b, "huiqi", breakTestContext()).ok).toBe(true);
+    const second = useLabItem(b, "huiqi", breakTestContext());
     expect(second.ok).toBe(true);
   });
 });

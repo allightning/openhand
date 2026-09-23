@@ -2,7 +2,7 @@ import { CARDS, intentShortName } from "./content";
 import { VARIANT_BREAK_THRESHOLD } from "./labV2Constants";
 import { initLabV21Battle, refreshBreakPromised } from "./labV21";
 import { planBreaks, queuedThreatCells } from "./intentWeakness";
-import { contextNow, labV2, type RunContext } from "./runContext";
+import { labV2, type RunContext } from "./runContext";
 import {
   addQi,
   applyBreak,
@@ -30,17 +30,17 @@ import { dismissAssistAtTurnStart, syncDoubleHitTelemetry } from "./labAssist";
 import { tryAppendStressIntent, intentEnergyCost } from "./labEnemyStress";
 import type { Battle, CardId, Intent } from "./types";
 
-export function simV2Init(b: Battle, rc: RunContext = contextNow()): void {
+export function simV2Init(b: Battle, rc: RunContext): void {
   if (labV2(rc)) {
-    initV2Battle(b);
-    initLabV21Battle(b);
+    initV2Battle(b, rc);
+    initLabV21Battle(b, rc);
   }
 }
 
-export function simV2StartPlayerTurn(b: Battle, rc: RunContext = contextNow()): void {
+export function simV2StartPlayerTurn(b: Battle, rc: RunContext): void {
   if (!labV2(rc)) return;
   dismissAssistAtTurnStart(b);
-  applyPendingQi(b);
+  applyPendingQi(b, rc);
   b.v2Turn = emptyV2Turn(b);
   b.v2BrokenSegments = [];
   b.v2BreakPreview = [];
@@ -59,17 +59,17 @@ export function simV2StartPlayerTurn(b: Battle, rc: RunContext = contextNow()): 
   refreshBreakPromised(b);
 }
 
-export function simV2BeforeEndTurn(b: Battle, rc: RunContext = contextNow()): void {
+export function simV2BeforeEndTurn(b: Battle, rc: RunContext): void {
   if (!labV2(rc)) return;
-  commitV2EndTurn(b);
+  commitV2EndTurn(b, rc);
 }
 
-export function simV2AfterEndTurnSetup(b: Battle, rc: RunContext = contextNow()): void {
+export function simV2AfterEndTurnSetup(b: Battle, rc: RunContext): void {
   if (!labV2(rc)) return;
-  tickGrudge(b);
+  tickGrudge(b, rc);
 }
 
-export function simV2StrikeDamage(b: Battle, base: number, rc: RunContext = contextNow()): number {
+export function simV2StrikeDamage(b: Battle, base: number, rc: RunContext): number {
   if (!labV2(rc)) return base;
   let dmg = base + b.nextDamage;
   // 旧训练馆核选路，阶段3拆 engine/break 时沉走，勿仿此新增
@@ -89,10 +89,10 @@ export function simV2CanPlayResources(
   comboCost: number,
   flowCost: number,
   setupCost: number,
-  rc: RunContext = contextNow(),
+  rc: RunContext,
 ): boolean {
   if (!labV2(rc)) return true;
-  return v2ResourceCheck(b, comboCost, flowCost, setupCost);
+  return v2ResourceCheck(b, comboCost, flowCost, setupCost, rc);
 }
 
 export function simV2SpendResources(
@@ -100,10 +100,10 @@ export function simV2SpendResources(
   comboCost: number,
   flowCost: number,
   setupCost: number,
-  rc: RunContext = contextNow(),
+  rc: RunContext,
 ): void {
   if (!labV2(rc)) return;
-  v2SpendResource(b, comboCost, flowCost, setupCost);
+  v2SpendResource(b, comboCost, flowCost, setupCost, rc);
 }
 
 export function simV2OnCard(
@@ -111,61 +111,59 @@ export function simV2OnCard(
   defId: CardId,
   notes: string[],
   hitEnemy: boolean,
-  rc: RunContext = contextNow(),
+  rc: RunContext,
 ): void {
   if (!labV2(rc)) return;
   const def = CARDS[defId];
   const moved = notes.some((n) => n.includes("步") || n.includes("换位") || n.includes("推") || n.includes("拉"));
   const adj = Math.abs(b.player.pos - b.enemy.pos) === 1;
-  onV2CardPlayed(b, defId, moved, hitEnemy, hitEnemy && adj);
-  if (def.type === "attack") onV2AttackPlayed(b);
+  onV2CardPlayed(b, defId, moved, hitEnemy, hitEnemy && adj, rc);
+  if (def.type === "attack") onV2AttackPlayed(b, rc);
 }
 
-export function simV2OnHitEnemy(b: Battle, raw: number, dealt: number, rc: RunContext = contextNow()): void {
+export function simV2OnHitEnemy(b: Battle, raw: number, dealt: number, rc: RunContext): void {
   if (!labV2(rc) || raw <= 0 || dealt <= 0) return;
   // §31.13 以拆为杀：命中不再白给势——势只从「读懂对面」来（拆招/破眼/蓄劲/连珠丸）。
-  if (b.labComboPillActive) addQi(b, 1);
+  if (b.labComboPillActive) addQi(b, 1, rc);
   b.v2QiPeak = Math.max(b.v2QiPeak ?? 0, b.qi ?? 0);
 }
 
-export function simV2OnHitPlayer(b: Battle, hpDamage: number, rc: RunContext = contextNow()): void {
+export function simV2OnHitPlayer(b: Battle, hpDamage: number, rc: RunContext): void {
   /** §2.2 v2.3：仅「穿盾」实际气血受损清零势；格挡完全吸收则保留。 */
   if (!labV2(rc) || hpDamage <= 0) return;
   b.v2TurnDamageSum = (b.v2TurnDamageSum ?? 0) + hpDamage;
   b.v2TurnDamageSamples = (b.v2TurnDamageSamples ?? 0) + 1;
   // §31.11 刀系埋招前置：记下「敌上回合真的打到你了」
   b.foeHitLastTurn = true;
-  clearQi(b);
+  clearQi(b, rc);
   b.v2QiClearCount = (b.v2QiClearCount ?? 0) + 1;
 }
 
-export function simV2Incoming(raw: number, b: Battle, rc: RunContext = contextNow()): number {
-  return labV2(rc) ? v2IncomingBonus(raw, b) : raw;
+export function simV2Incoming(raw: number, b: Battle, rc: RunContext): number {
+  return labV2(rc) ? v2IncomingBonus(raw, b, rc) : raw;
 }
 
 export function simV2ApplyComboCard(
   b: Battle,
   defId: CardId,
+  rc: RunContext,
   stackTaxHp?: number,
-  rc: RunContext = contextNow(),
 ): string[] {
-  void rc;
   const notes: string[] = [];
   if ((stackTaxHp ?? 0) > 0) {
     b.player.hp = Math.max(1, b.player.hp - (stackTaxHp ?? 0));
     notes.push(`付血 ${stackTaxHp}`);
   }
-  addQi(b, defId === "combo" || defId === "chain" ? 2 : 1, (t) => notes.push(t));
+  addQi(b, defId === "combo" || defId === "chain" ? 2 : 1, rc, (t) => notes.push(t));
   return notes;
 }
 
-export function simV2ApplyGather(b: Battle, n: number, rc: RunContext = contextNow()): string[] {
-  void rc;
-  addQi(b, n);
+export function simV2ApplyGather(b: Battle, n: number, rc: RunContext): string[] {
+  addQi(b, n, rc);
   return [`势 ${b.qi}`];
 }
 
-export function simV2ApplySetup(b: Battle, n: number, rc: RunContext = contextNow()): string[] {
+export function simV2ApplySetup(b: Battle, n: number, rc: RunContext): string[] {
   void rc;
   b.v2PendingQi = (b.v2PendingQi ?? 0) + n;
   return [`下回势 +${n}`];
@@ -175,34 +173,33 @@ export function simV2ApplyFinisher(
   b: Battle,
   _defId: string,
   baseDmg: number,
-  rc: RunContext = contextNow(),
+  rc: RunContext,
 ): { base: number; notes: string[] } {
-  void rc;
   const q = b.qi ?? 0;
   const per = QI_BURST_DMG;
   const base = baseDmg + q * per;
   const notes = [`势爆 ${q}→+${q * per}`];
   if (q >= 3) tryAppendStressIntent(b, "burst", rc);
-  if (q >= 4) pushFx(b, "burst");
+  if (q >= 4) pushFx(b, "burst", rc);
   b.qi = 0;
   return { base, notes };
 }
 
-export function simV2Linked(rc: RunContext = contextNow()): boolean {
+export function simV2Linked(rc: RunContext): boolean {
   return labV2(rc);
 }
 
-export function simV2IsLinked(b: Battle, rc: RunContext = contextNow()): boolean {
-  return labV2(rc) ? v2LinkedAttack(b) : b.combo > 0;
+export function simV2IsLinked(b: Battle, rc: RunContext): boolean {
+  return labV2(rc) ? v2LinkedAttack(b, rc) : b.combo > 0;
 }
 
 export function simV2EntranceBonus(
   b: Battle,
   base: number,
   isAttack: boolean,
-  rc: RunContext = contextNow(),
+  rc: RunContext,
 ): number {
-  return labV2(rc) ? v2StrikeBonus(b, base, isAttack) : base;
+  return labV2(rc) ? v2StrikeBonus(b, base, isAttack, rc) : base;
 }
 
 function climbOneIntentPace(): boolean {
@@ -234,7 +231,7 @@ function climbRiderIntent(intent: Intent): boolean {
 export function simV2ResolveIntentQueue(
   b: Battle,
   resolveOne: (intent: Intent, index: number) => void,
-  rc: RunContext = contextNow(),
+  rc: RunContext,
 ): void {
   b.labFoeTurnPlayerHit = false;
   b.labFoeTurnAssistHit = false;
@@ -298,7 +295,7 @@ export function simV2ResolveIntentQueue(
       continue;
     }
     if (b.enemyEnergy < intentEnergyCost(intent)) {
-      pushFx(b, "skip");
+      pushFx(b, "skip", rc);
       b.log.push(`【劲尽】${intent.kind} 没劲，出不了`);
       b.journal.push({ side: "you", text: "劲尽" });
       recapSeg("劲尽");
@@ -310,29 +307,29 @@ export function simV2ResolveIntentQueue(
       const raw = intent.damage ?? 0;
       const blocked = Math.min(b.playerBlock, raw);
       if (raw > 0 && blocked >= raw) {
-        applyBreak(b, intent, i);
+        applyBreak(b, intent, i, rc);
         b.v2BreakCount = (b.v2BreakCount ?? 0) + 1;
         recapSeg("破");
-        if (i === eyeIdx && eyeIdx >= 0) collapsed = applyEyeCollapse(b);
+        if (i === eyeIdx && eyeIdx >= 0) collapsed = applyEyeCollapse(b, rc);
       } else {
         resolveOne(intent, i);
         recapSeg("打");
-        pushFx(b, "hit");
+        pushFx(b, "hit", rc);
       }
       continue;
     }
     const tier = plan.get(i);
     if (breakMode && intent.kind === "retreat") {
       if (tier === "hard") {
-        applyBreak(b, intent, i);
+        applyBreak(b, intent, i, rc);
         b.v2BreakCount = (b.v2BreakCount ?? 0) + 1;
         resolveOne(intent, i);
         recapSeg("追");
-        if (i === eyeIdx && eyeIdx >= 0) collapsed = applyEyeCollapse(b);
+        if (i === eyeIdx && eyeIdx >= 0) collapsed = applyEyeCollapse(b, rc);
         continue;
       }
       if (tier === "graze") {
-        applyGraze(b, intent, i);
+        applyGraze(b, intent, i, rc);
         resolveOne(intent, i);
         recapSeg("让");
         continue;
@@ -342,14 +339,14 @@ export function simV2ResolveIntentQueue(
       continue;
     }
     if (breakMode && tier === "hard") {
-      applyBreak(b, intent, i);
+      applyBreak(b, intent, i, rc);
       b.v2BreakCount = (b.v2BreakCount ?? 0) + 1;
       recapSeg("破");
-      if (i === eyeIdx && eyeIdx >= 0) collapsed = applyEyeCollapse(b);
+      if (i === eyeIdx && eyeIdx >= 0) collapsed = applyEyeCollapse(b, rc);
       continue;
     }
     if (breakMode && tier === "graze") {
-      applyGraze(b, intent, i);
+      applyGraze(b, intent, i, rc);
       const halved = { ...intent } as Intent;
       if ("damage" in halved && halved.damage !== undefined) halved.damage = Math.floor(halved.damage / 2);
       if ("block" in halved && halved.block !== undefined) halved.block = Math.floor(halved.block / 2);
@@ -397,8 +394,8 @@ export function simV2ResolveIntentQueue(
                                           ? "打"
                                           : "空"
                                         : "出";
-    if (outcome === "打") pushFx(b, "hit");
-    if (outcome === "空") pushFx(b, "miss");
+    if (outcome === "打") pushFx(b, "hit", rc);
+    if (outcome === "空") pushFx(b, "miss", rc);
     recapSeg(outcome);
     if (climbPace && !climbRiderIntent(intent)) consumed += 1;
   }
@@ -411,20 +408,20 @@ export function simV2ResolveIntentQueue(
 }
 
 /** 招眼被硬拆：套路全崩 + 失衡一个行动窗（承伤 ×2）+ 额外 2 势 + 拆眼重创真伤。 */
-function applyEyeCollapse(b: Battle): boolean {
+function applyEyeCollapse(b: Battle, rc: RunContext): boolean {
   b.v2OffBalance = 2;
   b.v2EyeCount = (b.v2EyeCount ?? 0) + 1;
-  addQi(b, 2);
-  pushFx(b, "eye");
+  addQi(b, 2, rc);
+  pushFx(b, "eye", rc);
   b.log.push("【破眼】招眼被拆，套路散了——他失衡了（承伤 ×2）");
   b.journal.push({ side: "you", text: "破眼！" });
-  addBreakMomentumTrue(b, EYE_COUNTER_DMG, "【破眼】");
+  addBreakMomentumTrue(b, EYE_COUNTER_DMG, "【破眼】", rc);
   return true;
 }
 
-export function simV2ChooseIntent(b: Battle, picked: Intent, rc: RunContext = contextNow()): Intent {
+export function simV2ChooseIntent(b: Battle, picked: Intent, rc: RunContext): Intent {
   if (!labV2(rc) || !rc.tuning.v2VariantAi) return picked;
-  if (shouldUseVariantPattern(b)) return pickVariantIntent(b, picked);
+  if (shouldUseVariantPattern(b, rc)) return pickVariantIntent(b, picked);
   const broken = Object.entries(b.v2BreakByKind ?? {})
     .filter(([, n]) => (n ?? 0) >= VARIANT_BREAK_THRESHOLD)
     .map(([k]) => k);
@@ -432,6 +429,6 @@ export function simV2ChooseIntent(b: Battle, picked: Intent, rc: RunContext = co
   return picked;
 }
 
-export function simV2StatusQi(b: Battle, rc: RunContext = contextNow()): { show: boolean; value: number } {
+export function simV2StatusQi(b: Battle, rc: RunContext): { show: boolean; value: number } {
   return { show: labV2(rc), value: b.qi ?? 0 };
 }

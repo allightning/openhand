@@ -381,7 +381,7 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
       const def = labCard(c.defId, shellRunContext());
       const gate = discardMode ? { ok: true as const } : canPlay(c.uid);
       const active = hoverUid === c.uid;
-      const vBranch = isLabV2() ? variantBranch(def, b) : null;
+      const vBranch = isLabV2() ? variantBranch(def, b, shellRunContext()) : null;
       const vLabel = vBranch ? variantActiveLabel(def, b) : null;
       const vClass = vBranch ? `variant-on variant-${vBranch}` : def.variant ? "variant-idle" : "";
       const comboUnlock = isComboUnlockCard(b, c.defId) && gate.ok;
@@ -413,7 +413,7 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
           : guided && demoGuide?.stage === 2
             ? `<span class="combo-unlock-badge teach-move">让</span>`
             : "";
-      const qiCost = labV21EffectiveCost(b, def);
+      const qiCost = labV21EffectiveCost(b, def, shellRunContext());
       return `
         <button class="card ${def.type} ${active ? "hot" : ""} ${playGate.ok ? "" : "dead"} ${stunLock ? "stun-lock" : ""} ${comboUnlock ? "combo-unlock" : ""} ${vClass} ${chargeCard} ${momClass} ${guided ? "demo-guide-card" : ""}"
           data-uid="${c.uid}" data-sfx="play-card" data-tip="${escapeAttr(cardTip)}" style="--i:${idx}" ${playGate.ok ? "" : "disabled"}>

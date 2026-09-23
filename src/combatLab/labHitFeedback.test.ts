@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setLabMode, setLabTuning } from "../game/labTuning";
 import { applyBreak, applyGraze, applyBreakMomentumOnAttack } from "../game/labV2";
+import { breakTestContext } from "../game/testContext";
 import { endTurn, playCard, refreshFoeIntentsIfPending } from "../game/sim";
 import type { Battle } from "../game/types";
 import { startLabBattle } from "./factory";
@@ -47,7 +48,7 @@ describe("打击反馈：拆/让/空/打/拆势/劲尽", () => {
   it("硬拆 → 飘字拆 + 上息破", () => {
     const b = battle();
     b.intents = [{ kind: "strike", damage: 8 }];
-    applyBreak(b, b.intents[0]!, 0);
+    applyBreak(b, b.intents[0]!, 0, breakTestContext());
     expect(b.v2FxQueue).toContain("break");
     expect(renderFxLayer(b)).toContain("拆！");
   });
@@ -55,7 +56,7 @@ describe("打击反馈：拆/让/空/打/拆势/劲尽", () => {
   it("让 → 飘字让", () => {
     const b = battle();
     b.intents = [{ kind: "strike", damage: 10 }];
-    applyGraze(b, b.intents[0]!, 0);
+    applyGraze(b, b.intents[0]!, 0, breakTestContext());
     expect(b.v2FxQueue).toContain("graze");
     expect(renderFxLayer(b)).toContain("让");
   });
@@ -65,7 +66,7 @@ describe("打击反馈：拆/让/空/打/拆势/劲尽", () => {
     b.v2BreakMomentum = 1;
     b.v2BreakMomentumTrue = 6;
     b.enemy.pos = b.player.pos + 1;
-    applyBreakMomentumOnAttack(b);
+    applyBreakMomentumOnAttack(b, breakTestContext());
     expect(b.v2FxQueue).toContain("counter");
     expect(renderFxLayer(b)).toContain("拆势");
   });

@@ -86,14 +86,14 @@ export function labSwapFighter(b: Battle, id: CompanionId): Battle {
 }
 
 export function labResonanceTargets(b: Battle): CompanionId[] {
-  if (isLabV21()) return [];
+  if (isLabV21(shellRunContext())) return [];
   if (!isLabMode() || b.phase !== "player") return [];
   const school = MATES[b.active].weapon;
   return b.bench.filter((m) => MATES[m.id].weapon === school).map((m) => m.id);
 }
 
 export function labCanResonance(b: Battle, benchId: CompanionId): { ok: boolean; reason?: string } {
-  if (isLabV21()) return { ok: false, reason: "v2.1 共鸣已改为构成光环" };
+  if (isLabV21(shellRunContext())) return { ok: false, reason: "v2.1 共鸣已改为构成光环" };
   if (!isLabMode()) return { ok: false, reason: "仅踢馆" };
   if (b.phase !== "player") return { ok: false, reason: "不是你的回合" };
   if (!isLabV2() && b.labFreshSwap) return { ok: false, reason: "刚换上场，不能共鸣" };
@@ -126,8 +126,8 @@ export function labResonance(b: Battle, benchId: CompanionId): Battle {
   next.energy -= def.cost;
   next.labResonanceTurn = true;
   next.v2ResonanceCount = (next.v2ResonanceCount ?? 0) + 1;
-  if (isLabV2()) addQi(next, 1);
-  if (getLabTuning().v2Fx) pushFx(next, "resonance");
+  if (isLabV2()) addQi(next, 1, shellRunContext());
+  if (getLabTuning().v2Fx) pushFx(next, "resonance", shellRunContext());
 
   const mate = MATES[benchId].name;
   if (school === "palm") {

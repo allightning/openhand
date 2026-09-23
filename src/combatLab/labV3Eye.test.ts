@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { setLabMode, setLabTuning } from "../game/labTuning";
 import { commitV2EndTurn, emptyV2Turn } from "../game/labV2";
+import { breakTestContext } from "../game/testContext";
 import { planEyeIdx } from "../game/intentWeakness";
 import { simV2ResolveIntentQueue, simV2StrikeDamage } from "../game/simV2Hooks";
 import type { Battle, Intent } from "../game/types";
@@ -43,9 +44,9 @@ describe("§31.8 v3 招眼/破让分级", () => {
     b.player.pos = 3;
     b.v2Turn = { ...emptyV2Turn(b), moveCardPlayed: true, moveCharges: 1 };
     b.player.pos = 1; // 走出红圈
-    commitV2EndTurn(b);
+    commitV2EndTurn(b, breakTestContext());
     const resolved: Intent[] = [];
-    simV2ResolveIntentQueue(b, (intent) => resolved.push(intent));
+    simV2ResolveIntentQueue(b, (intent) => resolved.push(intent), breakTestContext());
     expect(resolved).toHaveLength(0); // 眼被拆，两段抢步跟着散
     expect(b.v2BrokenSegments).toEqual([0]);
     expect(b.v2OffBalance).toBe(2);
@@ -63,9 +64,9 @@ describe("§31.8 v3 招眼/破让分级", () => {
     expect(b.v2EyeIdx).toBe(0);
     // 只有破架充能：拆的是第 1 段（非眼），第 0 段照打、不崩、不失衡
     b.v2Turn = { ...emptyV2Turn(b), antiGuardPlayed: true, antiGuardCharges: 1 };
-    commitV2EndTurn(b);
+    commitV2EndTurn(b, breakTestContext());
     const resolved: Intent[] = [];
-    simV2ResolveIntentQueue(b, (intent) => resolved.push(intent));
+    simV2ResolveIntentQueue(b, (intent) => resolved.push(intent), breakTestContext());
     expect(resolved.map((i) => i.kind)).toEqual(["strike"]);
     expect(b.v2BrokenSegments).toEqual([1]);
     expect(b.v2OffBalance ?? 0).toBe(0);
@@ -81,9 +82,9 @@ describe("§31.8 v3 招眼/破让分级", () => {
     b.enemy.pos = 4;
     b.v2Turn = emptyV2Turn(b);
     b.player.pos = 1;
-    commitV2EndTurn(b);
+    commitV2EndTurn(b, breakTestContext());
     const resolved: Intent[] = [];
-    simV2ResolveIntentQueue(b, (intent) => resolved.push(intent));
+    simV2ResolveIntentQueue(b, (intent) => resolved.push(intent), breakTestContext());
     expect(resolved).toHaveLength(1);
     expect("damage" in resolved[0]! ? resolved[0]!.damage : -1).toBe(6); // 12 减半
     expect(b.v2GrazedSegments).toEqual([0]);
@@ -94,9 +95,9 @@ describe("§31.8 v3 招眼/破让分级", () => {
   it("失衡窗内打击 ×2（§31.13 处决窗）", () => {
     const b = v2Battle();
     b.v2OffBalance = 1;
-    expect(simV2StrikeDamage(b, 10)).toBe(20);
-    expect(simV2StrikeDamage(b, 7)).toBe(14);
+    expect(simV2StrikeDamage(b, 10, breakTestContext())).toBe(20);
+    expect(simV2StrikeDamage(b, 7, breakTestContext())).toBe(14);
     b.v2OffBalance = 0;
-    expect(simV2StrikeDamage(b, 10)).toBe(10);
+    expect(simV2StrikeDamage(b, 10, breakTestContext())).toBe(10);
   });
 });

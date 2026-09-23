@@ -349,7 +349,7 @@ describe("E 追 + 覆盖律 + 特色招", () => {
     };
     const plan = planBreaks(b, b.intents, "preview");
     expect(plan.get(0)).toBe("hard");
-    applyBreak(b, b.intents[0]!, 0);
+    applyBreak(b, b.intents[0]!, 0, breakTestContext());
     expect(b.v2TurnBreakCount).toBe(1);
     const loot = breakLootFor(b.intents[0]!);
     expect(loot?.kind).toBe("block");
@@ -411,7 +411,7 @@ describe("闪避 / 霸体", () => {
     expect(b.enemy.hp).toBe(hp);
     expect(b.foeDodge).toBe(0);
     expect(b.lastHitRead ?? "").toMatch(/闪/);
-    counterHitFoe(b, 4, "拆势打出");
+    counterHitFoe(b, 4, "拆势打出", breakTestContext());
     expect(b.enemy.hp).toBe(hp - 4);
   });
 

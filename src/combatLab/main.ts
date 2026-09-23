@@ -2136,7 +2136,7 @@ function renderBattle(): string {
       : "";
   const itemBtns = (b.labItems ?? [])
     .map((id) => {
-      const gate = labCanUseItem(b, id);
+      const gate = labCanUseItem(b, id, shellRunContext());
           const n = itemChargeCount(b, id);
           const tip = gate.ok ? (LAB_ITEM_TIP[id] ?? LAB_ITEM_LABEL[id] ?? id) : (gate.reason ?? "不可用");
           return actionTipWrap(
@@ -3799,7 +3799,7 @@ function bindEvents(): void {
         render();
         return;
       }
-      const r = useLabItem(battle, itemId);
+      const r = useLabItem(battle, itemId, shellRunContext());
       if (!r.ok || !r.battle) return;
       battle = r.battle;
       render();
@@ -3810,7 +3810,7 @@ function bindEvents(): void {
     el.addEventListener("click", () => {
       if (!battle || !summonPending || battle.phase !== "player" || paused) return;
       const pos = Number(el.dataset.pos);
-      const r = useLabItem(battle, summonPending, pos);
+      const r = useLabItem(battle, summonPending, shellRunContext(), pos);
       summonPending = null;
       if (!r.ok || !r.battle) return;
       battle = r.battle;
