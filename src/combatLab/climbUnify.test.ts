@@ -9,6 +9,7 @@ import { battleEquippedSchool } from "../game/equippedWeapon";
 import { profileFor } from "../game/enemyKit";
 import { canPlay, playCard, statusChips, previewCard, endTurn, seizeOpening } from "../game/sim";
 import { damageBreakdown } from "../game/damageBreakdown";
+import { climbTestContext } from "../game/testContext";
 import { startLabBattle } from "./factory";
 import { applyAutoLoadout } from "./autoLoadouts";
 import { labCanSwap, labSwapFighter } from "./labCombat";
@@ -155,7 +156,7 @@ describe("S1–S10 爬塔收编", () => {
     })();
     const def = labCard("hitSaber");
     expect(def.name).toBe("抹刀");
-    const br = damageBreakdown(b, def);
+    const br = damageBreakdown(b, def, climbTestContext());
     const prev = previewCard({ ...b, energy: 20 }, inst.uid);
     const dealt = b.enemy.hp - prev.enemyHp;
     expect(br.total).toBe(dealt);
@@ -180,7 +181,7 @@ describe("S1–S10 爬塔收编", () => {
       return b.hand[0]!;
     })();
     const def = labCard("cut");
-    const br = damageBreakdown(b, def);
+    const br = damageBreakdown(b, def, climbTestContext());
     expect(br.parts.find((p) => p.label === "牌面")?.n).toBe(4);
     expect(br.parts.some((p) => p.label === "挨打加伤")).toBe(false);
     expect(br.riders.join()).toMatch(/裂创/);

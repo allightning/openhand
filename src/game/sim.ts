@@ -2747,7 +2747,7 @@ export function previewCard(b: Battle, uid: string, rc: RunContext = contextNow(
   const notes = applyCard(next, inst.defId, rc);
   applyPlayedAttackMomentum(next, inst.defId, notes);
   const def = labCard(inst.defId);
-  const shown = def.type === "attack" || def.block ? breakdownDisplay(b, def) : undefined;
+  const shown = def.type === "attack" || def.block ? breakdownDisplay(b, def, rc) : undefined;
   return snapshot(next, notes, gate.ok, gate.reason, shown?.inner || undefined, shown?.riders);
 }
 

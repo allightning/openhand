@@ -7,7 +7,7 @@ import { cardSchool, WEAPON_PACE } from "./party";
 import { schoolTier, tierFx, resonancePaceBonus } from "./labResonance";
 import { techBonus } from "./techRank";
 import { comboAssistMods } from "./comboAssist";
-import { contextNow, labV2, type RunContext } from "./runContext";
+import { labV2, type RunContext } from "./runContext";
 
 export interface BreakdownPart {
   label: string;
@@ -32,7 +32,7 @@ function youPaceNow(b: Battle, ctx: RunContext): number {
 export function damageBreakdown(
   b: Battle,
   def: CardDef,
-  ctx: RunContext = contextNow(),
+  ctx: RunContext,
 ): { parts: BreakdownPart[]; riders: string[]; total: number } {
   const parts: BreakdownPart[] = [];
   const riders: string[] = [];
@@ -173,14 +173,14 @@ export function damageBreakdown(
   return { parts, riders, total: Math.max(0, total) };
 }
 
-export function breakdownTipLine(b: Battle, def: CardDef): string {
-  const { inner, riders } = breakdownDisplay(b, def);
+export function breakdownTipLine(b: Battle, def: CardDef, ctx: RunContext): string {
+  const { inner, riders } = breakdownDisplay(b, def, ctx);
   if (!inner && !riders.length) return "";
   return riders.length ? `${inner} ${riders.join(" · ")}`.trim() : inner;
 }
 
-export function breakdownDisplay(b: Battle, def: CardDef): { inner: string; riders: string[] } {
-  const { parts, riders, total } = damageBreakdown(b, def);
+export function breakdownDisplay(b: Battle, def: CardDef, ctx: RunContext): { inner: string; riders: string[] } {
+  const { parts, riders, total } = damageBreakdown(b, def, ctx);
   if (!parts.length && !riders.length) return { inner: "", riders };
   const body = parts.filter((p) => p.n).map((p) => `${p.n > 0 ? "+" : ""}${p.n} ${p.label}`).join(" ");
   const inner = parts.length ? `构成 ${total}：${body}` : "";

@@ -15,6 +15,7 @@ import {
 } from "../game/sim";
 import { addStake } from "../game/stake";
 import { damageBreakdown } from "../game/damageBreakdown";
+import { climbTestContext } from "../game/testContext";
 import { labCard } from "../game/labContent";
 import { startLabBattle } from "./factory";
 import { applyAutoLoadout } from "./autoLoadouts";
@@ -94,7 +95,7 @@ describe("爬塔试玩默认 2026-09-17", () => {
     b.player.pos = 3;
     b.enemy.pos = 4;
     const def = labCard("hitSaber");
-    const br = damageBreakdown(b, def);
+    const br = damageBreakdown(b, def, climbTestContext());
     expect(br.parts.some((p) => p.label === "快刀")).toBe(false);
   });
 

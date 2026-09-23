@@ -400,7 +400,7 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
         def.name,
         `${typeLabel(def.type)} · ${schoolLabel(c.defId)}${def.tags?.includes("组合") ? " · 组合" : ""}`,
         cardDisplayText(def, { breakAlign }),
-        playGate.ok && def.type === "attack" ? breakdownTipLine(b, def) : "",
+        playGate.ok && def.type === "attack" ? breakdownTipLine(b, def, shellRunContext()) : "",
         playGate.ok ? def.flavor : (playGate.reason ?? def.flavor),
       ]
         .filter(Boolean)
