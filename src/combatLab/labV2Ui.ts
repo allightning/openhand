@@ -6,12 +6,13 @@ import { isLabV2 } from "../game/labTuning";
 import { isBreakAlign, isBreakLesson } from "./labRuleset";
 import { MATES } from "../game/party";
 import { dangerCellsForIntent, intentIncoming, livingFoes, projectedQueueThreat } from "../game/sim";
+import { shellRunContext } from "./shellContext";
 import type { Battle, Intent, Unit } from "../game/types";
 import { escapeHtml } from "./setupUi";
 
 /** 意图条效果数：一律带阿拉伯数字（架/回/进撤/伤）。 */
 function intentOneNumber(b: Battle, intent: Intent, segPreview?: IntentSegmentPreview): { text: string; modified: boolean; tipExtra: string } {
-  const inc = intentIncoming(b, intent);
+  const inc = intentIncoming(b, intent, shellRunContext());
   if (intent.kind === "advance") return { text: `进${intent.steps}`, modified: false, tipExtra: "" };
   if (segPreview?.tierCode === "空" && (intent.kind === "lunge" || intent.kind === "charge")) {
     const steps = intent.kind === "charge" ? intent.steps : 1;

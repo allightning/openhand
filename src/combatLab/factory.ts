@@ -14,6 +14,7 @@ import { expandDeckRecipe } from "./rules";
 import { pruneDeckForWeapon } from "./cardUi";
 import { gearSlotMax } from "./loadout";
 import { isBreakAlign } from "./labRuleset";
+import { shellRunContext } from "./shellContext";
 import { auraCardId } from "../game/rogueCards";
 import type { LabPreset } from "./types";
 import { battleEquippedSchool } from "../game/equippedWeapon";
@@ -86,7 +87,7 @@ export function startLabBattle(preset: LabPreset, ordered = false, deckMultiplie
   setLabMode(true);
   const p = normalizePreset(preset);
   const run = runFromPreset(p);
-  let b = makeBattle(p.enemyId, run, ordered, p.enemyId.startsWith("tutor"));
+  let b = makeBattle(p.enemyId, run, ordered, p.enemyId.startsWith("tutor"), shellRunContext());
   if (p.extraFoeIds?.length) {
     const hpScale = b.enemy.maxHp / labEnemy(p.enemyId).hp;
     const extras = p.extraFoeIds.map((id) => extraUnit(id, hpScale));

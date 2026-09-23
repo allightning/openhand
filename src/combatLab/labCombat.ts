@@ -3,6 +3,8 @@ import { isLabV21 } from "../game/labV21";
 import { MATES } from "../game/party";
 import type { Battle, CompanionId, WeaponId } from "../game/types";
 import { cloneBattle, canPlay, canSwap, swapFighter, livingFoes, rebindMindStats, dealToHand } from "../game/sim";
+import { shellRunContext } from "./shellContext";
+import type { RunContext } from "../game/runContext";
 import { pairFusionId } from "../game/rogueCards";
 import { battleEquippedSchool } from "../game/equippedWeapon";
 import { isBreakAlign } from "./labRuleset";
@@ -33,8 +35,8 @@ export function labSwapCost(): number {
   return LAB_SWAP_COST;
 }
 
-export function labCanPlay(b: Battle, uid: string): { ok: boolean; reason?: string } {
-  return canPlay(b, uid);
+export function labCanPlay(b: Battle, uid: string, rc: RunContext = shellRunContext()): { ok: boolean; reason?: string } {
+  return canPlay(b, uid, rc);
 }
 
 export function labCanSwap(b: Battle, id: CompanionId): { ok: boolean; reason?: string } {

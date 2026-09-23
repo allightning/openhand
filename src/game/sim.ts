@@ -2739,12 +2739,12 @@ function applyPlayedAttackMomentum(b: Battle, defId: CardId, notes: string[]): v
   if (extra.knock > 0) notes.push(...pushEnemy(b, extra.knock));
 }
 
-export function previewCard(b: Battle, uid: string): Preview {
-  const gate = canPlay(b, uid);
+export function previewCard(b: Battle, uid: string, rc: RunContext = contextNow()): Preview {
+  const gate = canPlay(b, uid, rc);
   const inst = b.hand.find((c) => c.uid === uid);
   if (!inst) return snapshot(b, [], false, gate.reason);
   const next = cloneBattle(b);
-  const notes = applyCard(next, inst.defId);
+  const notes = applyCard(next, inst.defId, rc);
   applyPlayedAttackMomentum(next, inst.defId, notes);
   const def = labCard(inst.defId);
   const shown = def.type === "attack" || def.block ? breakdownDisplay(b, def) : undefined;
@@ -4796,7 +4796,7 @@ export function endTurn(b: Battle, opts: EndTurnOpts = {}, rc: RunContext = cont
   return next;
 }
 
-export function statusChips(b: Battle, side: "you" | "foe"): StatusChip[] {
+export function statusChips(b: Battle, side: "you" | "foe", rc: RunContext = contextNow()): StatusChip[] {
   const chips: StatusChip[] = [];
   const push = (key: string, name: string, value: string | number, tip: string) => {
     if (value === 0 || value === "") return;
@@ -4805,7 +4805,7 @@ export function statusChips(b: Battle, side: "you" | "foe"): StatusChip[] {
   if (side === "you") {
     const passive = companionOn(b) ? MATE_PASSIVE[b.active] : undefined;
     if (passive) push("passive", passive.name, "开", passive.text);
-    const climb = isClimbQi();
+    const climb = isClimbQi(rc);
     push(
       "pace",
       "先机",
@@ -4889,7 +4889,7 @@ export function statusChips(b: Battle, side: "you" | "foe"): StatusChip[] {
       push("intent", "来招", chip, "与上方意图条同一招。红格是危险步。");
     }
     push("block", "格挡", b.enemyBlock, "打在他身上先吃掉这些。");
-    if (!isClimbQi() && b.flow >= 2) {
+    if (!isClimbQi(rc) && b.flow >= 2) {
       push("flowwarn", "气脉", b.flow, "你气脉偏高时，他更爱卸力或连打。");
     }
     push("bleed", "裂创", b.bleed, "他每回收势按层数掉血。");
@@ -4902,11 +4902,11 @@ export function statusChips(b: Battle, side: "you" | "foe"): StatusChip[] {
       push("bury", "埋招", `${riposteName(b.foeRiposte)}·${b.foeRiposteTurns}`, `再 ${b.foeRiposteTurns} 回。你打他时，他按此反击。`);
     }
     if ((b.foeDodge ?? 0) > 0) push("dodge", "闪避", b.foeDodge ?? 0, "你下一张攻击牌的卡面伤会落空。");
-    if ((b.foeEndure ?? 0) > 0) push("endure", "霸体", b.foeEndure ?? 0, isClimbQi() ? "挡控耗 1 层。每个结束 −1。" : "你下一张攻击仍能打伤，但击退、拉、眩晕无效。");
+    if ((b.foeEndure ?? 0) > 0) push("endure", "霸体", b.foeEndure ?? 0, isClimbQi(rc) ? "挡控耗 1 层。每个结束 −1。" : "你下一张攻击仍能打伤，但击退、拉、眩晕无效。");
     if (b.foeMute > 0) push("mute", "禁技", b.foeMute, "他暂时打不出技能意图强化。");
-    if (!isClimbQi() && (b.v2OffBalance ?? 0) > 0) push("offbalance", "失衡", b.v2OffBalance!, "承伤加倍。破眼后失衡。");
+    if (!isClimbQi(rc) && (b.v2OffBalance ?? 0) > 0) push("offbalance", "失衡", b.v2OffBalance!, "承伤加倍。破眼后失衡。");
     if ((b.foeStun ?? 0) > 0) push("stun", "眩晕", b.foeStun!, "他接下来 N 个攻击段出不来（棍连击/拳震壁）。");
-    if ((b.foeDisarm ?? 0) > 0) push("disarm", "缴械", b.foeDisarm!, isClimbQi() ? "跳过下一次有伤。" : "他被摘了兵刃：攻击伤害减半（钩系）。");
+    if ((b.foeDisarm ?? 0) > 0) push("disarm", "缴械", b.foeDisarm!, isClimbQi(rc) ? "跳过下一次有伤。" : "他被摘了兵刃：攻击伤害减半（钩系）。");
     if (b.foeNoBag > 0) push("nobag", "封囊", b.foeNoBag, "他袋里的药/暗器用不上（对你亦同规则）。");
     if (b.foeHandTax > 0) push("handtax", "削谱", b.foeHandTax, "压迫他的节奏。");
     if (b.foeQiBurn > 0) push("qiburn", "扣劲", b.foeQiBurn, "他回劲变慢。");

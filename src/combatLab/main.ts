@@ -35,6 +35,7 @@ import { assistEnergyCost, callAssist, canCallAssist, isComboRulesEnabled } from
 import { MATES, ROLE_LABEL, WEAPON_NAME, WEAPON_PACE } from "../game/party";
 import { type Battle, type CardId, type CompanionId, type EnemyId, type LabItemId, type TechniqueId } from "../game/types";
 import { clonePreset, endLabMode, normalizePreset, primaryWeapon, startLabBattle } from "./factory";
+import { shellRunContext } from "./shellContext";
 import {
   labCanPlay,
   labCanSwap,
@@ -816,7 +817,7 @@ function loadDraft(id: string): void {
 }
 
 function previewMatchesPlay(b: Battle, uid: string, after: Battle): boolean {
-  const prev = previewCard(b, uid);
+  const prev = previewCard(b, uid, shellRunContext());
   return (
     after.enemy.hp === prev.enemyHp &&
     after.enemy.pos === prev.enemyPos &&
@@ -2030,7 +2031,7 @@ function renderBattle(): string {
   let b = battle;
   if (playbackShow) b = overlayRecapBattle(b, playbackShow);
   // 悬停任意牌都给全量预演：位移牌照旧画落脚小人，所有牌驱动底部预演条
-  const prev = hoverUid ? previewCard(b, hoverUid) : null;
+  const prev = hoverUid ? previewCard(b, hoverUid, shellRunContext()) : null;
   const swapCost = labSwapCost();
   const partyMode = inDemo
     ? Boolean(breakDemoRun!.companion)
@@ -2274,7 +2275,7 @@ function renderBattle(): string {
     hoverIntentIdx,
     weaponId: primaryWeapon(draft),
     canPlay: (uid) => {
-      const base = labCanPlay(b, uid);
+      const base = labCanPlay(b, uid, shellRunContext());
       if (!base.ok) return base;
       const card = b.hand.find((c) => c.uid === uid);
       if (!card) return base;
@@ -2732,7 +2733,7 @@ function paintHoverBoard(): void {
   let b = battle;
   if (playbackShow) b = overlayRecapBattle(b, playbackShow);
   // 悬停任意牌：全量预演同时驱动棋盘落点小人与底部预演条
-  const prev = hoverUid ? previewCard(b, hoverUid) : null;
+  const prev = hoverUid ? previewCard(b, hoverUid, shellRunContext()) : null;
   const pslot = root.querySelector("#preview-slot");
   if (pslot) pslot.outerHTML = renderHoverPreview(b, prev);
   const slot = root.querySelector("#strip");
@@ -3682,7 +3683,7 @@ function bindEvents(): void {
         render();
         return;
       }
-      const gate = labCanPlay(battle, uid);
+      const gate = labCanPlay(battle, uid, shellRunContext());
       if (!gate.ok) return;
       if (breakDemoRun) {
         const cardCheck = battle.hand.find((c) => c.uid === uid);
@@ -3699,7 +3700,7 @@ function bindEvents(): void {
       const card = battle.hand.find((c) => c.uid === uid);
       const ms = Math.round(performance.now() - turnStartedAt);
       const before = battle;
-      const after = playCard(battle, uid);
+      const after = playCard(battle, uid, shellRunContext());
       if (card) playSfx(CARDS[card.defId]?.type === "attack" ? "swing" : "drop");
       const matched = previewMatchesPlay(before, uid, after);
       battle = after;
@@ -3870,7 +3871,7 @@ function bindEvents(): void {
     foePlaybackIntents = battle.intents.length ? battle.intents.map((x) => ({ ...x })) : [{ ...battle.intent }];
     const origin = { playerPos: battle.player.pos, enemyPos: battle.enemy.pos };
     // 先兑完整队、暂不刷下一手；播报完再亮下回合全套意图
-    battle = endTurn(battle, { deferIntentRefresh: true, deferStatusTicks: !isBreakAlign() });
+    battle = endTurn(battle, { deferIntentRefresh: true, deferStatusTicks: !isBreakAlign() }, shellRunContext());
     if (!campaignRun && skipFoeRecap(battle)) {
       endBattle("win");
       return;

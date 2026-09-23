@@ -19,6 +19,7 @@ import { MOVE_CARD_IDS } from "../game/intentWeakness";
 import { isBreakAlign } from "./labRuleset";
 import { MATES, MATE_PASSIVE, WEAPON_NAME, schoolLabel } from "../game/party";
 import { dangerCells, livingFoes, statusChips, yourPace, isComboUnlockCard, climbCardLocked } from "../game/sim";
+import { shellRunContext } from "./shellContext";
 import { battleTechRank } from "../game/techRank";
 import { BOARD_SIZE, type Battle, type EnemyId, type Preview } from "../game/types";
 import { gearById, starterGear } from "../game/weapons";
@@ -89,7 +90,7 @@ function qiBar(current: number, max: number, regen?: number): string {
 }
 
 function renderStatusCol(b: Battle, side: "you" | "foe"): string {
-  const chips = statusChips(b, side).filter((c) => !c.key.startsWith("mind-") && !c.name.includes("心法"));
+  const chips = statusChips(b, side, shellRunContext()).filter((c) => !c.key.startsWith("mind-") && !c.name.includes("心法"));
   if (!chips.length) return `<div class="status-col ${side}-status empty" aria-hidden="true"></div>`;
   const rows = chips
     .map(
@@ -127,7 +128,7 @@ export function renderProdBoard(
     slashTick?: number;
   },
 ): string {
-  const danger = dangerCells(b);
+  const danger = dangerCells(b, shellRunContext());
   // §31.10 兵刃威胁圈：敌当前位置 ±reach 的格常亮淡红——「退一步是否还挨刀」一眼可查。
   const reach = ENEMIES[b.enemyId]?.reach ?? 1;
   const reachCells: number[] = [];
