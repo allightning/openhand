@@ -20,7 +20,7 @@ import {
 import { resonancePaceBonus, staffBlockRetain } from "./labResonance";
 import { tickSignatureCooldown } from "./labSignature";
 import { makeRun } from "./run";
-import { isLabMode, isLabV2, labAiAllowsReaction, labPaceBias, resolveFightScale } from "./labTuning";
+import { labAiAllowsReaction, labPaceBias, resolveFightScale } from "./labTuning";
 import {
   drainPendingStress,
   enemyRoundBudgetCap,
@@ -64,7 +64,6 @@ import { BREAK_COUNTER_CHAIN } from "./labV2Constants";
 import { MOVE_CARD_IDS, planEyeIdx, registerThreatProvider, registerQueueThreatProvider } from "./intentWeakness";
 import { SUMMON_DEFS } from "./labSummon";
 import { addStake, adjacentStakePos, enemyPlantHits, playerPlantHits, removeStake, smashHitsForSchool, smashStake, stakeHitsAt } from "./stake";
-import { isBreakAlign } from "./labRuleset";
 import { contextNow, labV2, type RunContext } from "./runContext";
 import { climbEnergyStart, climbVitals } from "./climbVitals";
 import {
@@ -919,8 +918,8 @@ export function labDiscardsLeft(b: Battle): number {
   return Math.max(0, 1 - (b.v2Turn?.cyclesUsed ?? 0));
 }
 
-export function labCanCycle(b: Battle): { ok: boolean; reason?: string } {
-  if (!isLabV2()) return { ok: false, reason: "仅踢馆" };
+export function labCanCycle(b: Battle, rc: RunContext = contextNow()): { ok: boolean; reason?: string } {
+  if (!labV2(rc)) return { ok: false, reason: "仅踢馆" };
   if (b.phase !== "player") return { ok: false, reason: "不是你的回合" };
   if (needsDiscardToHandCap(b) && !isClimbQi()) return { ok: false, reason: "请先弃到上限再置换" };
   if (isClimbQi() && b.climbDiscardPhase) return { ok: false, reason: "弃牌阶段不能置换" };
@@ -1049,14 +1048,14 @@ export function labDiscardCard(b: Battle, uid: string): Battle {
   return b;
 }
 
-function cardPlaySchoolGate(b: Battle, defId: CardId): { ok: boolean; reason?: string } {
-  if (!isLabMode()) return { ok: true };
+function cardPlaySchoolGate(b: Battle, defId: CardId, rc: RunContext = contextNow()): { ok: boolean; reason?: string } {
+  if (!rc.lab) return { ok: true };
   const cs = cardSchool(defId);
   if (cs === "any") return { ok: true };
   const fieldSchool = battleEquippedSchool(b, b.active);
   if (cs === fieldSchool) return { ok: true };
   // §31.12 异系同行=组合技开闸（被动，人在后场即可）；v1 旧制仍走助战在场。
-  if (isLabV2()) {
+  if (labV2(rc)) {
     const mate = b.bench.find((m) => m.hp > 0 && battleEquippedSchool(b, m.id) === cs);
     if (mate) return { ok: true };
   } else if (isComboRulesEnabled() && b.labAssistActive) {
@@ -1066,8 +1065,8 @@ function cardPlaySchoolGate(b: Battle, defId: CardId): { ok: boolean; reason?: s
   return { ok: false, reason: `需${MATES[b.active].name}装备${cs}系，或后场有该系同行` };
 }
 
-export function isComboUnlockCard(b: Battle, defId: CardId): boolean {
-  if (!isLabMode() || !isComboRulesEnabled() || !b.labAssistActive) return false;
+export function isComboUnlockCard(b: Battle, defId: CardId, rc: RunContext = contextNow()): boolean {
+  if (!rc.lab || !isComboRulesEnabled() || !b.labAssistActive) return false;
   const cs = cardSchool(defId);
   if (cs === "any") return false;
   const fieldSchool = battleEquippedSchool(b, b.active);
@@ -1344,8 +1343,8 @@ function schoolIdentityMods(b: Battle, cardDef: CardDef | undefined, dmg: number
   return dmg;
 }
 
-function strikeDamage(b: Battle, base: number, forceMelee = false, cardDef?: CardDef): number {
-  if (isLabV2()) {
+function strikeDamage(b: Battle, base: number, forceMelee = false, cardDef?: CardDef, rc: RunContext = contextNow()): number {
+  if (labV2(rc)) {
     let dmg = simV2StrikeDamage(b, base);
     dmg = v2StrikeBonus(b, dmg, true);
     if (cardDef) {
@@ -1356,7 +1355,8 @@ function strikeDamage(b: Battle, base: number, forceMelee = false, cardDef?: Car
     dmg = schoolIdentityMods(b, cardDef, dmg);
     if (b.active === "ananhuo" && Math.abs(b.player.pos - b.enemy.pos) >= 2) dmg += 2;
     if (hasTech(b, "brightBlade") && (forceMelee || adjacent(b))) {
-      if (!(isLabMode() && isBreakAlign()) || breakTurnBonus(b)) dmg += techBonus(b, "brightBlade", 3);
+      // 旧核选路，阶段3沉 engine/break，勿仿此新增
+      if (!(rc.lab && rc.ruleset.mode === "break") || breakTurnBonus(b)) dmg += techBonus(b, "brightBlade", 3);
     }
     if (fightScale.youDmg !== 1) dmg = Math.max(1, Math.round(dmg * fightScale.youDmg));
     return Math.max(1, dmg);
@@ -1365,7 +1365,7 @@ function strikeDamage(b: Battle, base: number, forceMelee = false, cardDef?: Car
   if (hasTech(b, "brightBlade") && (forceMelee || adjacent(b))) dmg += techBonus(b, "brightBlade", 3);
   if (b.youSway > 0 || (b.youUnseat ?? 0) > 0) dmg = Math.max(1, dmg - 2);
   if ((b.foeSway ?? 0) > 0 || (b.foeUnseat ?? 0) > 0) dmg += 3;
-  if (b.expose > 0 && !(isLabMode() && !isBreakAlign())) {
+  if (b.expose > 0 && !(rc.lab && rc.ruleset.mode !== "break")) {
     dmg += 4;
     b.expose -= 1;
   }
@@ -1467,7 +1467,7 @@ function applyGodSkillOnHit(
   }
 }
 
-function hitEnemy(b: Battle, raw: number, verb: string, spendCharge = true): string[] {
+function hitEnemy(b: Battle, raw: number, verb: string, spendCharge = true, rc: RunContext = contextNow()): string[] {
   const foe = targetFoe(b);
   if (!foe) return ["没有目标"];
   if (b.foeDodgedHit || (b.foeDodge ?? 0) > 0) {
@@ -1539,7 +1539,7 @@ function hitEnemy(b: Battle, raw: number, verb: string, spendCharge = true): str
       notes.push("刺点抽 1");
     }
   }
-  if (!isLabV2() && b.combo > 0) b.combo = 0;
+  if (!labV2(rc) && b.combo > 0) b.combo = 0;
   if (b.active === "boqing" && b.enemyBlock > 0) {
     const pierce = Math.min(3, b.enemyBlock);
     b.enemyBlock -= pierce;
@@ -1624,7 +1624,7 @@ function hitEnemy(b: Battle, raw: number, verb: string, spendCharge = true): str
   return notes;
 }
 
-function knockAway(b: Battle, who: "player" | "enemy", dist: number, wall?: number): string[] {
+function knockAway(b: Battle, who: "player" | "enemy", dist: number, wall?: number, rc: RunContext = contextNow()): string[] {
   if (who === "enemy" && b.foeSkipCc) return ["霸体：不受位移"];
   const notes: string[] = [];
   const unit = who === "player" ? b.player : (targetFoe(b) ?? b.enemy);
@@ -1644,7 +1644,7 @@ function knockAway(b: Battle, who: "player" | "enemy", dist: number, wall?: numb
         notes.push("墙劲");
       }
       // §31.11 拳系震壁：把敌打上墙 → 震壁 +6 且眩晕 1 段（拳的输出环境差，上墙是高收益兑现）
-      if (who === "enemy" && isLabV2() && battleEquippedSchool(b, b.active) === "palm") {
+      if (who === "enemy" && labV2(rc) && battleEquippedSchool(b, b.active) === "palm") {
         wh += 6;
         b.foeStun = (b.foeStun ?? 0) + 1;
         notes.push("震壁·敌晕 1 段");
@@ -1657,7 +1657,7 @@ function knockAway(b: Battle, who: "player" | "enemy", dist: number, wall?: numb
     }
     if (occupied(b, next, unit.id)) {
       // §31.12 助战符当墙：敌被推到召唤体身上 = 撞墙（拳系震壁连招的核心兑现）
-      if (who === "enemy" && isLabV2() && b.labSummon && b.labSummon.hp > 0 && b.labSummon.pos === next) {
+      if (who === "enemy" && labV2(rc) && b.labSummon && b.labSummon.hp > 0 && b.labSummon.pos === next) {
         let wh = wallHit(b, wall);
         if (battleEquippedSchool(b, b.active) === "palm") {
           wh += 6;
@@ -1845,7 +1845,7 @@ function playerMovePathGate(b: Battle, defId: CardId): { ok: boolean; reason?: s
   return { ok: true };
 }
 
-function applyCard(b: Battle, defId: CardId): string[] {
+function applyCard(b: Battle, defId: CardId, rc: RunContext = contextNow()): string[] {
   const def = labCard(defId);
   const notes: string[] = [];
 
@@ -1906,7 +1906,7 @@ function applyCard(b: Battle, defId: CardId): string[] {
     b.nextDamage += bonus;
     notes.push(`下一招伤害 +${bonus}`);
     // §31.12 各系起手都有蓄劲——让它顺手攒 1 势，任何系都有稳定的攒势手段（不只靠解禁丹）。
-    if (isLabV2()) notes.push(...simV2ApplyGather(b, 1));
+    if (labV2(rc)) notes.push(...simV2ApplyGather(b, 1));
     return notes;
   }
 
@@ -1927,14 +1927,14 @@ function applyCard(b: Battle, defId: CardId): string[] {
       else notes.push(...moved);
     }
     // 踢馆：进步/纵步耗 1 劲换位置并抽 1，增加手牌周转
-    if (isLabV2() && (defId === "advance" || defId === "advance2") && drawOne(b)) notes.push("抽 1");
-    if (!isLabV2() && drawOne(b)) notes.push("抽 1");
+    if (labV2(rc) && (defId === "advance" || defId === "advance2") && drawOne(b)) notes.push("抽 1");
+    if (!labV2(rc) && drawOne(b)) notes.push("抽 1");
     return notes;
   }
 
   if (defId === "push" || defId === "push2" || defId === "sweep") {
     notes.push(...pushEnemy(b, def.knock ?? 1, def.wall));
-    if (defId === "sweep" && !isLabV2() && drawOne(b)) notes.push("抽 1");
+    if (defId === "sweep" && !labV2(rc) && drawOne(b)) notes.push("抽 1");
     return notes;
   }
 
@@ -2020,7 +2020,8 @@ function applyCard(b: Battle, defId: CardId): string[] {
     const base = table ?? (def.damage ?? 0) + bonus;
     const notes = hitEnemy(b, strikeDamage(b, base, false, def), def.name + " ");
     if (table != null) addSpearRuler(b, spearRulerGain(dist));
-    if (dist === 1 && isBreakAlign()) {
+    // 旧核选路，阶段3沉 engine/break，勿仿此新增
+    if (dist === 1 && rc.ruleset.mode === "break") {
       notes.push(...pushEnemy(b, 1));
       notes.push("拨杆");
       const after = targetFoe(b);
@@ -2096,7 +2097,7 @@ function applyCard(b: Battle, defId: CardId): string[] {
   }
 
   if (defId === "combo") {
-    if (isLabV2()) return simV2ApplyComboCard(b, defId, def.stackTaxHp);
+    if (labV2(rc)) return simV2ApplyComboCard(b, defId, def.stackTaxHp);
     if ((def.stackTaxHp ?? 0) > 0) {
       b.player.hp = Math.max(1, b.player.hp - (def.stackTaxHp ?? 0));
       notes.push(`付血 ${def.stackTaxHp}`);
@@ -2149,7 +2150,7 @@ function applyCard(b: Battle, defId: CardId): string[] {
   }
 
   if (defId === "gather" || defId === "gather2") {
-    if (isLabV2()) {
+    if (labV2(rc)) {
       notes.push(...simV2ApplyGather(b, def.flow ?? 1));
       if (drawOne(b)) notes.push("抽 1");
       return notes;
@@ -2161,7 +2162,7 @@ function applyCard(b: Battle, defId: CardId): string[] {
   }
 
   if (defId === "setup") {
-    if (isLabV2()) {
+    if (labV2(rc)) {
       notes.push(...simV2ApplySetup(b, def.setupGain ?? 1));
       if (drawOne(b)) notes.push("抽 1");
       return notes;
@@ -2173,7 +2174,7 @@ function applyCard(b: Battle, defId: CardId): string[] {
   }
 
   if (defId === "finisher" || defId === "finisher2") {
-    if (isLabV2()) {
+    if (labV2(rc)) {
       const { base, notes: qn } = simV2ApplyFinisher(b, defId, def.damage ?? 4);
       notes.push(...qn);
       notes.push(...hitEnemy(b, strikeDamage(b, base), qn.length ? "势爆 " : "空爆 "));
@@ -2190,7 +2191,7 @@ function applyCard(b: Battle, defId: CardId): string[] {
   }
 
   if (defId === "weave") {
-    if (isLabMode() && !isBreakAlign()) {
+    if (rc.lab && rc.ruleset.mode !== "break") {
       b.playerBlock += 6;
       notes.push("格挡 6");
     } else if (b.lastPlay === "attack") {
@@ -2445,7 +2446,7 @@ function applyCard(b: Battle, defId: CardId): string[] {
     if (spearBase != null) {
       const foe = targetFoe(b);
       addSpearRuler(b, spearRulerGain(foe ? Math.abs(b.player.pos - foe.pos) : 0));
-      if (distBefore === 1 && isBreakAlign() && def.id !== "thrust") {
+      if (distBefore === 1 && rc.ruleset.mode === "break" && def.id !== "thrust") {
         notes.push(...pushEnemy(b, 1));
         notes.push("拨杆");
         const after = targetFoe(b);
@@ -2459,7 +2460,7 @@ function applyCard(b: Battle, defId: CardId): string[] {
   }
   if (def.block) {
     const rawBlock = def.block + (pathSkillMods(battleGearId).blockExtra ?? 0) + techBlockBonus(b);
-    const block = isLabV2() ? labV21BlockAdjust(b, def, rawBlock) : rawBlock;
+    const block = labV2(rc) ? labV21BlockAdjust(b, def, rawBlock) : rawBlock;
     b.playerBlock += block;
     notes.push(`格挡 ${block}`);
   }
@@ -2509,7 +2510,7 @@ function applyCard(b: Battle, defId: CardId): string[] {
     b.expose += def.expose;
     notes.push(`破绽 ${b.expose}`);
   }
-  if (isBreakAlign() && defId === "ultSaber" && (b.bleed ?? 0) > 0) {
+  if (rc.ruleset.mode === "break" && defId === "ultSaber" && (b.bleed ?? 0) > 0) {
     const tick = bleedTickDamage(b.bleed);
     const foe = livingFoes(b)[0];
     if (foe && tick > 0) {
@@ -2648,7 +2649,7 @@ export function ensureFoeAlive(b: Battle): void {
   checkWin(b);
 }
 
-export function canPlay(b: Battle, uid: string): { ok: boolean; reason?: string } {
+export function canPlay(b: Battle, uid: string, rc: RunContext = contextNow()): { ok: boolean; reason?: string } {
   if (b.phase !== "player") return { ok: false, reason: "现在不是你的回合" };
   const inst = b.hand.find((c) => c.uid === uid);
   if (!inst) return { ok: false, reason: "不在手牌里" };
@@ -2658,7 +2659,7 @@ export function canPlay(b: Battle, uid: string): { ok: boolean; reason?: string 
   if (climbCardLocked(b, uid)) return { ok: false, reason: `晕：最左 ${b.youStun} 张锁着` };
   if (def.type === "skill" && b.youMute > 0) return { ok: false, reason: "禁技：这一息打不出技能" };
   if (!isClimbQi() && (b.youStun ?? 0) > 0 && def.type === "attack") return { ok: false, reason: "你眩晕，打不出攻击" };
-  const need = isLabV2() ? labV21EffectiveCost(b, def) : def.cost + (def.stackTaxQi ?? 0);
+  const need = labV2(rc) ? labV21EffectiveCost(b, def) : def.cost + (def.stackTaxQi ?? 0);
   if (b.energy < need) return { ok: false, reason: "劲力不足" };
   const schoolGate = cardPlaySchoolGate(b, inst.defId);
   if (!schoolGate.ok) return schoolGate;
@@ -2676,23 +2677,24 @@ export function canPlay(b: Battle, uid: string): { ok: boolean; reason?: string 
   // 枪爬塔 / 读招：2–4 格（读招另许贴身拨杆）。
   // 牌面有系别的按牌面兵刃算（助战开闸时，是助战者持自己的兵刃递招）；通用牌按场上所执。
   // 组合技例外：助战者自己会上前递招。
-  if (isLabMode() && def.type === "attack" && !isComboCard(inst.defId)) {
+  if (rc.lab && def.type === "attack" && !isComboCard(inst.defId)) {
     const cardSch = cardSchool(inst.defId);
     const school = cardSch === "any" ? battleEquippedSchool(b, b.active) : cardSch;
     const foe = targetFoe(b);
     const dist = foe ? Math.abs(foe.pos - b.player.pos) : 0;
-    if (foe && school === "spear" && (isBreakAlign() || isClimbQi())) {
-      if (isBreakAlign() && dist === 1) {
+    // 旧核选路，阶段3沉 engine/break，勿仿此新增
+    if (foe && school === "spear" && (rc.ruleset.mode === "break" || isClimbQi())) {
+      if (rc.ruleset.mode === "break" && dist === 1) {
         /* 贴身拨杆：允许出枪，结算走低伤+击退 */
       } else if (spearReachDamage(dist) == null) {
-        return { ok: false, reason: `枪够不着（需${isBreakAlign() ? "贴身拨杆或 " : ""}2–4 格，敌在 ${dist} 格）` };
+        return { ok: false, reason: `枪够不着（需${rc.ruleset.mode === "break" ? "贴身拨杆或 " : ""}2–4 格，敌在 ${dist} 格）` };
       }
     } else if (foe && dist > SCHOOL_REACH[school]) {
       const reach = SCHOOL_REACH[school];
       return { ok: false, reason: `够不着（${WEAPON_NAME[school]}打到 ${reach} 格，敌在 ${dist} 格）` };
     }
   }
-  if (isLabV2()) {
+  if (labV2(rc)) {
     const ug = ultimateGate(b, def);
     if (!ug.ok) return { ok: false, reason: ug.reason };
     const cg = comboPlayGate(b, inst.defId);
@@ -2749,12 +2751,12 @@ export function previewCard(b: Battle, uid: string): Preview {
   return snapshot(next, notes, gate.ok, gate.reason, shown?.inner || undefined, shown?.riders);
 }
 
-export function playCard(b: Battle, uid: string): Battle {
+export function playCard(b: Battle, uid: string, rc: RunContext = contextNow()): Battle {
   const inst0 = b.hand.find((c) => c.uid === uid);
   const def0 = inst0 ? labCard(inst0.defId) : undefined;
   const gate = canPlay(b, uid);
   if (!gate.ok) {
-    if (isLabV2() && def0?.ultimate) {
+    if (labV2(rc) && def0?.ultimate) {
       b.v2UltGateAttempts = (b.v2UltGateAttempts ?? 0) + 1;
       b.v2UltGateBlocks = (b.v2UltGateBlocks ?? 0) + 1;
     }
@@ -2766,18 +2768,18 @@ export function playCard(b: Battle, uid: string): Battle {
   const inst = next.hand.find((c) => c.uid === uid);
   if (!inst) return b;
   const def = labCard(inst.defId);
-  if (isLabV2() && def.ultimate) next.v2UltGateAttempts = (next.v2UltGateAttempts ?? 0) + 1;
+  if (labV2(rc) && def.ultimate) next.v2UltGateAttempts = (next.v2UltGateAttempts ?? 0) + 1;
   if (isComboUnlockCard(next, inst.defId)) {
     next.v2ComboUnlockPlays = (next.v2ComboUnlockPlays ?? 0) + 1;
   }
-  if (isLabMode()) next.v2PlayerActions = (next.v2PlayerActions ?? 0) + 1;
+  if (rc.lab) next.v2PlayerActions = (next.v2PlayerActions ?? 0) + 1;
   const notes = applyCard(next, inst.defId);
   pushCardPlayFx(next, def);
   applyPlayedAttackMomentum(next, inst.defId, notes);
-  const spend = isLabV2() ? labV21EffectiveCost(next, def) : def.cost + (def.stackTaxQi ?? 0);
+  const spend = labV2(rc) ? labV21EffectiveCost(next, def) : def.cost + (def.stackTaxQi ?? 0);
   next.energy -= spend;
   if (def.type === "skill" && next.v2Turn?.labFreeSkill) next.v2Turn.labFreeSkill = false;
-  if (isLabV2()) simV2SpendResources(next, def.comboCost ?? 0, def.flowCost ?? 0, def.setupCost ?? 0);
+  if (labV2(rc)) simV2SpendResources(next, def.comboCost ?? 0, def.flowCost ?? 0, def.setupCost ?? 0);
   else {
     if (def.comboCost) next.combo = Math.max(0, next.combo - def.comboCost);
     if (def.flowCost) next.flow = Math.max(0, next.flow - def.flowCost);
@@ -2791,7 +2793,7 @@ export function playCard(b: Battle, uid: string): Battle {
     if (cs !== "any" && cs !== field) next.v2OffSchoolAtk = (next.v2OffSchoolAtk ?? 0) + 1;
     if (isClimbQi()) next.climbLastAttackId = inst.defId;
     // §31.11 棍系连击眩晕：本回合每第 3 张攻击，敌晕 1 段（踢馆线）。
-    if (isLabV2() && battleEquippedSchool(next, next.active) === "staff" && next.attacksThisTurn % 3 === 0 && !next.foeSkipCc) {
+    if (labV2(rc) && battleEquippedSchool(next, next.active) === "staff" && next.attacksThisTurn % 3 === 0 && !next.foeSkipCc) {
       next.foeStun = (next.foeStun ?? 0) + 1;
       next.journal.push({ side: "you", text: "连击成势——敌眩晕 1 段" });
     }
@@ -2834,12 +2836,13 @@ function drawToHand(b: Battle): void {
 }
 
 /** 收势后回补：拆招开踢摸 ⌈上限/2⌉；爬塔开始摸 D（可被晕削）；其它模式补满上限。 */
-function drawRefill(b: Battle): void {
+function drawRefill(b: Battle, rc: RunContext = contextNow()): void {
   if (isClimbQi()) {
     climbDrawRound(b, false);
     return;
   }
-  if (isLabMode() && isBreakAlign()) {
+  // 旧核选路，阶段3沉 engine/break，勿仿此新增
+  if (rc.lab && rc.ruleset.mode === "break") {
     const n = handRefillAmount(handCap(b));
     for (let i = 0; i < n; i++) {
       if (!drawOne(b)) break;
@@ -3243,7 +3246,7 @@ export function intentIncoming(b: Battle, intent: Intent, rc: RunContext = conte
   return { total: Math.max(1, total), parts };
 }
 
-function resolveCharge(b: Battle, damage: number): void {
+function resolveCharge(b: Battle, damage: number, rc: RunContext = contextNow()): void {
   const steps = chargeSteps(b);
   const dir = towardDir(b.enemy.pos, b.player.pos);
   let hits = false;
@@ -3260,7 +3263,7 @@ function resolveCharge(b: Battle, damage: number): void {
       break;
     }
     // §31.12 召唤体挡冲锋 = 身位卡断，算拆。
-    if (isLabV2() && b.labSummon && b.labSummon.hp > 0 && next === b.labSummon.pos) {
+    if (labV2(rc) && b.labSummon && b.labSummon.hp > 0 && next === b.labSummon.pos) {
       summonBreakCredit(b, `${b.labSummon.name} 身位卡断冲锋`);
       hitSummon(b, damage, "冲锋 ");
       hits = true;
@@ -3270,8 +3273,8 @@ function resolveCharge(b: Battle, damage: number): void {
     moveEnemyTo(b, next);
   }
   // §31.12 终点贴脸：身前兵刃覆盖才算撞上（身后打不到）
-  if (!hits && isLabV2() && enemyCanHitPlayerPos(b, b.player.pos)) hits = true;
-  else if (!hits && !isLabV2() && Math.abs(b.enemy.pos - b.player.pos) <= 1) hits = true;
+  if (!hits && labV2(rc) && enemyCanHitPlayerPos(b, b.player.pos)) hits = true;
+  else if (!hits && !labV2(rc) && Math.abs(b.enemy.pos - b.player.pos) <= 1) hits = true;
   if (hits && damage > 0) hitPlayer(b, damage, "冲锋 ");
   else if (hits) b.log.push(`${b.enemy.name}冲到身前。`);
   else b.log.push(`${b.enemy.name}冲过去了。`);
@@ -3309,8 +3312,8 @@ function resolveTrap(b: Battle): void {
   b.log.push(`${b.enemy.name}在第 ${at + 1} 步下了机。`);
 }
 
-function resolveLunge(b: Battle, damage: number): void {
-  if (isLabV2()) {
+function resolveLunge(b: Battle, damage: number, rc: RunContext = contextNow()): void {
+  if (labV2(rc)) {
     // §31.14 抢步扑的是「回合开始你站的那条线」（锁定招），与红格同一公式：
     // 落点 = 朝锁定格进一步；命中 = 你的收势格在落点的兵刃圈内。你挪走了，他就扑空。
     const lockPos = intentLockPos(b);
