@@ -6,6 +6,7 @@ import {
   previewBrokenSegments,
   shouldBreakIntent,
 } from "../game/labV2";
+import { breakTestContext } from "../game/testContext";
 import { setLabMode, setLabTuning } from "../game/labTuning";
 import type { Battle, Intent, V2TurnFlags } from "../game/types";
 import { startLabBattle } from "./factory";
@@ -126,7 +127,7 @@ describe("§4.3 破绽条件 · 正例", () => {
       const f = flags(b);
       row.setup(b, f);
       const phase = row.phase ?? "preview";
-      expect(evalWeakness(row.intent, b, f, phase, row.resolveCtx)).toBe(true);
+      expect(evalWeakness(row.intent, b, f, phase, breakTestContext(), row.resolveCtx)).toBe(true);
     });
   }
 });
@@ -186,7 +187,7 @@ describe("§4.3 破绽条件 · 反例", () => {
       const b = v2Battle();
       const f = flags(b);
       row.setup(b, f);
-      expect(evalWeakness(row.intent, b, f, "preview")).toBe(false);
+      expect(evalWeakness(row.intent, b, f, "preview", breakTestContext())).toBe(false);
     });
   }
 });
@@ -196,9 +197,9 @@ describe("§4.3 D4 · 预览与结算", () => {
     const b = v2Battle();
     const intent: Intent = { kind: "bleedcut", damage: 8, bleed: 2 };
     const f = flags(b);
-    expect(evalWeakness(intent, b, f, "preview")).toBe(false);
+    expect(evalWeakness(intent, b, f, "preview", breakTestContext())).toBe(false);
     expect(
-      evalWeakness(intent, b, f, "resolve", { bleedcutRaw: 8, bleedcutBlocked: 8 }),
+      evalWeakness(intent, b, f, "resolve", breakTestContext(), { bleedcutRaw: 8, bleedcutBlocked: 8 }),
     ).toBe(true);
     expect(shouldBreakIntent(b, intent, 0, { bleedcutRaw: 8, bleedcutBlocked: 8 })).toBe(true);
   });
@@ -258,18 +259,18 @@ describe("§4.3 D4 · 预览与结算", () => {
     const intent: Intent = { kind: "charge", damage: 8, steps: 2 };
     const b1 = v2Battle();
     b1.stakes = [4];
-    expect(evalWeakness(intent, b1, flags(b1), "preview")).toBe(true);
+    expect(evalWeakness(intent, b1, flags(b1), "preview", breakTestContext())).toBe(true);
 
     const b2 = v2Battle();
     const f2 = flags(b2, { stoodStill: true, endTurnCommitted: true });
-    expect(evalWeakness(intent, b2, f2, "preview")).toBe(true);
+    expect(evalWeakness(intent, b2, f2, "preview", breakTestContext())).toBe(true);
 
     const b3 = v2Battle();
-    expect(evalWeakness(intent, b3, flags(b3), "preview")).toBe(false);
+    expect(evalWeakness(intent, b3, flags(b3), "preview", breakTestContext())).toBe(false);
 
     const b4 = v2Battle();
     const f4 = flags(b4, { stoodStill: false, endTurnCommitted: true, chaseCardPlayed: true });
-    expect(evalWeakness(intent, b4, f4, "preview")).toBe(true);
+    expect(evalWeakness(intent, b4, f4, "preview", breakTestContext())).toBe(true);
   });
 
   it("charge 横移不进步只让不硬拆", () => {

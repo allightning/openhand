@@ -5,6 +5,7 @@ import { addQi, clearQi, commitV2EndTurn, emptyV2Turn, previewBrokenSegments } f
 import { QI_MAX, QI_BURST_DMG, GRUDGE_NORMAL } from "../game/labV2Constants";
 import { simV2ChooseIntent, simV2OnHitPlayer } from "../game/simV2Hooks";
 import { evalWeakness } from "../game/intentWeakness";
+import { breakTestContext } from "../game/testContext";
 import {
   canPlay,
   cloneBattle,
@@ -102,14 +103,14 @@ describe("Combat v2 破招", () => {
     const b = v2Battle();
     b.intents = [{ kind: "strike", damage: 10 }];
     b.v2Turn = { ...emptyV2Turn(b), moveCardPlayed: true, endTurnCommitted: true, endBlock: 0, endEnergy: 5, endDist: 2 };
-    expect(evalWeakness(b.intents[0]!, b, b.v2Turn!, "preview")).toBe(true);
+    expect(evalWeakness(b.intents[0]!, b, b.v2Turn!, "preview", breakTestContext())).toBe(true);
   });
 
   it("does not break strike without move", () => {
     const b = v2Battle();
     b.intents = [{ kind: "strike", damage: 10 }];
     b.v2Turn = { ...emptyV2Turn(b), endTurnCommitted: true, endBlock: 0, endEnergy: 5, endDist: 2 };
-    expect(evalWeakness(b.intents[0]!, b, b.v2Turn!, "preview")).toBe(false);
+    expect(evalWeakness(b.intents[0]!, b, b.v2Turn!, "preview", breakTestContext())).toBe(false);
   });
 
   it("§31.8/§31.14 lunge 收势远距只是「让」（软拆半效），不算硬拆", () => {
@@ -138,7 +139,7 @@ describe("Combat v2 破招", () => {
       if (kind === "windup") b.v2Turn!.hitFoeThisTurn = true;
       if (kind === "guard") b.v2Turn!.antiGuardPlayed = true;
       if (kind === "mend") b.mark = 2;
-      expect(evalWeakness(intent, b, b.v2Turn!, "preview")).toBe(true);
+      expect(evalWeakness(intent, b, b.v2Turn!, "preview", breakTestContext())).toBe(true);
     });
   }
 });

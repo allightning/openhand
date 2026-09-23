@@ -226,7 +226,7 @@ export function shouldBreakIntent(
   // 旧破招核专属，阶段3拆 engine/break 时沉走，勿仿此新增
   if (!labV2(rc) || rc.ruleset.mode !== "break") return false;
   const flags = b.v2Turn ?? emptyV2Turn(b);
-  return evalWeakness(intent, b, flags, "resolve", resolveCtx, rc);
+  return evalWeakness(intent, b, flags, "resolve", rc, resolveCtx);
 }
 
 /** §31.13 反拆真伤 = 底数 + 场上角色兵器品阶（精3/玄4/神5 → 5/6/7）。 */

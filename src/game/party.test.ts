@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MATES, MATE_OFFER, WEAPON_NAME, WEAPON_PACE, addCompanion, deckFor, grantChapterTwo, healRun, mateJoinReady, noteFall, reviveHp, schoolLabel, stashOrTeach } from "./party";
+import { makeTestContext } from "./testContext";
 import { makeRun } from "./run";
 import { makeBattle, swapFighter } from "./sim";
 
@@ -106,8 +107,8 @@ describe("weapon scrolls", () => {
     run = addCompanion(run, "watch");
     expect(run.scrolls).toEqual([]);
     expect(run.mateDecks.watch).toContain("cut");
-    expect(deckFor(run, "watch")).toContain("cut");
-    expect(deckFor(run, "seer")).not.toContain("cut");
+    expect(deckFor(run, "watch", makeTestContext({ lab: false }))).toContain("cut");
+    expect(deckFor(run, "seer", makeTestContext({ lab: false }))).not.toContain("cut");
   });
 
   it("teaches secondary-family scroll to hero when primary party lacks school", () => {

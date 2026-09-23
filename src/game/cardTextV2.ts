@@ -107,7 +107,7 @@ export function cardStatLine(def: Pick<CardDef, "cost" | "damage" | "block" | "k
 }
 
 export function cardWikiBody(def: CardDef, opts?: { breakAlign?: boolean }): string {
-  const body = cardDisplayText(def, opts);
+  const body = cardDisplayText(def, contextNow(), opts);
   const stats = cardStatLine(def);
   if (!stats || body.includes(stats)) return body;
   return `${body}\n数值：${stats}`;
@@ -115,8 +115,8 @@ export function cardWikiBody(def: CardDef, opts?: { breakAlign?: boolean }): str
 
 export function cardDisplayText(
   def: Pick<CardDef, "id" | "text">,
+  rc: RunContext,
   opts?: { breakAlign?: boolean },
-  rc: RunContext = contextNow(),
 ): string {
   if (!labV2(rc)) return def.text;
   if (opts?.breakAlign !== true) {
@@ -137,20 +137,20 @@ const GOD_SKILL_V2: Record<string, string> = {
   "palm-b": "叠浪三连：势≥2时本息第三击免费",
 };
 
-export function pathSkillDisplay(key: string, fallback: string, rc: RunContext = contextNow()): string {
+export function pathSkillDisplay(key: string, fallback: string, rc: RunContext): string {
   if (!labV2(rc)) return fallback;
   return PATH_SKILL_V2[key] ?? migrateLegacyText(fallback);
 }
 
-export function godSkillDisplay(key: string, fallback: string, rc: RunContext = contextNow()): string {
+export function godSkillDisplay(key: string, fallback: string, rc: RunContext): string {
   if (!labV2(rc)) return fallback;
   return GOD_SKILL_V2[key] ?? migrateLegacyText(fallback);
 }
 
 export function pathSkillText(key: string): string {
-  return pathSkillDisplay(key, PATH_SKILL[key] ?? "");
+  return pathSkillDisplay(key, PATH_SKILL[key] ?? "", contextNow());
 }
 
 export function godSkillText(key: string): string {
-  return godSkillDisplay(key, GOD_SKILL[key] ?? "");
+  return godSkillDisplay(key, GOD_SKILL[key] ?? "", contextNow());
 }

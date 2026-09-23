@@ -399,7 +399,7 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
       const cardTip = [
         def.name,
         `${typeLabel(def.type)} · ${schoolLabel(c.defId)}${def.tags?.includes("组合") ? " · 组合" : ""}`,
-        cardDisplayText(def, { breakAlign }),
+        cardDisplayText(def, shellRunContext(), { breakAlign }),
         playGate.ok && def.type === "attack" ? breakdownTipLine(b, def, shellRunContext()) : "",
         playGate.ok ? def.flavor : (playGate.reason ?? def.flavor),
       ]
@@ -422,7 +422,7 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
           <div class="art">${cardArt(def.id)}</div>
           <div class="banner">${typeLabel(def.type)} · ${schoolLabel(c.defId)}${def.tags?.includes("组合") ? " · 组合" : ""}</div>
           <h3>${def.name}</h3>
-          <p class="text">${cardBodyHtml(cardDisplayText(def, { breakAlign }))}</p>
+          <p class="text">${cardBodyHtml(cardDisplayText(def, shellRunContext(), { breakAlign }))}</p>
           <p class="flavor">${playGate.ok ? def.flavor : playGate.reason ?? def.flavor}</p>
           <span class="hotkey">${idx + 1}</span>
         </button>`;

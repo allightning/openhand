@@ -211,15 +211,15 @@ export function planBreaks(b: Battle, queue: Intent[], phase: "preview" | "resol
       return;
     }
     if (isGrazeKind(w)) {
-      if (evalWeakness(intent, b, flags, phase)) out.set(i, "graze");
+      if (evalWeakness(intent, b, flags, phase, contextNow())) out.set(i, "graze");
       return;
     }
     if (intent.kind === "charge") {
-      if (evalWeakness(intent, b, flags, phase)) out.set(i, "hard");
+      if (evalWeakness(intent, b, flags, phase, contextNow())) out.set(i, "hard");
       else if (flags.endTurnCommitted && !flags.stoodStill) out.set(i, "graze");
       return;
     }
-    if (evalWeakness(intent, b, flags, phase)) out.set(i, "hard");
+    if (evalWeakness(intent, b, flags, phase, contextNow())) out.set(i, "hard");
   });
   return out;
 }
@@ -244,8 +244,8 @@ export function evalWeakness(
   b: Battle,
   flags: V2TurnFlags,
   phase: "preview" | "resolve",
+  ctx: RunContext,
   resolveCtx?: { bleedcutRaw?: number; bleedcutBlocked?: number },
-  ctx: RunContext = contextNow(),
 ): boolean {
   if (intent.kind === "charge") {
     if (b.stakes.length > 0) return true;

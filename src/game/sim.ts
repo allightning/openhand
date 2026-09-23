@@ -550,7 +550,7 @@ export function makeBattle(
   battleGearId = run.weapon ?? null;
   const def = labEnemy(enemyId);
   const active = run.active ?? "rail";
-  const deck = deal(deckFor(run, active), ordered);
+  const deck = deal(deckFor(run, active, rc), ordered);
   const foes = foePack(enemyId);
   const mateHp = (id: CompanionId) => {
     // 旧训练馆核选路，阶段3拆 engine/break 时沉走，勿仿此新增
@@ -570,7 +570,7 @@ export function makeBattle(
   const bench: FighterBag[] = (run.party ?? ["rail"])
     .filter((id) => id !== active)
     .map((id) => {
-      const packed = deal(deckFor(run, id), ordered);
+      const packed = deal(deckFor(run, id, rc), ordered);
       return {
         id,
         hp: mateHp(id),

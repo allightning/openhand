@@ -292,7 +292,7 @@ export function marketOffers(run: GauntletRun, rng: () => number = Math.random):
     const id = pickWeightedRewardCard(cards, [...ownedCardIds(run)], rng);
     if (id) {
       const def = CARDS[id];
-      const body = def ? cardDisplayText(def, { breakAlign: !climbCopy }) : "";
+      const body = def ? cardDisplayText(def, shellRunContext(), { breakAlign: !climbCopy }) : "";
       pushOffer(out, {
         id: `card:${id}`,
         kind: "card",

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { CARDS } from "../game/content";
 import { cardDisplayText } from "../game/cardTextV2";
+import { climbTestContext } from "../game/testContext";
 import { setLabMode, setLabTuning } from "../game/labTuning";
 import { shouldSkipWager } from "./breakOnboard";
 import { GUIDE_SECTIONS } from "./guide";
@@ -32,10 +33,10 @@ describe("行路不再教破招", () => {
     setLabRuleset("climb");
     setLabMode(true);
     setLabTuning({ rulesV2: true });
-    expect(cardDisplayText(CARDS.defend, { breakAlign: false })).not.toMatch(BREAK_TEACH);
-    expect(cardDisplayText(CARDS.cut, { breakAlign: false })).not.toMatch(BREAK_TEACH);
-    expect(cardDisplayText(CARDS.brace, { breakAlign: false })).not.toMatch(BREAK_TEACH);
-    expect(cardDisplayText(CARDS.defend, { breakAlign: false })).toMatch(/格挡/);
+    expect(cardDisplayText(CARDS.defend, climbTestContext(), { breakAlign: false })).not.toMatch(BREAK_TEACH);
+    expect(cardDisplayText(CARDS.cut, climbTestContext(), { breakAlign: false })).not.toMatch(BREAK_TEACH);
+    expect(cardDisplayText(CARDS.brace, climbTestContext(), { breakAlign: false })).not.toMatch(BREAK_TEACH);
+    expect(cardDisplayText(CARDS.defend, climbTestContext(), { breakAlign: false })).toMatch(/格挡/);
   });
 
   it("行路攻略不把每程下注和破招绑在一起", () => {
