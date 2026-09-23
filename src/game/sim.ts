@@ -2424,7 +2424,7 @@ function applyCard(b: Battle, defId: CardId, rc: RunContext = contextNow()): str
   // §16.4 同门合击卡
   if (isComboCard(defId)) {
     markComboCardPlayed(b, defId);
-    notes.push(...comboCardNotes(b, defId));
+    notes.push(...comboCardNotes(b, defId, rc));
     const dmg = comboCardDamage(b, defId);
     notes.push(...hitEnemy(b, strikeDamage(b, dmg, false, def), "合击 "));
     comboCardPull(b, defId);
@@ -2697,7 +2697,7 @@ export function canPlay(b: Battle, uid: string, rc: RunContext = contextNow()): 
   if (labV2(rc)) {
     const ug = ultimateGate(b, def);
     if (!ug.ok) return { ok: false, reason: ug.reason };
-    const cg = comboPlayGate(b, inst.defId);
+    const cg = comboPlayGate(b, inst.defId, rc);
     if (!cg.ok) return { ok: false, reason: cg.reason };
     if (!simV2CanPlayResources(b, def.comboCost ?? 0, def.flowCost ?? 0, def.setupCost ?? 0))
       return { ok: false, reason: "势不够" };
@@ -4155,7 +4155,7 @@ function planFromFirstAtPos(b: Battle, first: Intent, rc: RunContext = contextNo
   }
   const planned: Intent[] = [first];
   if (rc.lab) advanceThreatProjection(b, first);
-  const budgetCap = enemyRoundBudgetCap(b);
+  const budgetCap = enemyRoundBudgetCap(b, rc);
   let budget = Math.max(0, budgetCap - intentCost(first));
   let last = first;
   let guard = 0;

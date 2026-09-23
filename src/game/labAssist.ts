@@ -128,7 +128,7 @@ export function callAssist(b: Battle, mateId: CompanionId): Battle {
     log: [...b.log, `${name}助战上场（第 ${pos + 1} 步），耗 ${cost} 劲。`],
     journal: [...b.journal, { side: "you", text: `${name}助战占第 ${pos + 1} 步。` }],
   };
-  tryAppendStressIntent(out, "assist");
+  tryAppendStressIntent(out, "assist", contextNow());
   return out;
 }
 

@@ -1,5 +1,5 @@
 import { ENEMIES, ENEMY_ENERGY } from "./content";
-import { contextNow, type RunContext } from "./runContext";
+import type { RunContext } from "./runContext";
 import type { Battle, EnemyId, Intent } from "./types";
 
 export type StressSource = "break" | "burst" | "assist" | "signature";
@@ -23,7 +23,7 @@ export function isEliteEnemy(id: EnemyId): boolean {
   return ELITE_IDS.has(id) || Boolean(ENEMIES[id]?.elite);
 }
 
-export function enemyRoundBudgetCap(b: Battle, ctx: RunContext = contextNow()): number {
+export function enemyRoundBudgetCap(b: Battle, ctx: RunContext): number {
   const base = ENEMY_ENERGY[b.enemyId] ?? 2;
   if (!ctx.lab) return base;
   const bonus = ctx.tuning.enemySegBonus;
@@ -96,7 +96,7 @@ function stressIntentFor(b: Battle): Intent {
 export function tryAppendStressIntent(
   b: Battle,
   source: StressSource,
-  ctx: RunContext = contextNow(),
+  ctx: RunContext,
 ): boolean {
   if (!ctx.lab) return false;
   if (source === "break" && !ctx.caps.enemy.allowBreakStress) return false;

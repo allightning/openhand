@@ -27,7 +27,7 @@ import {
   type GauntletRun,
 } from "./gauntlet";
 import { setLabRuleset } from "./labRuleset";
-import { climbTestContext } from "../game/testContext";
+import { breakTestContext, climbTestContext } from "../game/testContext";
 import { gearById } from "../game/weapons";
 import { renderGauntletResult, renderGauntletRewardPick } from "./gauntletUi";
 import type { WeaponId } from "../game/types";
@@ -367,7 +367,7 @@ describe("§31.14 空间诚实 · 红格=结算，够不着的招不算拆", () 
     let b = v2Battle();
     setLabTuning({ enemyStressCap: 3 });
     const lenBefore = b.intents.length;
-    expect(tryAppendStressIntent(b, "burst")).toBe(true);
+    expect(tryAppendStressIntent(b, "burst", breakTestContext())).toBe(true);
     expect(b.intents.length).toBe(lenBefore); // 当前队列不变
     expect(b.v2PendingStress?.length).toBe(1);
     b = endTurn(b); // 结算 → 规划下一手

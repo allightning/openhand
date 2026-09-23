@@ -6,7 +6,7 @@ import {
   isComboRulesEnabled,
 } from "./labAssist";
 import { MATES } from "./party";
-import { contextNow, labV2, type RunContext } from "./runContext";
+import { labV2, type RunContext } from "./runContext";
 import type { Battle, CardId, WeaponId } from "./types";
 
 export const COMBO_CARD_BY_SCHOOL: Record<WeaponId, CardId> = {
@@ -35,7 +35,7 @@ export function comboCardSchool(id: CardId): WeaponId | null {
 export function comboPlayGate(
   b: Battle,
   defId: CardId,
-  ctx: RunContext = contextNow(),
+  ctx: RunContext,
 ): { ok: boolean; reason?: string } {
   if (!isComboCard(defId)) return { ok: true };
   if (!ctx.caps.combo.allowComboCards) return { ok: false, reason: "开踢无组合技，异系走融合卡" };
@@ -60,7 +60,7 @@ export function comboEffectiveCost(
   b: Battle,
   defId: CardId,
   base: number,
-  ctx: RunContext = contextNow(),
+  ctx: RunContext,
 ): number {
   if (!labV2(ctx) || !isComboCard(defId)) return base;
   return Math.max(0, base - comboCardCostCut(b, defId));
@@ -73,7 +73,7 @@ export function markComboCardPlayed(b: Battle, defId: CardId): void {
 }
 
 /** §16.4 同门合击效果 — 迁移自旧主动共鸣技。 */
-export function comboCardNotes(b: Battle, defId: CardId, ctx: RunContext = contextNow()): string[] {
+export function comboCardNotes(b: Battle, defId: CardId, ctx: RunContext): string[] {
   const notes: string[] = [];
   const school = comboCardSchool(defId);
   if (!school) return notes;

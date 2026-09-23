@@ -182,7 +182,7 @@ export function simV2ApplyFinisher(
   const per = QI_BURST_DMG;
   const base = baseDmg + q * per;
   const notes = [`势爆 ${q}→+${q * per}`];
-  if (q >= 3) tryAppendStressIntent(b, "burst");
+  if (q >= 3) tryAppendStressIntent(b, "burst", rc);
   if (q >= 4) pushFx(b, "burst");
   b.qi = 0;
   return { base, notes };

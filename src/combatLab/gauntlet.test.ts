@@ -31,6 +31,7 @@ import { eventAfterFought } from "./encounter";
 import { maxCompanions, pathLadder } from "./gauntletPaths";
 import { DEFAULT_LAB_TUNING, getLabTuning, setLabMode, setLabTuning } from "../game/labTuning";
 import { tryAppendStressIntent } from "../game/labEnemyStress";
+import { breakTestContext } from "../game/testContext";
 import { setLabRuleset } from "./labRuleset";
 import { CARDS } from "../game/content";
 import { breakStarterDeck, rogueMate } from "./rogueRoster";
@@ -483,7 +484,7 @@ describe("拆招 1–2 馆无应激", () => {
     applyStageTuning(pathLadder("bandit")[1]!);
     expect(getLabTuning().enemyStressCap).toBe(0);
     const b = startLabBattle(buildGauntletPreset(createGauntletRun("bandit", "palm")), true, 1);
-    expect(tryAppendStressIntent(b, "break")).toBe(false);
+    expect(tryAppendStressIntent(b, "break", breakTestContext({ enemyStressCap: 0 }))).toBe(false);
     expect(b.v2PendingStress ?? []).toEqual([]);
     applyStageTuning(pathLadder("bandit")[2]!);
     expect(getLabTuning().enemyStressCap).toBe(DEFAULT_LAB_TUNING.enemyStressCap);

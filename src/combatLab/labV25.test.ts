@@ -7,6 +7,7 @@ import {
   teamSchoolCounts,
 } from "../game/labResonance";
 import { canUseSignature, signatureDef, useSignature } from "../game/labSignature";
+import { breakTestContext } from "../game/testContext";
 import { setLabMode, setLabTuning } from "../game/labTuning";
 import { MATES, ROLE_LABEL } from "../game/party";
 import { startLabBattle } from "./factory";
@@ -154,18 +155,18 @@ describe("v2.5 §21 角色定位与专属技", () => {
       preset(["porter"], { porter: starterGear("staff") }, "porter"),
       true,
     );
-    expect(canUseSignature(b).ok).toBe(true);
+    expect(canUseSignature(b, breakTestContext()).ok).toBe(true);
     expect(signatureDef("porter").name).toBe("稳肩");
-    const r = useSignature(b);
+    const r = useSignature(b, breakTestContext());
     expect(r.ok).toBe(true);
     b = r.battle!;
     expect(b.playerBlock).toBeGreaterThan(0);
     expect(b.labSigUsesLeft).toBe(1);
-    const r2 = useSignature(b);
+    const r2 = useSignature(b, breakTestContext());
     expect(r2.ok).toBe(true);
     b = r2.battle!;
     expect(b.labSigUsesLeft).toBe(0);
-    expect(canUseSignature(b).ok).toBe(false);
+    expect(canUseSignature(b, breakTestContext()).ok).toBe(false);
   });
 
   it("mechanic-keyed signature fails without condition", () => {
@@ -175,7 +176,7 @@ describe("v2.5 §21 角色定位与专属技", () => {
     );
     b.player = { ...b.player, pos: 0 };
     b.enemy = { ...b.enemy, pos: 4 };
-    const r = useSignature(b);
+    const r = useSignature(b, breakTestContext());
     expect(r.ok).toBe(false);
     expect(r.reason).toContain("贴身");
   });

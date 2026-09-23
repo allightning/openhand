@@ -1,5 +1,5 @@
 import { CARDS } from "./content";
-import { contextNow, labV2, type RunContext } from "./runContext";
+import { labV2, type RunContext } from "./runContext";
 import {
   DEFAULT_SIGNATURE_USES,
   LAB_SIGNATURE,
@@ -29,7 +29,7 @@ export function signatureActionCopy(mateId: CompanionId): { name: string; text: 
   return def ? { name: def.name, text: def.text } : null;
 }
 
-export function initSignatureBattle(b: Battle, rc: RunContext = contextNow()): void {
+export function initSignatureBattle(b: Battle, rc: RunContext): void {
   if (!labV2(rc)) return;
   const mode = rc.tuning.signatureLimitMode;
   b.labSigUsesLeft = mode === "perBattle" ? rc.tuning.signatureUsesPerBattle : DEFAULT_SIGNATURE_USES;
@@ -38,7 +38,7 @@ export function initSignatureBattle(b: Battle, rc: RunContext = contextNow()): v
   b.labSigPullBuff = false;
 }
 
-export function canUseSignature(b: Battle, rc: RunContext = contextNow()): { ok: boolean; reason?: string } {
+export function canUseSignature(b: Battle, rc: RunContext): { ok: boolean; reason?: string } {
   if (!rc.lab || !labV2(rc)) return { ok: false, reason: "仅 Lab v2" };
   if (b.phase !== "player") return { ok: false, reason: "不是你的回合" };
   const mode = rc.tuning.signatureLimitMode;
@@ -57,7 +57,7 @@ function adjacent(b: Battle): boolean {
 
 export function useSignature(
   b: Battle,
-  rc: RunContext = contextNow(),
+  rc: RunContext,
 ): { ok: boolean; reason?: string; battle?: Battle; notes: string[] } {
   const gate = canUseSignature(b, rc);
   if (!gate.ok) return { ok: false, reason: gate.reason, notes: [] };

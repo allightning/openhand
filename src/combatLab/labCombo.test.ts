@@ -108,7 +108,7 @@ describe("§16.4 同门合击卡", () => {
     const b = comboBattle();
     // rail(拳) 在场，后场换成 watch(刀)：拳系组合卡无人可合
     b.bench = [{ id: "watch", hp: 20, maxHp: 20, hand: [], drawPile: [], discardPile: [] }];
-    expect(comboPlayGate(b, "comboPalm").ok).toBe(false);
+    expect(comboPlayGate(b, "comboPalm", breakTestContext()).ok).toBe(false);
     b.hand.push({ uid: "t-x", defId: "comboPalm" });
     expect(canPlay(b, "t-x").ok).toBe(false);
   });
@@ -118,7 +118,7 @@ describe("§16.4 同门合击卡", () => {
     b.energy = 5;
     expect(b.bench.some((m) => m.id === "hermit")).toBe(true);
     b.hand.push({ uid: "t-combo", defId: "comboPalm" });
-    const g = comboPlayGate(b, "comboPalm");
+    const g = comboPlayGate(b, "comboPalm", breakTestContext());
     expect(g.ok).toBe(false);
     expect(g.reason).toContain("融合卡");
     expect(canPlay(b, "t-combo").ok).toBe(false);
@@ -128,7 +128,7 @@ describe("§16.4 同门合击卡", () => {
     setLabRuleset("break");
     const b = comboBattle();
     b.hand.push({ uid: "t-combo", defId: "comboPalm" });
-    const g = comboPlayGate(b, "comboPalm");
+    const g = comboPlayGate(b, "comboPalm", breakTestContext());
     expect(g.ok).toBe(false);
     expect(g.reason).toContain("融合卡");
   });

@@ -2126,7 +2126,7 @@ function renderBattle(): string {
       ? `<span class="lab-aura-chip lab-aura-flowers" data-tip="四系各异 · 先机+1 · 助战耗劲-1 · 首张组合卡-1劲">百花齐放<span class="status-tip">四系各异 · 先机+1 · 助战耗劲-1 · 首张组合卡-1劲</span></span>`
       : "";
   const sig = signatureActionCopy(b.active);
-  const sigGate = canUseSignature(b);
+  const sigGate = canUseSignature(b, shellRunContext());
   const sigBtn =
     isLabV2() && sig
       ? actionTipWrap(
@@ -3819,7 +3819,7 @@ function bindEvents(): void {
   }
   root.querySelector("#lab-signature")?.addEventListener("click", () => {
     if (!battle || battle.phase !== "player" || paused) return;
-    const r = useSignature(battle);
+    const r = useSignature(battle, shellRunContext());
     if (!r.ok || !r.battle) return;
     battle = r.battle;
     render();

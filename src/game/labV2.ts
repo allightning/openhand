@@ -382,7 +382,7 @@ export function applyBreak(b: Battle, intent: Intent, index: number, rc: RunCont
   // §31.15 战利品立刻落账——同队后手段还能吃到这份格挡/劲
   const loot = breakLootFor(intent);
   if (loot) applyBreakLoot(b, loot);
-  tryAppendStressIntent(b, "break");
+  tryAppendStressIntent(b, "break", rc);
 }
 
 export function pushFx(b: Battle, kind: LabFxKind, rc: RunContext = contextNow()): void {
