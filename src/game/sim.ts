@@ -1256,8 +1256,8 @@ export function battleHandCap(b: Battle): number {
 }
 
 /** 手牌超过上限时须先弃到上限才能收势。爬塔与拆招开踢都闸。 */
-export function needsDiscardToHandCap(b: Battle): boolean {
-  return isLabMode() && b.hand.length > handCap(b);
+export function needsDiscardToHandCap(b: Battle, rc: RunContext = contextNow()): boolean {
+  return rc.lab && b.hand.length > handCap(b);
 }
 
 export function canEndPlayerTurn(b: Battle): { ok: boolean; reason?: string } {
@@ -4361,17 +4361,18 @@ function lastLogMatch(b: Battle, re: RegExp): string | undefined {
   return undefined;
 }
 
-function applyStatusTicksAtTurnEnd(next: Battle): void {
+function applyStatusTicksAtTurnEnd(next: Battle, rc: RunContext = contextNow()): void {
   if (isClimbQi() && (next.youSkillTax ?? 0) > 0) {
     next.youSkillTax = 0;
   }
   if (next.bleed > 0) {
     const foe = livingFoes(next)[0];
     if (foe) {
+      // 旧核选路，阶段3沉 engine/break，勿仿此新增
       const tick =
-        isLabMode() && isBreakAlign() ? bleedTickDamage(next.bleed) : next.bleed;
+        rc.lab && rc.ruleset.mode === "break" ? bleedTickDamage(next.bleed) : next.bleed;
       foe.hp -= tick;
-      note(next, "you", isLabMode() && isBreakAlign() ? `裂创跳 ${tick}（${next.bleed} 层）` : `裂创 ${next.bleed}`);
+      note(next, "you", rc.lab && rc.ruleset.mode === "break" ? `裂创跳 ${tick}（${next.bleed} 层）` : `裂创 ${next.bleed}`);
       syncFront(next);
       if (foe.hp <= 0) checkWin(next);
     }
@@ -4393,7 +4394,7 @@ function applyStatusTicksAtTurnEnd(next: Battle): void {
 }
 
 /** 裂创拍之后：乱步衰减、回合 +1、格挡保留、清本手出击标记（尚未回劲/摸牌）。 */
-function climbAdvanceTurnClock(next: Battle): void {
+function climbAdvanceTurnClock(next: Battle, rc: RunContext = contextNow()): void {
   if (next.youSway > 0) next.youSway -= 1;
   if ((next.youUnseat ?? 0) > 0) next.youUnseat = (next.youUnseat ?? 1) - 1;
   if ((next.foeSway ?? 0) > 0) next.foeSway = (next.foeSway ?? 1) - 1;
@@ -4412,7 +4413,8 @@ function climbAdvanceTurnClock(next: Battle): void {
   tickSignatureCooldown(next);
   simV2StartPlayerTurn(next);
   dismissSummonAtTurnStart(next);
-  if (isLabMode() && isBreakAlign() && Math.abs(next.player.pos - next.enemy.pos) <= 1) {
+  // 旧核选路，阶段3沉 engine/break，勿仿此新增
+  if (rc.lab && rc.ruleset.mode === "break" && Math.abs(next.player.pos - next.enemy.pos) <= 1) {
     if ((next.v2SpearRuler ?? 0) > 0) {
       next.v2SpearRuler = 0;
       note(next, "you", "贴身，标尺清零");
@@ -4420,7 +4422,7 @@ function climbAdvanceTurnClock(next: Battle): void {
   }
   const keepOk =
     hasTech(next, "keepGuard") &&
-    (!(isLabMode() && isBreakAlign()) || (next.v2TurnBreakCount ?? 0) > 0 || (next.v2BreakCount ?? 0) > 0);
+    (!(rc.lab && rc.ruleset.mode === "break") || (next.v2TurnBreakCount ?? 0) > 0 || (next.v2BreakCount ?? 0) > 0);
   if (isClimbQi()) {
     next.playerBlock = Math.min(CLIMB_BLOCK_CAP, next.playerBlock);
   } else {
@@ -4490,7 +4492,7 @@ function climbEnsureTurnClock(next: Battle): void {
   next.climbClockDone = true;
 }
 
-function climbClearHandAndDraw(next: Battle): void {
+function climbClearHandAndDraw(next: Battle, rc: RunContext = contextNow()): void {
   next.climbSpearRangeHits = 0;
   next.climbLastAttackId = undefined;
   next.thorns = 0;
@@ -4505,7 +4507,7 @@ function climbClearHandAndDraw(next: Battle): void {
   next.attacksThisTurn = 0;
   next.lastPlay = null;
   next.swappedThisTurn = false;
-  if (isLabMode() && !isLabV2()) next.labFreshSwap = false;
+  if (rc.lab && !labV2(rc)) next.labFreshSwap = false;
   applyMateOpen(next);
   applyTechOpen(next);
   applyMindOpen(next);
@@ -4668,7 +4670,7 @@ export function refreshFoeIntentsIfPending(b: Battle): Battle {
   return next;
 }
 
-export function endTurn(b: Battle, opts: EndTurnOpts = {}): Battle {
+export function endTurn(b: Battle, opts: EndTurnOpts = {}, rc: RunContext = contextNow()): Battle {
   if (b.phase !== "player") return b;
   if (!canEndPlayerTurn(b).ok) return b;
   const next = cloneBattle(b);
@@ -4679,13 +4681,14 @@ export function endTurn(b: Battle, opts: EndTurnOpts = {}): Battle {
     next.climbPhaseLabel = "【结束】敌招";
     next.log.push("【结束】你收势。先兑他亮着的整条。");
   } else if ((next.youStun ?? 0) > 0) next.youStun = Math.max(0, (next.youStun ?? 0) - 1);
-  if (isLabMode() && next.hand.length > 0 && next.hand.every((c) => !canPlay(next, c.uid).ok)) {
+  if (rc.lab && next.hand.length > 0 && next.hand.every((c) => !canPlay(next, c.uid).ok)) {
     next.v2DeadHandTurns = (next.v2DeadHandTurns ?? 0) + 1;
   }
   const carryRaw =
     (hasTech(next, "leftover") ? battleTechRank(next, "leftover") : 0) + techBonus(next, "flowSword", 1);
+  // 旧核选路，阶段3沉 engine/break，勿仿此新增
   const carryCap =
-    isLabMode() && isBreakAlign() && (next.v2TurnBreakCount ?? 0) <= 0 ? 0 : carryRaw;
+    rc.lab && rc.ruleset.mode === "break" && (next.v2TurnBreakCount ?? 0) <= 0 ? 0 : carryRaw;
   const carry = carryCap > 0 ? Math.min(carryCap, next.energy) : 0;
   if (!isClimbQi()) next.log.push("你收势。");
   if (companionOn(next) && next.active === "seer" && next.energy === 0) {
@@ -4727,7 +4730,7 @@ export function endTurn(b: Battle, opts: EndTurnOpts = {}): Battle {
     }
   }
   // §31.12 预演条「上轮回顾」：从纤力/机关起捕获敌回合全程日志。
-  const foeTurnMark = isLabV2() ? next.log.length : -1;
+  const foeTurnMark = labV2(rc) ? next.log.length : -1;
   applyTether(next);
   springTraps(next);
   simV2BeforeEndTurn(next);
