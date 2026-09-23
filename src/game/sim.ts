@@ -65,6 +65,7 @@ import { MOVE_CARD_IDS, planEyeIdx, registerThreatProvider, registerQueueThreatP
 import { SUMMON_DEFS } from "./labSummon";
 import { addStake, adjacentStakePos, enemyPlantHits, playerPlantHits, removeStake, smashHitsForSchool, smashStake, stakeHitsAt } from "./stake";
 import { isBreakAlign } from "./labRuleset";
+import { contextNow, labV2, type RunContext } from "./runContext";
 import { climbEnergyStart, climbVitals } from "./climbVitals";
 import {
   bleedTickDamage,
@@ -108,8 +109,8 @@ function spearRulerGain(dist: number): number {
   return 0;
 }
 
-function pushCardPlayFx(b: Battle, def: CardDef): void {
-  if (!isLabV2()) return;
+function pushCardPlayFx(b: Battle, def: CardDef, rc: RunContext = contextNow()): void {
+  if (!labV2(rc)) return;
   if ((def.damage ?? 0) > 0 || (def.nearBonus ?? 0) > 0 || (def.farBonus ?? 0) > 0) {
     pushFx(b, "cardHit");
     return;
@@ -148,8 +149,9 @@ function addSpearRuler(b: Battle, n: number): void {
   b.v2SpearRuler = Math.min(SPEAR_RULER_CAP, (b.v2SpearRuler ?? 0) + n);
 }
 
-function spearBreakAttackBase(b: Battle, def: CardDef): number | null {
-  if (!(isLabMode() && isBreakAlign())) return null;
+function spearBreakAttackBase(b: Battle, def: CardDef, rc: RunContext = contextNow()): number | null {
+  // 旧训练馆核选路，阶段3拆 engine/break 时沉走，勿仿此新增
+  if (!(rc.lab && rc.ruleset.mode === "break")) return null;
   if (def.id !== "thrust" && def.id !== "spearLock") return null;
   const foe = targetFoe(b);
   const dist = foe ? Math.abs(b.player.pos - foe.pos) : 0;
@@ -158,8 +160,8 @@ function spearBreakAttackBase(b: Battle, def: CardDef): number | null {
   return spearReachDamage(dist);
 }
 
-function saberBreakAttackBase(b: Battle, def: CardDef): number | null {
-  if (!isLabMode()) return null;
+function saberBreakAttackBase(b: Battle, def: CardDef, rc: RunContext = contextNow()): number | null {
+  if (!rc.lab) return null;
   if (def.type !== "attack") return null;
   return saberReachDamage(def.id, distTo(b));
 }
@@ -310,10 +312,10 @@ function defaultRun(): Run {
   return makeRun("empty");
 }
 
-function foePack(id: EnemyId): Unit[] {
+function foePack(id: EnemyId, rc: RunContext = contextNow()): Unit[] {
   const def = labEnemy(id);
-  let hpMul = isLabMode() ? getLabTuning().enemyHpMul : 1;
-  if (isLabMode() && isBossEnemy(id) && id === "lord") {
+  let hpMul = rc.lab ? rc.tuning.enemyHpMul : 1;
+  if (rc.lab && isBossEnemy(id) && id === "lord") {
     hpMul *= 1.4;
   }
   const hp = Math.max(8, Math.round(def.hp * fightScale.hp * hpMul));
@@ -333,8 +335,9 @@ function foePack(id: EnemyId): Unit[] {
   ];
 }
 
-export function isClimbQi(): boolean {
-  return isLabMode() && !isBreakAlign();
+export function isClimbQi(rc: RunContext = contextNow()): boolean {
+  // 旧训练馆核选路，阶段3拆 engine/break 时沉走，勿仿此新增
+  return rc.lab && rc.ruleset.mode !== "break";
 }
 
 export function climbCardLocked(b: Battle, uid: string): boolean {
@@ -497,11 +500,11 @@ function climbDrawRound(b: Battle, opening: boolean): void {
   if ((b.climbWageDebt ?? 0) > 0) note(b, "foe", `断劲挂账 ${b.climbWageDebt}：他下次回劲先扣这笔。`);
 }
 
-function bindClimbQi(b: Battle, remaining: number): void {
+function bindClimbQi(b: Battle, remaining: number, rc: RunContext = contextNow()): void {
   const v = climbVitals(b.active);
   const minds = sumMindArtBonuses(b.labMateMinds?.[b.active] ?? []);
   const gearQi = pathSkillMods(battleMateGearId(b, b.active)).qiRegen ?? 0;
-  const bonusQi = getLabTuning().playerEnergyBonus;
+  const bonusQi = rc.tuning.playerEnergyBonus;
   b.energyMax = v.energyMax + minds.energyMax + bonusQi;
   b.energyRegen = v.energyRegen + minds.turnEnergy + gearQi;
   b.energy = Math.max(0, Math.min(remaining, b.energyMax));
@@ -541,6 +544,7 @@ export function makeBattle(
   run: Run = defaultRun(),
   ordered = true,
   spar = false,
+  rc: RunContext = contextNow(),
 ): Battle {
   seq = 0;
   fightScale = resolveFightScale();
@@ -550,12 +554,13 @@ export function makeBattle(
   const deck = deal(deckFor(run, active), ordered);
   const foes = foePack(enemyId);
   const mateHp = (id: CompanionId) => {
-    if (isLabMode() && !isBreakAlign() && id === active) return run.hp;
+    // 旧训练馆核选路，阶段3拆 engine/break 时沉走，勿仿此新增
+    if (rc.lab && rc.ruleset.mode !== "break" && id === active) return run.hp;
     return isLead(run, id) ? run.hp : (run.companionHp[id] ?? MATES[id].hp);
   };
   const mateMax = (id: CompanionId) => {
     const bonus = run.companionBonus?.[id]?.maxHp ?? 0;
-    if (isLabMode() && !isBreakAlign()) {
+    if (rc.lab && rc.ruleset.mode !== "break") {
       // 爬塔场上角色：用 run.hpMax（赌坊药 / 心法气血已打进 preset），不要用 isLead（hero 常被落成 rail）。
       if (id === active) return Math.max(run.hpMax, climbVitals(id).hp) + bonus;
       return climbVitals(id).hp + bonus;
@@ -574,7 +579,7 @@ export function makeBattle(
         hand: packed.hand,
         drawPile: packed.drawPile,
         discardPile: [],
-        ...(isLabMode() && !isBreakAlign() ? { energy: climbEnergyStart(id) } : {}),
+        ...(rc.lab && rc.ruleset.mode !== "break" ? { energy: climbEnergyStart(id) } : {}),
       };
     });
   const energyMax = enemyEnergyMax(enemyId);
@@ -592,18 +597,18 @@ export function makeBattle(
     enemy: foes[0],
     foes,
     enemyId,
-      playerBlock: run.techniques.includes("nightStep") && !(isLabMode() && isBreakAlign()) ? 1 : 0,
+      playerBlock: run.techniques.includes("nightStep") && !(rc.lab && rc.ruleset.mode === "break") ? 1 : 0,
       // 读招：小池 6/5/3。爬塔：按角色气血档位，不再 ×8。
-      ...(isLabMode() && isBreakAlign()
+      ...(rc.lab && rc.ruleset.mode === "break"
         ? {
-            energy: 5 + getLabTuning().playerEnergyBonus,
-            energyMax: 6 + getLabTuning().playerEnergyBonus,
+            energy: 5 + rc.tuning.playerEnergyBonus,
+            energyMax: 6 + rc.tuning.playerEnergyBonus,
             energyRegen: 3 + gearQi,
           }
-        : isLabMode()
+        : rc.lab
           ? (() => {
               const v = climbVitals(active);
-              const energyMax = v.energyMax + bonusQi + getLabTuning().playerEnergyBonus;
+              const energyMax = v.energyMax + bonusQi + rc.tuning.playerEnergyBonus;
               return {
                 energy: v.energyStart,
                 energyMax,
@@ -709,9 +714,9 @@ export function weaponPace(id: CompanionId): number {
   return WEAPON_PACE[MATES[id].weapon];
 }
 
-export function battlePace(b: Battle): number {
+export function battlePace(b: Battle, rc: RunContext = contextNow()): number {
   const base = WEAPON_PACE[battleEquippedSchool(b, b.active)];
-  return base + (isLabV2() ? resonancePaceBonus(b) : 0);
+  return base + (labV2(rc) ? resonancePaceBonus(b) : 0);
 }
 
 export function yourPace(b: Battle): number {
@@ -733,8 +738,9 @@ export function seizeOpening(b: Battle): void {
 }
 
 /** 读招开局削弱。爬塔开局与收势同一套完整意图条，不削段、不打折。 */
-export function weakenLabOpeningQueue(b: Battle): void {
-  if (!isLabMode() || !isBreakAlign() || yourPace(b) >= b.foePace) return;
+export function weakenLabOpeningQueue(b: Battle, rc: RunContext = contextNow()): void {
+  // 旧训练馆核选路，阶段3拆 engine/break 时沉走，勿仿此新增
+  if (!rc.lab || rc.ruleset.mode !== "break" || yourPace(b) >= b.foePace) return;
   if (b.v2OpeningWeakened) return;
   b.v2OpeningWeakened = true;
   const q = (b.intents.length ? b.intents : [b.intent]).slice();
@@ -869,12 +875,12 @@ function targetFoe(b: Battle): Unit | null {
   return ahead[0] ?? live[0];
 }
 
-export function occupied(b: Battle, pos: number, exceptId?: string, ignoreStakes = false): boolean {
+export function occupied(b: Battle, pos: number, exceptId?: string, ignoreStakes = false, rc: RunContext = contextNow()): boolean {
   if (pos < 0 || pos >= BOARD_SIZE) return true;
   if (!ignoreStakes && b.stakes.includes(pos)) return true;
   if (assistOccupies(b, pos) && exceptId !== b.labAssistActive) return true;
   // §31.12 助战符召唤体也是实体——占格、挡路、当墙。
-  if (isLabV2() && b.labSummon && b.labSummon.hp > 0 && b.labSummon.pos === pos) return true;
+  if (labV2(rc) && b.labSummon && b.labSummon.hp > 0 && b.labSummon.pos === pos) return true;
   if (b.player.pos === pos && b.player.id !== exceptId && b.player.hp > 0) return true;
   for (const f of livingFoes(b)) {
     if (f.pos === pos && f.id !== exceptId) return true;
@@ -1314,19 +1320,20 @@ function tryRiposte(b: Battle, owner: "you" | "foe"): string[] {
  * 刀=埋招反击（上回合挨过打则爆发）/ 枪=远强近弱 / 剑=创伤叠层 /
  * 钩=缴械后好输出 / 棍=连击晕（在 postAttackHooks）/ 拳=震壁（在 knockAway）。
  */
-function schoolIdentityMods(b: Battle, cardDef: CardDef | undefined, dmg: number): number {
+function schoolIdentityMods(b: Battle, cardDef: CardDef | undefined, dmg: number, rc: RunContext = contextNow()): number {
   if (!cardDef || cardDef.type !== "attack") return dmg;
   const school = battleEquippedSchool(b, b.active);
   const d = Math.abs(b.player.pos - b.enemy.pos);
   if (school === "saber") {
-    if (isLabMode() && !isBreakAlign()) {
+    // 旧训练馆核选路，阶段3拆 engine/break 时沉走，勿仿此新增
+    if (rc.lab && rc.ruleset.mode !== "break") {
       /* 快刀不是核心：领先 +2 已关。兵器「快刀」仍走 saber-b。 */
     } else if (b.foeHitLastTurn) dmg += 4;
   }
   if (hasTech(b, "saberGrudge") && b.foeHitLastTurn) {
-    if (!(isLabMode() && isBreakAlign())) dmg += techBonus(b, "saberGrudge", 2);
+    if (!(rc.lab && rc.ruleset.mode === "break")) dmg += techBonus(b, "saberGrudge", 2);
   }
-  if (school === "spear" && !(isLabMode() && isBreakAlign())) dmg += d >= 2 ? 3 : -2;
+  if (school === "spear" && !(rc.lab && rc.ruleset.mode === "break")) dmg += d >= 2 ? 3 : -2;
   if (hasTech(b, "spearWind") && d >= 3) dmg += techBonus(b, "spearWind", 3);
   if (school === "sword") {
     if (isClimbQi()) dmg += b.v2SwordChain ?? 0;
@@ -2596,14 +2603,14 @@ function applyCard(b: Battle, defId: CardId): string[] {
 }
 
 /** §31.17 踢馆轮番：前排倒下后替补入场，重新规划敌招。 */
-function tryGauntletWaveSpawn(b: Battle): boolean {
+function tryGauntletWaveSpawn(b: Battle, rc: RunContext = contextNow()): boolean {
   const waveId = b.gauntletWaveEnemy;
   if (!waveId || livingFoes(b).length > 0) return false;
   const queue = b.gauntletWaveQueue ?? [];
   b.gauntletWaveEnemy = queue[0];
   b.gauntletWaveQueue = queue.length > 1 ? queue.slice(1) : undefined;
   const def = labEnemy(waveId);
-  let hpMul = isLabMode() ? getLabTuning().enemyHpMul : 1;
+  let hpMul = rc.lab ? rc.tuning.enemyHpMul : 1;
   const hp = Math.max(8, Math.round(def.hp * hpMul));
   const unit: Unit = {
     id: def.id,
@@ -2900,10 +2907,10 @@ function hitPlayer(b: Battle, raw: number, verb: string): void {
  * §31.12 败判看全队（踢馆线）：场上队员倒下时，后场还有活人则队友抢上，
  * 全员阵亡才算输。阵亡者本场出局（不回后场）；顶上者不享登场奖励（倒下是代价）。
  */
-function collapseOrDeathSwap(b: Battle): void {
+function collapseOrDeathSwap(b: Battle, rc: RunContext = contextNow()): void {
   if (b.player.hp > 0) return;
   b.player.hp = 0;
-  if (isLabMode()) {
+  if (rc.lab) {
     const mate = b.bench.find((m) => m.hp > 0);
     if (mate) {
       const fallen = b.player.name;
@@ -2935,8 +2942,8 @@ export function legalSummonCells(b: Battle): number[] {
 }
 
 /** 召唤：功力（HP）随主角兵刃品阶，不带武器技能。 */
-export function summonAssist(b: Battle, school: WeaponId, pos: number): Battle {
-  if (!isLabV2() || b.phase !== "player") return b;
+export function summonAssist(b: Battle, school: WeaponId, pos: number, rc: RunContext = contextNow()): Battle {
+  if (!labV2(rc) || b.phase !== "player") return b;
   if (b.labSummon && b.labSummon.hp > 0) return b;
   if (!legalSummonCells(b).includes(pos)) return b;
   const def = SUMMON_DEFS[school];
@@ -3655,18 +3662,19 @@ function kitCtx(b: Battle): KitCtx {
   };
 }
 
-export function applyLabEnemyKit(b: Battle, role: "main" | "extra" = "main"): void {
-  if (!isLabMode()) return;
+export function applyLabEnemyKit(b: Battle, role: "main" | "extra" = "main", rc: RunContext = contextNow()): void {
+  if (!rc.lab) return;
   if (!usesGeneratedKit(b.enemyId)) return;
   if (b.labGauntletStage == null) return;
   const stage = b.labGauntletStage;
-  const mode = isBreakAlign() ? "break" : "classic";
+  // 旧训练馆核选路，阶段3拆 engine/break 时沉走，勿仿此新增
+  const mode = rc.ruleset.mode === "break" ? "break" : "classic";
   const profile = profileFor(b.enemyId, stage, role, mode);
   b.labEnemyKitRole = role;
   b.labEnemyGrade = profile.grade;
   b.enemyEnergyMax = profile.energy.max;
   b.enemyEnergy = Math.min(profile.energy.max, profile.energy.start);
-  if (!isBreakAlign()) {
+  if (rc.ruleset.mode !== "break") {
     b.foePace = enemyPace(b.enemyId) + climbEnemyPaceBonus(stage);
   }
   if (profile.name) {
@@ -4026,8 +4034,9 @@ function coerceInReachStrike(b: Battle): Intent {
 }
 
 /** 爬塔开战站位：前段距 3，中后期拉满。 */
-export function applyClimbOpeningPositions(b: Battle): void {
-  if (!isClimbQi() || isBreakAlign()) return;
+export function applyClimbOpeningPositions(b: Battle, rc: RunContext = contextNow()): void {
+  // 旧训练馆核选路，阶段3拆 engine/break 时沉走，勿仿此新增
+  if (!isClimbQi() || rc.ruleset.mode === "break") return;
   const stage = b.labGauntletStage ?? 1;
   const elite = isEliteEnemy(b.enemyId) || isBossEnemy(b.enemyId);
   const dist = climbOpeningDistance(stage, elite);
