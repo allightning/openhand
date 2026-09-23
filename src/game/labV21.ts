@@ -1,5 +1,5 @@
 import { CARDS } from "./content";
-import { isLabMode, isLabV2 } from "./labTuning";
+import { contextNow, labV2, type RunContext } from "./runContext";
 import { isSummonItem, SUMMON_ITEM_TO_SCHOOL } from "./labSummon";
 import { legalSummonCells, summonAssist } from "./sim";
 import {
@@ -13,7 +13,6 @@ import { comboEffectiveCost, isComboCard } from "./labCombo";
 import { ITEM_DART_DMG, ITEM_GRANT_QTY, ITEM_HEAL_PCT, ITEM_QI_GAIN } from "./labV21Constants";
 import { BOARD_SIZE, type Battle, type CardDef, type CardId, type LabItemId } from "./types";
 import { gearById } from "./weapons";
-import { isBreakAlign } from "./labRuleset";
 import { labPlayCost } from "./climbEconomy";
 import { emptyV2Turn } from "./labV2";
 
@@ -32,8 +31,8 @@ export {
   resonanceChargeStepsCut,
 } from "./labResonance";
 
-export function isLabV21(): boolean {
-  return isLabV2();
+export function isLabV21(rc: RunContext = contextNow()): boolean {
+  return labV2(rc);
 }
 
 export { ITEM_GRANT_QTY };
@@ -89,16 +88,16 @@ function dist(b: Battle): number {
   return Math.abs(b.player.pos - b.enemy.pos);
 }
 
-export function initLabV21Battle(b: Battle): void {
-  if (!isLabV21()) return;
+export function initLabV21Battle(b: Battle, rc: RunContext = contextNow()): void {
+  if (!labV2(rc)) return;
   b.v2AuraQiBonusUsed = false;
   b.labItemUsedThisTurn = false;
   b.labUnlockUltimate = false;
   b.labComboPillActive = false;
   if (!b.labItems) b.labItems = [];
   if (b.labItems.length && !b.labItemCharges) b.labItemCharges = defaultItemCharges(b.labItems);
-  initResonanceBattle(b);
-  initSignatureBattle(b);
+  initResonanceBattle(b, rc);
+  initSignatureBattle(b, rc);
 }
 
 /** @deprecated v2.5 用 resonanceStrikeBonus */
@@ -113,8 +112,13 @@ export function auraExtraQiOnGain(b: Battle, cardId?: CardId): number {
 }
 
 /** 拆招绝招：门槛只看本系资源，不走通用势。 */
-function breakUltimateGate(b: Battle, def: CardDef): { ok: boolean; reason?: string } | null {
-  if (!isBreakAlign() || !def.ultimate) return null;
+function breakUltimateGate(
+  b: Battle,
+  def: CardDef,
+  rc: RunContext = contextNow(),
+): { ok: boolean; reason?: string } | null {
+  // 旧破招核物品/绝招，阶段3拆 engine/break 时沉走，勿仿此新增
+  if (rc.ruleset.mode !== "break" || !def.ultimate) return null;
   const id = def.id;
   if (
     id !== "ultSaber" &&
@@ -150,10 +154,14 @@ function breakUltimateGate(b: Battle, def: CardDef): { ok: boolean; reason?: str
   return { ok: true };
 }
 
-export function ultimateGate(b: Battle, def: CardDef): { ok: boolean; reason?: string } {
-  if (!def.ultimate || !isLabV21()) return { ok: true };
+export function ultimateGate(
+  b: Battle,
+  def: CardDef,
+  rc: RunContext = contextNow(),
+): { ok: boolean; reason?: string } {
+  if (!def.ultimate || !labV2(rc)) return { ok: true };
   if (b.labUnlockUltimate) return { ok: true };
-  const brk = breakUltimateGate(b, def);
+  const brk = breakUltimateGate(b, def, rc);
   if (brk) return brk;
   const u = def.ultimate;
   const reasons: string[] = [];
@@ -174,9 +182,9 @@ export function ultimateGate(b: Battle, def: CardDef): { ok: boolean; reason?: s
   return { ok: true };
 }
 
-export function variantBranch(def: CardDef, b: Battle): "a" | "b" | null {
+export function variantBranch(def: CardDef, b: Battle, rc: RunContext = contextNow()): "a" | "b" | null {
   const v = def.variant;
-  if (!v || !isLabV21()) return null;
+  if (!v || !labV2(rc)) return null;
   const hpPct = b.player.hp / Math.max(1, b.player.maxHp);
   if (v.kind === "highHp" && hpPct >= (v.threshold ?? 0.8)) return "a";
   if (v.kind === "lowHp" && hpPct <= (v.threshold ?? 0.2)) return "b";
@@ -203,55 +211,56 @@ export function climbAttackFaceDamage(b: Battle, def: CardDef): number {
   return Math.max(1, dmg);
 }
 
-export function labV21EffectiveCost(b: Battle, def: CardDef): number {
+export function labV21EffectiveCost(b: Battle, def: CardDef, rc: RunContext = contextNow()): number {
   const tax = def.stackTaxQi ?? 0;
   const discount = b.costDiscountNext ?? 0;
   const nick = def.type === "skill" ? (b.youSkillTax ?? 0) : 0;
   // 所有牌按牌面 cost 计费（爬塔 floor 1）；实际伤害看悬停预演条，不再「费=伤」。
   const v = def.variant;
   const token = def.id.startsWith("aura") || def.id.startsWith("fuse");
-  const floor = isLabMode() && !isBreakAlign() && !token ? 1 : 0;
+  // 旧破招核物品/绝招，阶段3拆 engine/break 时沉走，勿仿此新增
+  const floor = rc.lab && rc.ruleset.mode !== "break" && !token ? 1 : 0;
   if (b.v2Turn?.labFreeSkill && def.type === "skill") return 0;
-  if (!v || !isLabV21()) {
+  if (!v || !labV2(rc)) {
     const base = labPlayCost(Math.max(floor, def.cost)) + tax;
-    const c = isComboCard(def.id) ? comboEffectiveCost(b, def.id, base) : base;
+    const c = isComboCard(def.id) ? comboEffectiveCost(b, def.id, base, rc) : base;
     return Math.max(floor, c - discount + nick);
   }
-  const br = variantBranch(def, b);
+  const br = variantBranch(def, b, rc);
   let cost = br === "b" && v.costZeroOnB ? Math.max(floor, tax) : labPlayCost(Math.max(floor, def.cost)) + tax;
-  if (isComboCard(def.id)) cost = comboEffectiveCost(b, def.id, cost);
+  if (isComboCard(def.id)) cost = comboEffectiveCost(b, def.id, cost, rc);
   return Math.max(floor, cost - discount + nick);
 }
 
-export function labV21StrikeAdjust(b: Battle, def: CardDef, base: number): number {
+export function labV21StrikeAdjust(b: Battle, def: CardDef, base: number, rc: RunContext = contextNow()): number {
   const adj = dist(b) === 1;
-  let dmg = base + resonanceStrikeBonus(b, def.id, base, adj, dist(b));
+  let dmg = base + resonanceStrikeBonus(b, def.id, base, adj, dist(b), rc);
   if (b.labSigPullBuff && def.type === "attack") {
     dmg += 2;
     b.labSigPullBuff = false;
   }
   const v = def.variant;
-  if (!v || !isLabV21()) return dmg;
-  const br = variantBranch(def, b);
+  if (!v || !labV2(rc)) return dmg;
+  const br = variantBranch(def, b, rc);
   if (br === "a" && v.damageMulA) dmg = Math.round(dmg * v.damageMulA);
   if (br === "b" && v.damageBonusB) dmg += v.damageBonusB;
   return dmg;
 }
 
-export function labV21BlockAdjust(b: Battle, def: CardDef, block: number): number {
+export function labV21BlockAdjust(b: Battle, def: CardDef, block: number, rc: RunContext = contextNow()): number {
   let out = block;
-  if (def.ultimate?.doubleBlock && isLabV21() && (ultimateGate(b, def).ok || b.labUnlockUltimate)) {
+  if (def.ultimate?.doubleBlock && labV2(rc) && (ultimateGate(b, def, rc).ok || b.labUnlockUltimate)) {
     out *= 2;
   }
   return out;
 }
 
-export function labV21AfterCard(b: Battle, defId: CardId): void {
-  if (!isLabV21() || !b.v2Turn) return;
+export function labV21AfterCard(b: Battle, defId: CardId, rc: RunContext = contextNow()): void {
+  if (!labV2(rc) || !b.v2Turn) return;
   if (isSpatialCard(defId)) b.v2Turn.spatialPlayed = true;
   const def = CARDS[defId];
   if (def.variant) {
-    const br = variantBranch(def, b);
+    const br = variantBranch(def, b, rc);
     if (br === "a") b.v2VariantBranchA = (b.v2VariantBranchA ?? 0) + 1;
     else if (br === "b") b.v2VariantBranchB = (b.v2VariantBranchB ?? 0) + 1;
     else b.v2VariantBranchNone = (b.v2VariantBranchNone ?? 0) + 1;
@@ -263,18 +272,27 @@ export function refreshBreakPromised(b: Battle): void {
   b.v2Turn.breakPromised = (b.v2BreakPreview?.length ?? 0) > 0;
 }
 
-export function labCanUseItem(b: Battle, item: LabItemId): { ok: boolean; reason?: string } {
-  if (!isLabMode()) return { ok: false, reason: "仅踢馆" };
+export function labCanUseItem(
+  b: Battle,
+  item: LabItemId,
+  rc: RunContext = contextNow(),
+): { ok: boolean; reason?: string } {
+  if (!rc.lab) return { ok: false, reason: "仅踢馆" };
   if (b.phase !== "player") return { ok: false, reason: "不是你的回合" };
   if (itemChargeCount(b, item) <= 0) return { ok: false, reason: "没有了" };
   if (b.youNoBag > 0) return { ok: false, reason: "禁药中" };
   return { ok: true };
 }
 
-export function useLabItem(b: Battle, item: LabItemId, pos?: number): { ok: boolean; reason?: string; battle?: Battle } {
-  const gate = labCanUseItem(b, item);
+export function useLabItem(
+  b: Battle,
+  item: LabItemId,
+  pos?: number,
+  rc: RunContext = contextNow(),
+): { ok: boolean; reason?: string; battle?: Battle } {
+  const gate = labCanUseItem(b, item, rc);
   if (!gate.ok) return gate;
-  if (!isLabMode()) return { ok: false, reason: "仅踢馆" };
+  if (!rc.lab) return { ok: false, reason: "仅踢馆" };
   const next = { ...b, v2ItemUses: (b.v2ItemUses ?? 0) + 1 };
   next.labItemCharges = { ...(b.labItemCharges ?? {}) };
   next.labItems = [...(b.labItems ?? [])];
@@ -290,7 +308,8 @@ export function useLabItem(b: Battle, item: LabItemId, pos?: number): { ok: bool
     next.foes = next.foes.map((f) => (f.id === foe.id ? { ...foe } : f));
     next.journal = [...next.journal, { side: "you", text: `袖箭 ${ITEM_DART_DMG}（无视格挡）` }];
   } else if (item === "huiqi") {
-    const gain = isBreakAlign() ? ITEM_QI_GAIN : 4;
+    // 旧破招核物品/绝招，阶段3拆 engine/break 时沉走，勿仿此新增
+    const gain = rc.ruleset.mode === "break" ? ITEM_QI_GAIN : 4;
     next.energy = Math.min(next.energyMax, next.energy + gain);
     next.journal = [...next.journal, { side: "you", text: `回气散 +${gain} 劲` }];
   } else if (item === "lianhuan") {
@@ -299,11 +318,11 @@ export function useLabItem(b: Battle, item: LabItemId, pos?: number): { ok: bool
       ...next.journal,
       {
         side: "you",
-        text: isBreakAlign() ? "连环丹：本回合每段硬拆额外 +1 势" : "连环丹：本回合积势额外 +1",
+        text: rc.ruleset.mode === "break" ? "连环丹：本回合每段硬拆额外 +1 势" : "连环丹：本回合积势额外 +1",
       },
     ];
   } else if (item === "pojin") {
-    if (isBreakAlign()) {
+    if (rc.ruleset.mode === "break") {
       next.labPojinFreeBreak = true;
       const f = next.v2Turn ?? emptyV2Turn(next);
       f.moveCharges = (f.moveCharges ?? 0) + 1;
