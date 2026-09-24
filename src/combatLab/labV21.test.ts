@@ -144,7 +144,7 @@ describe("v2.5 构成光环（阶梯）", () => {
       { ...BUILTIN_PRESETS[0]!, party: ["rail", "hermit"], fieldMate: "rail", enemyId: "catcher" },
       true,
     );
-    const res = computeAuras(b);
+    const res = computeAuras(b, breakTestContext());
     expect(res.schools.find((s) => s.school === "palm")?.tier).toBe(1);
   });
 
@@ -163,7 +163,7 @@ describe("v2.5 构成光环（阶梯）", () => {
       },
       true,
     );
-    expect(computeAuras(b).schools.find((s) => s.school === "palm")?.tier).toBe(2);
+    expect(computeAuras(b, breakTestContext()).schools.find((s) => s.school === "palm")?.tier).toBe(2);
   });
 
   it("duo hero bench grants start qi without spending action", () => {
@@ -171,7 +171,7 @@ describe("v2.5 构成光环（阶梯）", () => {
       { ...BUILTIN_PRESETS[0]!, party: ["rail", "seer", "sapper"], fieldMate: "rail", enemyId: "catcher" },
       true,
     );
-    expect(computeAuras(b).duoHeroes).toBe(true);
+    expect(computeAuras(b, breakTestContext()).duoHeroes).toBe(true);
     expect(b.qi ?? 0).toBeGreaterThanOrEqual(AURA_DUO_START_QI);
   });
 });

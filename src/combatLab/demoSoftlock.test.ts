@@ -45,6 +45,7 @@ import { labCanPlay, labSwapFighter } from "./labCombat";
 import { CARDS } from "../game/content";
 import { cardSchool, MATES } from "../game/party";
 import { battleEquippedSchool } from "../game/equippedWeapon";
+import { breakTestContext } from "../game/testContext";
 import { setLabMode, setLabTuning } from "../game/labTuning";
 import { setLabRuleset } from "./labRuleset";
 import type { Battle, CompanionId } from "../game/types";
@@ -95,7 +96,7 @@ function runDemoStage(stage: DemoStage, companion: CompanionId | null, opts?: { 
         const field = b.active;
         const bad = b.hand.filter((c) => {
           const cs = cardSchool(c.defId);
-          return cs !== "any" && cs !== battleEquippedSchool(b, field) && !b.bench.some((m) => battleEquippedSchool(b, m.id) === cs);
+          return cs !== "any" && cs !== battleEquippedSchool(b, field, breakTestContext()) && !b.bench.some((m) => battleEquippedSchool(b, m.id, breakTestContext()) === cs);
         });
         if (bad.length) {
           problems.push(`自由打手牌不配套：${bad.map((c) => c.defId).join(",")}（场上=${MATES[field].name}）`);

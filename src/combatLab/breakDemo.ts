@@ -7,6 +7,7 @@ import { MATES, WEAPON_NAME } from "../game/party";
 import { emptyV2Turn } from "../game/labV2";
 import { drawOneCard } from "../game/sim";
 import { battleEquippedSchool } from "../game/equippedWeapon";
+import { shellRunContext } from "./shellContext";
 import { breakStarterDeck } from "./rogueRoster";
 import type { LabPreset } from "./types";
 import { normalizePreset } from "./draft";
@@ -451,7 +452,7 @@ export function ensureFreePlayDeck(b: Battle, recipe: CardId[], intents: Intent[
  * 刀在场上时用回原牌堆（含玩家选的奖励牌）。
  */
 export function freePlayRecipe(b: Battle, fallback: CardId[]): CardId[] {
-  const school = battleEquippedSchool(b, b.active);
+  const school = battleEquippedSchool(b, b.active, shellRunContext());
   return school === "saber" ? fallback : [...breakStarterDeck(school)];
 }
 

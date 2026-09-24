@@ -380,7 +380,7 @@ function climbStakeBehindFoe(b: Battle, pos: number, rc: RunContext): boolean {
 /** 爬塔钩核：拉近成功才缴械（跳过下一次有伤）。 */
 function climbHookDisarmOnPull(b: Battle, beforeDist: number, notes: string[], rc: RunContext): void {
   if (!isClimbQi(rc)) return;
-  if (battleEquippedSchool(b, b.active) !== "hook") return;
+  if (battleEquippedSchool(b, b.active, rc) !== "hook") return;
   if (b.foeSkipCc) return;
   const after = Math.abs(b.player.pos - (targetFoe(b) ?? b.enemy).pos);
   if (after >= beforeDist) return;
@@ -714,7 +714,7 @@ export function weaponPace(id: CompanionId): number {
 }
 
 export function battlePace(b: Battle, rc: RunContext): number {
-  const base = WEAPON_PACE[battleEquippedSchool(b, b.active)];
+  const base = WEAPON_PACE[battleEquippedSchool(b, b.active, rc)];
   return base + (labV2(rc) ? resonancePaceBonus(b, rc) : 0);
 }
 
@@ -977,7 +977,7 @@ export function labCanComboReplay(b: Battle, rc: RunContext): { ok: boolean; rea
   if (!isClimbQi(rc)) return { ok: false, reason: "仅爬塔" };
   if (b.phase !== "player") return { ok: false, reason: "不是你的回合" };
   if (b.climbDiscardPhase) return { ok: false, reason: "弃牌阶段不能重放" };
-  if (battleEquippedSchool(b, b.active) !== "palm") return { ok: false, reason: "拳核才有连击重放" };
+  if (battleEquippedSchool(b, b.active, rc) !== "palm") return { ok: false, reason: "拳核才有连击重放" };
   if ((b.combo ?? 0) < CLIMB_COMBO_REPLAY_COST) return { ok: false, reason: `连击不足（需 ${CLIMB_COMBO_REPLAY_COST}）` };
   if (!b.climbLastAttackId) return { ok: false, reason: "本手还没打过攻击" };
   return { ok: true };
@@ -1052,14 +1052,14 @@ function cardPlaySchoolGate(b: Battle, defId: CardId, rc: RunContext): { ok: boo
   if (!rc.lab) return { ok: true };
   const cs = cardSchool(defId);
   if (cs === "any") return { ok: true };
-  const fieldSchool = battleEquippedSchool(b, b.active);
+  const fieldSchool = battleEquippedSchool(b, b.active, rc);
   if (cs === fieldSchool) return { ok: true };
   // §31.12 异系同行=组合技开闸（被动，人在后场即可）；v1 旧制仍走助战在场。
   if (labV2(rc)) {
-    const mate = b.bench.find((m) => m.hp > 0 && battleEquippedSchool(b, m.id) === cs);
+    const mate = b.bench.find((m) => m.hp > 0 && battleEquippedSchool(b, m.id, rc) === cs);
     if (mate) return { ok: true };
   } else if (isComboRulesEnabled(rc) && b.labAssistActive) {
-    const assistSchool = battleEquippedSchool(b, b.labAssistActive);
+    const assistSchool = battleEquippedSchool(b, b.labAssistActive, rc);
     if (cs === assistSchool && assistSchool !== fieldSchool) return { ok: true };
   }
   return { ok: false, reason: `需${MATES[b.active].name}装备${cs}系，或后场有该系同行` };
@@ -1069,9 +1069,9 @@ export function isComboUnlockCard(b: Battle, defId: CardId, rc: RunContext): boo
   if (!rc.lab || !isComboRulesEnabled(rc) || !b.labAssistActive) return false;
   const cs = cardSchool(defId);
   if (cs === "any") return false;
-  const fieldSchool = battleEquippedSchool(b, b.active);
+  const fieldSchool = battleEquippedSchool(b, b.active, rc);
   if (cs === fieldSchool) return false;
-  return cs === battleEquippedSchool(b, b.labAssistActive);
+  return cs === battleEquippedSchool(b, b.labAssistActive, rc);
 }
 
 function wallHit(b: Battle, cardWall?: number): number {
@@ -1321,7 +1321,7 @@ function tryRiposte(b: Battle, owner: "you" | "foe", rc: RunContext): string[] {
  */
 function schoolIdentityMods(b: Battle, cardDef: CardDef | undefined, dmg: number, rc: RunContext): number {
   if (!cardDef || cardDef.type !== "attack") return dmg;
-  const school = battleEquippedSchool(b, b.active);
+  const school = battleEquippedSchool(b, b.active, rc);
   const d = Math.abs(b.player.pos - b.enemy.pos);
   if (school === "saber") {
     // 旧训练馆核选路，阶段3拆 engine/break 时沉走，勿仿此新增
@@ -1472,7 +1472,7 @@ function hitEnemy(b: Battle, raw: number, verb: string, rc: RunContext, spendCha
   }
   const gate = adjacentStakePos(b.player.pos, foe.pos, b.stakes);
   if (gate != null && raw > 0) {
-    const n = smashHitsForSchool(battleEquippedSchool(b, b.active));
+    const n = smashHitsForSchool(battleEquippedSchool(b, b.active, rc));
     const gone = smashStake(b, gate, n);
     if (b.v2Turn) b.v2Turn.hitStakeThisTurn = true;
     const line = gone ? "破桩" : `砸桩 · 还挡 ${stakeHitsAt(b, gate)}`;
@@ -1564,7 +1564,7 @@ function hitEnemy(b: Battle, raw: number, verb: string, rc: RunContext, spendCha
       leech += 2;
       b.labLifestealNext = 0;
     }
-    if (isClimbQi(rc) && battleEquippedSchool(b, b.active) === "hook" && (b.foeDisarm ?? 0) > 0) {
+    if (isClimbQi(rc) && battleEquippedSchool(b, b.active, rc) === "hook" && (b.foeDisarm ?? 0) > 0) {
       leech += Math.max(1, Math.floor(dmg * CLIMB_LIFESTEAL_PCT));
     }
     if (leech > 0) {
@@ -1574,7 +1574,7 @@ function hitEnemy(b: Battle, raw: number, verb: string, rc: RunContext, spendCha
     }
   }
   if (isClimbQi(rc) && raw > 0 && dmg > 0) {
-    const school = battleEquippedSchool(b, b.active);
+    const school = battleEquippedSchool(b, b.active, rc);
     if (school === "palm") {
       b.combo = Math.min(CLIMB_COMBO_CAP, (b.combo ?? 0) + 1);
       notes.push(`连击 ${b.combo}`);
@@ -1595,7 +1595,7 @@ function hitEnemy(b: Battle, raw: number, verb: string, rc: RunContext, spendCha
     b.bleed = Math.min(9, (b.bleed ?? 0) + 1);
     notes.push("见血");
   }
-  if (raw > 0 && dmg > 0 && b.active === "lishuangxing" && battleEquippedSchool(b, b.active) === "saber") {
+  if (raw > 0 && dmg > 0 && b.active === "lishuangxing" && battleEquippedSchool(b, b.active, rc) === "saber") {
     b.bleed = Math.min(9, (b.bleed ?? 0) + 1);
     notes.push("霜叠");
   }
@@ -1637,7 +1637,7 @@ function knockAway(b: Battle, who: "player" | "enemy", dist: number, rc: RunCont
         notes.push("墙劲");
       }
       // §31.11 拳系震壁：把敌打上墙 → 震壁 +6 且眩晕 1 段（拳的输出环境差，上墙是高收益兑现）
-      if (who === "enemy" && labV2(rc) && battleEquippedSchool(b, b.active) === "palm") {
+      if (who === "enemy" && labV2(rc) && battleEquippedSchool(b, b.active, rc) === "palm") {
         wh += 6;
         b.foeStun = (b.foeStun ?? 0) + 1;
         notes.push("震壁·敌晕 1 段");
@@ -1652,7 +1652,7 @@ function knockAway(b: Battle, who: "player" | "enemy", dist: number, rc: RunCont
       // §31.12 助战符当墙：敌被推到召唤体身上 = 撞墙（拳系震壁连招的核心兑现）
       if (who === "enemy" && labV2(rc) && b.labSummon && b.labSummon.hp > 0 && b.labSummon.pos === next) {
         let wh = wallHit(b, wall);
-        if (battleEquippedSchool(b, b.active) === "palm") {
+        if (battleEquippedSchool(b, b.active, rc) === "palm") {
           wh += 6;
           b.foeStun = (b.foeStun ?? 0) + 1;
           notes.push("震壁·敌晕 1 段");
@@ -2034,7 +2034,7 @@ function applyCard(b: Battle, defId: CardId, rc: RunContext): string[] {
     const at = b.player.pos + towardDir(b.player.pos, foe.pos);
     if (climbStakeBehindFoe(b, at, rc)) notes.push("敌身后落不下");
     else if (at >= 0 && at < BOARD_SIZE && !occupied(b, at, rc)) {
-      addStake(b, at, playerPlantHits(battleEquippedSchool(b, b.active)), rc);
+      addStake(b, at, playerPlantHits(battleEquippedSchool(b, b.active, rc)), rc);
       notes.push(`桩落在第 ${at + 1} 步`);
     } else notes.push("身前落不下");
     return notes;
@@ -2484,7 +2484,7 @@ function applyCard(b: Battle, defId: CardId, rc: RunContext): string[] {
     notes.push(...pullUnit(b, "enemy", "player", def.pullEnemy, rc));
     climbHookDisarmOnPull(b, before, notes, rc);
     if (b.active === "chenchenlan" && Math.abs(b.player.pos - b.enemy.pos) < before) {
-      if (!isClimbQi(rc) || battleEquippedSchool(b, b.active) !== "hook") {
+      if (!isClimbQi(rc) || battleEquippedSchool(b, b.active, rc) !== "hook") {
         b.foeDisarm = Math.max(b.foeDisarm ?? 0, 1);
         notes.push("缴手：短缴械");
       }
@@ -2539,7 +2539,7 @@ function applyCard(b: Battle, defId: CardId, rc: RunContext): string[] {
     const at = b.player.pos + towardDir(b.player.pos, foe.pos);
     if (climbStakeBehindFoe(b, at, rc)) notes.push("敌身后落不下");
     else if (at >= 0 && at < BOARD_SIZE && !occupied(b, at, rc)) {
-      addStake(b, at, playerPlantHits(battleEquippedSchool(b, b.active)), rc);
+      addStake(b, at, playerPlantHits(battleEquippedSchool(b, b.active, rc)), rc);
       notes.push(`桩落在第 ${at + 1} 步`);
     } else notes.push("身前落不下");
   }
@@ -2667,7 +2667,7 @@ export function canPlay(b: Battle, uid: string, rc: RunContext): { ok: boolean; 
   // 组合技例外：助战者自己会上前递招。
   if (rc.lab && def.type === "attack" && !isComboCard(inst.defId)) {
     const cardSch = cardSchool(inst.defId);
-    const school = cardSch === "any" ? battleEquippedSchool(b, b.active) : cardSch;
+    const school = cardSch === "any" ? battleEquippedSchool(b, b.active, rc) : cardSch;
     const foe = targetFoe(b);
     const dist = foe ? Math.abs(foe.pos - b.player.pos) : 0;
     // 旧核选路，阶段3沉 engine/break，勿仿此新增
@@ -2776,16 +2776,16 @@ export function playCard(b: Battle, uid: string, rc: RunContext): Battle {
   if (def.type === "attack") {
     next.attacksThisTurn += 1;
     next.v2AttackPlays = (next.v2AttackPlays ?? 0) + 1;
-    const field = battleEquippedSchool(next, next.active);
+    const field = battleEquippedSchool(next, next.active, rc);
     const cs = cardSchool(inst.defId);
     if (cs !== "any" && cs !== field) next.v2OffSchoolAtk = (next.v2OffSchoolAtk ?? 0) + 1;
     if (isClimbQi(rc)) next.climbLastAttackId = inst.defId;
     // §31.11 棍系连击眩晕：本回合每第 3 张攻击，敌晕 1 段（踢馆线）。
-    if (labV2(rc) && battleEquippedSchool(next, next.active) === "staff" && next.attacksThisTurn % 3 === 0 && !next.foeSkipCc) {
+    if (labV2(rc) && battleEquippedSchool(next, next.active, rc) === "staff" && next.attacksThisTurn % 3 === 0 && !next.foeSkipCc) {
       next.foeStun = (next.foeStun ?? 0) + 1;
       next.journal.push({ side: "you", text: "连击成势——敌眩晕 1 段" });
     }
-    if (isClimbQi(rc) && battleEquippedSchool(next, next.active) === "spear") {
+    if (isClimbQi(rc) && battleEquippedSchool(next, next.active, rc) === "spear") {
       const dist = Math.abs(next.player.pos - next.enemy.pos);
       if (dist >= 3 && dist <= 4) {
         next.climbSpearRangeHits = (next.climbSpearRangeHits ?? 0) + 1;
@@ -3642,7 +3642,7 @@ function kitCtx(b: Battle, rc: RunContext): KitCtx {
     enemyBlock: b.enemyBlock,
     stage,
     school: profile.school,
-    playerSchool: battleEquippedSchool(b, b.active),
+    playerSchool: battleEquippedSchool(b, b.active, rc),
     turn: b.turn,
     foeAtEdge: edge(b.enemy.pos),
     playerAtEdge: edge(b.player.pos),
@@ -4270,7 +4270,7 @@ export function swapFighter(b: Battle, id: CompanionId, rc: RunContext): Battle 
   }
   next.swappedThisTurn = true;
   battleGearId = battleMateGearId(next, id);
-  const weapon = battleEquippedSchool(next, id);
+  const weapon = battleEquippedSchool(next, id, rc);
   const offSchool: CardInst[] = [];
   const keepSchool = (pile: CardInst[]) =>
     pile.filter((c) => {

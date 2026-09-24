@@ -70,7 +70,7 @@ export function labSwapFighter(b: Battle, id: CompanionId): Battle {
   }
   next.v2SwapCount = (next.v2SwapCount ?? 0) + 1;
   if (isLabV2() && !isBreakAlign()) {
-    const fid = pairFusionId(battleEquippedSchool(b, prevActive), battleEquippedSchool(next, id));
+    const fid = pairFusionId(battleEquippedSchool(b, prevActive, shellRunContext()), battleEquippedSchool(next, id, shellRunContext()));
     if (fid) {
       dealToHand(next, fid);
       next = note(next, `${MATES[id].name}换上场，连携「${labCard(fid, shellRunContext()).name}」入手`);

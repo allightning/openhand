@@ -2067,7 +2067,7 @@ function renderBattle(): string {
             ? { ok: false as const, reason: "本步请换同伴上场" }
             : baseGate;
           const def = MATES[m.id];
-          const school = battleEquippedSchool(b, m.id);
+          const school = battleEquippedSchool(b, m.id, shellRunContext());
           const teachTarget =
             (inDemo ? breakDemoRun?.companion : inHallGuide ? hallRun?.companion : null) ?? DEMO_FIST_MATE;
           const teachFist = swapTeach && m.id === teachTarget;
@@ -2081,7 +2081,7 @@ function renderBattle(): string {
         })
         .join("");
   const assistCost = assistEnergyCost(b, shellRunContext());
-  const fieldSchool = battleEquippedSchool(b, b.active);
+  const fieldSchool = battleEquippedSchool(b, b.active, shellRunContext());
   // §31.12 助战与同行分家：v2 不再有「叫队友上场」的助战按钮（助战=助战符，同行=换人/光环/组合技）
   const assists =
     partyMode && isComboRulesEnabled(shellRunContext()) && !isLabV2()
@@ -2089,7 +2089,7 @@ function renderBattle(): string {
           .map((m) => {
             const gate = canCallAssist(b, shellRunContext(), m.id);
             const def = MATES[m.id];
-            const assistSchool = battleEquippedSchool(b, m.id);
+            const assistSchool = battleEquippedSchool(b, m.id, shellRunContext());
             const cross = assistSchool !== fieldSchool;
             const comboMark = cross ? `<span class="lab-combo-mark">合</span>` : "";
             const tip = gate.ok
@@ -2108,7 +2108,7 @@ function renderBattle(): string {
           return `<span class="lab-assist-active-badge" data-tip="${escapeHtml(tip)}">助战中：${MATES[id].name} · 剩${segs}段<span class="status-tip">${escapeHtml(tip)}</span></span>`;
         })()
       : "";
-  const res = computeResonance(b);
+  const res = computeResonance(b, shellRunContext());
   const schoolChips = inGauntlet
     ? ""
     : res.schools
@@ -2510,7 +2510,7 @@ function bindPickPanelEvents(): void {
     el.addEventListener("click", () => {
       const mateId = el.dataset.weaponMate as CompanionId;
       const wid = el.dataset.pickWeapon!;
-      if (!canMateEquipGear(mateId, wid)) return;
+      if (!canMateEquipGear(mateId, wid, shellRunContext())) return;
       draft.mateWeapons[mateId] = wid;
       if (mateId === draft.fieldMate) {
         draft.deckRecipe = pruneDeckForWeapon(draft.deckRecipe, wid);

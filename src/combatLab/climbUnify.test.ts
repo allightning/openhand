@@ -104,8 +104,8 @@ describe("S1–S10 爬塔收编", () => {
   it("S6 异系换人入手连携卡", () => {
     const p = applyAutoLoadout("t9-palm-saber", 1, 1);
     let b = startLabBattle(p, true, 1);
-    const fieldSch = battleEquippedSchool(b, b.active);
-    const other = b.bench.find((m) => battleEquippedSchool(b, m.id) !== fieldSch);
+    const fieldSch = battleEquippedSchool(b, b.active, climbTestContext());
+    const other = b.bench.find((m) => battleEquippedSchool(b, m.id, climbTestContext()) !== fieldSch);
     expect(other).toBeTruthy();
     b = { ...b, energy: 20 };
     const after = labSwapFighter(b, other!.id);

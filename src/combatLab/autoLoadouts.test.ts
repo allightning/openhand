@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MATES } from "../game/party";
 import { schoolFromGearId } from "../game/equippedWeapon";
+import { climbTestContext } from "../game/testContext";
 import {
   AUTO_LOADOUTS,
   applyAutoLoadout,
@@ -36,7 +37,7 @@ describe("§27 配队库 v2 · 12 队", () => {
         expect(spec).toBeTruthy();
         const gear = p.mateWeapons[id]!;
         expect(gear).toBe(weaponIdForMate(id, 5, spec.school, spec.path));
-        expect(schoolFromGearId(gear, MATES[id].weapon)).toBe(spec.school);
+        expect(schoolFromGearId(gear, MATES[id].weapon, climbTestContext())).toBe(spec.school);
       }
     });
   }

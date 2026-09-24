@@ -40,6 +40,7 @@ function fieldSchoolDeckPct(p: LabPreset, expanded: CardId[]): number {
   const school = battleEquippedSchool(
     { labMateWeapons: p.mateWeapons, active: p.fieldMate, party: p.party } as Battle,
     p.fieldMate,
+    shellRunContext(),
   );
   let schoolN = 0;
   for (const id of expanded) {
@@ -109,7 +110,7 @@ export function startLabBattle(preset: LabPreset, ordered = false, deckMultiplie
       labItemCharges: p.labItemCharges ? { ...p.labItemCharges } : defaultItemCharges(ids),
     };
   }
-  initBattleMateWeapons(b, p.mateWeapons);
+  initBattleMateWeapons(b, p.mateWeapons, shellRunContext());
   syncBattleGear(b, p.fieldMate);
   applyLabFightScale();
   let out: Battle = {
@@ -140,8 +141,8 @@ export function startLabBattle(preset: LabPreset, ordered = false, deckMultiplie
   if (!isBreakAlign() && p.gauntletStage != null) applyClimbOpeningPositions(out, shellRunContext());
   applyLabEnemyKit(out, shellRunContext());
   if (!isBreakAlign()) {
-    const fieldSch = battleEquippedSchool(out, p.fieldMate);
-    const same = p.party.filter((id) => battleEquippedSchool(out, id) === fieldSch).length;
+    const fieldSch = battleEquippedSchool(out, p.fieldMate, shellRunContext());
+    const same = p.party.filter((id) => battleEquippedSchool(out, id, shellRunContext()) === fieldSch).length;
     if (same >= 3) dealToHand(out, auraCardId(fieldSch));
   }
   return out;

@@ -42,7 +42,7 @@ function mateTechList(p: LabPreset, id: CompanionId): TechniqueId[] {
 }
 
 function weaponsForMate(mateId: CompanionId): { main: string[]; alt: string[] } {
-  return gearIdsForMateSchools(mateId, ALL_WEAPON_IDS);
+  return gearIdsForMateSchools(mateId, ALL_WEAPON_IDS, shellRunContext());
 }
 
 export function computeAurasFromPreset(draft: LabPreset): ResonanceStatus {
@@ -54,7 +54,7 @@ export function computeAurasFromPreset(draft: LabPreset): ResonanceStatus {
       .map((id) => ({ id, hp: 1, maxHp: 1, hand: [], drawPile: [], discardPile: [] })),
     labMateWeapons: draft.mateWeapons,
   } as unknown as import("../game/types").Battle;
-  return computeResonance(mock);
+  return computeResonance(mock, shellRunContext());
 }
 
 export function pickPanelTitle(focus: PickFocus, mateId: CompanionId): string {
@@ -242,7 +242,7 @@ function renderMateRow(draft: LabPreset, id: CompanionId, focus: PickFocus, focu
   const techs = mateTechList(draft, id);
   const weaponId = draft.mateWeapons[id] ?? "";
   const weaponName = gearById(weaponId, shellRunContext())?.name ?? "选兵器";
-  const equippedSchool = schoolFromGearId(weaponId, m.weapon);
+  const equippedSchool = schoolFromGearId(weaponId, m.weapon, shellRunContext());
   const isField = draft.fieldMate === id;
   const mateFocused = focus === "mates" && focusMate === id;
   const weaponFocused = focus === "weapon" && focusMate === id;
@@ -334,7 +334,7 @@ export function renderSetupBody(
   const cardsFocused = opts.pickFocus === "cards";
   const enemyFocused = opts.pickFocus === "enemy";
   const fieldGear = draft.mateWeapons[draft.fieldMate] ?? primaryWeapon(draft);
-  const fieldSchool = schoolFromGearId(fieldGear, MATES[draft.fieldMate].weapon);
+  const fieldSchool = schoolFromGearId(fieldGear, MATES[draft.fieldMate].weapon, shellRunContext());
   const quota = quotaCheck(draft.deckRecipe, fieldSchool);
   const quotaHint = quota.ok
     ? `<span class="lab-quota-ok">配额 OK · field ${WEAPON_NAME[fieldSchool]} ${quota.schoolCount} · 通用 ${quota.anyCount}</span>`

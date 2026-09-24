@@ -2,6 +2,7 @@ import { ALL_TECHNIQUE_IDS } from "./arsenal";
 import { CARDS } from "../game/content";
 import { cardSchool, MATES } from "../game/party";
 import { schoolFromGearId } from "../game/equippedWeapon";
+import { shellRunContext } from "./shellContext";
 import { classifyPartyComposition } from "../game/labResonance";
 import type { PartyComposition } from "../game/labV25Constants";
 import type { CardId, CompanionId, LabItemId, TechniqueId, WeaponId } from "../game/types";
@@ -631,7 +632,7 @@ export function presetPortrait(p: LabPreset): PartyComposition {
   const counts: number[] = [];
   const tally: Partial<Record<WeaponId, number>> = {};
   for (const id of p.party) {
-    const school = schoolFromGearId(p.mateWeapons[id], MATES[id].weapon);
+    const school = schoolFromGearId(p.mateWeapons[id], MATES[id].weapon, shellRunContext());
     tally[school] = (tally[school] ?? 0) + 1;
   }
   for (const n of Object.values(tally)) counts.push(n);
@@ -703,7 +704,7 @@ export function validateLoadoutPreset(p: LabPreset): { ok: boolean; reasons: str
   if (!p.party.includes(p.fieldMate)) reasons.push("field 不在 party");
 
   const gears = p.party.map((id) => p.mateWeapons[id] ?? starterGear(MATES[id].weapon));
-  const schools = new Set(p.party.map((id) => schoolFromGearId(p.mateWeapons[id], MATES[id].weapon)));
+  const schools = new Set(p.party.map((id) => schoolFromGearId(p.mateWeapons[id], MATES[id].weapon, shellRunContext())));
 
   for (const cid of p.deckRecipe) {
     if (!CARDS[cid]) reasons.push(`未知牌 ${cid}`);
@@ -718,12 +719,12 @@ export function validateLoadoutPreset(p: LabPreset): { ok: boolean; reasons: str
   for (const id of p.party) {
     const spec = AUTO_LOADOUT_DEFS.find((d) => d.id === p.id)?.weapons[id];
     if (spec) {
-      const got = schoolFromGearId(p.mateWeapons[id], MATES[id].weapon);
+      const got = schoolFromGearId(p.mateWeapons[id], MATES[id].weapon, shellRunContext());
       if (got !== spec.school) reasons.push(`${id} 装备系应为 ${spec.school} 实为 ${got}`);
     }
   }
 
-  const fieldSchool = schoolFromGearId(p.mateWeapons[p.fieldMate], MATES[p.fieldMate].weapon);
+  const fieldSchool = schoolFromGearId(p.mateWeapons[p.fieldMate], MATES[p.fieldMate].weapon, shellRunContext());
   const quota = quotaCheck(p.deckRecipe, fieldSchool);
   if (!quota.ok) reasons.push(...quota.hints);
 

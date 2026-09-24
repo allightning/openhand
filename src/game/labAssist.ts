@@ -136,8 +136,8 @@ export function callAssist(b: Battle, mateId: CompanionId, rc: RunContext): Batt
 export function assistAttackBonus(b: Battle, def: CardDef, base: number, dist: number, rc: RunContext): number {
   if (!isComboRulesEnabled(rc) || !b.labAssistActive || def.type !== "attack") return base;
   const assistId = b.labAssistActive;
-  const assistSchool = battleEquippedSchool(b, assistId);
-  const fieldSchool = battleEquippedSchool(b, b.active);
+  const assistSchool = battleEquippedSchool(b, assistId, rc);
+  const fieldSchool = battleEquippedSchool(b, b.active, rc);
   const mods = comboAssistMods(assistSchool, fieldSchool);
   if (!mods) return base;
   let dmg = base;
@@ -150,8 +150,8 @@ export function assistAttackBonus(b: Battle, def: CardDef, base: number, dist: n
 export function assistBlockBonus(b: Battle, def: CardDef, rc: RunContext): number {
   if (!isComboRulesEnabled(rc) || !b.labAssistActive || def.type !== "attack") return 0;
   const mods = comboAssistMods(
-    battleEquippedSchool(b, b.labAssistActive),
-    battleEquippedSchool(b, b.active),
+    battleEquippedSchool(b, b.labAssistActive, rc),
+    battleEquippedSchool(b, b.active, rc),
   );
   return mods?.blockBonus ?? 0;
 }
@@ -159,8 +159,8 @@ export function assistBlockBonus(b: Battle, def: CardDef, rc: RunContext): numbe
 export function assistPullAfterHit(b: Battle, def: CardDef, hit: boolean, rc: RunContext): number {
   if (!hit || !isComboRulesEnabled(rc) || !b.labAssistActive || def.type !== "attack") return 0;
   const mods = comboAssistMods(
-    battleEquippedSchool(b, b.labAssistActive),
-    battleEquippedSchool(b, b.active),
+    battleEquippedSchool(b, b.labAssistActive, rc),
+    battleEquippedSchool(b, b.active, rc),
   );
   return mods?.pullAfterHit ?? 0;
 }
@@ -168,8 +168,8 @@ export function assistPullAfterHit(b: Battle, def: CardDef, hit: boolean, rc: Ru
 export function assistKnockBonus(b: Battle, def: CardDef, rc: RunContext): number {
   if (!isComboRulesEnabled(rc) || !b.labAssistActive || def.type !== "attack") return 0;
   const mods = comboAssistMods(
-    battleEquippedSchool(b, b.labAssistActive),
-    battleEquippedSchool(b, b.active),
+    battleEquippedSchool(b, b.labAssistActive, rc),
+    battleEquippedSchool(b, b.active, rc),
   );
   return mods?.knockBonus ?? 0;
 }

@@ -80,7 +80,7 @@ describe("v2.5 §17 共鸣阶梯", () => {
       ),
       true,
     );
-    expect(teamSchoolCounts(b).palm).toBe(2);
+    expect(teamSchoolCounts(b, breakTestContext()).palm).toBe(2);
     expect(schoolTier(b, "palm", breakTestContext())).toBe(1);
   });
 
@@ -192,7 +192,7 @@ describe("v2.5 三主角同框", () => {
       }),
       true,
     );
-    expect(computeResonance(b).duoHeroes).toBe(true);
+    expect(computeResonance(b, breakTestContext()).duoHeroes).toBe(true);
     expect(b.qi ?? 0).toBeGreaterThanOrEqual(1);
   });
 });

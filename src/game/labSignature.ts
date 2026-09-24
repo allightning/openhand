@@ -10,8 +10,8 @@ import { WEAPON_PACE } from "./party";
 
 import type { Battle, CompanionId } from "./types";
 
-function paceLead(b: Battle): boolean {
-  const pace = Math.max(1, WEAPON_PACE[battleEquippedSchool(b, b.active)] + (b.paceBoost ?? 0) - b.youSlow);
+function paceLead(b: Battle, rc: RunContext): boolean {
+  const pace = Math.max(1, WEAPON_PACE[battleEquippedSchool(b, b.active, rc)] + (b.paceBoost ?? 0) - b.youSlow);
   return pace >= b.foePace;
 }
 
@@ -132,7 +132,7 @@ export function useSignature(
       notes.push(`格挡 +${def.amount ?? 2}`);
       break;
     case "attackWhenPaceLead":
-      if (!paceLead(next)) return { ok: false, reason: "需先机领先", notes: [] };
+      if (!paceLead(next, rc)) return { ok: false, reason: "需先机领先", notes: [] };
       next.nextDamage += def.amount ?? 2;
       notes.push(`下攻 +${def.amount ?? 2}`);
       break;

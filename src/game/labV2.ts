@@ -119,7 +119,7 @@ export function v2StrikeBonus(b: Battle, base: number, isAttack: boolean, rc: Ru
     }
   }
   // 旧破招核专属，阶段3拆 engine/break 时沉走，勿仿此新增
-  if (rc.ruleset.mode === "break" && isAttack && battleEquippedSchool(b, b.active) === "sword") {
+  if (rc.ruleset.mode === "break" && isAttack && battleEquippedSchool(b, b.active, rc) === "sword") {
     const n = b.v2SwordChain ?? 0;
     if (n > 0) {
       dmg += 2 * n;
@@ -277,7 +277,7 @@ export function applyBreakMomentumOnAttack(
   b.v2BreakMomentum = stacks - 1;
   b.v2BreakMomentumTrue = Math.max(0, pool - take);
   if ((b.v2BreakMomentum ?? 0) <= 0) b.v2BreakMomentumTrue = 0;
-  const school = battleEquippedSchool(b, b.active);
+  const school = battleEquippedSchool(b, b.active, rc);
   const dist = Math.abs(b.player.pos - b.enemy.pos);
   const bits: string[] = [];
   let knock = 0;
@@ -369,14 +369,14 @@ export function applyBreak(b: Battle, intent: Intent, index: number, rc: RunCont
   }
   if (chain) addQi(b, 1, rc);
   grantBreakMomentum(b, rc, extra);
-  if (battleEquippedSchool(b, b.active) === "spear") {
+  if (battleEquippedSchool(b, b.active, rc) === "spear") {
     const dist = Math.abs(b.player.pos - b.enemy.pos);
     if (dist > 1) {
       b.v2SpearRuler = Math.min(6, (b.v2SpearRuler ?? 0) + 2);
       b.log.push("标尺 +2（硬拆离格）");
     }
   }
-  if (battleEquippedSchool(b, b.active) === "sword") {
+  if (battleEquippedSchool(b, b.active, rc) === "sword") {
     b.v2SwordChain = Math.min(8, (b.v2SwordChain ?? 0) + 1);
   }
   // §31.15 战利品立刻落账——同队后手段还能吃到这份格挡/劲

@@ -107,7 +107,7 @@ function typeLabel(type: string): string {
 
 function mateSideTip(b: Battle): string {
   const m = MATES[b.active];
-  const eq = battleEquippedSchool(b, b.active);
+  const eq = battleEquippedSchool(b, b.active, shellRunContext());
   const techs = b.techniques.map((id) => TECHNIQUES[id].name).join("、") || "无外功";
   return `${m.name} · ${m.title} · 气血 ${b.player.hp}/${b.player.maxHp} · 劲 ${b.energy}/${b.energyMax} · ${WEAPON_NAME[eq]} · ${ROLE_LABEL[m.role]} · 外功 ${techs}`;
 }
@@ -361,7 +361,7 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
     : hpBar(foeHp, foeMax);
   const threatHighlight = threatCellsForHover(b, hoverIntentIdx);
   const gearId = weaponId || starterGear(mate.weapon);
-  const eqSchool = battleEquippedSchool(b, b.active);
+  const eqSchool = battleEquippedSchool(b, b.active, shellRunContext());
   const techList =
     b.techniques.length > 0
       ? `<div class="tech-list">${b.techniques
@@ -391,7 +391,7 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
       const mom = (b.v2BreakMomentum ?? 0) > 0 && def.type === "attack";
       const momClass = mom ? "break-momentum" : "";
       const momBadge = mom
-        ? `<span class="combo-unlock-badge break-mom">${escapeHtml(`拆势·${breakMomentumRiderLabel(battleEquippedSchool(b, b.active))}`)}</span>`
+        ? `<span class="combo-unlock-badge break-mom">${escapeHtml(`拆势·${breakMomentumRiderLabel(battleEquippedSchool(b, b.active, shellRunContext()))}`)}</span>`
         : "";
       const guided = guideSet.has(def.id);
       const lockedOut = Boolean(demoGuide?.lockOthers && !guided && !discardMode);

@@ -24,7 +24,7 @@ function add(parts: BreakdownPart[], label: string, n: number): void {
 }
 
 function youPaceNow(b: Battle, ctx: RunContext): number {
-  const school = battleEquippedSchool(b, b.active);
+  const school = battleEquippedSchool(b, b.active, ctx);
   const res = labV2(ctx) ? resonancePaceBonus(b, ctx) : 0;
   return Math.max(1, WEAPON_PACE[school] + res + (b.paceBoost ?? 0) - (b.youSlow ?? 0));
 }
@@ -64,7 +64,7 @@ export function damageBreakdown(
   if (labV2(ctx) && (b.labChaseMeleeBonus ?? 0) > 0 && dist <= 1) {
     add(parts, "追击", b.labChaseMeleeBonus!);
   }
-  if (caps.swordChainPerLayer > 0 && battleEquippedSchool(b, b.active) === "sword") {
+  if (caps.swordChainPerLayer > 0 && battleEquippedSchool(b, b.active, ctx) === "sword") {
     const n = b.v2SwordChain ?? 0;
     if (n > 0) add(parts, "剑链", caps.swordChainPerLayer * n);
   }
@@ -84,7 +84,7 @@ export function damageBreakdown(
   if (labV2(ctx) && b.labSigMeleeBonus && adj) add(parts, "贴刃", b.labSigMeleeBonus);
   if (labV2(ctx) && b.labSigPullBuff) add(parts, "拉近加伤", 2);
 
-  const school = battleEquippedSchool(b, b.active);
+  const school = battleEquippedSchool(b, b.active, ctx);
   if (school === "saber" && b.foeHitLastTurn && caps.saberOnHit) add(parts, "挨打加伤", caps.saberOnHit);
   if (hasTech(b, "saberGrudge") && b.foeHitLastTurn && caps.saberGrudge) {
     add(parts, "记仇", techBonus(b, "saberGrudge", 2));
@@ -106,7 +106,7 @@ export function damageBreakdown(
   }
 
   if (labV2(ctx) && ctx.tuning.rulesCombo && b.labAssistActive && def.type === "attack") {
-    const mods = comboAssistMods(battleEquippedSchool(b, b.labAssistActive), school);
+    const mods = comboAssistMods(battleEquippedSchool(b, b.labAssistActive, ctx), school);
     if (mods) {
       if (mods.meleeBonus && dist === 1) add(parts, "助战近", mods.meleeBonus);
       if (mods.rangeBonus && dist >= 2) add(parts, "助战远", mods.rangeBonus);

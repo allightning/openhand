@@ -44,12 +44,12 @@ export function comboPlayGate(
   if (!school) return { ok: false, reason: "未知组合卡" };
   // §31.12 助战与同行分家：v2 组合技看「后场活着的异系同行」，不再要助战在场。
   if (labV2(ctx)) {
-    const mate = b.bench.find((m) => m.hp > 0 && battleEquippedSchool(b, m.id) === school);
+    const mate = b.bench.find((m) => m.hp > 0 && battleEquippedSchool(b, m.id, ctx) === school);
     if (!mate) return { ok: false, reason: `需后场有${school}系同行（异系伙伴=组合技）` };
     return { ok: true };
   }
   if (!b.labAssistActive) return { ok: false, reason: "需助战在场" };
-  const assistSchool = battleEquippedSchool(b, b.labAssistActive);
+  const assistSchool = battleEquippedSchool(b, b.labAssistActive, ctx);
   if (assistSchool !== school) {
     return { ok: false, reason: `需${MATES[b.labAssistActive].name}（${school}系）助战` };
   }
@@ -79,7 +79,7 @@ export function comboCardNotes(b: Battle, defId: CardId, ctx: RunContext): strin
   if (!school) return notes;
   // §31.12 v2：组合技挂后场同行；v1 旧制挂在场助战。
   const mateId = labV2(ctx)
-    ? b.bench.find((m) => m.hp > 0 && battleEquippedSchool(b, m.id) === school)?.id
+    ? b.bench.find((m) => m.hp > 0 && battleEquippedSchool(b, m.id, ctx) === school)?.id
     : b.labAssistActive;
   if (!mateId) return notes;
   const mate = MATES[mateId].name;

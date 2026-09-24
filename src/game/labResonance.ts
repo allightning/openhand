@@ -38,10 +38,10 @@ export interface ResonanceStatus {
   advanced: boolean;
 }
 
-export function teamSchoolCounts(b: Battle): Record<WeaponId, number> {
+export function teamSchoolCounts(b: Battle, rc: RunContext): Record<WeaponId, number> {
   const out: Partial<Record<WeaponId, number>> = {};
   for (const id of b.party ?? []) {
-    const s = battleEquippedSchool(b, id);
+    const s = battleEquippedSchool(b, id, rc);
     out[s] = (out[s] ?? 0) + 1;
   }
   return out as Record<WeaponId, number>;
@@ -62,7 +62,7 @@ export function tierFx(school: WeaponId, tier: ResonanceTier): LadderTierFx | nu
 
 export function schoolTier(b: Battle, school: WeaponId, rc: RunContext): ResonanceTier {
   if (!labV2(rc)) return 0;
-  return countToTier(teamSchoolCounts(b)[school] ?? 0);
+  return countToTier(teamSchoolCounts(b, rc)[school] ?? 0);
 }
 
 export function classifyPartyComposition(counts: number[]): PartyComposition {
@@ -74,8 +74,8 @@ export function classifyPartyComposition(counts: number[]): PartyComposition {
   return "2plus1plus1";
 }
 
-export function computeResonance(b: Battle): ResonanceStatus {
-  const counts = teamSchoolCounts(b);
+export function computeResonance(b: Battle, rc: RunContext): ResonanceStatus {
+  const counts = teamSchoolCounts(b, rc);
   const schools: SchoolResonanceChip[] = ALL_SCHOOLS.map((school) => {
     const count = counts[school] ?? 0;
     const tier = countToTier(count);
@@ -92,7 +92,7 @@ export function computeResonance(b: Battle): ResonanceStatus {
     };
   }).filter((c) => c.count > 0);
 
-  const equipped = (b.party ?? []).map((id) => battleEquippedSchool(b, id));
+  const equipped = (b.party ?? []).map((id) => battleEquippedSchool(b, id, rc));
   const hundredFlowers = equipped.length === 4 && new Set(equipped).size === 4;
   const benchIds = b.bench?.map((m) => m.id) ?? [];
   const duoHeroes = TRIO_HEROES.filter((h) => benchIds.includes(h)).length >= 2;
@@ -109,7 +109,7 @@ export function computeResonance(b: Battle): ResonanceStatus {
   if (hundredFlowers) labels.push("百花齐放");
   if (duoHeroes) labels.push("三主角同框");
 
-  const fieldSchool = battleEquippedSchool(b, b.active);
+  const fieldSchool = battleEquippedSchool(b, b.active, rc);
   const maxTier = Math.max(0, ...schools.map((s) => s.tier));
   return {
     schools,
@@ -143,13 +143,13 @@ export function resonancePaceBonus(b: Battle, rc: RunContext): number {
   let bonus = 0;
   const spearFx = tierFx("spear", schoolTier(b, "spear", rc));
   if (spearFx?.paceBonus) bonus += spearFx.paceBonus;
-  if (computeResonance(b).hundredFlowers) bonus += LAB_HUNDRED_FLOWERS.paceBonus;
+  if (computeResonance(b, rc).hundredFlowers) bonus += LAB_HUNDRED_FLOWERS.paceBonus;
   return bonus;
 }
 
 export function initResonanceBattle(b: Battle, rc: RunContext): void {
   if (!labV2(rc)) return;
-  const res = computeResonance(b);
+  const res = computeResonance(b, rc);
   if (res.duoHeroes) addQi(b, AURA_DUO_START_QI, rc);
   const swordFx = tierFx("sword", schoolTier(b, "sword", rc));
   if (swordFx?.startExpose) b.expose += swordFx.startExpose;

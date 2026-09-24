@@ -8,6 +8,7 @@ import { cardSchool, canMateLearnSchool, stashOrTeach, wielderOf } from "../game
 import { makeRun } from "../game/run";
 import { canPlay, playCard, swapFighter } from "../game/sim";
 import { starterGear } from "../game/weapons";
+import { climbTestContext } from "../game/testContext";
 import { isCardAllowedForWeapon } from "./cardUi";
 import { computeAurasFromPreset } from "./setupUi";
 import { startLabBattle } from "./factory";
@@ -87,14 +88,14 @@ describe("v2.2 第二武器 · 组合助战属性", () => {
       enemyId: "catcher",
       mateWeapons: { guard: starterGear("spear"), rail: starterGear("palm") },
     });
-    const field = battleEquippedSchool(b, "rail");
-    const assist = battleEquippedSchool(b, "guard");
+    const field = battleEquippedSchool(b, "rail", climbTestContext());
+    const assist = battleEquippedSchool(b, "guard", climbTestContext());
     expect(comboAssistMods(assist, field)?.rangeBonus).toBe(2);
     b = {
       ...b,
       labMateWeapons: { ...b.labMateWeapons, guard: starterGear("saber") },
     };
-    expect(comboAssistMods(battleEquippedSchool(b, "guard"), field)?.meleeBonus).toBe(3);
+    expect(comboAssistMods(battleEquippedSchool(b, "guard", climbTestContext()), field)?.meleeBonus).toBe(3);
   });
 });
 
@@ -119,7 +120,7 @@ describe("v2.2 第二武器 · 谱系过滤", () => {
       },
     });
     b = swapFighter(b, "hermit", contextNow());
-    const school = battleEquippedSchool(b, "hermit");
+    const school = battleEquippedSchool(b, "hermit", climbTestContext());
     expect(school).toBe("staff");
     for (const c of b.hand) {
       const cs = cardSchool(c.defId);
@@ -151,8 +152,8 @@ describe("v2.2 第二武器 · 局内锁定", () => {
     });
     const before = b.labMateWeapons?.rail;
     b.labMateWeapons = { ...b.labMateWeapons, rail: starterGear("saber") };
-    expect(battleEquippedSchool(b, "rail")).toBe("saber");
+    expect(battleEquippedSchool(b, "rail", climbTestContext())).toBe("saber");
     b.labMateWeapons = { ...b.labMateWeapons, rail: before! };
-    expect(battleEquippedSchool(b, "rail")).toBe("palm");
+    expect(battleEquippedSchool(b, "rail", climbTestContext())).toBe("palm");
   });
 });

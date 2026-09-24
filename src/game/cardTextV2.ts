@@ -1,4 +1,4 @@
-import { contextNow, labV2, type RunContext } from "./runContext";
+import { labV2, type RunContext } from "./runContext";
 import type { CardDef, CardId } from "./types";
 import { GOD_SKILL, PATH_SKILL } from "./weapons";
 
@@ -106,8 +106,8 @@ export function cardStatLine(def: Pick<CardDef, "cost" | "damage" | "block" | "k
   return bits.join(" · ");
 }
 
-export function cardWikiBody(def: CardDef, opts?: { breakAlign?: boolean }): string {
-  const body = cardDisplayText(def, contextNow(), opts);
+export function cardWikiBody(def: CardDef, rc: RunContext, opts?: { breakAlign?: boolean }): string {
+  const body = cardDisplayText(def, rc, opts);
   const stats = cardStatLine(def);
   if (!stats || body.includes(stats)) return body;
   return `${body}\n数值：${stats}`;
@@ -147,10 +147,10 @@ export function godSkillDisplay(key: string, fallback: string, rc: RunContext): 
   return GOD_SKILL_V2[key] ?? migrateLegacyText(fallback);
 }
 
-export function pathSkillText(key: string): string {
-  return pathSkillDisplay(key, PATH_SKILL[key] ?? "", contextNow());
+export function pathSkillText(key: string, rc: RunContext): string {
+  return pathSkillDisplay(key, PATH_SKILL[key] ?? "", rc);
 }
 
-export function godSkillText(key: string): string {
-  return godSkillDisplay(key, GOD_SKILL[key] ?? "", contextNow());
+export function godSkillText(key: string, rc: RunContext): string {
+  return godSkillDisplay(key, GOD_SKILL[key] ?? "", rc);
 }
