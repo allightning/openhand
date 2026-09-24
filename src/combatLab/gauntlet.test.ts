@@ -31,7 +31,7 @@ import { eventAfterFought } from "./encounter";
 import { maxCompanions, pathLadder } from "./gauntletPaths";
 import { DEFAULT_LAB_TUNING, getLabTuning, setLabMode, setLabTuning } from "../game/labTuning";
 import { tryAppendStressIntent } from "../game/labEnemyStress";
-import { breakTestContext } from "../game/testContext";
+import { breakTestContext, climbTestContext } from "../game/testContext";
 import { setLabRuleset } from "./labRuleset";
 import { CARDS } from "../game/content";
 import { breakStarterDeck, rogueMate } from "./rogueRoster";
@@ -366,7 +366,7 @@ describe("§31 连胜踢馆", () => {
       const b = startLabBattle(buildGauntletPreset(run), true, 1);
       expect(b.bench.map((m) => m.id)).toContain("sapper");
       expect(b.labMateWeapons?.sapper).toBe("staff-a-4");
-      expect(canCallAssist(b, "sapper").ok).toBe(true);
+      expect(canCallAssist(b, climbTestContext(), "sapper").ok).toBe(true);
       run = { ...run, weaponId: "sword-a-5" };
       const b2 = startLabBattle(buildGauntletPreset(run), true, 1);
       expect(b2.labMateWeapons?.sapper).toBe("staff-a-4");

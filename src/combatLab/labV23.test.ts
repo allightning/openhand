@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { canCallAssist, retreatAssistIfDown } from "../game/labAssist";
 import { simV2OnHitPlayer } from "../game/simV2Hooks";
-import { breakTestContext } from "../game/testContext";
+import { breakTestContext, climbTestContext } from "../game/testContext";
 import { setLabMode, setLabTuning } from "../game/labTuning";
 import { balanceReport, startTelemetry } from "./telemetry";
 import { startLabBattle } from "./factory";
@@ -31,10 +31,10 @@ describe("v2.3 §16.2 助战濒死", () => {
       bench: [{ id: "hermit", hp: 0, maxHp: 20 }],
       journal: [],
     };
-    b = retreatAssistIfDown(b);
+    b = retreatAssistIfDown(b, climbTestContext());
     expect(b.labAssistActive).toBeUndefined();
     expect(b.labAssistBanned).toBe(true);
-    expect(canCallAssist(b).ok).toBe(false);
+    expect(canCallAssist(b, climbTestContext()).ok).toBe(false);
   });
 });
 

@@ -52,7 +52,7 @@ describe("§16 labTuning 总开关", () => {
     expect(isComboRulesEnabled(breakTestContext({ rulesCombo: false }))).toBe(false);
     setLabMode(true);
     const b = startLabBattle({ ...BUILTIN_PRESETS[0]!, enemyId: "catcher" }, true);
-    expect(canCallAssist(b).ok).toBe(false);
+    expect(canCallAssist(b, breakTestContext({ rulesV2: true, rulesCombo: false })).ok).toBe(false);
   });
 
   it("rulesCombo on enables assist", () => {
@@ -66,8 +66,8 @@ describe("§16.1 助战占格", () => {
     let b = comboBattle();
     b.energy = 5;
     b.player.pos = 2;
-    expect(pickAssistPos(b)).toBe(1);
-    b = callAssist(b, "hermit");
+    expect(pickAssistPos(b, breakTestContext())).toBe(1);
+    b = callAssist(b, "hermit", breakTestContext());
     expect(b.labAssistActive).toBe("hermit");
     expect(b.labAssistPos).toBe(1);
     expect(b.labAssistCalls).toBe(1);
@@ -76,13 +76,13 @@ describe("§16.1 助战占格", () => {
   it("blocks swap same turn as assist intent", () => {
     const b = comboBattle();
     b.swappedThisTurn = true;
-    expect(canCallAssist(b, "hermit").ok).toBe(false);
+    expect(canCallAssist(b, breakTestContext(), "hermit").ok).toBe(false);
   });
 
   it("百花减助战耗劲", () => {
     let b = comboBattle();
     b.v2HundredFlowers = true;
-    expect(assistEnergyCost(b)).toBe(1);
+    expect(assistEnergyCost(b, breakTestContext())).toBe(1);
   });
 });
 
@@ -140,7 +140,7 @@ describe("§16.2 濒死退场", () => {
     let b = comboBattle();
     b.labAssistActive = "hermit";
     b.bench = [{ id: "hermit", hp: 0, maxHp: 20 }];
-    b = retreatAssistIfDown(b);
+    b = retreatAssistIfDown(b, breakTestContext());
     expect(b.labAssistBanned).toBe(true);
   });
 });
@@ -150,7 +150,7 @@ describe("§17.3 百花首张组合卡减劲", () => {
     let b = comboBattle();
     b.v2HundredFlowers = true;
     b.energy = 2;
-    b = callAssist(b, "hermit");
+    b = callAssist(b, "hermit", breakTestContext());
     b.hand.push({ uid: "t-combo2", defId: "comboPalm" });
     expect(canPlay(b, "t-combo2", contextNow()).ok).toBe(false);
   });

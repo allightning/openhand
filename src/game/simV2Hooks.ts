@@ -39,7 +39,7 @@ export function simV2Init(b: Battle, rc: RunContext): void {
 
 export function simV2StartPlayerTurn(b: Battle, rc: RunContext): void {
   if (!labV2(rc)) return;
-  dismissAssistAtTurnStart(b);
+  dismissAssistAtTurnStart(b, rc);
   applyPendingQi(b, rc);
   b.v2Turn = emptyV2Turn(b);
   b.v2BrokenSegments = [];
@@ -404,7 +404,7 @@ export function simV2ResolveIntentQueue(
     b.intent = leftover[0] ?? b.intent;
   }
   b.v2LastIntentRecap = recap;
-  syncDoubleHitTelemetry(b);
+  syncDoubleHitTelemetry(b, rc);
 }
 
 /** 招眼被硬拆：套路全崩 + 失衡一个行动窗（承伤 ×2）+ 额外 2 势 + 拆眼重创真伤。 */

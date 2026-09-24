@@ -2080,14 +2080,14 @@ function renderBattle(): string {
           return `<button type="button" class="swap-btn lab-swap-btn ${teachFist ? "demo-swap-teach" : ""}" data-swap="${m.id}" data-tip="${escapeHtml(teachTip)}" ${gate.ok ? "" : "disabled"}><b>换人·${def.name}</b><small>${WEAPON_NAME[school]} · 先机 ${WEAPON_PACE[school]} · ${m.hp}</small><span class="status-tip">${escapeHtml(teachTip)}</span></button>`;
         })
         .join("");
-  const assistCost = assistEnergyCost(b);
+  const assistCost = assistEnergyCost(b, shellRunContext());
   const fieldSchool = battleEquippedSchool(b, b.active);
   // §31.12 助战与同行分家：v2 不再有「叫队友上场」的助战按钮（助战=助战符，同行=换人/光环/组合技）
   const assists =
     partyMode && isComboRulesEnabled(shellRunContext()) && !isLabV2()
       ? b.bench
           .map((m) => {
-            const gate = canCallAssist(b, m.id);
+            const gate = canCallAssist(b, shellRunContext(), m.id);
             const def = MATES[m.id];
             const assistSchool = battleEquippedSchool(b, m.id);
             const cross = assistSchool !== fieldSchool;
@@ -3785,7 +3785,7 @@ function bindEvents(): void {
   for (const el of root.querySelectorAll<HTMLButtonElement>("[data-assist]")) {
     el.addEventListener("click", () => {
       if (!battle || battle.phase !== "player" || paused) return;
-      battle = callAssist(battle, el.dataset.assist as CompanionId);
+      battle = callAssist(battle, el.dataset.assist as CompanionId, shellRunContext());
       render();
     });
   }

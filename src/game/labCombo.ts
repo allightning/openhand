@@ -63,7 +63,7 @@ export function comboEffectiveCost(
   ctx: RunContext,
 ): number {
   if (!labV2(ctx) || !isComboCard(defId)) return base;
-  return Math.max(0, base - comboCardCostCut(b, defId));
+  return Math.max(0, base - comboCardCostCut(b, defId, ctx));
 }
 
 export function markComboCardPlayed(b: Battle, defId: CardId): void {
@@ -99,7 +99,7 @@ export function comboCardNotes(b: Battle, defId: CardId, ctx: RunContext): strin
     b.youSlow = Math.max(b.youSlow, 1);
     notes.push("合击伤 14，封脉滞步");
   } else if (school === "staff") {
-    b.playerBlock += 8 + assistBlockBonus(b, CARDS[defId]!);
+    b.playerBlock += 8 + assistBlockBonus(b, CARDS[defId]!, ctx);
     notes.push("合击伤 12，格挡 +8");
   } else {
     notes.push("合击伤 12，拉近 1");

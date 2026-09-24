@@ -877,7 +877,7 @@ function targetFoe(b: Battle): Unit | null {
 export function occupied(b: Battle, pos: number, rc: RunContext, exceptId?: string, ignoreStakes = false): boolean {
   if (pos < 0 || pos >= BOARD_SIZE) return true;
   if (!ignoreStakes && b.stakes.includes(pos)) return true;
-  if (assistOccupies(b, pos) && exceptId !== b.labAssistActive) return true;
+  if (assistOccupies(b, pos, rc) && exceptId !== b.labAssistActive) return true;
   // §31.12 助战符召唤体也是实体——占格、挡路、当墙。
   if (labV2(rc) && b.labSummon && b.labSummon.hp > 0 && b.labSummon.pos === pos) return true;
   if (b.player.pos === pos && b.player.id !== exceptId && b.player.hp > 0) return true;
@@ -1350,7 +1350,7 @@ function strikeDamage(b: Battle, base: number, rc: RunContext, forceMelee = fals
     if (cardDef) {
       dmg = labV21StrikeAdjust(b, cardDef, dmg, rc);
       const dist = Math.abs(b.player.pos - b.enemy.pos);
-      dmg = assistAttackBonus(b, cardDef, dmg, dist);
+      dmg = assistAttackBonus(b, cardDef, dmg, dist, rc);
     }
     dmg = schoolIdentityMods(b, cardDef, dmg, rc);
     if (b.active === "ananhuo" && Math.abs(b.player.pos - b.enemy.pos) >= 2) dmg += 2;
@@ -2843,7 +2843,7 @@ function drawRefill(b: Battle, rc: RunContext): void {
 function hitPlayer(b: Battle, raw: number, verb: string, rc: RunContext): void {
   const idx = b.v2ResolveIntentIdx ?? 0;
   if (stressMetaAt(b, idx) && b.labAssistActive && stressTargetsAssist(b)) {
-    hitAssist(b, raw, verb);
+    hitAssist(b, raw, verb, rc);
     return;
   }
   if (isClimbQi(rc) && (b.foeDisarm ?? 0) > 0 && raw > 0) {
@@ -3246,7 +3246,7 @@ function resolveCharge(b: Battle, damage: number, rc: RunContext): void {
       break;
     }
     if (isComboRulesEnabled(rc) && b.labAssistPos != null && next === b.labAssistPos) {
-      hitAssist(b, damage, "冲锋 ");
+      hitAssist(b, damage, "冲锋 ", rc);
       hits = true;
       break;
     }
