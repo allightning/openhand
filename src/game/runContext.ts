@@ -6,6 +6,7 @@ import {
 } from "./breakCaps";
 import { getLabRuleset, type LabRuleset } from "./labRuleset";
 import { getLabTuning, isLabMode, type LabTuning } from "./labTuning";
+import { getContentOverrides, type ContentOverrideStore } from "./labContentOverrides";
 
 export interface RunRuleset {
   mode: LabRuleset;
@@ -73,6 +74,7 @@ export interface RunContext {
   tuning: LabTuning;
   lab: boolean;
   caps: RunCaps;
+  contentOverrides: ContentOverrideStore;
 }
 
 function intentCaps(mode: LabRuleset): IntentCaps {
@@ -122,7 +124,12 @@ function breakdownCaps(lab: boolean, mode: LabRuleset): BreakdownCaps {
   };
 }
 
-export function makeContext(mode: LabRuleset, tuning: LabTuning, lab: boolean): RunContext {
+export function makeContext(
+  mode: LabRuleset,
+  tuning: LabTuning,
+  lab: boolean,
+  contentOverrides: ContentOverrideStore,
+): RunContext {
   return {
     ruleset: { mode },
     tuning,
@@ -136,18 +143,19 @@ export function makeContext(mode: LabRuleset, tuning: LabTuning, lab: boolean): 
       economy: economyCaps(lab, mode),
       content: contentCaps(mode),
     },
+    contentOverrides,
   };
 }
 
 export function climbContext(tuning: LabTuning = getLabTuning(), lab = true): RunContext {
-  return makeContext("climb", tuning, lab);
+  return makeContext("climb", tuning, lab, getContentOverrides());
 }
 
 export function breakContext(tuning: LabTuning = getLabTuning(), lab = true): RunContext {
-  return makeContext("break", tuning, lab);
+  return makeContext("break", tuning, lab, getContentOverrides());
 }
 
 /** 调用点还没传入 ctx 时的桥。阶段 1 收尾删掉。 */
 export function contextNow(): RunContext {
-  return makeContext(getLabRuleset(), getLabTuning(), isLabMode());
+  return makeContext(getLabRuleset(), getLabTuning(), isLabMode(), getContentOverrides());
 }

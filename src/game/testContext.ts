@@ -1,3 +1,4 @@
+import { EMPTY_CONTENT_OVERRIDES } from "./labContentOverrides";
 import { DEFAULT_LAB_TUNING, type LabTuning } from "./labTuning";
 import type { LabRuleset } from "./labRuleset";
 import { makeContext, type RunContext } from "./runContext";
@@ -12,7 +13,7 @@ export interface TestContextOver {
 export function makeTestContext(over: TestContextOver = {}): RunContext {
   const mode = over.mode ?? "climb";
   const lab = over.lab ?? true;
-  return makeContext(mode, { ...DEFAULT_LAB_TUNING, ...over.tuning }, lab);
+  return makeContext(mode, { ...DEFAULT_LAB_TUNING, ...over.tuning }, lab, EMPTY_CONTENT_OVERRIDES);
 }
 
 export function climbTestContext(tuning?: Partial<LabTuning>): RunContext {

@@ -12,7 +12,7 @@ import { expandDeckRecipe, tryAddToRecipe, tryLearnTech } from "./rules";
 import { applyBankerBoost, buildGauntletPreset, createGauntletRun } from "./gauntlet";
 import { normalizePreset } from "./draft";
 import { escapeHtml } from "./setupUi";
-import { clearEntityOverride, setContentOverride } from "../game/labContentOverrides";
+import { clearEntityOverride, getContentOverrides, setContentOverride } from "../game/labContentOverrides";
 import { labEnemy } from "../game/labContent";
 import { breakTestContext } from "../game/testContext";
 import type { LabPreset } from "./types";
@@ -130,7 +130,7 @@ describe("Combat Lab entry smoke", () => {
   it("content overrides merge into lab battle entities", () => {
     setLabMode(true);
     setContentOverride("enemies", "catcher", { hp: 99 });
-    const def = labEnemy("catcher", breakTestContext());
+    const def = labEnemy("catcher", { ...breakTestContext(), contentOverrides: getContentOverrides() });
     expect(def.hp).toBe(99);
     clearEntityOverride("enemies", "catcher");
     setLabMode(false);

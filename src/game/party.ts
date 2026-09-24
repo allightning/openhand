@@ -2,7 +2,6 @@ import { CARDS, STARTER_DECK } from "./content";
 import { remapLegacyCardId } from "./rogueCards";
 import { SAPPER_DECK, SEER_DECK } from "./hero";
 import type { RunContext } from "./runContext";
-import { getContentOverrides } from "./labContentOverrides";
 import type { CardId, CompanionId, Run, WeaponId } from "./types";
 import type { MateRole } from "./labV25Constants";
 import { ROLE_LABEL } from "./labV25Constants";
@@ -598,7 +597,7 @@ export const MATE_PASSIVE: Partial<Record<CompanionId, MatePassive>> = {
 export function matePassive(id: CompanionId, ctx: RunContext): MatePassive | undefined {
   const base = MATE_PASSIVE[id];
   if (!ctx.lab) return base;
-  const ov = getContentOverrides().mates[id]?.passive;
+  const ov = ctx.contentOverrides.mates[id]?.passive;
   if (!ov) return base;
   return { name: ov.name || base?.name || "", text: ov.text || base?.text || "" };
 }

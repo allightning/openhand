@@ -1,6 +1,5 @@
 import type { WeaponId } from "./types";
 import { WEAPON_NAME } from "./party";
-import { getContentOverrides } from "./labContentOverrides";
 import type { RunContext } from "./runContext";
 
 /** 凡良精玄神 — five combat gear tiers. */
@@ -207,7 +206,7 @@ export function gearById(id: string | null | undefined, ctx: RunContext): GearWe
   }
   if (!base) return null;
   if (!ctx.lab) return base;
-  const ov = getContentOverrides().weapons[base.id];
+  const ov = ctx.contentOverrides.weapons[base.id];
   return ov ? { ...base, ...ov } : base;
 }
 

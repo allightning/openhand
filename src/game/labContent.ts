@@ -1,5 +1,4 @@
 import { CARDS, ENEMIES, TECHNIQUES } from "./content";
-import { getContentOverrides } from "./labContentOverrides";
 import { MATES } from "./party";
 import type { RunContext } from "./runContext";
 import type { CardDef, CardId, CompanionId, EnemyDef, EnemyId, TechniqueDef, TechniqueId } from "./types";
@@ -25,25 +24,25 @@ export function labCard(id: CardId, ctx: RunContext): CardDef {
   const base = CARDS[nid];
   if (!ctx.lab) return base;
   const climb = ctx.caps.content.applyClimbCardFace ? CLIMB_CARD_FACE[nid] : undefined;
-  return merge(merge(base, climb), getContentOverrides().cards[nid] as Partial<CardDef> | undefined);
+  return merge(merge(base, climb), ctx.contentOverrides.cards[nid] as Partial<CardDef> | undefined);
 }
 
 export function labEnemy(id: EnemyId, ctx: RunContext): EnemyDef {
   const base = ENEMIES[id];
   if (!ctx.lab) return base;
-  return merge(base, getContentOverrides().enemies[id] as Partial<EnemyDef> | undefined);
+  return merge(base, ctx.contentOverrides.enemies[id] as Partial<EnemyDef> | undefined);
 }
 
 export function labTechnique(id: TechniqueId, ctx: RunContext): TechniqueDef {
   const base = TECHNIQUES[id];
   if (!ctx.lab) return base;
-  return merge(base, getContentOverrides().techniques[id] as Partial<TechniqueDef> | undefined);
+  return merge(base, ctx.contentOverrides.techniques[id] as Partial<TechniqueDef> | undefined);
 }
 
 export function labMate(id: CompanionId, ctx: RunContext): (typeof MATES)[CompanionId] {
   const base = MATES[id];
   if (!ctx.lab) return base;
-  const ov = getContentOverrides().mates[id];
+  const ov = ctx.contentOverrides.mates[id];
   if (!ov) return base;
   const hp = ov.hp != null ? ov.hp : base.hp;
   return { ...base, hp };
@@ -54,5 +53,5 @@ export function labGearById(id: string | null | undefined, ctx: RunContext): Gea
   const hit = GEAR_WEAPONS.find((g) => g.id === id);
   if (!hit) return null;
   if (!ctx.lab) return hit;
-  return merge(hit, getContentOverrides().weapons[id] as Partial<GearWeapon> | undefined);
+  return merge(hit, ctx.contentOverrides.weapons[id] as Partial<GearWeapon> | undefined);
 }
