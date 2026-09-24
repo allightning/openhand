@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { contextNow } from "../game/runContext";
 import { setLabMode, setLabTuning } from "../game/labTuning";
 import { BREAK_COUNTER_BASE, BREAK_COUNTER_CHAIN, EYE_COUNTER_DMG } from "../game/labV2Constants";
 import { breakCounterDamage } from "../game/labV2";
@@ -28,7 +27,7 @@ import {
   type GauntletRun,
 } from "./gauntlet";
 import { setLabRuleset } from "./labRuleset";
-import { breakTestContext, climbTestContext } from "../game/testContext";
+import { breakTestContext, climbTestContext, makeTestContext } from "../game/testContext";
 import { gearById } from "../game/weapons";
 import { renderGauntletResult, renderGauntletRewardPick } from "./gauntletUi";
 import type { WeaponId } from "../game/types";
@@ -66,8 +65,8 @@ describe("§31.13 拆招 v4 · 以拆为杀", () => {
     const hpBefore = b.enemy.hp;
     b.hand = [{ uid: "g1", defId: "expose" }];
     b.energy = 6;
-    b = playCard(b, "g1", contextNow());
-    b = endTurn(b, contextNow());
+    b = playCard(b, "g1", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
+    b = endTurn(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b.v2BreakCount ?? 0).toBe(1);
     expect(b.enemy.hp).toBe(hpBefore);
     expect(b.v2BreakMomentum ?? 0).toBe(1);
@@ -88,10 +87,10 @@ describe("§31.13 拆招 v4 · 以拆为杀", () => {
       { uid: "g2", defId: "marking" },
     ];
     b.energy = 6;
-    b = playCard(b, "g1", contextNow());
-    b = playCard(b, "g2", contextNow());
+    b = playCard(b, "g1", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
+    b = playCard(b, "g2", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     const hpBefore = b.enemy.hp;
-    b = endTurn(b, contextNow());
+    b = endTurn(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b.v2BreakCount ?? 0).toBe(2);
     expect(b.enemy.hp).toBe(hpBefore);
     const per = BREAK_COUNTER_BASE + 3;
@@ -109,15 +108,15 @@ describe("§31.13 拆招 v4 · 以拆为杀", () => {
     b.intents = [{ kind: "guard", block: 8 }];
     b.hand = [{ uid: "g1", defId: "expose" }];
     b.energy = 6;
-    b = playCard(b, "g1", contextNow());
-    b = endTurn(b, contextNow());
+    b = playCard(b, "g1", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
+    b = endTurn(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b.phase).not.toBe("won");
     expect(b.v2BreakMomentum ?? 0).toBe(1);
     b.hand = [{ uid: "a1", defId: "pierce" }];
     b.energy = 8;
     b.player.pos = 3;
     b.enemy.pos = 5;
-    b = playCard(b, "a1", contextNow());
+    b = playCard(b, "a1", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b.phase).toBe("won");
   });
 
@@ -135,9 +134,9 @@ describe("§31.13 拆招 v4 · 以拆为杀", () => {
     b.hand = [{ uid: "m1", defId: "backpalm" }];
     b.energy = 6;
     const hpBefore = b.enemy.hp;
-    b = playCard(b, "m1", contextNow());
+    b = playCard(b, "m1", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b.player.pos).toBe(3);
-    b = endTurn(b, contextNow());
+    b = endTurn(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b.v2OffBalance ?? 0).toBeGreaterThan(0);
     expect(b.enemy.hp).toBe(hpBefore);
     expect(b.v2BreakMomentumTrue ?? 0).toBe(BREAK_COUNTER_BASE + 3 + EYE_COUNTER_DMG);
@@ -153,7 +152,7 @@ describe("§31.13 拆招 v4 · 以拆为杀", () => {
     b.hand = [{ uid: "a1", defId: "strike" }];
     b.energy = 3;
     const qiBefore = b.qi ?? 0;
-    b = playCard(b, "a1", contextNow());
+    b = playCard(b, "a1", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b.qi ?? 0).toBe(qiBefore);
   });
 });
@@ -170,8 +169,8 @@ describe("§31.14 空间诚实 · 红格=结算，够不着的招不算拆", () 
     b.hand = [{ uid: "m1", defId: "backpalm" }];
     b.energy = 3;
     const hp = b.player.hp;
-    b = playCard(b, "m1", contextNow()); // 撤到 3，出圈
-    b = endTurn(b, contextNow());
+    b = playCard(b, "m1", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } })); // 撤到 3，出圈
+    b = endTurn(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b.player.hp).toBe(hp);
     expect(b.v2BreakCount ?? 0).toBe(1); // 在圈里出牌走出 = 硬拆（段作废，不进结算）
   });
@@ -185,8 +184,8 @@ describe("§31.14 空间诚实 · 红格=结算，够不着的招不算拆", () 
     b.hand = [{ uid: "m1", defId: "advance" }];
     b.energy = 3;
     const hp = b.player.hp;
-    b = playCard(b, "m1", contextNow()); // 哪怕出了位移牌（走到 2），也不算拆——他本来就打不到你
-    b = endTurn(b, contextNow());
+    b = playCard(b, "m1", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } })); // 哪怕出了位移牌（走到 2），也不算拆——他本来就打不到你
+    b = endTurn(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b.player.hp).toBe(hp);
     expect(b.v2BreakCount ?? 0).toBe(0);
     expect(b.v2GrazedSegments ?? []).toEqual([]);
@@ -200,13 +199,13 @@ describe("§31.14 空间诚实 · 红格=结算，够不着的招不算拆", () 
     b.enemy.pos = 4; // 贴脸：锁定格 3，不挪步，落点 4，身前 reach1 → [3]
     b.v2Turn = { ...b.v2Turn!, turnStartPos: 3 };
     const lunge: Intent = { kind: "lunge", damage: 12 };
-    expect(dangerCellsForIntent(b, lunge, contextNow())).toEqual([3]);
+    expect(dangerCellsForIntent(b, lunge, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }))).toEqual([3]);
     b.intents = [lunge];
     b.hand = [{ uid: "m1", defId: "backpalm" }];
     b.energy = 3;
     const hp = b.player.hp;
-    b = playCard(b, "m1", contextNow()); // 撤到 2，出圈 = 硬拆
-    b = endTurn(b, contextNow());
+    b = playCard(b, "m1", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } })); // 撤到 2，出圈 = 硬拆
+    b = endTurn(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b.player.hp).toBe(hp);
     expect(b.v2BreakCount ?? 0).toBe(1);
 
@@ -217,7 +216,7 @@ describe("§31.14 空间诚实 · 红格=结算，够不着的招不算拆", () 
     b2.v2Turn = { ...b2.v2Turn!, turnStartPos: 1 };
     b2.intents = [{ kind: "lunge", damage: 12 }];
     const hp2 = b2.player.hp;
-    b2 = endTurn(b2, contextNow());
+    b2 = endTurn(b2, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b2.player.hp).toBe(hp2);
     expect(b2.v2BreakCount ?? 0).toBe(0);
     expect(b2.log.join()).toContain("抢了个空");
@@ -231,13 +230,13 @@ describe("§31.14 空间诚实 · 红格=结算，够不着的招不算拆", () 
       { kind: "lunge", damage: 12 },
       { kind: "lunge", damage: 12 },
     ];
-    const projected = projectedQueueThreat(b, contextNow());
+    const projected = projectedQueueThreat(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(projected[0]).toEqual([2]);
     expect(projected[1]).toEqual([1]);
-    expect(dangerCells(b, contextNow())).toContain(1); // 并集含脚下（第二段）
+    expect(dangerCells(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }))).toContain(1); // 并集含脚下（第二段）
     // 原地不动：第一段抢空，第二段命中
     const hp = b.player.hp;
-    b = endTurn(b, contextNow());
+    b = endTurn(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b.player.hp).toBeLessThan(hp);
     expect(b.log.join()).toContain("抢了个空");
 
@@ -251,8 +250,8 @@ describe("§31.14 空间诚实 · 红格=结算，够不着的招不算拆", () 
     b2.hand = [{ uid: "m1", defId: "backpalm" }];
     b2.energy = 3;
     const hp2 = b2.player.hp;
-    b2 = playCard(b2, "m1", contextNow()); // 撤到 0
-    b2 = endTurn(b2, contextNow());
+    b2 = playCard(b2, "m1", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } })); // 撤到 0
+    b2 = endTurn(b2, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b2.player.hp).toBe(hp2);
     expect(b2.v2BreakCount ?? 0).toBe(1); // 第二段硬拆（第一段本就够不着）
   });
@@ -271,8 +270,8 @@ describe("§31.14 空间诚实 · 红格=结算，够不着的招不算拆", () 
     b.energy = 3;
     b.player.hp = b.player.maxHp - 10; // 压血让回血可见（满血会被上限吃掉）
     const hp = b.player.hp;
-    b = playCard(b, "m1", contextNow()); // 撤到 1（退步掌自带架 5）
-    b = endTurn(b, contextNow());
+    b = playCard(b, "m1", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } })); // 撤到 1（退步掌自带架 5）
+    b = endTurn(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b.player.hp).toBe(hp + 6); // 战利品回血 2 + 温掌 4
     expect(b.v2BreakCount ?? 0).toBe(2); // 两段都拆，第二段吃连环
   });
@@ -285,9 +284,9 @@ describe("§31.14 空间诚实 · 红格=结算，够不着的招不算拆", () 
     b.intents = [{ kind: "guard", block: 8 }];
     b.hand = [{ uid: "g1", defId: "expose" }];
     b.energy = 6;
-    b = playCard(b, "g1", contextNow());
+    b = playCard(b, "g1", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     const exposeAfterPlay = b.expose; // 破绽牌自身可能也叠了层数，以出牌后为基线
-    b = endTurn(b, contextNow());
+    b = endTurn(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b.v2BreakCount ?? 0).toBe(1);
     expect(b.log.join()).toContain("看穿套路");
     expect(b.expose).toBe(exposeAfterPlay + 1); // 战利品破绽 +1
@@ -304,9 +303,9 @@ describe("§31.14 空间诚实 · 红格=结算，够不着的招不算拆", () 
     b.hand = [{ uid: "r1", defId: "retreat" }];
     b.energy = 0; // 0 费：空劲也能撤
     const hp = b.player.hp;
-    b = playCard(b, "r1", contextNow()); // 1 → 0（身后只剩 1 格）
+    b = playCard(b, "r1", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } })); // 1 → 0（身后只剩 1 格）
     expect(b.player.pos).toBe(0);
-    b = endTurn(b, contextNow());
+    b = endTurn(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b.player.hp).toBe(hp); // 两段全空
     expect(b.v2BreakCount ?? 0).toBe(1); // 第二段投影圈罩过起点 1，撤出算硬拆
   });
@@ -319,8 +318,8 @@ describe("§31.14 空间诚实 · 红格=结算，够不着的招不算拆", () 
     b.intents = [{ kind: "stake" }];
     b.hand = [{ uid: "p1", defId: "plant" }];
     b.energy = 5;
-    b = playCard(b, "p1", contextNow()); // 劲 5-1=4，桩落身前
-    b = endTurn(b, contextNow());
+    b = playCard(b, "p1", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } })); // 劲 5-1=4，桩落身前
+    b = endTurn(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b.v2BreakCount ?? 0).toBe(1);
     expect(b.log.join()).toContain("借势回劲");
     expect(b.log.join()).toContain("劲力 +1");
@@ -335,7 +334,7 @@ describe("§31.14 空间诚实 · 红格=结算，够不着的招不算拆", () 
     b.intents = [{ kind: "breathe", amount: 1 }];
     b.hand = [];
     const hp = b.player.hp;
-    b = endTurn(b, contextNow());
+    b = endTurn(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b.player.hp).toBe(hp + 3);
     expect(b.log.join()).toContain("锡息 回 3");
 
@@ -347,7 +346,7 @@ describe("§31.14 空间诚实 · 红格=结算，够不着的招不算拆", () 
     b2.hand = [{ uid: "h1", defId: "hookpull" }];
     b2.energy = 3;
     const nd = b2.nextDamage;
-    b2 = playCard(b2, "h1", contextNow());
+    b2 = playCard(b2, "h1", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b2.nextDamage).toBe(nd + 3);
 
     // 桩皮：有格挡挨打，反震 +2（桩皮是主角级，须与 hero 不同人才算上场）
@@ -359,7 +358,7 @@ describe("§31.14 空间诚实 · 红格=结算，够不着的招不算拆", () 
     b3.v2EyeIdx = -1;
     b3.intents = [{ kind: "strike", damage: 6 }];
     const foeHp = b3.enemy.hp;
-    b3 = endTurn(b3, contextNow());
+    b3 = endTurn(b3, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     // 回敬 = 桩皮 2 + 兵器加成 2（精阶）——回敬也吃兵器，既有行为
     expect(b3.enemy.hp).toBe(foeHp - 4);
   });
@@ -371,7 +370,7 @@ describe("§31.14 空间诚实 · 红格=结算，够不着的招不算拆", () 
     expect(tryAppendStressIntent(b, "burst", breakTestContext())).toBe(true);
     expect(b.intents.length).toBe(lenBefore); // 当前队列不变
     expect(b.v2PendingStress?.length).toBe(1);
-    b = endTurn(b, contextNow()); // 结算 → 规划下一手
+    b = endTurn(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 3 } })); // 结算 → 规划下一手
     expect(b.v2PendingStress ?? []).toEqual([]);
     expect(b.intents.some((_, i) => stressMetaAt(b, i))).toBe(true); // 应激段带签入场
   });
@@ -386,13 +385,13 @@ describe("§31.14 空间诚实 · 红格=结算，够不着的招不算拆", () 
       { kind: "strike", damage: 14 },
       { kind: "guard", block: 6 },
     ];
-    applyTurnDamageGovernor(b, q, contextNow());
+    applyTurnDamageGovernor(b, q, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0, enemyTurnCapRatio: 0.45 } }));
     const attacks = q.filter((i) => "damage" in i && (i.damage ?? 0) > 0);
     expect(attacks).toHaveLength(1);
     expect(attacks[0]!.kind).toBe("barrage"); // 大招原样留，可读可拆
     // 不超帽时不动队
     const small: Intent[] = [{ kind: "strike", damage: 10 }];
-    applyTurnDamageGovernor(b, small, contextNow());
+    applyTurnDamageGovernor(b, small, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0, enemyTurnCapRatio: 0.45 } }));
     expect(small[0]!.kind).toBe("strike");
   });
 });
