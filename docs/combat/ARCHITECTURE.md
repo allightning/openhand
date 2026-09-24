@@ -1,6 +1,7 @@
 # Combat Lab 架构方案与开发规范
 
 > 2026-09-21 主窗定稿，同日两轮评审修订（v2：H1–H5 / M1–M6；v3：C1–C6 精修，复评通过、具备开工条件）。
+> 2026-09-24 收口对账回写（阶段 0/A/B 已闭环；按代码实测修正「黄金对局覆盖面 / main.ts 归属 / 旧核选路」三处口径，见 §4 标注）。
 > 执行由专窗按阶段认领，每阶段验收标准见 §4。
 > 配套：铁律 `.cursor/rules/combat-ironclad.mdc`（玩法）、`.cursor/rules/combat-architecture.mdc`（架构，简版）、skill `combat-architecture`（加内容时查）。
 > 本文是架构唯一真源；改架构口径先改本文，再改 SYNC。
@@ -105,8 +106,8 @@ PR #1 的合并判定标准 = **`src/game` 零 import `src/combatLab` + layerBou
 
 **黄金对局回放比对（H2 + C1，阶段 1/2/3/5 的强制验收闸门）**：
 
-- **粒度**：快照打到「每个意图段 / 每次结算事件后」的 state（伤害 / 格挡 / 位移 / 状态层数 / 牌堆 / 蓝）；渲染层额外记录一条 **DOM 变更事件序列**——铁律 §4 是段间时序，最终 state 相同不代表渲染顺序没漂移，阶段 3 靠这条序列比对，不靠目检。
-- **覆盖面**：20 局固定 seed 随机对局（覆盖六系 + 读招 / 行路双模式）**＋ 一组定向脚本场景**，专门走稀有规则分支：复活赛、期末三模板、断劲扣不动挂工资、桩爆炸、晕满手整回合跳过、堆挡盘口。
+- **粒度**：快照打到「每个意图段 / 每次结算事件后」的 state（伤害 / 格挡 / 位移 / 状态层数 / 牌堆 / 蓝），基线文件 goldenReplay.baseline.json；播报文案帧另记 present.json。**完整 DOM 变更事件序列尚未落地**——铁律 §4 是段间时序，最终 state 相同不代表渲染顺序没漂移；阶段 3 拆壳前补这条序列，届时靠序列比对、不靠目检。
+- **覆盖面（2026-09-24 代码实测，不是早先规划的 20 局）**：当前 goldenReplay.test.ts 为 **2 则 gate**——「同一注入种子跑两次、逐拍相同」（确定性）与「对照已录基线、逐拍 diff 为空」；内部用固定种子覆盖行路 / 登门若干局，含少量定向（断劲扣不动挂债务、裂桩爆炸、晕锁整手）。**早先规划的「20 局随机（覆盖六系 + 双模式）＋ 全套定向（复活赛、期末三模板、堆挡盘口等）」尚未落地，列为阶段 3 动 engine / 六系前的强制补全项**（与阶段 5 六系叠层帧一并补齐）。
 - 重构后同 seed 重放，逐拍 diff 必须为空。这是 Characterization Test，比新增单测更能防漂移。
 - 落地为 `src/game/goldenReplay.test.ts` + 快照基线文件。
 
@@ -114,7 +115,7 @@ PR #1 的合并判定标准 = **`src/game` 零 import `src/combatLab` + layerBou
 
 **冻结遗留（C6）**：`src/game/economy.ts`（含 L170 直连 `Math.random()`）、`bag.ts`、`progress.ts`、`quest.ts`、`rewards.ts`、`hooks.ts` 等被 `src/map/**` / `src/main.ts` 引用的文件是**主线遗留，归冻结区**——不进 rng 治理、不算战斗核，layerBoundary / DOM 护栏对它们豁免，随主线解冻再处理。
 
-- **验收**：layerBoundary 绿 + DOM 护栏绿 + 黄金基线（随机 20 局 + 定向场景）已录制。
+- **验收**：layerBoundary 绿 + DOM 护栏绿 + 黄金基线已录制（**当前为 2 则 gate + 固定种子若干局 / 少量定向**；20 局 + 全套定向的扩充移到阶段 3 前，见上）。
 - **中止 / 回滚**：黄金基线录制时发现现行行为本身不确定（同 seed 两次跑不一致），先修确定性再继续。
 
 ### 阶段 1：RunContext + 双核拆分（单窗独占，单 PR，禁并行）
@@ -130,7 +131,8 @@ PR #1 的合并判定标准 = **`src/game` 零 import `src/combatLab` + layerBou
 - **登门两套结算，阶段 1 不合并：** sim 里 `ruleset="break"` 是训练馆仍在走的旧读招结算。qiCommit 才是登门终态核。阶段 1 不把旧分支并进 qiCommit；break 语义的 `isBreakAlign` 只许收成 `ctx.ruleset`，或沉进 `engine/break/` 里与 qiCommit 并列的旧核。
 - **对账口径（写死）：** `rg -n "isBreakAlign\\(" src -g '*.ts' -g '!**/*.test.ts' | wc -l`。2026-09-22 开工锁 **123**（含 `labRuleset.ts` 定义行，不含 `*.test.ts`）。全库含测试是 127，多出的 4 行在 `lab.test.ts` 与 `labRuleset.test.ts`。阶段 1 清零验收仍是 `rg "isBreakAlign|getLabTuning|getLabRuleset" src/game` 无结果。
 - **caps 形状：** `ctx.caps` 按域分组（`breakdown` / `intent` / `stake`）。`stake` 是场上立桩，不是彩金。彩金以后另开域名。不把预演 / 意图 / 立桩摊进同一个 interface。
-- **验收**：typecheck + test:combat 绿；**黄金对局逐拍 diff 为空**；共享结算路径 `rg "ruleset.mode" src/game` 仅出现在入口 / content 参数化字段；`rg "isBreakAlign|getLabTuning|getLabRuleset" src/game` 无结果；`rg "contextNow" src/game` 在引擎结算函数里为 0（桥接默认参数全部去掉，调用点显式传 ctx；`contextNow` 只许留在壳层入口）；`layerBoundary` 的 `PERSIST_DEBT` 白名单缩为空。
+- **验收（2026-09-24 收口实测口径）**：typecheck:combat exit0 + test:combat 全绿；**黄金两则逐拍 diff 为空**；引擎生产 `rg "contextNow" src/game`（非测试、除 runContext）=0，`rg "isBreakAlign|getLabTuning|getLabRuleset" src/game`（非测试）无结果；`layerBoundary` 的 `PERSIST_DEBT` 清空。
+- **旧核选路标记，阶段 1 保留、不归零（2026-09-24 对账修正）：** sim.ts（37）、labV2.ts（13）、labV21.ts（5）、simV2Hooks.ts（2）内共 **57 处 `ruleset.mode`**，是行路核与训练馆旧 break 核的选路（已加「阶段 3 沉 engine/break」注释）；壳层另有约 **50 处 `isBreakAlign()`**（引擎内已 0）。这些不属阶段 1 验收，随阶段 3 拆 engine（旧核沉 `engine/break/`、壳只留选核）统一归零。故不再要求「sim.ts 内 ruleset.mode 仅出现在入口 / content」——那是阶段 3 的终态。
 - **中止 / 回滚**：黄金 diff 不为空且 3 次修复内不收敛 → 回滚本阶段，保住分支现场报主窗。
 
 ### 阶段 2：gauntlet.ts 规则平移
@@ -146,12 +148,19 @@ PR #1 的合并判定标准 = **`src/game` 零 import `src/combatLab` + layerBou
 
 阶段 3 改壳、阶段 4 改核，文件集不重叠，**可分两窗并行**；若串行，**阶段 4 优先**——内容注册表直接解锁六系牌面 / 连携重写，避免牌面先在旧散表重写一遍再迁移做两次工。
 
-### 阶段 3：main.ts 全量拆解
+### 阶段 3：战斗壳拆解 + 旧核沉 engine（含两个 main.ts 的区分，2026-09-24 对账重写）
 
+**先分清两个同名文件：**
+- `src/combatLab/main.ts`（**活跃战斗壳入口，约 4149 行**）是本阶段拆解对象。
+- `src/main.ts`（**旧地图 / 主线，已脱离入口**）：它引用的 `contextNow` 等导出已在阶段 B 删除，13 处当前**编译不过**，且不被任何页面 / 构建活跃路径引用（页面都加载 combatLab/main.ts）。本阶段直接**删除或归档**，不作为拆解对象、不做兼容。
+
+**战斗壳拆解（combatLab/main.ts）：**
 - 纵向切 `render/`（renderHand / renderIntent / renderHud / renderReward…）、`flow/`（turnFlow / settleFlow / screenFlow）、`dom/bindDom.ts`（事件绑定唯一入口）。
-- 拆法：先切纯渲染（无状态、只读 state 画 DOM），再切编排；1028 行函数单独成文件再内部抽阶段。
+- 拆法：先切纯渲染（无状态、只读 state 画 DOM），再切编排；超长函数单独成文件再内部抽阶段。
+- **旧核沉 engine：** 阶段 1 保留的 57 处 `ruleset.mode`（sim/labV2/labV21/simV2Hooks）随旧 break 核沉 `engine/break/`、与 qiCommit 并列；壳层约 50 处 `isBreakAlign()` 收成入口选核——两处计数本阶段归零。
+- **黄金补全（动 engine / 六系前置）：** 把黄金对局扩到 20 局固定种子（六系 + 双模式）＋ 全套定向（复活赛、期末三模板、断劲挂债务、桩爆炸、晕满手、堆挡盘口），并补 DOM 变更事件序列。
 - **铁律 §4 适配**：保持「这一招打完才改这一招的血 / 挡 / 位移」时序。
-- **验收**：main.ts ≤300 行；测试绿；**渲染时序用黄金对局的逐拍快照比对**（不只目检）。
+- **验收**：combatLab/main.ts ≤300 行；旧 src/main.ts 已删除 / 归档；`ruleset.mode`（引擎共享路径）与壳 `isBreakAlign` 计数归零；黄金 20 局 + 全套定向 + DOM 序列逐拍 diff 为空；测试绿。
 - **中止 / 回滚**：快照 diff 暴露时序漂移且 3 次修复不收敛 → 回滚该域拆分。
 
 ### 阶段 4：内容注册表 + 校验测试
