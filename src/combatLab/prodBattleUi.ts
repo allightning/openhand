@@ -384,7 +384,7 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
       const vBranch = isLabV2() ? variantBranch(def, b, shellRunContext()) : null;
       const vLabel = vBranch ? variantActiveLabel(def, b) : null;
       const vClass = vBranch ? `variant-on variant-${vBranch}` : def.variant ? "variant-idle" : "";
-      const comboUnlock = isComboUnlockCard(b, c.defId) && gate.ok;
+      const comboUnlock = isComboUnlockCard(b, c.defId, shellRunContext()) && gate.ok;
       const comboBadge = comboUnlock ? `<span class="combo-unlock-badge">合</span>` : "";
       const vBadge = vLabel ? `<span class="variant-badge">${escapeHtml(vLabel)}</span>` : "";
       const chargeCard = breakAlign && MOVE_CHARGE_CARDS.has(def.id) ? "break-charge-card" : "";
@@ -405,7 +405,7 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
       ]
         .filter(Boolean)
         .join("\n");
-      const stunLock = climbCardLocked(b, c.uid);
+      const stunLock = climbCardLocked(b, c.uid, shellRunContext());
       const teachBadge =
         breakAlign &&
         ((demoGuide && guided) || (!demoGuide && teachStage === 1 && MOVE_CHARGE_CARDS.has(def.id)))
@@ -475,7 +475,7 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
           <div class="fy-stats lab-combat-tools">
             ${toolbarExtra}
             <span class="fy-btn hp" data-tip="当前回合">回合 ${b.turn}</span>
-            <span class="fy-btn" data-tip="先机对比">先机 ${yourPace(b)}/${b.foePace}</span>
+            <span class="fy-btn" data-tip="先机对比">先机 ${yourPace(b, shellRunContext())}/${b.foePace}</span>
             ${chromeHtml ?? ""}
           </div>
         </header>

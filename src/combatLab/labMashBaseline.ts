@@ -1,5 +1,6 @@
 import { DEFAULT_LAB_TUNING, setLabMode, setLabTuning } from "../game/labTuning";
 import { canPlay, endTurn, livingFoes, playCard } from "../game/sim";
+import { shellRunContext } from "./shellContext";
 import type { Battle, EnemyId } from "../game/types";
 import { applyAutoLoadout } from "./autoLoadouts";
 import { buildGauntletPreset, createGauntletRun, ladderEntry, getGauntletFinalStage } from "./gauntlet";
@@ -17,7 +18,7 @@ function mulberry32(seed: number): () => number {
 }
 
 function legalUids(b: Battle): string[] {
-  return b.hand.filter((c) => canPlay(b, c.uid).ok).map((c) => c.uid);
+  return b.hand.filter((c) => canPlay(b, c.uid, shellRunContext()).ok).map((c) => c.uid);
 }
 
 function battleOver(b: Battle): boolean {
@@ -40,9 +41,9 @@ export function runMashBattle(enemyId: EnemyId, seed: number): "win" | "loss" {
     const legal = legalUids(b);
     if (legal.length > 0 && b.energy > 0) {
       const uid = legal[Math.floor(rng() * legal.length)]!;
-      b = playCard(b, uid);
+      b = playCard(b, uid, shellRunContext());
     } else {
-      b = endTurn(b);
+      b = endTurn(b, shellRunContext());
     }
   }
   const out = b.phase === "won" || livingFoes(b).every((f) => f.hp <= 0) ? "win" : "loss";
@@ -96,9 +97,9 @@ export function runGauntletMashBattle(seed: number, bossId: EnemyId = "usurper",
     const legal = legalUids(b);
     if (legal.length > 0 && b.energy > 0) {
       const uid = legal[Math.floor(rng() * legal.length)]!;
-      b = playCard(b, uid);
+      b = playCard(b, uid, shellRunContext());
     } else {
-      b = endTurn(b);
+      b = endTurn(b, shellRunContext());
     }
   }
   const out = b.phase === "won" || livingFoes(b).every((f) => f.hp <= 0) ? "win" : "loss";

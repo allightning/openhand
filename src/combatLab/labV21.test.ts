@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { contextNow } from "../game/runContext";
 import { CARDS } from "../game/content";
 import { setLabMode, setLabTuning } from "../game/labTuning";
 import {
@@ -49,25 +50,25 @@ afterEach(() => {
 describe("v2.1 绝招", () => {
   it("blocks ult when qi precondition missing", () => {
     const b = withCard(v2Battle(), "ultQiBurst", { qi: 1 });
-    expect(canPlay(b, "t1").ok).toBe(false);
+    expect(canPlay(b, "t1", contextNow()).ok).toBe(false);
   });
 
   it("allows ult when qi precondition met", () => {
     const b = withCard(v2Battle(), "ultQiBurst", { qi: 3 });
     b.enemy.pos = b.player.pos + 1; // §31.11 距离闸：贴身才够得着
-    expect(canPlay(b, "t1").ok).toBe(true);
+    expect(canPlay(b, "t1", contextNow()).ok).toBe(true);
   });
 
   it("pojin in 开踢 gives a free hard-break charge, not ult unlock", () => {
     let b = withCard(v2Battle(), "ultQiBurst", { qi: 0, labItems: ["pojin"] });
-    expect(canPlay(b, "t1").ok).toBe(false);
+    expect(canPlay(b, "t1", contextNow()).ok).toBe(false);
     const used = useLabItem(b, "pojin", breakTestContext());
     expect(used.ok).toBe(true);
     b = used.battle!;
     expect(b.labPojinFreeBreak).toBe(true);
     expect(b.labUnlockUltimate).toBeFalsy();
     b.enemy.pos = b.player.pos + 1;
-    expect(canPlay(b, "t1").ok).toBe(false);
+    expect(canPlay(b, "t1", contextNow()).ok).toBe(false);
   });
 });
 
@@ -91,8 +92,8 @@ describe("v2.1 变式", () => {
     let b = withCard(v2Battle(), "varOverhand");
     b.player = { ...b.player, hp: 26, maxHp: 28 };
     b.enemy.pos = b.player.pos + 1; // §31.11 距离闸
-    const prev = previewCard(b, "t1");
-    const played = playCard(cloneBattle(b), "t1");
+    const prev = previewCard(b, "t1", contextNow());
+    const played = playCard(cloneBattle(b), "t1", contextNow());
     expect(prev.enemyHp).toBe(played.enemy.hp);
     expect(prev.legal).toBe(true);
   });

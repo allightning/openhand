@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { contextNow } from "../game/runContext";
 import { CARDS, ENEMIES, TECHNIQUES } from "../game/content";
 import { GEAR_WEAPONS } from "../game/weapons";
 import { ARSENAL_COUNTS } from "./arsenal";
@@ -175,7 +176,7 @@ describe("Combat Lab swap rules", () => {
     const strike = b.hand.find((c) => c.defId === "strike");
     if (strike) expect(labCanPlay(b, strike.uid).ok).toBe(false);
     const haste = b.hand.find((c) => c.defId === "haste" || c.defId === "sidestep");
-    if (haste) expect(labCanPlay(b, haste.uid).ok).toBe(canPlay(b, haste.uid).ok);
+    if (haste) expect(labCanPlay(b, haste.uid).ok).toBe(canPlay(b, haste.uid, contextNow()).ok);
     setLabMode(false);
     setLabTuning({ rulesV2: true });
   });
@@ -187,10 +188,10 @@ describe("Combat Lab preview discipline", () => {
     setLabTuning({ dmgCoef: 1.35, paceBias: 1, aiAggression: 40 });
     let b = startLabBattle(BUILTIN_PRESETS[0]!, true);
     applyLabFightScale();
-    const card = b.hand.find((c) => canPlay(b, c.uid).ok);
+    const card = b.hand.find((c) => canPlay(b, c.uid, contextNow()).ok);
     expect(card).toBeTruthy();
-    const prev = previewCard(b, card!.uid);
-    b = playCard(b, card!.uid);
+    const prev = previewCard(b, card!.uid, contextNow());
+    b = playCard(b, card!.uid, contextNow());
     expect(b.enemy.hp).toBe(prev.enemyHp);
     expect(b.enemy.pos).toBe(prev.enemyPos);
     expect(b.player.hp).toBe(prev.playerHp);
@@ -199,10 +200,10 @@ describe("Combat Lab preview discipline", () => {
 
   it("main-line tutorial still preview=play when lab mode off", () => {
     setLabMode(false);
-    const b = makeTutorialBattle();
+    const b = makeTutorialBattle(contextNow());
     const strike = b.hand.find((c) => c.defId === "strike")!;
-    const prev = previewCard(b, strike.uid);
-    const after = playCard(b, strike.uid);
+    const prev = previewCard(b, strike.uid, contextNow());
+    const after = playCard(b, strike.uid, contextNow());
     expect(after.enemy.hp).toBe(prev.enemyHp);
   });
 });

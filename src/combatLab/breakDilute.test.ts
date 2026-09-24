@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { contextNow } from "../game/runContext";
 import { CARDS } from "../game/content";
 import { setLabMode } from "../game/labTuning";
 import { playCard } from "../game/sim";
@@ -126,7 +127,7 @@ describe("肉鸽拆招降权", () => {
     const b = startLabBattle(buildGauntletPreset(run), false, 1);
     b.energy = 6;
     b.hand = [{ uid: "d", defId: "defend" }];
-    const after = playCard(b, "d");
+    const after = playCard(b, "d", contextNow());
     expect(after.v2FxQueue?.some((k) => k === "cardWard" || k === "cardHeal" || k === "cardHit")).toBe(true);
     expect(renderFxLayer(after).length).toBeGreaterThan(0);
     expect(CARDS.defend.block).toBeGreaterThan(0);

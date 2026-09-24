@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { contextNow } from "../game/runContext";
 import { setLabMode } from "../game/labTuning";
 import {
   canEndPlayerTurn,
@@ -52,13 +53,13 @@ describe("爬塔试玩默认 2026-09-17", () => {
       { uid: "x2", defId: "direct" },
       { uid: "x3", defId: "direct" },
     ];
-    expect(needsDiscardToHandCap(b)).toBe(true);
-    expect(canEndPlayerTurn(b).ok).toBe(false);
-    b = labEnterDiscardPhase(b);
+    expect(needsDiscardToHandCap(b, contextNow())).toBe(true);
+    expect(canEndPlayerTurn(b, contextNow()).ok).toBe(false);
+    b = labEnterDiscardPhase(b, contextNow());
     expect(b.climbDiscardPhase).toBe(true);
-    while (needsDiscardToHandCap(b) && b.hand[0]) b = labDiscardCard(b, b.hand[0].uid);
-    expect(needsDiscardToHandCap(b)).toBe(false);
-    expect(canEndPlayerTurn(b).ok).toBe(true);
+    while (needsDiscardToHandCap(b, contextNow()) && b.hand[0]) b = labDiscardCard(b, b.hand[0].uid, contextNow());
+    expect(needsDiscardToHandCap(b, contextNow())).toBe(false);
+    expect(canEndPlayerTurn(b, contextNow()).ok).toBe(true);
   });
 
   it("置换花费 = 牌费 − 1，可连换", () => {
@@ -67,11 +68,11 @@ describe("爬塔试玩默认 2026-09-17", () => {
     b.drawPile = [{ uid: "d1", defId: "direct" }, { uid: "d2", defId: "direct" }];
     const uid = b.hand[0]!.uid;
     const cost = climbCycleCost(labCard(b.hand[0]!.defId, climbTestContext()).cost);
-    expect(labCanCycle(b).ok).toBe(true);
+    expect(labCanCycle(b, contextNow()).ok).toBe(true);
     const before = b.energy;
-    b = labCycleCard(b, uid);
+    b = labCycleCard(b, uid, contextNow());
     expect(b.energy).toBe(before - cost);
-    expect(labCanCycle(b).ok).toBe(true);
+    expect(labCanCycle(b, contextNow()).ok).toBe(true);
   });
 
   it("格挡收势不清，帽 12", () => {
@@ -81,10 +82,10 @@ describe("爬塔试玩默认 2026-09-17", () => {
     b.enemy.pos = 6;
     b.intents = [{ kind: "guard", block: 4 }];
     b.intent = b.intents[0]!;
-    const after = endTurn(b, { deferIntentRefresh: true });
+    const after = endTurn(b, contextNow(), { deferIntentRefresh: true });
     expect(after.playerBlock).toBe(7);
     b.playerBlock = 20;
-    const capped = endTurn(b, { deferIntentRefresh: true });
+    const capped = endTurn(b, contextNow(), { deferIntentRefresh: true });
     expect(capped.playerBlock).toBe(CLIMB_BLOCK_CAP);
   });
 
@@ -110,9 +111,9 @@ describe("爬塔试玩默认 2026-09-17", () => {
     const b = climbBattle();
     b.energy = 20;
     const uid = b.hand[0]!.uid;
-    labEnterDiscardPhase(b);
-    expect(canPlay(b, uid).ok).toBe(false);
-    expect(canPlay(b, uid).reason).toContain("弃牌");
+    labEnterDiscardPhase(b, contextNow());
+    expect(canPlay(b, uid, contextNow()).ok).toBe(false);
+    expect(canPlay(b, uid, contextNow()).reason).toContain("弃牌");
   });
 
   it("断劲：同手两枪 3–4 格扣敌劲", () => {
@@ -129,15 +130,15 @@ describe("爬塔试玩默认 2026-09-17", () => {
       { uid: "spk2", defId: "thrust" },
       ...b.hand,
     ];
-    expect(canPlay(b, "spk1").ok).toBe(true);
-    b = playCard(b, "spk1");
+    expect(canPlay(b, "spk1", contextNow()).ok).toBe(true);
+    b = playCard(b, "spk1", contextNow());
     expect(b.climbSpearRangeHits).toBe(1);
     b.energy = 20;
     b.player.pos = 0;
     b.enemy.pos = 4;
     const before = b.enemyEnergy;
-    expect(canPlay(b, "spk2").ok).toBe(true);
-    b = playCard(b, "spk2");
+    expect(canPlay(b, "spk2", contextNow()).ok).toBe(true);
+    b = playCard(b, "spk2", contextNow());
     expect(b.enemyEnergy).toBe(before - CLIMB_SPEAR_CUT_QI);
   });
 
@@ -151,8 +152,8 @@ describe("爬塔试玩默认 2026-09-17", () => {
     b.climbLastAttackId = "strike";
     b.player.pos = 3;
     b.enemy.pos = 4;
-    expect(labCanComboReplay(b).ok).toBe(true);
-    b = labComboReplay(b);
+    expect(labCanComboReplay(b, contextNow()).ok).toBe(true);
+    b = labComboReplay(b, contextNow());
     // 花 2 → 1，重放命中再叠 +1 → 2
     expect(b.combo).toBe(2);
   });

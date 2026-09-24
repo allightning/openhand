@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { contextNow } from "./runContext";
 import { MATES, MATE_OFFER, WEAPON_NAME, WEAPON_PACE, addCompanion, deckFor, grantChapterTwo, healRun, mateJoinReady, noteFall, reviveHp, schoolLabel, stashOrTeach } from "./party";
 import { makeTestContext } from "./testContext";
 import { makeRun } from "./run";
@@ -63,10 +64,10 @@ describe("party and weapons", () => {
 describe("swap and packs", () => {
   it("lets a second fighter take the floor for one energy", () => {
     const run = addCompanion(makeRun("empty"), "porter");
-    let b = makeBattle("catcher", run, true);
+    let b = makeBattle("catcher", contextNow(), run, true);
     expect(b.active).toBe("rail");
     expect(b.bench.some((m) => m.id === "porter")).toBe(true);
-    b = swapFighter(b, "porter");
+    b = swapFighter(b, "porter", contextNow());
     expect(b.active).toBe("porter");
     expect(b.energy).toBe(7);
     expect(b.player.name).toBe("韩铁");
@@ -75,14 +76,14 @@ describe("swap and packs", () => {
 
   it("lets the hermit take the floor with a palm kit", () => {
     const run = addCompanion(makeRun("empty"), "hermit");
-    let b = makeBattle("catcher", run, true);
-    b = swapFighter(b, "hermit");
+    let b = makeBattle("catcher", contextNow(), run, true);
+    b = swapFighter(b, "hermit", contextNow());
     expect(b.player.name).toBe("井清源");
     expect(b.hand.some((c) => c.defId === "elbow")).toBe(true);
   });
 
   it("puts a second body on the twin's stone", () => {
-    const b = makeBattle("twin");
+    const b = makeBattle("twin", contextNow());
     expect(b.foes).toHaveLength(2);
     expect(b.foes.filter((f) => f.hp > 0)).toHaveLength(2);
   });

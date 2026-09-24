@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeEach } from "vitest";
+import { contextNow } from "../game/runContext";
 import { setLabRuleset } from "./labRuleset";
 import {
   applyScarPass,
@@ -291,8 +292,8 @@ describe("馆间遭遇 / 终局 / 带伤过馆", () => {
     const b = startLabBattle(buildGauntletPreset(run), true, 1);
     b.energy = 6;
     b.hand = [{ uid: "ad", defId: "advance" }];
-    expect(canPlay(b, "ad").ok).toBe(false);
-    expect(canPlay(b, "ad").reason).toMatch(/禁位移/);
+    expect(canPlay(b, "ad", contextNow()).ok).toBe(false);
+    expect(canPlay(b, "ad", contextNow()).reason).toMatch(/禁位移/);
   });
 
   it("无尽不开终局抉择，也不进遭遇", () => {

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { contextNow } from "../game/runContext";
 import { setLabRuleset } from "./labRuleset";
 import {
   applyGauntletReward,
@@ -95,7 +96,7 @@ describe("爬塔配装：合成 / 外功栏 / 神兵双路", () => {
       const b = startLabBattle(buildGauntletPreset(run), true, 1);
       b.energy = 8;
       b.energyMax = 20;
-      return endTurn(b).energy;
+      return endTurn(b, contextNow()).energy;
     };
     expect(mk(3)).toBe(mk(1) + 2);
     const b2 = startLabBattle(
@@ -110,8 +111,8 @@ describe("爬塔配装：合成 / 外功栏 / 神兵双路", () => {
     b2.youBleed = 3;
     b2.v2OffBalance = 2;
     b2.labMateMinds = { [mate]: ["springQi"] };
-    const you = statusChips(b2, "you");
-    const foe = statusChips(b2, "foe");
+    const you = statusChips(b2, "you", contextNow());
+    const foe = statusChips(b2, "foe", contextNow());
     expect(you.some((c) => c.name === "裂创" && c.value === "3")).toBe(true);
     expect(you.some((c) => c.key === "mind-springQi")).toBe(true);
     expect(foe.some((c) => c.name === "失衡")).toBe(false);

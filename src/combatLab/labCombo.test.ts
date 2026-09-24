@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { contextNow } from "../game/runContext";
 import { CARDS } from "../game/content";
 import {
   assistEnergyCost,
@@ -110,7 +111,7 @@ describe("§16.4 同门合击卡", () => {
     b.bench = [{ id: "watch", hp: 20, maxHp: 20, hand: [], drawPile: [], discardPile: [] }];
     expect(comboPlayGate(b, "comboPalm", breakTestContext()).ok).toBe(false);
     b.hand.push({ uid: "t-x", defId: "comboPalm" });
-    expect(canPlay(b, "t-x").ok).toBe(false);
+    expect(canPlay(b, "t-x", contextNow()).ok).toBe(false);
   });
 
   it("§31.12 v2 组合技：开踢禁组合技，异系走融合卡", () => {
@@ -121,7 +122,7 @@ describe("§16.4 同门合击卡", () => {
     const g = comboPlayGate(b, "comboPalm", breakTestContext());
     expect(g.ok).toBe(false);
     expect(g.reason).toContain("融合卡");
-    expect(canPlay(b, "t-combo").ok).toBe(false);
+    expect(canPlay(b, "t-combo", contextNow()).ok).toBe(false);
   });
 
   it("拆招开踢禁组合技开闸，异系走融合卡", () => {
@@ -151,6 +152,6 @@ describe("§17.3 百花首张组合卡减劲", () => {
     b.energy = 2;
     b = callAssist(b, "hermit");
     b.hand.push({ uid: "t-combo2", defId: "comboPalm" });
-    expect(canPlay(b, "t-combo2").ok).toBe(false);
+    expect(canPlay(b, "t-combo2", contextNow()).ok).toBe(false);
   });
 });

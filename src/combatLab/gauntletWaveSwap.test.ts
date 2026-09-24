@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { contextNow } from "../game/runContext";
 import { setLabRuleset } from "./labRuleset";
 import { setLabMode, setLabTuning } from "../game/labTuning";
 import { startLabBattle } from "./factory";
@@ -30,11 +31,11 @@ function v2Battle(stage = 6): Battle {
 }
 
 function anyLegalAttack(b: Battle): string | undefined {
-  return b.hand.find((c) => CARDS[c.defId]?.type === "attack" && canPlay(b, c.uid).ok)?.uid;
+  return b.hand.find((c) => CARDS[c.defId]?.type === "attack" && canPlay(b, c.uid, contextNow()).ok)?.uid;
 }
 
 function anyLegalCard(b: Battle): string | undefined {
-  return b.hand.find((c) => canPlay(b, c.uid).ok)?.uid;
+  return b.hand.find((c) => canPlay(b, c.uid, contextNow()).ok)?.uid;
 }
 
 function killFrontFoe(b: Battle): Battle {
@@ -42,8 +43,8 @@ function killFrontFoe(b: Battle): Battle {
   let cur = b;
   for (let round = 0; round < 12 && cur.enemy.hp > 0; round++) {
     const atk = anyLegalAttack(cur) ?? anyLegalCard(cur);
-    if (!atk) { cur = endTurn(cur); continue; }
-    cur = playCard(cur, atk);
+    if (!atk) { cur = endTurn(cur, contextNow()); continue; }
+    cur = playCard(cur, atk, contextNow());
     if (cur.phase !== "player") break;
   }
   return cur;
@@ -71,10 +72,10 @@ describe("拆招轮番接力不软锁", () => {
     expect(livingFoes(b).length).toBeGreaterThan(0);
     expect(b.phase).toBe("player");
     // 若手牌超上限，弃到可收势（测的是 phase 锁，不是弃牌闸）
-    while (needsDiscardToHandCap(b) && b.hand.length) {
-      b = labDiscardCard(b, b.hand[0]!.uid);
+    while (needsDiscardToHandCap(b, contextNow()) && b.hand.length) {
+      b = labDiscardCard(b, b.hand[0]!.uid, contextNow());
     }
-    expect(canEndPlayerTurn(b).ok).toBe(true);
+    expect(canEndPlayerTurn(b, contextNow()).ok).toBe(true);
   });
 
   it("换人后敌招有计划，收势能过回合并不会卡死", () => {
@@ -83,7 +84,7 @@ describe("拆招轮番接力不软锁", () => {
     b = killFrontFoe(b);
     expect(b.intents.length).toBeGreaterThan(0);
     const beforeTurn = b.turn;
-    b = endTurn(b);
+    b = endTurn(b, contextNow());
     expect(b.phase).toBe("player");
     expect(b.turn).toBeGreaterThan(beforeTurn);
     expect(b.intents.length).toBeGreaterThan(0);
@@ -99,13 +100,13 @@ describe("拆招轮番接力不软锁", () => {
     b.enemy.pos = 4;
     b.hand = [{ uid: "t-cut", defId: "cut" }];
     b.energy = 5;
-    b = playCard(b, "t-cut");
+    b = playCard(b, "t-cut", contextNow());
     expect(livingFoes(b).length).toBeGreaterThan(0);
     expect(b.enemy.hp).toBeGreaterThan(0);
     expect(b.phase).toBe("player");
-    expect(canEndPlayerTurn(b).ok).toBe(true);
+    expect(canEndPlayerTurn(b, contextNow()).ok).toBe(true);
     for (const c of b.hand) {
-      const gate = canPlay(b, c.uid);
+      const gate = canPlay(b, c.uid, contextNow());
       if (!gate.ok) expect(gate.reason).not.toBe("现在不是你的回合");
     }
   });

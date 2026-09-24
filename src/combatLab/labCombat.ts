@@ -40,7 +40,7 @@ export function labCanPlay(b: Battle, uid: string, rc: RunContext = shellRunCont
 }
 
 export function labCanSwap(b: Battle, id: CompanionId): { ok: boolean; reason?: string } {
-  if (!isLabMode()) return canSwap(b, id);
+  if (!isLabMode()) return canSwap(b, id, shellRunContext());
   if (b.phase !== "player") return { ok: false, reason: "现在不是你的回合" };
   if (id === b.active) return { ok: false, reason: "已经在场上" };
   if (b.swappedThisTurn) return { ok: false, reason: "这一息已经换过人" };
@@ -53,11 +53,11 @@ export function labCanSwap(b: Battle, id: CompanionId): { ok: boolean; reason?: 
 }
 
 export function labSwapFighter(b: Battle, id: CompanionId): Battle {
-  if (!isLabMode()) return swapFighter(b, id);
+  if (!isLabMode()) return swapFighter(b, id, shellRunContext());
   const gate = labCanSwap(b, id);
   if (!gate.ok) return b;
   const prevActive = b.active;
-  let next = swapFighter(b, id);
+  let next = swapFighter(b, id, shellRunContext());
   const cost = labSwapCost();
   if (next.labMateTechs?.[id]?.length) {
     next = { ...next, techniques: [...next.labMateTechs[id]!] };

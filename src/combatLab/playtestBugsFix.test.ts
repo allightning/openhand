@@ -13,6 +13,7 @@ import { breakStarterDeck } from "../game/rogueCards";
 import { CARDS } from "../game/content";
 import { endTurn, playCard } from "../game/sim";
 import { labCard } from "../game/labContent";
+import { contextNow } from "../game/runContext";
 import { climbTestContext } from "../game/testContext";
 import { labV21EffectiveCost } from "../game/labV21";
 import { WEAPON_NAME } from "../game/party";
@@ -57,7 +58,7 @@ describe("试玩反馈修复 2026-09-17", () => {
     b.hand = [{ uid: "sk1", defId: "defend" }, ...b.hand];
     b.youSkillTax = 3;
     expect(labV21EffectiveCost(b, labCard("defend", climbTestContext()), climbTestContext())).toBeGreaterThan(labCard("defend", climbTestContext()).cost);
-    b = endTurn(b, { deferIntentRefresh: true, deferStatusTicks: false });
+    b = endTurn(b, contextNow(), { deferIntentRefresh: true, deferStatusTicks: false });
     expect(b.youSkillTax ?? 0).toBe(0);
   });
 

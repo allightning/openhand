@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { contextNow } from "../game/runContext";
 import { setLabMode, setLabTuning } from "../game/labTuning";
 import { canPlay, playCard } from "../game/sim";
 import { startLabBattle } from "./factory";
@@ -29,9 +30,9 @@ describe("枪贴身拨杆", () => {
     b.foes = [b.enemy];
     b.energy = 10;
     b.hand = [{ uid: "t1", defId: "thrust" }];
-    expect(canPlay(b, "t1").ok).toBe(true);
+    expect(canPlay(b, "t1", contextNow()).ok).toBe(true);
     const hp = b.enemy.hp;
-    b = playCard(b, "t1");
+    b = playCard(b, "t1", contextNow());
     expect(b.enemy.hp).toBeLessThan(hp);
     expect(b.enemy.hp).toBeGreaterThanOrEqual(hp - 6);
     expect(Math.abs(b.player.pos - b.enemy.pos)).toBeGreaterThanOrEqual(2);
@@ -46,7 +47,7 @@ describe("枪贴身拨杆", () => {
     b.energy = 10;
     b.hand = [{ uid: "t1", defId: "thrust" }];
     const hp = b.enemy.hp;
-    b = playCard(b, "t1");
+    b = playCard(b, "t1", contextNow());
     expect(hp - b.enemy.hp).toBeGreaterThanOrEqual(5);
     expect(Math.abs(b.player.pos - b.enemy.pos)).toBe(3);
   });

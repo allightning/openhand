@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { contextNow } from "../game/runContext";
 import { ENEMIES, ENEMY_WEAPON } from "../game/content";
 import { enemyGradeForStage, enemyStrikeAtDist } from "../game/enemyGear";
 import { followFromKit, GAUNTLET_FOE_IDENTITY, profileFor, schoolForGeneratedEnemy } from "../game/enemyKit";
@@ -157,12 +158,12 @@ describe("D 对线 AI + 撤", () => {
       { kind: "guard", block: 6 },
     ];
     b.intent = b.intents[0]!;
-    weakenLabOpeningQueue(b);
+    weakenLabOpeningQueue(b, contextNow());
     expect(b.v2OpeningWeakened).toBe(true);
     expect(b.intents.length).toBeGreaterThan(0);
     expect(b.intents.length).toBeLessThanOrEqual(2);
     expect(b.intents.some((i) => i.kind !== "guard")).toBe(true);
-    seizeOpening(b);
+    seizeOpening(b, contextNow());
     expect(b.log.some((line) => line.includes("手先到"))).toBe(true);
     expect(b.intents.length).toBeGreaterThan(0);
   });
@@ -347,7 +348,7 @@ describe("E 追 + 覆盖律 + 特色招", () => {
       endDist: 2,
       endTurnCommitted: true,
     };
-    const plan = planBreaks(b, b.intents, "preview");
+    const plan = planBreaks(b, b.intents, "preview", breakTestContext());
     expect(plan.get(0)).toBe("hard");
     applyBreak(b, b.intents[0]!, 0, breakTestContext());
     expect(b.v2TurnBreakCount).toBe(1);
@@ -361,7 +362,7 @@ describe("E 追 + 覆盖律 + 特色招", () => {
     b.enemy.pos = 4;
     b.intents = [{ kind: "retreat", steps: 1 }];
     b.v2Turn = { ...emptyV2Turn(b), turnStartPos: 1, endPos: 1, endDist: 3, endTurnCommitted: true };
-    expect(planBreaks(b, b.intents, "preview").has(0)).toBe(false);
+    expect(planBreaks(b, b.intents, "preview", breakTestContext()).has(0)).toBe(false);
   });
 
   it("馆 7 具名带特色招", () => {
@@ -389,10 +390,10 @@ describe("追实机：进步缩短距离", () => {
     b.energy = 6;
     b.hand = [{ uid: "adv", defId: "advance" }];
     b.v2Turn = { ...emptyV2Turn(b), turnStartPos: 1 };
-    b = playCard(b, "adv");
+    b = playCard(b, "adv", contextNow());
     expect(b.player.pos).toBeGreaterThan(1);
     expect(b.v2Turn?.chaseCardPlayed).toBe(true);
-    const next = endTurn(b);
+    const next = endTurn(b, contextNow());
     expect(next.v2LastIntentRecap?.some((r) => r.outcome === "追" || r.outcome === "破")).toBe(true);
   });
 });
@@ -407,7 +408,7 @@ describe("闪避 / 霸体", () => {
     b.foeDodge = 1;
     b.energy = 6;
     b.hand = [{ uid: "cut1", defId: "cut" }];
-    b = playCard(b, "cut1");
+    b = playCard(b, "cut1", contextNow());
     expect(b.enemy.hp).toBe(hp);
     expect(b.foeDodge).toBe(0);
     expect(b.lastHitRead ?? "").toMatch(/闪/);
@@ -426,7 +427,7 @@ describe("闪避 / 霸体", () => {
     b.foeEndure = 1;
     b.energy = 6;
     b.hand = [{ uid: "p1", defId: "strike2" }];
-    b = playCard(b, "p1");
+    b = playCard(b, "p1", contextNow());
     expect(b.enemy.hp).toBeLessThan(hp);
     expect(b.enemy.pos).toBe(pos);
     expect(b.foeEndure).toBe(0);
@@ -445,7 +446,7 @@ describe("破桩", () => {
     const hp = b.enemy.hp;
     b.energy = 6;
     b.hand = [{ uid: "cut1", defId: "cut" }];
-    b = playCard(b, "cut1");
+    b = playCard(b, "cut1", contextNow());
     expect(b.enemy.hp).toBe(hp);
     expect(b.stakes).not.toContain(2);
     expect(b.lastHitRead ?? "").toMatch(/破桩/);
@@ -460,7 +461,7 @@ describe("破桩", () => {
     saber.stakeHits = { 2: 2 };
     saber.energy = 6;
     saber.hand = [{ uid: "cut1", defId: "cut" }];
-    saber = playCard(saber, "cut1");
+    saber = playCard(saber, "cut1", contextNow());
     expect(saber.stakes).toContain(2);
     expect(saber.stakeHits?.[2]).toBe(1);
 
@@ -472,7 +473,7 @@ describe("破桩", () => {
     staff.stakeHits = { 2: 2 };
     staff.energy = 6;
     staff.hand = [{ uid: "s1", defId: "split" }];
-    staff = playCard(staff, "s1");
+    staff = playCard(staff, "s1", contextNow());
     expect(staff.stakes).not.toContain(2);
   });
 

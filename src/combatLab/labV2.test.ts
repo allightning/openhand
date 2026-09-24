@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { contextNow } from "../game/runContext";
 import { ENEMIES } from "../game/content";
 import { setLabMode, setLabTuning } from "../game/labTuning";
 import { addQi, clearQi, commitV2EndTurn, emptyV2Turn, previewBrokenSegments } from "../game/labV2";
@@ -67,7 +68,7 @@ describe("Combat v2 势", () => {
     let b = v2Battle();
     b.v2PendingQi = 2;
     b.v2Turn = emptyV2Turn(b);
-    b = endTurn(b);
+    b = endTurn(b, contextNow());
     expect(b.qi).toBeGreaterThanOrEqual(2);
   });
 
@@ -78,13 +79,13 @@ describe("Combat v2 势", () => {
     if (!fin) {
       b.qi = 2;
       const gather = b.hand.find((c) => c.defId === "gather" || c.defId === "combo");
-      if (gather) b = playCard(b, gather.uid);
+      if (gather) b = playCard(b, gather.uid, contextNow());
     }
     b.qi = 3;
     const f = b.hand.find((c) => c.defId === "finisher");
     if (!f) return;
-    const prev = previewCard(b, f.uid);
-    b = playCard(b, f.uid);
+    const prev = previewCard(b, f.uid, contextNow());
+    b = playCard(b, f.uid, contextNow());
     expect(b.qi).toBe(0);
     expect(prev.legal).toBe(true);
   });
@@ -93,7 +94,7 @@ describe("Combat v2 势", () => {
     let b = v2Battle();
     const g = b.hand.find((c) => c.defId === "gather");
     if (!g) return;
-    b = playCard(b, g.uid);
+    b = playCard(b, g.uid, contextNow());
     expect(b.qi).toBeGreaterThan(0);
   });
 });
@@ -153,7 +154,7 @@ describe("Combat v2 换人", () => {
     expect(b.labFreshSwap).toBeFalsy();
     expect(b.labEntranceActive).toBe(true);
     const card = b.hand[0];
-    if (card) expect(canPlay(b, card.uid).ok).toBe(true);
+    if (card) expect(canPlay(b, card.uid, contextNow()).ok).toBe(true);
   });
 
   it("resonance tier 1 auto-applies with two same-school on team", () => {
@@ -177,7 +178,7 @@ describe("Combat v2 鏖战", () => {
     let b = v2Battle();
     b.turn = GRUDGE_NORMAL + 1;
     b.v2GrudgeBonus = 0;
-    b = endTurn(b);
+    b = endTurn(b, contextNow());
     expect(b.v2GrudgeBonus).toBeGreaterThan(0);
   });
 });
@@ -211,7 +212,7 @@ describe("Combat v2 三系统迁移", () => {
     let b = v2Battle();
     const c = b.hand.find((x) => x.defId === "combo");
     if (!c) return;
-    b = playCard(b, c.uid);
+    b = playCard(b, c.uid, contextNow());
     expect(b.qi).toBeGreaterThan(0);
     expect(b.combo).toBe(0);
   });

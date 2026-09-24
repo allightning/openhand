@@ -184,7 +184,7 @@ function segmentHtml(
   const isEye = breakMode && i === eyeIdx && eyeIdx >= 0;
   const previewRow =
     segPreview ??
-    previewIntentSegments(b, [intent], [projectedCells ?? dangerCellsForIntent(b, intent)], shellRunContext())[0]!;
+    previewIntentSegments(b, [intent], [projectedCells ?? dangerCellsForIntent(b, intent, shellRunContext())], shellRunContext())[0]!;
   const cellsArr = previewRow.threatCells;
   const num = intentOneNumber(b, intent, previewRow);
   const skip = previewRow.tierCode === "劲尽";
@@ -263,7 +263,7 @@ function timelineRow(
   segFate?: Record<number, "gone" | "grey">,
 ): string {
   const fire = intentFirePlan(b.enemyEnergy, queue);
-  const threat = projected ?? projectedQueueThreat(b);
+  const threat = projected ?? projectedQueueThreat(b, shellRunContext());
   const segPreviews = previewIntentSegments(b, queue, threat, shellRunContext());
   const cards = queue
     .map((intent, i) => {
@@ -357,7 +357,7 @@ export function renderFoeIntentStrip(
   // 眼标在段上已有；不再另起教学条。上息回顾改由石台下播报承担。
   const eyeHint = "";
   const recap = "";
-  const projected = projectedQueueThreat(b);
+  const projected = projectedQueueThreat(b, shellRunContext());
   if (live.length <= 1) {
     const queue = mainQueue;
     return `<div class="lab-intent-slot">${head}${recap}${eyeHint}<div class="lab-intent-timeline foe-inline">${timelineRow(b, b.enemy, queue, hoverIdx, broken, preview, grazed, grazePreview, currentIdx, eyeIdx, live.length, projected, hideResolvedBefore, segFate)}</div></div>`;
@@ -393,7 +393,7 @@ export function threatCellsForHover(b: Battle, hoverIdx: number | null): number[
   const queue = b.intents.length ? b.intents : [b.intent];
   const intent = queue[hoverIdx];
   if (!intent) return [];
-  return projectedQueueThreat(b)[hoverIdx] ?? [];
+  return projectedQueueThreat(b, shellRunContext())[hoverIdx] ?? [];
 }
 
 export function renderGrudgeBadge(b: Battle): string {

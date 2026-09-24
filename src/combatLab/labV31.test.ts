@@ -4,6 +4,7 @@
  * 六系绝招前置、搓手减费、弃牌按回合（甲方实测回归）。
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { contextNow } from "../game/runContext";
 import { CARDS } from "../game/content";
 import { setLabMode, setLabTuning } from "../game/labTuning";
 import { SCHOOL_REACH, WEAPON_PACE, cardSchool } from "../game/party";
@@ -49,18 +50,18 @@ describe("§31.11 距离与先机", () => {
   it("拳掌贴身才打得到；拆招枪贴身可拨杆、2–4 可戳", () => {
     const palm = withCard(schoolBattle("palm"), "strike");
     palm.enemy.pos = palm.player.pos + 3;
-    expect(canPlay(palm, "t1").ok).toBe(false);
-    expect(canPlay(palm, "t1").reason).toContain("够不着");
+    expect(canPlay(palm, "t1", contextNow()).ok).toBe(false);
+    expect(canPlay(palm, "t1", contextNow()).reason).toContain("够不着");
     palm.enemy.pos = palm.player.pos + 1;
-    expect(canPlay(palm, "t1").ok).toBe(true);
+    expect(canPlay(palm, "t1", contextNow()).ok).toBe(true);
 
     const spear = withCard(schoolBattle("spear"), "thrust");
     spear.enemy.pos = spear.player.pos + 1;
-    expect(canPlay(spear, "t1").ok).toBe(true);
+    expect(canPlay(spear, "t1", contextNow()).ok).toBe(true);
     spear.enemy.pos = spear.player.pos + 3;
-    expect(canPlay(spear, "t1").ok).toBe(true);
+    expect(canPlay(spear, "t1", contextNow()).ok).toBe(true);
     spear.enemy.pos = spear.player.pos + 4;
-    expect(canPlay(spear, "t1").ok).toBe(true);
+    expect(canPlay(spear, "t1", contextNow()).ok).toBe(true);
   });
 });
 
@@ -68,19 +69,19 @@ describe("§31.11 六系特色", () => {
   it("刀·埋招：上回合挨过打则 +4", () => {
     const base = withCard(schoolBattle("saber"), "cut");
     base.enemy.pos = base.player.pos + 1;
-    const cold = previewCard(base, "t1");
-    const hot = previewCard({ ...base, foeHitLastTurn: true }, "t1");
+    const cold = previewCard(base, "t1", contextNow());
+    const hot = previewCard({ ...base, foeHitLastTurn: true }, "t1", contextNow());
     expect(cold.enemyHp - hot.enemyHp).toBe(4);
   });
 
   it("枪·拆招伤档：2 格 3、3 格 5、4 格 8", () => {
     const b = withCard(schoolBattle("spear"), "thrust");
     b.enemy.pos = b.player.pos + 2;
-    const d2 = b.enemy.hp - previewCard(b, "t1").enemyHp;
+    const d2 = b.enemy.hp - previewCard(b, "t1", contextNow()).enemyHp;
     b.enemy.pos = b.player.pos + 3;
-    const d3 = b.enemy.hp - previewCard(b, "t1").enemyHp;
+    const d3 = b.enemy.hp - previewCard(b, "t1", contextNow()).enemyHp;
     b.enemy.pos = b.player.pos + 4;
-    const d4 = b.enemy.hp - previewCard(b, "t1").enemyHp;
+    const d4 = b.enemy.hp - previewCard(b, "t1", contextNow()).enemyHp;
     expect(d3 - d2).toBe(2);
     expect(d4 - d3).toBe(3);
   });
@@ -89,18 +90,18 @@ describe("§31.11 六系特色", () => {
     const b = withCard(schoolBattle("saber"), "cut");
     b.foeHitLastTurn = false;
     b.enemy.pos = b.player.pos + 1;
-    const d1 = b.enemy.hp - previewCard(b, "t1").enemyHp;
-    const melee = playCard({ ...b, energy: 10 }, "t1");
+    const d1 = b.enemy.hp - previewCard(b, "t1", contextNow()).enemyHp;
+    const melee = playCard({ ...b, energy: 10 }, "t1", contextNow());
     expect(melee.bleed).toBeGreaterThan(b.bleed ?? 0);
     b.enemy.pos = b.player.pos + 2;
-    const d2 = b.enemy.hp - previewCard(b, "t1").enemyHp;
-    const far = playCard({ ...b, energy: 10 }, "t1");
+    const d2 = b.enemy.hp - previewCard(b, "t1", contextNow()).enemyHp;
+    const far = playCard({ ...b, energy: 10 }, "t1", contextNow());
     expect(far.bleed).toBe(b.bleed ?? 0);
     expect(d1).toBeGreaterThan(d2);
     expect(d1 - d2).toBeGreaterThanOrEqual(5);
     const spear = withCard(schoolBattle("spear"), "thrust");
     spear.enemy.pos = spear.player.pos + 4;
-    const spearPeak = spear.enemy.hp - previewCard(spear, "t1").enemyHp;
+    const spearPeak = spear.enemy.hp - previewCard(spear, "t1", contextNow()).enemyHp;
     expect(d2).toBeLessThan(spearPeak);
   });
 
@@ -108,11 +109,11 @@ describe("§31.11 六系特色", () => {
     const b = withCard(schoolBattle("saber"), "saberBleed");
     b.foeHitLastTurn = false;
     b.enemy.pos = b.player.pos + 1;
-    const melee = playCard({ ...b, energy: 10 }, "t1");
+    const melee = playCard({ ...b, energy: 10 }, "t1", contextNow());
     const d1 = b.enemy.hp - melee.enemy.hp;
     const bleed1 = melee.bleed - (b.bleed ?? 0);
     b.enemy.pos = b.player.pos + 2;
-    const far = playCard({ ...b, energy: 10 }, "t1");
+    const far = playCard({ ...b, energy: 10 }, "t1", contextNow());
     const d2 = b.enemy.hp - far.enemy.hp;
     const bleed2 = far.bleed - (b.bleed ?? 0);
     expect(bleed1).toBe(bleed2);
@@ -122,8 +123,8 @@ describe("§31.11 六系特色", () => {
   it("剑·创伤叠层：敌裂创 6 层则 +2", () => {
     const b = withCard(schoolBattle("sword"), "pierce");
     b.enemy.pos = b.player.pos + 1;
-    const clean = previewCard(b, "t1");
-    const bleeding = previewCard({ ...b, bleed: 6 }, "t1");
+    const clean = previewCard(b, "t1", contextNow());
+    const bleeding = previewCard({ ...b, bleed: 6 }, "t1", contextNow());
     expect(clean.enemyHp - bleeding.enemyHp).toBe(2);
   });
 
@@ -139,10 +140,10 @@ describe("§31.11 六系特色", () => {
         { uid: "s3", defId: "split" },
       ],
     };
-    b = playCard(b, "s1");
-    b = playCard(b, "s2");
+    b = playCard(b, "s1", contextNow());
+    b = playCard(b, "s2", contextNow());
     expect(b.foeStun ?? 0).toBe(0);
-    b = playCard(b, "s3");
+    b = playCard(b, "s3", contextNow());
     expect(b.foeStun).toBe(1);
   });
 
@@ -153,7 +154,7 @@ describe("§31.11 六系特色", () => {
     b.intent = { kind: "strike", damage: 10 };
     b.intents = [{ kind: "strike", damage: 10 }];
     const hp = b.player.hp;
-    b = endTurn(b);
+    b = endTurn(b, contextNow());
     expect(b.player.hp).toBe(hp);
     expect(b.foeStun).toBe(0);
   });
@@ -161,19 +162,19 @@ describe("§31.11 六系特色", () => {
   it("钩·缴械：摘兵钩缴械 2 息，敌攻击减半；钩打缴械敌 +3", () => {
     let b = withCard(schoolBattle("hook"), "hookDisarm");
     b.enemy.pos = b.player.pos + 2;
-    b = playCard(b, "t1");
+    b = playCard(b, "t1", contextNow());
     expect(b.foeDisarm).toBe(2);
     // 缴械中钩系攻击 +3
     const c = withCard(b, "hookpull", { energy: 10 });
-    const armed = previewCard({ ...c, foeDisarm: 0 }, "t1");
-    const disarmed = previewCard(c, "t1");
+    const armed = previewCard({ ...c, foeDisarm: 0 }, "t1", contextNow());
+    const disarmed = previewCard(c, "t1", contextNow());
     expect(armed.enemyHp - disarmed.enemyHp).toBe(3);
     // 缴械中敌攻击减半
     let d = { ...b, playerBlock: 0 };
     d.intent = { kind: "strike", damage: 10 };
     d.intents = [{ kind: "strike", damage: 10 }];
     const hp = d.player.hp;
-    d = endTurn(d);
+    d = endTurn(d, contextNow());
     expect(d.player.hp).toBe(hp - 5);
   });
 
@@ -181,7 +182,7 @@ describe("§31.11 六系特色", () => {
     let b = withCard(schoolBattle("palm"), "push");
     b.enemy.pos = 5;
     b.player.pos = 4;
-    b = playCard(b, "t1");
+    b = playCard(b, "t1", contextNow());
     expect(b.foeStun).toBe(1);
     expect(b.log.some((l) => l.includes("震壁"))).toBe(true);
   });
@@ -205,7 +206,7 @@ describe("§31.11 六系绝招前置", () => {
         b.enemy.pos = 4;
         b.player.pos = 3;
       } else b.enemy.pos = b.player.pos + 1;
-      const locked = canPlay(b, "t1");
+      const locked = canPlay(b, "t1", contextNow());
       expect(locked.ok).toBe(false);
       expect(locked.reason).toContain("绝招");
       b = c.setup(b);
@@ -214,7 +215,7 @@ describe("§31.11 六系绝招前置", () => {
         b.enemy.pos = 6;
         b.player.pos = 5;
       }
-      expect(canPlay(b, "t1").ok).toBe(true);
+      expect(canPlay(b, "t1", contextNow()).ok).toBe(true);
     });
   }
 
@@ -222,7 +223,7 @@ describe("§31.11 六系绝招前置", () => {
     let b = withCard(schoolBattle("saber"), "ultSaber", { bleed: 3 });
     b.enemy.pos = b.player.pos + 1;
     const hp = b.enemy.hp;
-    b = playCard(b, "t1");
+    b = playCard(b, "t1", contextNow());
     expect(b.bleed).toBe(2);
     expect(b.log.some((l) => l.includes("血祭"))).toBe(true);
     expect(b.enemy.hp).toBeLessThan(hp);
@@ -249,10 +250,10 @@ describe("§31.11 减费与弃牌", () => {
         { uid: "s", defId: "strike2" },
       ],
     };
-    b = playCard(b, "w");
+    b = playCard(b, "w", contextNow());
     expect(b.costDiscountNext).toBe(1);
     const e0 = b.energy;
-    b = playCard(b, "s"); // 开山掌 2 费 → 实扣 1
+    b = playCard(b, "s", contextNow()); // 开山掌 2 费 → 实扣 1
     expect(e0 - b.energy).toBe(1);
     expect(b.costDiscountNext ?? 0).toBe(0);
   });
@@ -263,7 +264,7 @@ describe("§31.11 减费与弃牌", () => {
     b = { ...b, hand: [b.hand[0]!], playerBlock: 0 };
     b.intent = { kind: "windup" };
     b.intents = [{ kind: "windup" }];
-    b = endTurn(b); // 拆招：手 1 + 摸 ⌈5/2⌉=3 → 4
+    b = endTurn(b, contextNow()); // 拆招：手 1 + 摸 ⌈5/2⌉=3 → 4
     expect(b.hand.length).toBe(4);
     expect(b.v2Turn?.turnStartHand).toBe(4);
     expect(labDiscardsLeft(b)).toBe(1);
@@ -286,7 +287,7 @@ describe("§31.12 败判看全队", () => {
     b.enemy.pos = b.player.pos + 1;
     b.intent = { kind: "strike", damage: 10 };
     b.intents = [{ kind: "strike", damage: 10 }];
-    b = endTurn(b);
+    b = endTurn(b, contextNow());
     expect(b.phase).not.toBe("lost");
     expect(b.active).toBe("blade");
     expect(b.player.hp).toBe(30);
@@ -301,7 +302,7 @@ describe("§31.12 败判看全队", () => {
     b.enemy.pos = b.player.pos + 1;
     b.intent = { kind: "strike", damage: 10 };
     b.intents = [{ kind: "strike", damage: 10 }];
-    b = endTurn(b);
+    b = endTurn(b, contextNow());
     expect(b.phase).toBe("lost");
   });
 });
@@ -314,7 +315,7 @@ describe("§31.12 红格覆盖与实收伤害", () => {
     b.player.pos = 1;
     b.v2Turn = { ...b.v2Turn!, turnStartPos: 1 };
     // 敌在 4，朝锁定格 1 进一步 → 落点 3，拳 reach1 身前 → 红格 [2]（3 是落点脚下，4 是身后）
-    const cells = dangerCellsForIntent(b, { kind: "lunge", damage: 10 });
+    const cells = dangerCellsForIntent(b, { kind: "lunge", damage: 10 }, contextNow());
     expect(cells).toEqual([2]);
   });
 
@@ -325,7 +326,7 @@ describe("§31.12 红格覆盖与实收伤害", () => {
     b.player.pos = 5;
     b.v2Turn = { ...b.v2Turn!, turnStartPos: 5 };
     // 冲锋 3 步：路径 2,3,4，终点 4 朝锁定 5 身前 reach1 → 5
-    const cells = dangerCellsForIntent(b, { kind: "charge", damage: 10, steps: 3 });
+    const cells = dangerCellsForIntent(b, { kind: "charge", damage: 10, steps: 3 }, contextNow());
     expect(cells).toContain(2);
     expect(cells).toContain(5);
     expect(cells).not.toContain(0); // 身后/反方向不红
@@ -342,7 +343,7 @@ describe("§31.12 红格覆盖与实收伤害", () => {
     b.intent = { kind: "lunge", damage: 10 };
     b.intents = [{ kind: "lunge", damage: 10 }];
     b.enemyId = "usurper" as never;
-    const after = endTurn(b);
+    const after = endTurn(b, contextNow());
     expect(after.player.hp).toBeLessThan(hp);
   });
 
@@ -350,7 +351,7 @@ describe("§31.12 红格覆盖与实收伤害", () => {
     const { intentIncoming } = await import("../game/sim");
     const b = schoolBattle("palm");
     b.v2GrudgeBonus = 9;
-    const inc = intentIncoming(b, { kind: "strike", damage: 11 });
+    const inc = intentIncoming(b, { kind: "strike", damage: 11 }, contextNow());
     expect(inc.total).toBe(20);
     expect(inc.parts.join()).toContain("鏖战 +9");
   });
@@ -359,7 +360,7 @@ describe("§31.12 红格覆盖与实收伤害", () => {
     const { intentIncoming } = await import("../game/sim");
     const b = schoolBattle("palm");
     b.foeDisarm = 2;
-    const inc = intentIncoming(b, { kind: "strike", damage: 11 });
+    const inc = intentIncoming(b, { kind: "strike", damage: 11 }, contextNow());
     expect(inc.total).toBe(5);
     expect(inc.parts.join()).toContain("缴械");
   });

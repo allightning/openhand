@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { contextNow } from "../game/runContext";
 import { setLabMode } from "../game/labTuning";
 import { canPlay } from "../game/sim";
 import { startLabBattle } from "./factory";
@@ -26,8 +27,8 @@ describe("进步/退步无路闸", () => {
       { uid: "r1", defId: "retreat" },
       { uid: "a1", defId: "advance" },
     ];
-    expect(canPlay(b, "r1")).toEqual({ ok: false, reason: "身后无路" });
-    expect(canPlay(b, "a1").ok).toBe(true);
+    expect(canPlay(b, "r1", contextNow())).toEqual({ ok: false, reason: "身后无路" });
+    expect(canPlay(b, "a1", contextNow()).ok).toBe(true);
   });
 
   it("贴敌身前时进步灰掉（无对撞技）", () => {
@@ -36,7 +37,7 @@ describe("进步/退步无路闸", () => {
     b.enemy.pos = 3;
     b.energy = 10;
     b.hand = [{ uid: "a1", defId: "advance" }];
-    expect(canPlay(b, "a1")).toEqual({ ok: false, reason: "身前无路" });
+    expect(canPlay(b, "a1", contextNow())).toEqual({ ok: false, reason: "身前无路" });
   });
 
   it("系别退步牌（steps<0）贴墙也灰", () => {
@@ -47,6 +48,6 @@ describe("进步/退步无路闸", () => {
     b.enemy.pos = 4;
     b.energy = 10;
     b.hand = [{ uid: "ss", defId: "stepSword" }];
-    expect(canPlay(b, "ss")).toEqual({ ok: false, reason: "身后无路" });
+    expect(canPlay(b, "ss", contextNow())).toEqual({ ok: false, reason: "身后无路" });
   });
 });

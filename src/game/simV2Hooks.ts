@@ -236,12 +236,12 @@ export function simV2ResolveIntentQueue(
   b.labFoeTurnPlayerHit = false;
   b.labFoeTurnAssistHit = false;
   const queue = b.intents.length ? [...b.intents] : [b.intent];
-  const projected = queuedThreatCells(b, queue);
+  const projected = queuedThreatCells(b, queue, rc);
   // 旧训练馆核选路，阶段3拆 engine/break 时沉走，勿仿此新增
   const breakMode = rc.ruleset.mode === "break";
   const climbPace = climbOneIntentPace();
   // §31.8 v3：破招计划一次算清（预览=结算），硬拆耗充能、软拆半效。经典只算打/空/跳过。
-  const plan = breakMode ? planBreaks(b, queue, "resolve") : new Map<number, "hard" | "graze">();
+  const plan = breakMode ? planBreaks(b, queue, "resolve", rc) : new Map<number, "hard" | "graze">();
   const eyeIdx = breakMode ? (b.v2EyeIdx ?? -1) : -1;
   let collapsed = false;
   const recap: { ord: number; name: string; outcome: string; hpLost?: number; blockLost?: number }[] = [];

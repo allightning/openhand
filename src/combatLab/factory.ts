@@ -87,7 +87,7 @@ export function startLabBattle(preset: LabPreset, ordered = false, deckMultiplie
   setLabMode(true);
   const p = normalizePreset(preset);
   const run = runFromPreset(p);
-  let b = makeBattle(p.enemyId, run, ordered, p.enemyId.startsWith("tutor"), shellRunContext());
+  let b = makeBattle(p.enemyId, shellRunContext(), run, ordered, p.enemyId.startsWith("tutor"));
   if (p.extraFoeIds?.length) {
     const hpScale = b.enemy.maxHp / labEnemy(p.enemyId, shellRunContext()).hp;
     const extras = p.extraFoeIds.map((id) => extraUnit(id, hpScale));
@@ -133,12 +133,12 @@ export function startLabBattle(preset: LabPreset, ordered = false, deckMultiplie
   const mult = deckMultiplier ?? getLabTuning().deckMultiplier;
   const expanded = expandDeckRecipe(p.deckRecipe, mult);
   out.v2FieldSchoolDeckPct = fieldSchoolDeckPct(p, expanded);
-  out.v2OpeningPaceBehind = battlePace(out) < out.foePace;
+  out.v2OpeningPaceBehind = battlePace(out, shellRunContext()) < out.foePace;
   out.labGauntletStage = p.gauntletStage;
   if (p.hallLaw) out.labHallLaw = p.hallLaw;
   if (p.sceneBg) out.labSceneBg = p.sceneBg;
-  if (!isBreakAlign() && p.gauntletStage != null) applyClimbOpeningPositions(out);
-  applyLabEnemyKit(out);
+  if (!isBreakAlign() && p.gauntletStage != null) applyClimbOpeningPositions(out, shellRunContext());
+  applyLabEnemyKit(out, shellRunContext());
   if (!isBreakAlign()) {
     const fieldSch = battleEquippedSchool(out, p.fieldMate);
     const same = p.party.filter((id) => battleEquippedSchool(out, id) === fieldSch).length;

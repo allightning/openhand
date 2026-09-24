@@ -338,7 +338,7 @@ export function useLabItem(
     next.journal = [...next.journal, { side: "you", text: "死士入场：替你挡一段攻击并反扑 8" }];
   } else if (isSummonItem(item)) {
     const school = SUMMON_ITEM_TO_SCHOOL[item]!;
-    const cells = legalSummonCells(b);
+    const cells = legalSummonCells(b, rc);
     if (!cells.length) return { ok: false, reason: "台上没空地" };
     if (b.labSummon && b.labSummon.hp > 0) return { ok: false, reason: "已有助战在场" };
     const pick =
@@ -347,7 +347,7 @@ export function useLabItem(
         const around = [b.enemy.pos + 1, b.enemy.pos - 1].filter((c) => cells.includes(c));
         return (around[0] ?? cells[0])!;
       })();
-    const summoned = summonAssist(b, school, pick);
+    const summoned = summonAssist(b, school, pick, rc);
     if (!summoned.labSummon) return { ok: false, reason: "该格落不了" };
     summoned.labItems = [...(next.labItems ?? [])];
     summoned.labItemCharges = { ...(next.labItemCharges ?? {}) };

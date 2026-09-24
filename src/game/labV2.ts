@@ -198,7 +198,7 @@ export function previewBrokenSegments(b: Battle, rc: RunContext): number[] {
     return [];
   }
   const queue = b.intents.length ? b.intents : [b.intent];
-  const plan = planBreaks(b, queue, "preview");
+  const plan = planBreaks(b, queue, "preview", rc);
   b.v2GrazePreview = [...plan.entries()].filter(([, t]) => t === "graze").map(([i]) => i);
   return [...plan.entries()].filter(([, t]) => t === "hard").map(([i]) => i);
 }

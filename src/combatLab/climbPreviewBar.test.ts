@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { contextNow } from "../game/runContext";
 import { labCard } from "../game/labContent";
 import { climbTestContext } from "../game/testContext";
 import { labV21EffectiveCost } from "../game/labV21";
@@ -62,10 +63,10 @@ describe("预演条与耗蓝角标", () => {
     b.enemy.pos = 2; // 拉近到刀程内
     const atk = b.hand.find((c) => {
       const def = labCard(c.defId, climbTestContext());
-      return def.type === "attack" && (def.damage ?? 0) > 0 && previewCard(b, c.uid).legal;
+      return def.type === "attack" && (def.damage ?? 0) > 0 && previewCard(b, c.uid, contextNow()).legal;
     });
     expect(atk).toBeTruthy();
-    const prev = previewCard(b, atk!.uid);
+    const prev = previewCard(b, atk!.uid, contextNow());
     expect(prev.legal).toBe(true);
     expect(prev.enemyHp).toBeLessThan(b.enemy.hp);
     const html = renderHoverPreview(b, prev);
@@ -82,7 +83,7 @@ describe("预演条与耗蓝角标", () => {
     const atk = b.hand.find((c) => labCard(c.defId, climbTestContext()).type === "attack");
     expect(atk).toBeTruthy();
     const broke = { ...b, energy: 0 };
-    const prev = previewCard(broke, atk!.uid);
+    const prev = previewCard(broke, atk!.uid, contextNow());
     expect(prev.legal).toBe(false);
     const html = renderHoverPreview(broke, prev);
     expect(html).toContain("preview bad");
@@ -93,7 +94,7 @@ describe("预演条与耗蓝角标", () => {
     const b = climbBattle(); // 敌在 4 格，刀程 2
     const atk = b.hand.find((c) => labCard(c.defId, climbTestContext()).type === "attack");
     expect(atk).toBeTruthy();
-    const prev = previewCard(b, atk!.uid);
+    const prev = previewCard(b, atk!.uid, contextNow());
     expect(prev.legal).toBe(false);
     const html = renderHoverPreview(b, prev);
     expect(html).toContain("preview bad");

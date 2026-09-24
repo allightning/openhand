@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync } from "node:fs";
+import { contextNow } from "./runContext";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -150,15 +151,15 @@ function mash(seed: number, loadout: string, ruleset: "climb" | "break"): Frame[
     while (!battleOver(b) && guard < 36) {
       guard += 1;
       if (b.phase !== "player") break;
-      const legal = b.hand.filter((c) => canPlay(b, c.uid).ok);
+      const legal = b.hand.filter((c) => canPlay(b, c.uid, contextNow()).ok);
       if (legal.length > 0 && b.energy > 0) {
         const card = legal[Math.floor(rng() * legal.length)]!;
         const before = b.log.length;
-        b = playCard(b, card.uid);
+        b = playCard(b, card.uid, contextNow());
         take(b, `play:${card.defId}`, before);
       } else {
         const before = b.log.length;
-        b = endTurn(b);
+        b = endTurn(b, contextNow());
         take(b, "end", before);
       }
     }
@@ -191,13 +192,13 @@ function buildCorpus(): Corpus {
       ...b.hand,
     ];
     const a = b.log.length;
-    b = playCard(b, "spk1");
+    b = playCard(b, "spk1", contextNow());
     take(b, "spear-1", a);
     b.energy = 20;
     b.player.pos = 0;
     b.enemy.pos = 4;
     const c = b.log.length;
-    b = playCard(b, "spk2");
+    b = playCard(b, "spk2", contextNow());
     take(b, "spear-debt", c);
   });
 
@@ -212,7 +213,7 @@ function buildCorpus(): Corpus {
     addStake(b, 3, 1, climbTestContext());
     b.hand = [{ uid: "spl", defId: "split" as CardId }, ...b.hand];
     const before = b.log.length;
-    b = playCard(b, "spl");
+    b = playCard(b, "spl", contextNow());
     take(b, "split", before);
   });
 
@@ -224,7 +225,7 @@ function buildCorpus(): Corpus {
     b.youStun = b.hand.length;
     b.energy = 0;
     const before = b.log.length;
-    b = endTurn(b);
+    b = endTurn(b, contextNow());
     take(b, "stun-end", before);
   });
 

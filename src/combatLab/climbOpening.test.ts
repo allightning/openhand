@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { contextNow } from "../game/runContext";
 import { climbOpeningDistance, climbOpeningPositions } from "./climbCaps";
 import { applyClimbOpeningPositions } from "../game/sim";
 import { setLabMode } from "../game/labTuning";
@@ -24,7 +25,7 @@ describe("climb opening distance", () => {
       enemyId: "mob_bandit_0",
       labGauntletStage: 2,
     } as unknown as Battle;
-    applyClimbOpeningPositions(b);
+    applyClimbOpeningPositions(b, contextNow());
     expect(Math.abs(b.enemy.pos - b.player.pos)).toBe(3);
     expect(climbOpeningPositions(3)).toEqual({ playerPos: 1, enemyPos: 4 });
   });

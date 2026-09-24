@@ -79,7 +79,7 @@ export function previewIntentSegments(
       return { fate: "grey", threatCells: cells, tierCode: "空", displayDamage: 0 };
     }
 
-    const inc = intentIncoming(b, intent);
+    const inc = intentIncoming(b, intent, ctx);
     return { fate: "hit", threatCells: cells, tierCode: "打", displayDamage: inc.total || rawDmg };
   });
 }
