@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { contextNow } from "../game/runContext";
 import { setLabMode } from "../game/labTuning";
+import { climbTestContext } from "../game/testContext";
 import {
   applyClimbPhaseBeat,
   applyPendingStatusTicks,
@@ -36,7 +36,7 @@ describe("爬塔结束/开始逐拍", () => {
     const handBefore = b.hand.length;
     const foeHpBefore = b.enemy.hp;
 
-    b = endTurn(b, contextNow(), { deferIntentRefresh: true, deferStatusTicks: true });
+    b = endTurn(b, climbTestContext(), { deferIntentRefresh: true, deferStatusTicks: true });
     expect(b.v2PendingStatusTicks).toBe(true);
     expect(peekClimbPhaseQueue(b)).toEqual(["bleed", "regen", "wage", "endure", "draw", "intents"]);
     expect(b.bleed).toBe(3);
@@ -46,30 +46,30 @@ describe("爬塔结束/开始逐拍", () => {
     expect(b.foeEndure).toBe(2);
     expect(b.v2PendingIntentRefresh).toBe(true);
 
-    const bleed = applyClimbPhaseBeat(b, contextNow());
+    const bleed = applyClimbPhaseBeat(b, climbTestContext());
     expect(bleed.read).toMatch(/裂创/);
     expect(bleed.banner).toBe("【结束】裂创");
     b = bleed.battle;
     expect(b.bleed).toBe(3);
     expect(b.enemy.hp).toBe(foeHpBefore - 3);
 
-    const regen = applyClimbPhaseBeat(b, contextNow());
+    const regen = applyClimbPhaseBeat(b, climbTestContext());
     expect(regen.banner).toBe("【结束】回劲");
     b = regen.battle;
     expect(b.energy).toBeGreaterThan(energyBefore);
 
-    const wage = applyClimbPhaseBeat(b, contextNow());
+    const wage = applyClimbPhaseBeat(b, climbTestContext());
     expect(wage.banner).toBe("【结束】敌回劲");
     b = wage.battle;
     expect(b.enemyEnergy).toBeGreaterThan(0);
 
-    const endure = applyClimbPhaseBeat(b, contextNow());
+    const endure = applyClimbPhaseBeat(b, climbTestContext());
     expect(endure.banner).toBe("【结束】霸体");
     expect(endure.read).not.toMatch(/无/);
     b = endure.battle;
     expect(b.foeEndure).toBe(1);
 
-    const draw = applyClimbPhaseBeat(b, contextNow());
+    const draw = applyClimbPhaseBeat(b, climbTestContext());
     expect(draw.banner).toBe("【开始】摸牌");
     expect(draw.read).toMatch(/摸 \d+ 张/);
     expect(draw.read).not.toMatch(/后场/);
@@ -77,7 +77,7 @@ describe("爬塔结束/开始逐拍", () => {
     expect(b.hand.length).not.toBe(handBefore);
 
     if (peekClimbPhaseQueue(b)[0] === "drawBench") {
-      const bench = applyClimbPhaseBeat(b, contextNow());
+      const bench = applyClimbPhaseBeat(b, climbTestContext());
       if (!bench.skip) {
         expect(bench.banner).toBe("【开始】后场摸牌");
         expect(bench.read).toMatch(/后场.*摸 \d+/);
@@ -85,13 +85,13 @@ describe("爬塔结束/开始逐拍", () => {
       b = bench.battle;
     }
 
-    const intents = applyClimbPhaseBeat(b, contextNow());
+    const intents = applyClimbPhaseBeat(b, climbTestContext());
     expect(intents.banner).toBe("【开始】亮招");
     expect(intents.read).not.toMatch(/后手隐/);
     b = intents.battle;
     expect(b.v2PendingIntentRefresh).toBeFalsy();
     expect(peekClimbPhaseQueue(b)).toEqual([]);
-    expect(applyClimbPhaseBeat(b, contextNow()).done).toBe(true);
+    expect(applyClimbPhaseBeat(b, climbTestContext()).done).toBe(true);
   });
 
   it("无裂创无霸体时不进队列，不播空拍", () => {
@@ -104,7 +104,7 @@ describe("爬塔结束/开始逐拍", () => {
     b.youBleed = 0;
     b.foeEndure = 0;
     b.enemyEnergy = 0;
-    b = endTurn(b, contextNow(), { deferIntentRefresh: true, deferStatusTicks: true });
+    b = endTurn(b, climbTestContext(), { deferIntentRefresh: true, deferStatusTicks: true });
     expect(peekClimbPhaseQueue(b)).toEqual(["regen", "wage", "draw", "intents"]);
     expect(peekClimbPhaseQueue(b)).not.toContain("bleed");
     expect(peekClimbPhaseQueue(b)).not.toContain("endure");
@@ -117,9 +117,9 @@ describe("爬塔结束/开始逐拍", () => {
     b.intents = [{ kind: "guard", block: 1 }];
     b.intent = b.intents[0]!;
     b.bleed = 2;
-    b = endTurn(b, contextNow(), { deferIntentRefresh: true, deferStatusTicks: true });
+    b = endTurn(b, climbTestContext(), { deferIntentRefresh: true, deferStatusTicks: true });
     const handBefore = b.hand.length;
-    b = applyPendingStatusTicks(b, contextNow());
+    b = applyPendingStatusTicks(b, climbTestContext());
     expect(b.v2PendingStatusTicks).toBeFalsy();
     expect(peekClimbPhaseQueue(b)).toEqual([]);
     expect(b.bleed).toBe(2);
@@ -149,9 +149,9 @@ describe("爬塔结束/开始逐拍", () => {
     b.intent = b.intents[0]!;
     b.foePace = 1;
     b.paceBoost = 9;
-    b = endTurn(b, contextNow(), { deferIntentRefresh: true, deferStatusTicks: true });
+    b = endTurn(b, climbTestContext(), { deferIntentRefresh: true, deferStatusTicks: true });
     while (peekClimbPhaseQueue(b).length) {
-      b = applyClimbPhaseBeat(b, contextNow()).battle;
+      b = applyClimbPhaseBeat(b, climbTestContext()).battle;
     }
     const line = [...b.log].reverse().find((l) => l.includes("亮招"));
     expect(line).toBeTruthy();
@@ -171,12 +171,12 @@ describe("爬塔结束/开始逐拍", () => {
     b.paceBoost = 0;
     b.youSlow = 0;
     const hp = b.player.hp;
-    b = endTurn(b, contextNow(), { deferIntentRefresh: true, deferStatusTicks: true });
+    b = endTurn(b, climbTestContext(), { deferIntentRefresh: true, deferStatusTicks: true });
     while (peekClimbPhaseQueue(b).some((s) => s !== "intents")) {
-      b = applyClimbPhaseBeat(b, contextNow()).battle;
+      b = applyClimbPhaseBeat(b, climbTestContext()).battle;
     }
     expect(peekClimbPhaseQueue(b)).toEqual(["intents"]);
-    const after = applyClimbPhaseBeat(b, contextNow());
+    const after = applyClimbPhaseBeat(b, climbTestContext());
     b = after.battle;
     expect(b.climbNeedFoeOpenPlayback).toBe(true);
     expect(b.climbEnemyActedThisRound).toBeFalsy();
