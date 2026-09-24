@@ -739,7 +739,7 @@ export function renderGauntletLoadout(
   const gear = gearById(weaponId, shellRunContext());
   const weaponHtml = gear
     ? `<button type="button" class="card skill gauntlet-camp-card gauntlet-loadout-card gauntlet-loadout-weapon" data-weapon-open="${escapeAttr(weaponId)}" data-tip="${escapeAttr(`${gear.name} · ${gear.tip}`)}">
-        <div class="art">${weaponArt(weaponId)}</div>
+        <div class="art">${weaponArt(weaponId, shellRunContext())}</div>
         <div class="banner">兵刃 · ${escapeHtml(WEAPON_NAME[gear.school])}</div>
         <h3>${escapeHtml(gear.name)}</h3>
         <p class="text">${escapeHtml(gear.tip)}</p>

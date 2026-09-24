@@ -1658,7 +1658,7 @@ function renderCombat(): string {
 
       <footer class="bottombar">
         <div class="draw-col">
-          ${gear ? weaponArtMarkup(gear.id, { button: true }) : weaponArtMarkup(starterGear(mate.weapon), { button: true })}
+          ${gear ? weaponArtMarkup(gear.id, contextNow(), { button: true }) : weaponArtMarkup(starterGear(mate.weapon), contextNow(), { button: true })}
           <button type="button" class="pile-card" data-pile="draw" title="残谱">
             <em>残谱</em>
             <b>${b.drawPile.length}</b>
@@ -1671,7 +1671,7 @@ function renderCombat(): string {
         </div>
         ${renderStatusCol(b, "foe")}
         <div class="foe-col">
-          ${weaponArtMarkup(foeWeaponId(b.enemyId), { button: true })}
+          ${weaponArtMarkup(foeWeaponId(b.enemyId), contextNow(), { button: true })}
           <button type="button" class="pile-card discard" data-pile="discard" title="战记">
             <em>战记</em>
             <b>${b.journal.length}</b>
@@ -1686,14 +1686,14 @@ function renderCombat(): string {
 }
 
 function renderWeaponSheet(id: string): string {
-  const d = weaponDetail(id);
+  const d = weaponDetail(id, contextNow());
   if (!d) return "";
   return `
     <div class="sheet-mask" id="weapon-mask">
       <div class="sheet-panel weapon-sheet ink-sheet">
         ${sheetClose()}
         <div class="kicker">兵刃</div>
-        <div class="weapon-sheet-art">${weaponArt(id)}</div>
+        <div class="weapon-sheet-art">${weaponArt(id, contextNow())}</div>
         <h2>${d.name}</h2>
         <p class="weapon-school">${d.school}</p>
         <p>${d.text}</p>
