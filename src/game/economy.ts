@@ -242,7 +242,7 @@ export const SOFT_GRADE_CAP = 2;
 export function softUpgradeTarget(weaponId: string, rc: RunContext): string | null {
   const g = gearById(weaponId, rc);
   if (!g || g.grade >= SOFT_GRADE_CAP) return null;
-  return nextGrade(weaponId);
+  return nextGrade(weaponId, rc);
 }
 
 export function softUpgradeBlockReason(weaponId: string, rc: RunContext): string {

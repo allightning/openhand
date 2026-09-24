@@ -122,7 +122,7 @@ export function damageBreakdown(
 
   const g = gearById(b.labGearId, ctx);
   add(parts, "兵器", g?.damage ?? 0);
-  const mods = pathSkillMods(g, {
+  const mods = pathSkillMods(g, ctx, {
     dist,
     combo: b.combo,
     paceAdvantage: youPaceNow(b, ctx) >= b.foePace,

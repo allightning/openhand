@@ -9,6 +9,7 @@ import {
 import { hubPuzzlesOpen } from "./puzzles";
 import { questLog } from "./quest";
 import { addFlag, makeRun } from "./run";
+import { climbTestContext } from "./testContext";
 
 describe("hubPuzzlesOpen", () => {
   it("stays closed until village paperwork", () => {
@@ -64,7 +65,7 @@ describe("midBeats", () => {
 describe("quest mid gates", () => {
   it("holds rail at Jiankang door after rebel rumor", () => {
     const run = addFlag(addFlag(makeRun("empty", "rail"), "mainOpen"), "heardRebel");
-    expect(questLog(run).main.title).toMatch(/朱雀航/);
+    expect(questLog(run, climbTestContext()).main.title).toMatch(/朱雀航/);
   });
 
   it("points seer purge at wash-or-move wording", () => {
@@ -72,6 +73,6 @@ describe("quest mid gates", () => {
       ...addFlag(makeRun("empty", "seer"), "caseRebel"),
       beaten: ["inkhand" as const],
     };
-    expect(questLog(run).main.guide).toMatch(/洗城|挪页/);
+    expect(questLog(run, climbTestContext()).main.guide).toMatch(/洗城|挪页/);
   });
 });

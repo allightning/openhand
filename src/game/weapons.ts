@@ -1,7 +1,7 @@
 import type { WeaponId } from "./types";
 import { WEAPON_NAME } from "./party";
 import { getContentOverrides } from "./labContentOverrides";
-import { contextNow, type RunContext } from "./runContext";
+import type { RunContext } from "./runContext";
 
 /** 凡良精玄神 — five combat gear tiers. */
 export type WeaponTier = "fan" | "liang" | "jing" | "xuan" | "shen";
@@ -186,8 +186,8 @@ function buildAll(): GearWeapon[] {
 
 export const GEAR_WEAPONS: GearWeapon[] = buildAll();
 
-export function nextGrade(id: string): string | null {
-  const g = gearById(id, contextNow());
+export function nextGrade(id: string, rc: RunContext): string | null {
+  const g = gearById(id, rc);
   if (!g || g.grade >= 5) return null;
   return `${g.school}-${g.path}-${g.grade + 1}`;
 }
@@ -254,6 +254,7 @@ export type PathSkillCtx = {
 
 export function pathSkillMods(
   idOrGear: string | GearWeapon | null | undefined,
+  rc: RunContext,
   ctx?: PathSkillCtx,
 ): {
   wallBlock?: number;
@@ -274,7 +275,7 @@ export function pathSkillMods(
   ward?: number;
   note?: string;
 } {
-  const g = typeof idOrGear === "object" && idOrGear ? idOrGear : gearById(idOrGear ?? null, contextNow());
+  const g = typeof idOrGear === "object" && idOrGear ? idOrGear : gearById(idOrGear ?? null, rc);
   if (!g?.skill) return { qiRegen: g?.secondary.qiRegen };
   const sec = g.secondary;
   const base =

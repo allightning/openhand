@@ -13,6 +13,7 @@ import {
 import { makeRun } from "./run";
 import { gateOpen } from "../map/world";
 import { loadScene } from "../map/world";
+import { climbTestContext } from "./testContext";
 
 describe("hooks", () => {
   it("scars open books gate without booksOk", () => {
@@ -55,7 +56,7 @@ describe("hooks", () => {
     expect(run.flags).toContain("bountyActive");
     const target = run.flags.find((f) => f.startsWith("bountyTarget-"))!.replace("bountyTarget-", "");
     run = { ...run, beaten: [...run.beaten, target as never] };
-    const pay = checkBountyOnWin(run, target as never);
+    const pay = checkBountyOnWin(run, target as never, climbTestContext());
     expect(pay.payout).toContain("结了");
   });
 

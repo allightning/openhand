@@ -4,7 +4,7 @@ import { economyLoopNote, SOFT_GRADE_CAP } from "./economy";
 import { bountyTarget, bountyWhere } from "./hooks";
 import { ENEMIES } from "./content";
 import type { HeroId, Run } from "./types";
-import { contextNow } from "./runContext";
+import type { RunContext } from "./runContext";
 import { gearById } from "./weapons";
 
 function enemyLabel(id: string): string {
@@ -257,7 +257,7 @@ function mainFor(hero: HeroId, run: Run): QuestEntry {
   return railMain(run);
 }
 
-export function questLog(run: Run): QuestLog {
+export function questLog(run: Run, rc: RunContext): QuestLog {
   const sides: QuestEntry[] = [];
   const main = mainFor(run.hero ?? "rail", run);
   const shut = has(run, "sidesShut");
@@ -265,7 +265,7 @@ export function questLog(run: Run): QuestLog {
   sides.push(...brandSides(run, shut));
 
   if (!shut && has(run, "branded")) {
-    const g = gearById(run.weapon, contextNow());
+    const g = gearById(run.weapon, rc);
     const grade = g?.grade ?? 1;
     if (grade < 5) {
       sides.push(

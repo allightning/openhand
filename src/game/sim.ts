@@ -502,7 +502,7 @@ function climbDrawRound(b: Battle, opening: boolean): void {
 function bindClimbQi(b: Battle, remaining: number, rc: RunContext): void {
   const v = climbVitals(b.active);
   const minds = sumMindArtBonuses(b.labMateMinds?.[b.active] ?? []);
-  const gearQi = pathSkillMods(battleMateGearId(b, b.active)).qiRegen ?? 0;
+  const gearQi = pathSkillMods(battleMateGearId(b, b.active), rc).qiRegen ?? 0;
   const bonusQi = rc.tuning.playerEnergyBonus;
   b.energyMax = v.energyMax + minds.energyMax + bonusQi;
   b.energyRegen = v.energyRegen + minds.turnEnergy + gearQi;
@@ -582,7 +582,7 @@ export function makeBattle(
       };
     });
   const energyMax = enemyEnergyMax(enemyId);
-  const gearQi = pathSkillMods(battleGearId).qiRegen ?? 0;
+  const gearQi = pathSkillMods(battleGearId, rc).qiRegen ?? 0;
   const bonusQi = run.companionBonus?.[active]?.qiMax ?? 0;
   const battle: Battle = {
     player: {
@@ -1492,7 +1492,7 @@ function hitEnemy(b: Battle, raw: number, verb: string, rc: RunContext, spendCha
   let dmg = raw + (gear?.damage ?? 0);
   const notes: string[] = [];
   const dist = Math.abs(b.player.pos - foe.pos);
-  const mods = pathSkillMods(gear, {
+  const mods = pathSkillMods(gear, rc, {
     dist,
     combo: b.combo,
     paceAdvantage: yourPace(b, rc) >= b.foePace,
@@ -1623,7 +1623,7 @@ function knockAway(b: Battle, who: "player" | "enemy", dist: number, rc: RunCont
   const unit = who === "player" ? b.player : (targetFoe(b) ?? b.enemy);
   const other = who === "player" ? (targetFoe(b) ?? b.enemy) : b.player;
   if (!unit) return ["没有目标"];
-  const gearMods = who === "enemy" ? pathSkillMods(battleGearId) : {};
+  const gearMods = who === "enemy" ? pathSkillMods(battleGearId, rc) : {};
   const need = who === "enemy" ? knockDist(b, dist) + (gearMods.knockExtra ?? 0) : dist;
   const dir = awayDir(other.pos, unit.pos);
   let left = need;
@@ -1735,7 +1735,7 @@ function pullUnit(b: Battle, who: "player" | "enemy", toward: "player" | "enemy"
   }
   if (left < steps) notes.push(`${who === "player" ? "你" : unit.name}被拉至第 ${unit.pos + 1} 步`);
   if (who === "enemy" && left < steps) {
-    const mods = pathSkillMods(battleGearId);
+    const mods = pathSkillMods(battleGearId, rc);
     if (mods.pullDmg) {
       unit.hp -= mods.pullDmg;
       notes.push(`钩伤 ${mods.pullDmg}`);
@@ -2447,7 +2447,7 @@ function applyCard(b: Battle, defId: CardId, rc: RunContext): string[] {
     }
   }
   if (def.block) {
-    const rawBlock = def.block + (pathSkillMods(battleGearId).blockExtra ?? 0) + techBlockBonus(b);
+    const rawBlock = def.block + (pathSkillMods(battleGearId, rc).blockExtra ?? 0) + techBlockBonus(b);
     const block = labV2(rc) ? labV21BlockAdjust(b, def, rawBlock, rc) : rawBlock;
     b.playerBlock += block;
     notes.push(`格挡 ${block}`);
@@ -3786,7 +3786,7 @@ function pickIntent(b: Battle, rc: RunContext): Intent {
       if (labAiAllowsReaction(reacted.kind, defensive)) return reacted;
     }
   }
-  if (rc.lab && usesGeneratedKit(def.id) && b.labEnemyGrade) return chooseFromKit(kitCtx(b, rc));
+  if (rc.lab && usesGeneratedKit(def.id) && b.labEnemyGrade) return chooseFromKit(kitCtx(b, rc), rc);
   if (def.id === "catcher") {
     if (b.playerBlock >= 12 && d === 1) return { kind: "barrage", damage: 9, hits: 2 };
     if (b.playerBlock >= 8 && d > 1) return { kind: "lunge", damage: 15 };

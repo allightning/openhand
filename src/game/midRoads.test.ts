@@ -3,6 +3,7 @@ import { fordManBeat, hamPorterBeat, roadOfficialBeat } from "./midRoads";
 import { questLog } from "./quest";
 import { addFlag, makeRun } from "./run";
 import { GENERATED_ENEMIES } from "./foeCatalog";
+import { climbTestContext } from "./testContext";
 
 describe("hamPorterBeat", () => {
   it("offers clear or mute on the cable pile", () => {
@@ -35,8 +36,8 @@ describe("roadOfficialBeat", () => {
 
 describe("quest road hooks", () => {
   it("lists ham and fake-official sides", () => {
-    expect(questLog(addFlag(makeRun("empty"), "sideHamAsk")).sides.some((q) => q.title.includes("缆堆"))).toBe(true);
-    expect(questLog(addFlag(makeRun("empty"), "midRoadOfficial")).sides.some((q) => q.title.includes("假官"))).toBe(true);
+    expect(questLog(addFlag(makeRun("empty"), "sideHamAsk"), climbTestContext()).sides.some((q) => q.title.includes("缆堆"))).toBe(true);
+    expect(questLog(addFlag(makeRun("empty"), "midRoadOfficial"), climbTestContext()).sides.some((q) => q.title.includes("假官"))).toBe(true);
   });
 });
 

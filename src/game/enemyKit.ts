@@ -1,7 +1,7 @@
 import type { EnemyId, Intent, TechniqueId, WeaponId } from "./types";
 import { enemyGear, enemyGradeForStage, enemyStrikeAtDist, type EnemyGearGrade } from "./enemyGear";
 import { SIGNATURE_BREAK, type EnemySigId } from "./enemySignatures";
-import { contextNow, type RunContext } from "./runContext";
+import type { RunContext } from "./runContext";
 
 export type EnergyArchive = "short" | "steady" | "burst" | "turtle";
 
@@ -352,7 +352,7 @@ export function followFromKit(ctx: KitCtx, prior: Intent, rc: RunContext): Inten
   return strike;
 }
 
-export function chooseFromKit(ctx: KitCtx): Intent {
+export function chooseFromKit(ctx: KitCtx, rc: RunContext): Intent {
   const inReach = ctx.dist <= ctx.reach;
   if (ctx.stage >= 7 && ctx.sigs.length && ctx.turn % 3 === 1) {
     const sig = SIGNATURE_BREAK[ctx.sigs[0]!];
@@ -371,7 +371,7 @@ export function chooseFromKit(ctx: KitCtx): Intent {
     }
     return first;
   }
-  return followFromKit(ctx, { kind: "breathe", amount: 3 }, contextNow());
+  return followFromKit(ctx, { kind: "breathe", amount: 3 }, rc);
 }
 
 const KIT_REACH: Record<WeaponId, number> = {

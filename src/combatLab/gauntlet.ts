@@ -326,7 +326,7 @@ export function marketOffers(run: GauntletRun, rng: () => number = Math.random):
       stall: "black",
     });
   }
-  const nextId = nextGrade(run.weaponId);
+  const nextId = nextGrade(run.weaponId, shellRunContext());
   const next = nextId ? gearById(nextId, shellRunContext()) : null;
   if (nextId && next && forgeGradeOk(run, next.grade)) {
     const gain = (next.damage ?? 0) - (gearById(run.weaponId, shellRunContext())?.damage ?? 0);
@@ -361,7 +361,7 @@ export function buyMarketOffer(run: GauntletRun, offer: GauntletMarketOffer): Ga
     const id = offer.id.slice(5) as TechniqueId;
     return grantTechToRun({ ...run, pot }, id, gauntletFieldMate(run.school));
   }
-  const nextId = nextGrade(run.weaponId);
+  const nextId = nextGrade(run.weaponId, shellRunContext());
   if (!nextId) return null;
   return {
     ...run,
@@ -1470,7 +1470,7 @@ function pickWeightedKind(rng: () => number, _tier: Exclude<GauntletTier, "extre
 /** 淬刃：拆招必须 1→2→3；3–6 馆顶 2 档，7 馆后顶 3 档。经典封顶玄阶。 */
 function forgeOption(run: GauntletRun): GauntletRewardOption | null {
   const cur = gearById(run.weaponId, shellRunContext());
-  const nextId = nextGrade(run.weaponId);
+  const nextId = nextGrade(run.weaponId, shellRunContext());
   const next = nextId ? gearById(nextId, shellRunContext()) : null;
   if (!cur || !next || !nextId) return null;
   if (!forgeGradeOk(run, next.grade)) return null;
@@ -1751,7 +1751,7 @@ export function applySuperReward(run: GauntletRun, opt: GauntletRewardOption): G
 
 export function applyGauntletReward(run: GauntletRun, opt: GauntletRewardOption): GauntletRun {
   if (opt.kind === "forge") {
-    const nextId = nextGrade(run.weaponId);
+    const nextId = nextGrade(run.weaponId, shellRunContext());
     if (!nextId || opt.id !== nextId) return run;
     return {
       ...run,
