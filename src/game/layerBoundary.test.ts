@@ -31,9 +31,6 @@ const FROZEN_DOM = new Set([
   "settings.ts",
 ]);
 
-/** 阶段 1 必须清掉的进程级持久化。新文件不许再进这张表。 */
-const PERSIST_DEBT = new Set(["labRuleset.ts", "labTuning.ts", "labContentOverrides.ts"]);
-
 const DOM_API = /\blocalStorage\b|\bdocument\b|\bwindow\b/;
 
 function stripComments(src: string): string {
@@ -56,7 +53,7 @@ describe("engine layer boundary", () => {
     const offenders: string[] = [];
     for (const file of walkTs(GAME_DIR)) {
       const rel = relative(GAME_DIR, file);
-      if (FROZEN_DOM.has(rel) || PERSIST_DEBT.has(rel)) continue;
+      if (FROZEN_DOM.has(rel)) continue;
       const src = stripComments(readFileSync(file, "utf8"));
       if (DOM_API.test(src)) offenders.push(relative(GAME_DIR, file));
     }
