@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { setLabMode } from "../game/labTuning";
-import { breakTestContext } from "../game/testContext";
+import { setLabMode } from "./labTuning";
+import { breakTestContext } from "./testContext";
 import { canEndPlayerTurn, canPlay, labCanCycle, labCycleCard, labDiscardCard, needsDiscardToHandCap, playCard } from "../game/sim";
 import { startLabBattle } from "./factory";
 import { CARDS } from "../game/content";

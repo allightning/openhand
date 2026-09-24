@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { setLabMode } from "../game/labTuning";
+import { setLabMode } from "./labTuning";
 import { shouldSkipWager } from "./breakOnboard";
 import { applyEncounterChoice } from "./encounter";
 import { createGauntletRun, wagerStakeMax } from "./gauntlet";

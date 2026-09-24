@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { labCard } from "../game/labContent";
-import { breakTestContext } from "../game/testContext";
-import { getContentOverrides, resetContentOverrides } from "../game/labContentOverrides";
-import { setLabMode } from "../game/labTuning";
+import { breakTestContext } from "./testContext";
+import { getContentOverrides, resetContentOverrides } from "./labContentOverrides";
+import { setLabMode } from "./labTuning";
 import {
   confirmDevEntityOverride,
   isDevFormDirty,

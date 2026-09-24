@@ -29,9 +29,9 @@ import {
 } from "./gauntlet";
 import { eventAfterFought } from "./encounter";
 import { maxCompanions, pathLadder } from "./gauntletPaths";
-import { DEFAULT_LAB_TUNING, getLabTuning, setLabMode, setLabTuning } from "../game/labTuning";
+import { DEFAULT_LAB_TUNING, getLabTuning, setLabMode, setLabTuning } from "./labTuning";
 import { tryAppendStressIntent } from "../game/labEnemyStress";
-import { breakTestContext, climbTestContext } from "../game/testContext";
+import { breakTestContext, climbTestContext } from "./testContext";
 import { setLabRuleset } from "./labRuleset";
 import { CARDS } from "../game/content";
 import { breakStarterDeck, rogueMate } from "./rogueRoster";
@@ -355,7 +355,7 @@ describe("§31 连胜踢馆", () => {
   it("§31.10 伙伴真的进战斗：后场有人、可叫助战、兵器品阶同步主角封顶玄", async () => {
     const { startLabBattle } = await import("./factory");
     const { canCallAssist } = await import("../game/labAssist");
-    const { setLabMode, setLabTuning } = await import("../game/labTuning");
+    const { setLabMode, setLabTuning } = await import("./labTuning");
     setLabMode(true);
     enterGauntletTuning();
     try {

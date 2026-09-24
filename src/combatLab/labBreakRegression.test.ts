@@ -6,8 +6,8 @@ import {
   previewBrokenSegments,
   shouldBreakIntent,
 } from "../game/labV2";
-import { breakTestContext } from "../game/testContext";
-import { setLabMode, setLabTuning } from "../game/labTuning";
+import { breakTestContext } from "./testContext";
+import { setLabMode, setLabTuning } from "./labTuning";
 import type { Battle, Intent, V2TurnFlags } from "../game/types";
 import { startLabBattle } from "./factory";
 import { setLabRuleset } from "./labRuleset";

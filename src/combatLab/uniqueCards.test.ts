@@ -1,8 +1,8 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import { breakTestContext } from "../game/testContext";
+import { breakTestContext } from "./testContext";
 import { CARDS } from "../game/content";
 import { playCard } from "../game/sim";
-import { setLabMode } from "../game/labTuning";
+import { setLabMode } from "./labTuning";
 import { setLabRuleset } from "./labRuleset";
 import { applyGauntletReward, breakRewardCardPool, buildGauntletPreset, createGauntletRun } from "./gauntlet";
 import { grantCardToLoadout } from "./loadout";

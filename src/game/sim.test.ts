@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { makeTestContext } from "./testContext";
+import { makeTestContext } from "../combatLab/testContext";
 import { ENEMY_WEAPON, STARTER } from "./content";
 import { addCompanion, cardSchool } from "./party";
 import { makeRun } from "./run";

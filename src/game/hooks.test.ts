@@ -13,7 +13,7 @@ import {
 import { makeRun } from "./run";
 import { gateOpen } from "../map/world";
 import { loadScene } from "../map/world";
-import { climbTestContext } from "./testContext";
+import { climbTestContext } from "../combatLab/testContext";
 
 describe("hooks", () => {
   it("scars open books gate without booksOk", () => {

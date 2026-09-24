@@ -3,7 +3,7 @@ import { ENEMIES } from "./content";
 import { applyReward, rollRewards } from "./rewards";
 import { emptySave, makeRun } from "./run";
 import { addCompanion } from "./party";
-import { climbTestContext } from "./testContext";
+import { climbTestContext } from "../combatLab/testContext";
 
 describe("rewards", () => {
   it("applies an upgrade by replacing one copy", () => {

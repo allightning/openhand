@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setLabRuleset } from "./labRuleset";
-import { makeTestContext } from "../game/testContext";
-import { setLabMode, setLabTuning } from "../game/labTuning";
+import { makeTestContext } from "./testContext";
+import { setLabMode, setLabTuning } from "./labTuning";
 import { startLabBattle } from "./factory";
 import { buildGauntletPreset, createGauntletRun } from "./gauntlet";
 import { playCard, endTurn, canEndPlayerTurn, livingFoes, canPlay, needsDiscardToHandCap, labDiscardCard, setBattleRng } from "../game/sim";

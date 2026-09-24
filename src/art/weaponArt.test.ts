@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { weaponArt, weaponSrc } from "./weaponArt";
-import { climbTestContext } from "../game/testContext";
+import { climbTestContext } from "../combatLab/testContext";
 import { GEAR_WEAPONS } from "../game/weapons";
 import { martialOffers, MARTIAL_LESSONS } from "../game/lessons";
 

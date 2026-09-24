@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { makeTestContext } from "./testContext";
+import { makeTestContext } from "../combatLab/testContext";
 import { endTurn, makeBattle } from "./sim";
 import { makeRun } from "./run";
 

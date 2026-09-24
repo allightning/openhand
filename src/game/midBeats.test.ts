@@ -9,7 +9,7 @@ import {
 import { hubPuzzlesOpen } from "./puzzles";
 import { questLog } from "./quest";
 import { addFlag, makeRun } from "./run";
-import { climbTestContext } from "./testContext";
+import { climbTestContext } from "../combatLab/testContext";
 
 describe("hubPuzzlesOpen", () => {
   it("stays closed until village paperwork", () => {

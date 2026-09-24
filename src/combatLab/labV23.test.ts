@@ -1,8 +1,8 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { canCallAssist, retreatAssistIfDown } from "../game/labAssist";
 import { simV2OnHitPlayer } from "../game/simV2Hooks";
-import { breakTestContext, climbTestContext } from "../game/testContext";
-import { setLabMode, setLabTuning } from "../game/labTuning";
+import { breakTestContext, climbTestContext } from "./testContext";
+import { setLabMode, setLabTuning } from "./labTuning";
 import { balanceReport, startTelemetry } from "./telemetry";
 import { startLabBattle } from "./factory";
 import { BUILTIN_PRESETS } from "./presets";

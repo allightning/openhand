@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { setLabMode, setLabTuning } from "../game/labTuning";
+import { setLabMode, setLabTuning } from "./labTuning";
 import {
   endTurn,
   legalSummonCells,
@@ -8,7 +8,7 @@ import {
   summonAssist,
 } from "../game/sim";
 import { useLabItem } from "../game/labV21";
-import { breakTestContext, makeTestContext } from "../game/testContext";
+import { breakTestContext, makeTestContext } from "./testContext";
 import { CARDS } from "../game/content";
 import type { Battle } from "../game/types";
 import { startLabBattle } from "./factory";

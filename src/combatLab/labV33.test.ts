@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { setLabMode, setLabTuning } from "../game/labTuning";
+import { setLabMode, setLabTuning } from "./labTuning";
 import { BREAK_COUNTER_BASE, BREAK_COUNTER_CHAIN, EYE_COUNTER_DMG } from "../game/labV2Constants";
 import { breakCounterDamage } from "../game/labV2";
 import { stressMetaAt, tryAppendStressIntent } from "../game/labEnemyStress";
@@ -27,7 +27,7 @@ import {
   type GauntletRun,
 } from "./gauntlet";
 import { setLabRuleset } from "./labRuleset";
-import { breakTestContext, climbTestContext, makeTestContext } from "../game/testContext";
+import { breakTestContext, climbTestContext, makeTestContext } from "./testContext";
 import { gearById } from "../game/weapons";
 import { renderGauntletResult, renderGauntletRewardPick } from "./gauntletUi";
 import type { WeaponId } from "../game/types";

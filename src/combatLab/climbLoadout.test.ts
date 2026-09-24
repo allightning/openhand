@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { climbTestContext } from "../game/testContext";
+import { climbTestContext } from "./testContext";
 import { setLabRuleset } from "./labRuleset";
 import {
   applyGauntletReward,

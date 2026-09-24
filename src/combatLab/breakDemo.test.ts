@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import { breakTestContext } from "../game/testContext";
+import { breakTestContext } from "./testContext";
 import {
   clearBreakDemoDone,
   createBreakDemoRun,
@@ -25,7 +25,7 @@ import {
 } from "./breakDemo";
 import { startLabBattle } from "./factory";
 import { endTurn, playCard } from "../game/sim";
-import { setLabMode, setLabTuning } from "../game/labTuning";
+import { setLabMode, setLabTuning } from "./labTuning";
 import { setLabRuleset } from "./labRuleset";
 
 describe("break demo", () => {

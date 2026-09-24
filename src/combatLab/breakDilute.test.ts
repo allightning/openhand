@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { breakTestContext } from "../game/testContext";
+import { breakTestContext } from "./testContext";
 import { CARDS } from "../game/content";
-import { setLabMode } from "../game/labTuning";
+import { setLabMode } from "./labTuning";
 import { playCard } from "../game/sim";
 import { mindTip, techniqueTip } from "./breakAlign";
 import { startLabBattle } from "./factory";

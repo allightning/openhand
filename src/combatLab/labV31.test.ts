@@ -4,9 +4,9 @@
  * 六系绝招前置、搓手减费、弃牌按回合（甲方实测回归）。
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { makeTestContext } from "../game/testContext";
+import { makeTestContext } from "./testContext";
 import { CARDS } from "../game/content";
-import { setLabMode, setLabTuning } from "../game/labTuning";
+import { setLabMode, setLabTuning } from "./labTuning";
 import { SCHOOL_REACH, WEAPON_PACE, cardSchool } from "../game/party";
 import { canPlay, endTurn, labDiscardsLeft, playCard, previewCard } from "../game/sim";
 import type { Battle, CardId, WeaponId } from "../game/types";

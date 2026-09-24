@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { setLabMode, setLabTuning } from "../game/labTuning";
+import { setLabMode, setLabTuning } from "./labTuning";
 import { applyBreak, applyGraze, applyBreakMomentumOnAttack } from "../game/labV2";
-import { breakTestContext, makeTestContext } from "../game/testContext";
+import { breakTestContext, makeTestContext } from "./testContext";
 import { endTurn, playCard, refreshFoeIntentsIfPending } from "../game/sim";
 import type { Battle } from "../game/types";
 import { startLabBattle } from "./factory";

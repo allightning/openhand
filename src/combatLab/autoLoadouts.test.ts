@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MATES } from "../game/party";
 import { schoolFromGearId } from "../game/equippedWeapon";
-import { climbTestContext } from "../game/testContext";
+import { climbTestContext } from "./testContext";
 import {
   AUTO_LOADOUTS,
   applyAutoLoadout,

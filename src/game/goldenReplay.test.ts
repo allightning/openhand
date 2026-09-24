@@ -7,11 +7,11 @@ import { applyFinale } from "../combatLab/encounter";
 import { startLabBattle } from "../combatLab/factory";
 import { createGauntletRun, resolveWager, reviveGauntletRun } from "../combatLab/gauntlet";
 import { assignToSegment, createQiFight, playUlt, resolveTurn, selectCard, type QiFight } from "../combatLab/qiCommit";
-import { setLabMode } from "./labTuning";
-import { setLabRuleset } from "./labRuleset";
+import { setLabMode } from "../combatLab/labTuning";
+import { setLabRuleset } from "../combatLab/labRuleset";
 import { canPlay, endTurn, livingFoes, playCard, setBattleRng, setSegmentProbe } from "./sim";
 import { addStake } from "./stake";
-import { climbTestContext, makeTestContext } from "./testContext";
+import { climbTestContext, makeTestContext } from "../combatLab/testContext";
 import type { Battle, CardId } from "./types";
 
 const DIR = dirname(fileURLToPath(import.meta.url));

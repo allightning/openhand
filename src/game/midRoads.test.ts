@@ -3,7 +3,7 @@ import { fordManBeat, hamPorterBeat, roadOfficialBeat } from "./midRoads";
 import { questLog } from "./quest";
 import { addFlag, makeRun } from "./run";
 import { GENERATED_ENEMIES } from "./foeCatalog";
-import { climbTestContext } from "./testContext";
+import { climbTestContext } from "../combatLab/testContext";
 
 describe("hamPorterBeat", () => {
   it("offers clear or mute on the cable pile", () => {

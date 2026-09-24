@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { previewIntentSegments } from "../game/intentPreview";
-import { climbTestContext } from "../game/testContext";
+import { climbTestContext } from "./testContext";
 import { projectedQueueThreat } from "../game/sim";
 import type { Battle, Intent } from "../game/types";
-import { setLabMode } from "../game/labTuning";
+import { setLabMode } from "./labTuning";
 import { setLabRuleset } from "../combatLab/labRuleset";
 
 function stubBattle(partial: Partial<Battle> & Pick<Battle, "player" | "enemy">): Battle {

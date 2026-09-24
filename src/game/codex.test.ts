@@ -9,7 +9,7 @@ import {
 } from "./codex";
 import { makeRun } from "./run";
 import { questLog } from "./quest";
-import { climbTestContext } from "./testContext";
+import { climbTestContext } from "../combatLab/testContext";
 
 describe("codex", () => {
   it("explains how an upgrade beats the old card", () => {

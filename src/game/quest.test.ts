@@ -3,7 +3,7 @@ import { questLog } from "./quest";
 import { addCompanion } from "./party";
 import { addFlag, makeRun } from "./run";
 import type { EnemyId } from "./types";
-import { climbTestContext } from "./testContext";
+import { climbTestContext } from "../combatLab/testContext";
 
 describe("quest log", () => {
   it("starts by asking you to step outside", () => {

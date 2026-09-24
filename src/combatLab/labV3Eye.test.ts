@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
-import { setLabMode, setLabTuning } from "../game/labTuning";
+import { setLabMode, setLabTuning } from "./labTuning";
 import { commitV2EndTurn, emptyV2Turn } from "../game/labV2";
-import { breakTestContext } from "../game/testContext";
+import { breakTestContext } from "./testContext";
 import { planEyeIdx } from "../game/intentWeakness";
 import { simV2ResolveIntentQueue, simV2StrikeDamage } from "../game/simV2Hooks";
 import type { Battle, Intent } from "../game/types";

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { setLabMode, setLabTuning } from "../game/labTuning";
+import { setLabMode, setLabTuning } from "./labTuning";
 import { setLabRuleset } from "./labRuleset";
 import {
   applyLifeline,
@@ -13,7 +13,7 @@ import { breakStarterDeck } from "../game/rogueCards";
 import { CARDS } from "../game/content";
 import { endTurn, playCard } from "../game/sim";
 import { labCard } from "../game/labContent";
-import { climbTestContext } from "../game/testContext";
+import { climbTestContext } from "./testContext";
 import { labV21EffectiveCost } from "../game/labV21";
 import { WEAPON_NAME } from "../game/party";
 

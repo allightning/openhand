@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { makeTestContext } from "./testContext";
+import { makeTestContext } from "../combatLab/testContext";
 import {
   addBag,
   BAG_NAME,

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { setLabMode } from "../game/labTuning";
+import { setLabMode } from "./labTuning";
 import { MATES } from "../game/party";
 import {
   applyEncounterChoice,

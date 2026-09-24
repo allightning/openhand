@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { labCard } from "../game/labContent";
-import { climbTestContext } from "../game/testContext";
+import { climbTestContext } from "./testContext";
 import { labV21EffectiveCost } from "../game/labV21";
-import { setLabMode } from "../game/labTuning";
+import { setLabMode } from "./labTuning";
 import { previewCard } from "../game/sim";
 import { startLabBattle } from "./factory";
 import { buildGauntletPreset, createGauntletRun } from "./gauntlet";

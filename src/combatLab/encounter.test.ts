@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import { breakTestContext } from "../game/testContext";
+import { breakTestContext } from "./testContext";
 import { setLabRuleset } from "./labRuleset";
 import {
   applyScarPass,
@@ -24,7 +24,7 @@ import {
   shouldShowFinale,
 } from "./encounter";
 import { startLabBattle } from "./factory";
-import { setLabMode } from "../game/labTuning";
+import { setLabMode } from "./labTuning";
 import { canPlay } from "../game/sim";
 
 function findChoice(

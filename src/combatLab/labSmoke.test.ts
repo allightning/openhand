@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { breakTestContext } from "../game/testContext";
+import { breakTestContext } from "./testContext";
 import { CARDS } from "../game/content";
 import { signatureActionCopy } from "../game/labSignature";
 import { MATES } from "../game/party";

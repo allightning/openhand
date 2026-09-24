@@ -1,11 +1,11 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { ENEMIES } from "../game/content";
-import { setLabMode, setLabTuning } from "../game/labTuning";
+import { setLabMode, setLabTuning } from "./labTuning";
 import { addQi, clearQi, commitV2EndTurn, emptyV2Turn, previewBrokenSegments } from "../game/labV2";
 import { QI_MAX, QI_BURST_DMG, GRUDGE_NORMAL } from "../game/labV2Constants";
 import { simV2ChooseIntent, simV2OnHitPlayer } from "../game/simV2Hooks";
 import { evalWeakness } from "../game/intentWeakness";
-import { breakTestContext, makeTestContext } from "../game/testContext";
+import { breakTestContext, makeTestContext } from "./testContext";
 import {
   canPlay,
   cloneBattle,

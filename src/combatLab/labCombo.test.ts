@@ -14,8 +14,8 @@ import {
   isComboCard,
 } from "../game/labCombo";
 import { comboAssistMods } from "../game/comboAssist";
-import { setLabMode, setLabTuning } from "../game/labTuning";
-import { breakTestContext, makeTestContext } from "../game/testContext";
+import { setLabMode, setLabTuning } from "./labTuning";
+import { breakTestContext, makeTestContext } from "./testContext";
 import { setLabRuleset } from "./labRuleset";
 import { canPlay } from "../game/sim";
 import { startLabBattle } from "./factory";

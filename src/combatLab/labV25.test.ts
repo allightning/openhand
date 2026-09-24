@@ -7,8 +7,8 @@ import {
   teamSchoolCounts,
 } from "../game/labResonance";
 import { canUseSignature, signatureDef, useSignature } from "../game/labSignature";
-import { breakTestContext } from "../game/testContext";
-import { setLabMode, setLabTuning } from "../game/labTuning";
+import { breakTestContext } from "./testContext";
+import { setLabMode, setLabTuning } from "./labTuning";
 import { MATES, ROLE_LABEL } from "../game/party";
 import { startLabBattle } from "./factory";
 import { computeAurasFromPreset } from "./setupUi";

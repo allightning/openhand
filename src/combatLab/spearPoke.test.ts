@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { makeTestContext } from "../game/testContext";
-import { setLabMode, setLabTuning } from "../game/labTuning";
+import { makeTestContext } from "./testContext";
+import { setLabMode, setLabTuning } from "./labTuning";
 import { canPlay, playCard } from "../game/sim";
 import { startLabBattle } from "./factory";
 import { buildGauntletPreset, createGauntletRun } from "./gauntlet";

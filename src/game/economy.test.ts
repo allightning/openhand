@@ -13,7 +13,7 @@ import { addBag } from "./bag";
 import { makeRun } from "./run";
 import { applyReward } from "./rewards";
 import { starterGear } from "./weapons";
-import { climbTestContext } from "./testContext";
+import { climbTestContext } from "../combatLab/testContext";
 
 describe("economy", () => {
   it("names three pill tiers", () => {

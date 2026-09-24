@@ -1,13 +1,13 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { CARDS } from "../game/content";
-import { setLabMode, setLabTuning } from "../game/labTuning";
+import { setLabMode, setLabTuning } from "./labTuning";
 import {
   computeAuras,
   labCanUseItem,
   useLabItem,
   variantBranch,
 } from "../game/labV21";
-import { breakTestContext, makeTestContext } from "../game/testContext";
+import { breakTestContext, makeTestContext } from "./testContext";
 import { AURA_DUO_START_QI } from "../game/labV21Constants";
 import { starterGear } from "../game/weapons";
 import {

@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import { makeTestContext } from "./testContext";
+import { makeTestContext } from "../combatLab/testContext";
 import { difficultyScale, getDifficulty, setSettings } from "./settings";
 import { makeBattle } from "./sim";
 import { makeRun } from "./run";

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { climbTestContext } from "../game/testContext";
+import { climbTestContext } from "./testContext";
 import { climbOpeningDistance, climbOpeningPositions } from "./climbCaps";
 import { applyClimbOpeningPositions } from "../game/sim";
-import { setLabMode } from "../game/labTuning";
+import { setLabMode } from "./labTuning";
 import { setLabRuleset } from "./labRuleset";
 import type { Battle } from "../game/types";
 

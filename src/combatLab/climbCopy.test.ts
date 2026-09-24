@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { CARDS } from "../game/content";
 import { cardDisplayText } from "../game/cardTextV2";
-import { climbTestContext } from "../game/testContext";
-import { setLabMode, setLabTuning } from "../game/labTuning";
+import { climbTestContext } from "./testContext";
+import { setLabMode, setLabTuning } from "./labTuning";
 import { shouldSkipWager } from "./breakOnboard";
 import { GUIDE_SECTIONS } from "./guide";
 import { createGauntletRun, marketOffers, marketStallOf } from "./gauntlet";

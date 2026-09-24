@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { setLabMode } from "../game/labTuning";
+import { setLabMode } from "./labTuning";
 import {
   canEndPlayerTurn,
   canPlay,
@@ -15,7 +15,7 @@ import {
 } from "../game/sim";
 import { addStake } from "../game/stake";
 import { damageBreakdown } from "../game/damageBreakdown";
-import { climbTestContext } from "../game/testContext";
+import { climbTestContext } from "./testContext";
 import { labCard } from "../game/labContent";
 import { startLabBattle } from "./factory";
 import { applyAutoLoadout } from "./autoLoadouts";

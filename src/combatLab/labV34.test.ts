@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { makeTestContext } from "../game/testContext";
-import { setLabMode, setLabTuning } from "../game/labTuning";
+import { makeTestContext } from "./testContext";
+import { setLabMode, setLabTuning } from "./labTuning";
 import { endTurn, playCard, hasTech } from "../game/sim";
 import { TECHNIQUES } from "../game/content";
 import { MIND_ARTS, sumMindArtBonuses } from "../game/mindArts";

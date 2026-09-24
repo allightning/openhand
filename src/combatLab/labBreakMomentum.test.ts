@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { setLabMode, setLabTuning } from "../game/labTuning";
+import { setLabMode, setLabTuning } from "./labTuning";
 import { BREAK_COUNTER_CHAIN, EYE_COUNTER_DMG } from "../game/labV2Constants";
 import { breakCounterDamage } from "../game/labV2";
 import { endTurn, playCard } from "../game/sim";
@@ -7,7 +7,7 @@ import type { Battle, CardId } from "../game/types";
 import { startLabBattle } from "./factory";
 import { buildGauntletPreset, createGauntletRun } from "./gauntlet";
 import { setLabRuleset } from "./labRuleset";
-import { breakTestContext, makeTestContext } from "../game/testContext";
+import { breakTestContext, makeTestContext } from "./testContext";
 import type { WeaponId } from "../game/types";
 
 function v2Battle(school: WeaponId = "palm"): Battle {

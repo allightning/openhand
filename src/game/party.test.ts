@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { makeTestContext } from "./testContext";
+import { makeTestContext } from "../combatLab/testContext";
 import { MATES, MATE_OFFER, WEAPON_NAME, WEAPON_PACE, addCompanion, deckFor, grantChapterTwo, healRun, mateJoinReady, noteFall, reviveHp, schoolLabel, stashOrTeach } from "./party";
 import { makeRun } from "./run";
 import { makeBattle, swapFighter } from "./sim";

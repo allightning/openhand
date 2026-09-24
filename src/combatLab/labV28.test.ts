@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { breakTestContext } from "../game/testContext";
+import { breakTestContext } from "./testContext";
 import { schoolFromGearId } from "../game/equippedWeapon";
-import { setLabMode, setLabTuning } from "../game/labTuning";
+import { setLabMode, setLabTuning } from "./labTuning";
 import { MATES, cardSchool } from "../game/party";
 import { canPlay, drawOneCard, isComboUnlockCard } from "../game/sim";
 import { AUTO_LOADOUTS, applyAutoLoadout, validateLoadoutPreset } from "./autoLoadouts";

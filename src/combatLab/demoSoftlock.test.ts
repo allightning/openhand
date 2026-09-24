@@ -3,7 +3,7 @@
  * 严格按 main.ts 的 demo/hall 处理逻辑模拟每一步，找出卡死点。
  */
 import { describe, expect, it, beforeEach } from "vitest";
-import { breakTestContext } from "../game/testContext";
+import { breakTestContext } from "./testContext";
 import {
   applyBreakDemoBattle,
   afterDemoEndTurn,
@@ -45,8 +45,8 @@ import { labCanPlay, labSwapFighter } from "./labCombat";
 import { CARDS } from "../game/content";
 import { cardSchool, MATES } from "../game/party";
 import { battleEquippedSchool } from "../game/equippedWeapon";
-import { breakTestContext } from "../game/testContext";
-import { setLabMode, setLabTuning } from "../game/labTuning";
+import { breakTestContext } from "./testContext";
+import { setLabMode, setLabTuning } from "./labTuning";
 import { setLabRuleset } from "./labRuleset";
 import type { Battle, CompanionId } from "../game/types";
 

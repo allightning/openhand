@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { breakTestContext } from "../game/testContext";
+import { breakTestContext } from "./testContext";
 import { CARDS } from "../game/content";
 import { CHASE_CARD_IDS, MOVE_CARD_IDS } from "../game/intentWeakness";
 import {
@@ -14,7 +14,7 @@ import {
   stepCardId,
 } from "../game/rogueCards";
 import { playCard } from "../game/sim";
-import { setLabMode } from "../game/labTuning";
+import { setLabMode } from "./labTuning";
 import { startLabBattle } from "./factory";
 import { breakRewardCardPool, buildGauntletPreset, createGauntletRun } from "./gauntlet";
 import { renderDevPanelModal, setDevPanelState } from "./devPanel";
