@@ -1,4 +1,4 @@
-import { isLabMode, isLabV2, getLabTuning } from "../game/labTuning";
+import { isLabMode, isLabV2, getLabTuning } from "./labTuning";
 import { MATES } from "../game/party";
 import type { Battle, CompanionId, WeaponId } from "../game/types";
 import { cloneBattle, canPlay, canSwap, swapFighter, livingFoes, rebindMindStats, dealToHand } from "../game/sim";

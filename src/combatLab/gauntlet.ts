@@ -9,7 +9,7 @@ import type { LabPreset } from "./types";
 import { cardSchool, MATES, WEAPON_NAME } from "../game/party";
 import { gearById, nextGrade } from "../game/weapons";
 import type { Battle, CardId, CompanionId, EnemyId, LabItemId, TechniqueId, WeaponId } from "../game/types";
-import { DEFAULT_LAB_TUNING, getLabTuning, setLabTuning, type LabTuning } from "../game/labTuning";
+import { DEFAULT_LAB_TUNING, getLabTuning, setLabTuning, type LabTuning } from "./labTuning";
 import type { MindArtId } from "../game/mindArts";
 import { ALL_MIND_ART_IDS, MIND_ARTS, mindArtFitsSchool, sumMindArtBonuses } from "../game/mindArts";
 import { LAB_ITEM_LABEL } from "../game/labV21Constants";

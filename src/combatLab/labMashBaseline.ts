@@ -1,4 +1,4 @@
-import { DEFAULT_LAB_TUNING, setLabMode, setLabTuning } from "../game/labTuning";
+import { DEFAULT_LAB_TUNING, setLabMode, setLabTuning } from "./labTuning";
 import { canPlay, endTurn, livingFoes, playCard } from "../game/sim";
 import { shellRunContext } from "./shellContext";
 import type { Battle, EnemyId } from "../game/types";

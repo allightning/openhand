@@ -1,27 +1,22 @@
-import type { CardDef, CardId, CompanionId, EnemyDef, EnemyId, TechniqueDef, TechniqueId } from "./types";
-import type { GearWeapon } from "./weapons";
+import type {
+  CardOverride,
+  ContentOverrideStore,
+  EnemyOverride,
+  MateOverride,
+  TechniqueOverride,
+  WeaponOverride,
+} from "../game/labTypes";
+
+export type {
+  CardOverride,
+  ContentOverrideStore,
+  EnemyOverride,
+  MateOverride,
+  TechniqueOverride,
+  WeaponOverride,
+};
 
 const STORAGE_KEY = "openhand-combat-lab-content-overrides";
-
-export type CardOverride = Partial<
-  Pick<CardDef, "name" | "cost" | "damage" | "block" | "knock" | "wall" | "heal" | "bleed" | "expose" | "steps" | "chargeBonus">
->;
-
-export type EnemyOverride = Partial<Pick<EnemyDef, "name" | "hp" | "pos" | "pace" | "reach">>;
-
-export type WeaponOverride = Partial<Pick<GearWeapon, "name" | "damage" | "knock" | "ward">>;
-
-export type TechniqueOverride = Partial<Pick<TechniqueDef, "name" | "text">>;
-
-export type MateOverride = Partial<{ hp: number; passive: { name: string; text: string } }>;
-
-export interface ContentOverrideStore {
-  cards: Partial<Record<CardId, CardOverride>>;
-  enemies: Partial<Record<EnemyId, EnemyOverride>>;
-  weapons: Partial<Record<string, WeaponOverride>>;
-  techniques: Partial<Record<TechniqueId, TechniqueOverride>>;
-  mates: Partial<Record<CompanionId, MateOverride>>;
-}
 
 export const EMPTY_CONTENT_OVERRIDES: ContentOverrideStore = {
   cards: {},

@@ -14,7 +14,7 @@ import { cardDisplayText } from "../game/cardTextV2";
 import { breakdownTipLine, previewShortLine } from "../game/damageBreakdown";
 import { variantActiveLabel, variantBranch, labV21EffectiveCost } from "../game/labV21";
 import { ROLE_LABEL } from "../game/labV25Constants";
-import { isLabV2 } from "../game/labTuning";
+import { isLabV2 } from "./labTuning";
 import { MOVE_CARD_IDS } from "../game/intentWeakness";
 import { isBreakAlign } from "./labRuleset";
 import { MATES, MATE_PASSIVE, WEAPON_NAME, schoolLabel } from "../game/party";

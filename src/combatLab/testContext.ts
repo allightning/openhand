@@ -1,8 +1,8 @@
 import { EMPTY_CONTENT_OVERRIDES } from "./labContentOverrides";
-import { DEFAULT_LAB_TUNING, type LabTuning } from "./labTuning";
-import type { LabRuleset } from "./labRuleset";
-import { makeContext, type FightScale, type RunContext } from "./runContext";
-import { difficultyScale, getDifficulty } from "./settings";
+import { DEFAULT_LAB_TUNING } from "./labTuning";
+import type { LabRuleset, LabTuning } from "../game/labTypes";
+import { makeContext, type FightScale, type RunContext } from "../game/runContext";
+import { difficultyScale, getDifficulty } from "../game/settings";
 
 export interface TestContextOver {
   mode?: LabRuleset;

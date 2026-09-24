@@ -128,7 +128,7 @@ export interface LabTelemetry {
   v2StressBySource?: Partial<Record<string, number>>;
   v2TurnDamageSum?: number;
   v2TurnDamageSamples?: number;
-  tuningSnapshot: import("../game/labTuning").LabTuning;
+  tuningSnapshot: import("../game/labTypes").LabTuning;
 }
 
 export type LabPhase = "setup" | "battle" | "report";

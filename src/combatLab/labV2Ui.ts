@@ -2,7 +2,7 @@ import { ENEMIES, intentShortName } from "../game/content";
 import { foeIntentAlias } from "../game/enemyKit";
 import { intentFirePlan, stressMetaAt } from "../game/labEnemyStress";
 import { previewIntentSegments, type IntentSegmentPreview } from "../game/intentPreview";
-import { isLabV2 } from "../game/labTuning";
+import { isLabV2 } from "./labTuning";
 import { isBreakAlign, isBreakLesson } from "./labRuleset";
 import { MATES } from "../game/party";
 import { dangerCellsForIntent, intentIncoming, livingFoes, projectedQueueThreat } from "../game/sim";

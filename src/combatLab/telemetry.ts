@@ -1,5 +1,5 @@
 import { CARDS } from "../game/content";
-import { getLabTuning } from "../game/labTuning";
+import { getLabTuning } from "./labTuning";
 import type { Battle, CardId } from "../game/types";
 import { recordOpeningFoeDamage, sampleQiTurn, snapshotAuditFromBattle } from "./labAudit";
 import type { LabSessionMeta, LabTelemetry, LabTurnRecord } from "./types";

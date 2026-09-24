@@ -2,7 +2,7 @@ import { shellRunContext } from "./shellContext";
 import { ENEMIES, TECHNIQUES } from "../game/content";
 import { gearIdsForMateSchools, schoolFromGearId } from "../game/equippedWeapon";
 import { computeResonance, type ResonanceStatus } from "../game/labResonance";
-import { getLabTuning } from "../game/labTuning";
+import { getLabTuning } from "./labTuning";
 import { MATES, ROLE_LABEL, WEAPON_NAME } from "../game/party";
 import type { CompanionId, TechniqueId } from "../game/types";
 import { gearById, TIER_NAME } from "../game/weapons";

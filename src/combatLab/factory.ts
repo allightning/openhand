@@ -1,7 +1,7 @@
 import { labEnemy, labMate } from "../game/labContent";
 import { sumMindArtBonuses } from "../game/mindArts";
 import { initBattleMateWeapons } from "../game/equippedWeapon";
-import { setLabMode, getLabTuning } from "../game/labTuning";
+import { setLabMode, getLabTuning } from "./labTuning";
 import { makeRun } from "../game/run";
 import { applyLabFightScale, applyLabEnemyKit, applyClimbOpeningPositions, battlePace, makeBattle, syncBattleGear, dealToHand } from "../game/sim";
 import { MATES, cardSchool } from "../game/party";

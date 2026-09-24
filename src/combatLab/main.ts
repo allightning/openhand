@@ -25,7 +25,7 @@ import {
 } from "../game/sim";
 import { handRefillAmount } from "./rogueRoster";
 import { BREAK_MODE_OPEN, isBreakAlign, setLabRuleset } from "./labRuleset";
-import { getLabTuning, isLabV2, setLabMode, setLabTuning } from "../game/labTuning";
+import { getLabTuning, isLabV2, setLabMode, setLabTuning } from "./labTuning";
 import { computeResonance, grantLabItem, itemChargeCount, labCanUseItem, useLabItem } from "../game/labV21";
 import { isSummonItem } from "../game/labSummon";
 import { canUseSignature, signatureActionCopy, useSignature } from "../game/labSignature";

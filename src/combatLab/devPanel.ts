@@ -8,12 +8,12 @@ import {
   type EnemyGearGrade,
 } from "../game/enemyGear";
 import { GAUNTLET_FOE_IDENTITY, profileFor, schoolForGeneratedEnemy } from "../game/enemyKit";
-import { getLabTuning, resetLabTuning, setLabTuning } from "../game/labTuning";
+import { getLabTuning, resetLabTuning, setLabTuning } from "./labTuning";
 import {
   getContentOverrides,
   resetContentOverrides,
   setContentOverride,
-} from "../game/labContentOverrides";
+} from "./labContentOverrides";
 import { MATE_PASSIVE, MATES, WEAPON_NAME } from "../game/party";
 import { gearById } from "../game/weapons";
 import type { CardId, CompanionId, EnemyId, TechniqueId, WeaponId } from "../game/types";

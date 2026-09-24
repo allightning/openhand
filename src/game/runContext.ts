@@ -4,9 +4,7 @@ import {
   BREAK_SABER_ON_HIT,
   BREAK_SWORD_CHAIN_PER,
 } from "./breakCaps";
-import { getLabRuleset, type LabRuleset } from "./labRuleset";
-import { getLabTuning, isLabMode, resolveFightScale, type LabTuning } from "./labTuning";
-import { getContentOverrides, type ContentOverrideStore } from "./labContentOverrides";
+import type { ContentOverrideStore, LabRuleset, LabTuning } from "./labTypes";
 
 export interface RunRuleset {
   mode: LabRuleset;
@@ -173,17 +171,4 @@ export function makeContext(
     contentOverrides,
     fightScale,
   };
-}
-
-export function climbContext(tuning: LabTuning = getLabTuning(), lab = true): RunContext {
-  return makeContext("climb", tuning, lab, getContentOverrides(), resolveFightScale());
-}
-
-export function breakContext(tuning: LabTuning = getLabTuning(), lab = true): RunContext {
-  return makeContext("break", tuning, lab, getContentOverrides(), resolveFightScale());
-}
-
-/** 调用点还没传入 ctx 时的桥。阶段 1 收尾删掉。 */
-export function contextNow(): RunContext {
-  return makeContext(getLabRuleset(), getLabTuning(), isLabMode(), getContentOverrides(), resolveFightScale());
 }
