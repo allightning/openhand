@@ -1473,7 +1473,7 @@ function beginCampaignBattle(): void {
       v2Fx: true,
       rulesCombo: false,
     });
-    applyLabFightScale();
+    applyLabFightScale(shellRunContext());
     paused = false;
     hoverUid = null;
     weaponOpen = null;
@@ -2453,7 +2453,7 @@ function bindSlider(id: string, key: keyof ReturnType<typeof getLabTuning>, valI
     if (!getLabTuning().designerMode && id.startsWith("sl-") && !id.includes("deck-mult")) return;
     const val = parse(el.value);
     setLabTuning({ [key]: val });
-    if (key === "dmgCoef") applyLabFightScale();
+    if (key === "dmgCoef") applyLabFightScale(shellRunContext());
     const label = document.getElementById(valId);
     if (label) label.textContent = key === "dmgCoef" ? val.toFixed(2) : String(val);
     if (key === "deckMultiplier" && phase === "setup") {

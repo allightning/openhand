@@ -20,7 +20,6 @@ import {
 import { resonancePaceBonus, staffBlockRetain } from "./labResonance";
 import { tickSignatureCooldown } from "./labSignature";
 import { makeRun } from "./run";
-import { labAiAllowsReaction, labPaceBias, resolveFightScale } from "./labTuning";
 import {
   drainPendingStress,
   enemyRoundBudgetCap,
@@ -64,7 +63,7 @@ import { BREAK_COUNTER_CHAIN } from "./labV2Constants";
 import { MOVE_CARD_IDS, planEyeIdx, registerThreatProvider, registerQueueThreatProvider } from "./intentWeakness";
 import { SUMMON_DEFS } from "./labSummon";
 import { addStake, adjacentStakePos, enemyPlantHits, playerPlantHits, removeStake, smashHitsForSchool, smashStake, stakeHitsAt } from "./stake";
-import { labV2, type RunContext } from "./runContext";
+import { aiAllowsReaction, labV2, paceBias, type RunContext } from "./runContext";
 import { climbEnergyStart, climbVitals } from "./climbVitals";
 import {
   bleedTickDamage,
@@ -229,8 +228,8 @@ let battleGearId: string | null = null;
 let fightScale = { hp: 1, dmg: 1, youDmg: 1 };
 
 /** Combat Lab: apply slider changes without restarting the fight. */
-export function applyLabFightScale(): void {
-  fightScale = resolveFightScale();
+export function applyLabFightScale(rc: RunContext): void {
+  fightScale = rc.fightScale;
 }
 
 export function syncBattleGear(b: Battle, mateId?: CompanionId): void {
@@ -546,7 +545,7 @@ export function makeBattle(
   spar = false,
 ): Battle {
   seq = 0;
-  fightScale = resolveFightScale();
+  fightScale = rc.fightScale;
   battleGearId = run.weapon ?? null;
   const def = labEnemy(enemyId, rc);
   const active = run.active ?? "rail";
@@ -648,7 +647,7 @@ export function makeBattle(
     combo: 0,
     attacksThisTurn: 0,
     paceBoost:
-      (run.companionBonus?.[active]?.pace ?? 0) + (run.flags.includes("heartAttack") ? 1 : 0) + labPaceBias(),
+      (run.companionBonus?.[active]?.pace ?? 0) + (run.flags.includes("heartAttack") ? 1 : 0) + paceBias(rc),
     foePace: enemyPace(enemyId),
     enemyBlock: 0,
     spar: false,
@@ -3706,7 +3705,7 @@ function reactToPlayer(b: Battle, rc: RunContext): Intent | null {
   const foe = targetFoe(b) ?? b.enemy;
   if (foe.hp * 3 <= foe.maxHp && b.bleed >= 2) {
     const mend = { kind: "mend" as const, heal: 10 };
-    return labAiAllowsReaction("mend", true) ? mend : null;
+    return aiAllowsReaction(rc, "mend", true) ? mend : null;
   }
   if (b.youRiposte && d <= 2) {
     if (w === "hook") return { kind: "pull", steps: 2 };
@@ -3714,7 +3713,7 @@ function reactToPlayer(b: Battle, rc: RunContext): Intent | null {
     if (w === "sword") return { kind: "seal" };
     return { kind: "guard", block: 10 };
   }
-  if (b.bleed >= 5 && labAiAllowsReaction("mend", true)) return { kind: "mend", heal: 10 };
+  if (b.bleed >= 5 && aiAllowsReaction(rc, "mend", true)) return { kind: "mend", heal: 10 };
   if (b.setup >= 2) {
     if (d === 1) return { kind: "barrage", damage: 10, hits: 2 };
     return { kind: "lunge", damage: 16 };
@@ -3783,7 +3782,7 @@ function pickIntent(b: Battle, rc: RunContext): Intent {
         reacted.kind === "mend" ||
         reacted.kind === "breathe" ||
         reacted.kind === "counter";
-      if (labAiAllowsReaction(reacted.kind, defensive)) return reacted;
+      if (aiAllowsReaction(rc, reacted.kind, defensive)) return reacted;
     }
   }
   if (rc.lab && usesGeneratedKit(def.id) && b.labEnemyGrade) return chooseFromKit(kitCtx(b, rc), rc);

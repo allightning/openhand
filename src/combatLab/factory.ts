@@ -112,7 +112,7 @@ export function startLabBattle(preset: LabPreset, ordered = false, deckMultiplie
   }
   initBattleMateWeapons(b, p.mateWeapons, shellRunContext());
   syncBattleGear(b, p.fieldMate);
-  applyLabFightScale();
+  applyLabFightScale(shellRunContext());
   let out: Battle = {
     ...b,
     labFreshSwap: false,

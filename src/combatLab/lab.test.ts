@@ -187,7 +187,7 @@ describe("Combat Lab preview discipline", () => {
     setLabMode(true);
     setLabTuning({ dmgCoef: 1.35, paceBias: 1, aiAggression: 40 });
     let b = startLabBattle(BUILTIN_PRESETS[0]!, true);
-    applyLabFightScale();
+    applyLabFightScale(contextNow());
     const card = b.hand.find((c) => canPlay(b, c.uid, contextNow()).ok);
     expect(card).toBeTruthy();
     const prev = previewCard(b, card!.uid, contextNow());

@@ -5,7 +5,7 @@ import {
   BREAK_SWORD_CHAIN_PER,
 } from "./breakCaps";
 import { getLabRuleset, type LabRuleset } from "./labRuleset";
-import { getLabTuning, isLabMode, type LabTuning } from "./labTuning";
+import { getLabTuning, isLabMode, resolveFightScale, type LabTuning } from "./labTuning";
 import { getContentOverrides, type ContentOverrideStore } from "./labContentOverrides";
 
 export interface RunRuleset {
@@ -69,12 +69,19 @@ export interface RunCaps {
   content: ContentCaps;
 }
 
+export interface FightScale {
+  hp: number;
+  dmg: number;
+  youDmg: number;
+}
+
 export interface RunContext {
   ruleset: RunRuleset;
   tuning: LabTuning;
   lab: boolean;
   caps: RunCaps;
   contentOverrides: ContentOverrideStore;
+  fightScale: FightScale;
 }
 
 function intentCaps(mode: LabRuleset): IntentCaps {
@@ -103,6 +110,25 @@ export function labV2(ctx: RunContext): boolean {
   return ctx.lab && ctx.tuning.rulesV2;
 }
 
+/** 实验室先机偏置。非实验室为 0。 */
+export function paceBias(rc: RunContext): number {
+  return rc.lab ? rc.tuning.paceBias : 0;
+}
+
+/** 实验室 AI 是否允许这一拍反应。阈值与分支与旧 labAiAllowsReaction 相同。 */
+export function aiAllowsReaction(rc: RunContext, kind: string, defensive: boolean): boolean {
+  if (!rc.lab) return true;
+  const agg = rc.tuning.aiAggression;
+  if (defensive) {
+    if (agg >= 85) return false;
+    if (agg <= 15) return true;
+    return agg < 60 || kind === "mend" || kind === "breathe";
+  }
+  if (agg <= 25) return false;
+  if (agg >= 75) return true;
+  return kind === "strike" || kind === "barrage" || kind === "lunge" || kind === "bleedcut";
+}
+
 function stakeCaps(lab: boolean, mode: LabRuleset): StakeCaps {
   return { cap: lab && mode === "climb" ? CLIMB_STAKE_CAP : 0 };
 }
@@ -129,6 +155,7 @@ export function makeContext(
   tuning: LabTuning,
   lab: boolean,
   contentOverrides: ContentOverrideStore,
+  fightScale: FightScale,
 ): RunContext {
   return {
     ruleset: { mode },
@@ -144,18 +171,19 @@ export function makeContext(
       content: contentCaps(mode),
     },
     contentOverrides,
+    fightScale,
   };
 }
 
 export function climbContext(tuning: LabTuning = getLabTuning(), lab = true): RunContext {
-  return makeContext("climb", tuning, lab, getContentOverrides());
+  return makeContext("climb", tuning, lab, getContentOverrides(), resolveFightScale());
 }
 
 export function breakContext(tuning: LabTuning = getLabTuning(), lab = true): RunContext {
-  return makeContext("break", tuning, lab, getContentOverrides());
+  return makeContext("break", tuning, lab, getContentOverrides(), resolveFightScale());
 }
 
 /** 调用点还没传入 ctx 时的桥。阶段 1 收尾删掉。 */
 export function contextNow(): RunContext {
-  return makeContext(getLabRuleset(), getLabTuning(), isLabMode(), getContentOverrides());
+  return makeContext(getLabRuleset(), getLabTuning(), isLabMode(), getContentOverrides(), resolveFightScale());
 }
