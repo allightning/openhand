@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { contextNow } from "../game/runContext";
+import { breakTestContext } from "../game/testContext";
 import { CARDS } from "../game/content";
 import { CHASE_CARD_IDS, MOVE_CARD_IDS } from "../game/intentWeakness";
 import {
@@ -85,7 +85,7 @@ describe("六系增补：状态 / 攻击 / 本系进退", () => {
     palm.hand = [{ uid: "hp", defId: hitCardId("palm") }];
     const hp = palm.enemy.hp;
     const pos = palm.enemy.pos;
-    const afterPalm = playCard(palm, "hp", contextNow());
+    const afterPalm = playCard(palm, "hp", breakTestContext());
     expect(afterPalm.enemy.hp).toBeLessThan(hp);
     expect(afterPalm.enemy.pos).not.toBe(pos);
     expect(afterPalm.journal.some((j) => j.side === "you" && /崩拳/.test(j.text))).toBe(true);
@@ -96,7 +96,7 @@ describe("六系增补：状态 / 攻击 / 本系进退", () => {
     spear.energy = 6;
     spear.hand = [{ uid: "hs", defId: hitCardId("spear") }];
     const shp = spear.enemy.hp;
-    const afterSpear = playCard(spear, "hs", contextNow());
+    const afterSpear = playCard(spear, "hs", breakTestContext());
     expect(shp - afterSpear.enemy.hp).toBeGreaterThanOrEqual(7);
   });
 
@@ -108,7 +108,7 @@ describe("六系增补：状态 / 攻击 / 本系进退", () => {
     b.enemy.pos = 4;
     b.energy = 6;
     b.hand = [{ uid: "stp", defId: stepCardId("palm") }];
-    const after = playCard(b, "stp", contextNow());
+    const after = playCard(b, "stp", breakTestContext());
     expect(after.player.pos).not.toBe(1);
   });
 
@@ -122,7 +122,7 @@ describe("六系增补：状态 / 攻击 / 本系进退", () => {
     b.energy = 6;
     b.hand = [{ uid: "stp", defId: stepCardId("saber") }];
     const before = b.paceBoost;
-    const after = playCard(b, "stp", contextNow());
+    const after = playCard(b, "stp", breakTestContext());
     expect(after.paceBoost).toBe(before + 2);
     expect(after.player.pos).not.toBe(1);
   });

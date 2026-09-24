@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { contextNow } from "../game/runContext";
+import { breakTestContext } from "../game/testContext";
 import { CARDS } from "../game/content";
 import { signatureActionCopy } from "../game/labSignature";
 import { MATES } from "../game/party";
@@ -78,7 +78,7 @@ describe("lab smoke · 能进战斗", () => {
       atk = b.hand.at(-1);
     }
     expect(atk).toBeTruthy();
-    const after = playCard(b, atk!.uid, contextNow());
+    const after = playCard(b, atk!.uid, breakTestContext());
     expect(after.phase).toBe("player");
     expect(livingFoes(after).length).toBeGreaterThan(0);
     expect(after.enemy.hp).toBeGreaterThan(0);

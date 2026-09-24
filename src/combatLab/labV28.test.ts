@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { contextNow } from "../game/runContext";
+import { breakTestContext } from "../game/testContext";
 import { schoolFromGearId } from "../game/equippedWeapon";
 import { setLabMode, setLabTuning } from "../game/labTuning";
 import { MATES, cardSchool } from "../game/party";
@@ -69,8 +69,8 @@ describe("§28.4 组合技开闸 canPlay", () => {
       hand: [{ uid: "t-cut", defId: "cut" }],
     };
     b.enemy.pos = b.player.pos + 2; // §31.11 距离闸：刀打到 2 格
-    expect(isComboUnlockCard(b, "cut", contextNow())).toBe(true);
-    expect(canPlay(b, "t-cut", contextNow()).ok).toBe(true);
+    expect(isComboUnlockCard(b, "cut", breakTestContext())).toBe(true);
+    expect(canPlay(b, "t-cut", breakTestContext()).ok).toBe(true);
   });
 
   it("same-school assist does not mark combo unlock", () => {
@@ -84,7 +84,7 @@ describe("§28.4 组合技开闸 canPlay", () => {
       energy: 9,
       hand: [{ uid: "t-strike", defId: "strike" }],
     };
-    expect(isComboUnlockCard(b, "strike", contextNow())).toBe(false);
+    expect(isComboUnlockCard(b, "strike", breakTestContext())).toBe(false);
   });
 
   it("blocks off-school card without assist", () => {
@@ -95,7 +95,7 @@ describe("§28.4 组合技开闸 canPlay", () => {
         ...b,
         energy: 9,
         hand: [{ uid: "t-cut", defId: "cut" }],
-      }, "t-cut", contextNow());
+      }, "t-cut", breakTestContext());
     expect(gate.ok).toBe(false);
   });
 });

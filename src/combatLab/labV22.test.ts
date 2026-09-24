@@ -1,5 +1,4 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
-import { contextNow } from "../game/runContext";
 import { comboAssistMods } from "../game/comboAssist";
 import { battleEquippedSchool } from "../game/equippedWeapon";
 import { computeResonance, schoolTier } from "../game/labResonance";
@@ -119,7 +118,7 @@ describe("v2.2 第二武器 · 谱系过滤", () => {
         hermit: starterGear("staff"),
       },
     });
-    b = swapFighter(b, "hermit", contextNow());
+    b = swapFighter(b, "hermit", climbTestContext());
     const school = battleEquippedSchool(b, "hermit", climbTestContext());
     expect(school).toBe("staff");
     for (const c of b.hand) {

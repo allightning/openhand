@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import { contextNow } from "../game/runContext";
+import { breakTestContext } from "../game/testContext";
 import { CARDS } from "../game/content";
 import { playCard } from "../game/sim";
 import { setLabMode } from "../game/labTuning";
@@ -60,18 +60,18 @@ describe("谱可重复至 3 + 换页机制仍在", () => {
       { uid: "s2", defId: "strike2" },
     ];
     const handN = b.hand.length;
-    const afterDef = playCard(b, "d2", contextNow());
+    const afterDef = playCard(b, "d2", breakTestContext());
     expect(afterDef.hand.length).toBeGreaterThanOrEqual(handN); // 打出一张再抽，至少不净减
 
     afterDef.hand = [{ uid: "m2", defId: "mend2" }];
     afterDef.energy = 6;
-    const afterMend = playCard(afterDef, "m2", contextNow());
+    const afterMend = playCard(afterDef, "m2", breakTestContext());
     expect(afterMend.bleed).toBe(0);
 
     afterMend.hand = [{ uid: "s2", defId: "strike2" }];
     afterMend.energy = 6;
     const pos = afterMend.enemy.pos;
-    const afterStrike = playCard(afterMend, "s2", contextNow());
+    const afterStrike = playCard(afterMend, "s2", breakTestContext());
     expect(afterStrike.enemy.pos).not.toBe(pos);
   });
 });
