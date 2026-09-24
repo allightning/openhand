@@ -1,9 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { contextNow } from "../game/runContext";
 import { ENEMIES, ENEMY_WEAPON } from "../game/content";
 import { enemyGradeForStage, enemyStrikeAtDist } from "../game/enemyGear";
 import { followFromKit, GAUNTLET_FOE_IDENTITY, profileFor, schoolForGeneratedEnemy } from "../game/enemyKit";
-import { breakTestContext } from "../game/testContext";
+import { breakTestContext, makeTestContext } from "../game/testContext";
 import { ALL_SIGNATURE_IDS, SIGNATURE_BREAK } from "../game/enemySignatures";
 import { DEFAULT_WEAKNESS, planBreaks, weaknessForIntent, weaknessTip } from "../game/intentWeakness";
 import { intentFirePlan } from "../game/labEnemyStress";
@@ -158,12 +157,12 @@ describe("D 对线 AI + 撤", () => {
       { kind: "guard", block: 6 },
     ];
     b.intent = b.intents[0]!;
-    weakenLabOpeningQueue(b, contextNow());
+    weakenLabOpeningQueue(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b.v2OpeningWeakened).toBe(true);
     expect(b.intents.length).toBeGreaterThan(0);
     expect(b.intents.length).toBeLessThanOrEqual(2);
     expect(b.intents.some((i) => i.kind !== "guard")).toBe(true);
-    seizeOpening(b, contextNow());
+    seizeOpening(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b.log.some((line) => line.includes("手先到"))).toBe(true);
     expect(b.intents.length).toBeGreaterThan(0);
   });
@@ -390,10 +389,10 @@ describe("追实机：进步缩短距离", () => {
     b.energy = 6;
     b.hand = [{ uid: "adv", defId: "advance" }];
     b.v2Turn = { ...emptyV2Turn(b), turnStartPos: 1 };
-    b = playCard(b, "adv", contextNow());
+    b = playCard(b, "adv", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b.player.pos).toBeGreaterThan(1);
     expect(b.v2Turn?.chaseCardPlayed).toBe(true);
-    const next = endTurn(b, contextNow());
+    const next = endTurn(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(next.v2LastIntentRecap?.some((r) => r.outcome === "追" || r.outcome === "破")).toBe(true);
   });
 });
@@ -408,7 +407,7 @@ describe("闪避 / 霸体", () => {
     b.foeDodge = 1;
     b.energy = 6;
     b.hand = [{ uid: "cut1", defId: "cut" }];
-    b = playCard(b, "cut1", contextNow());
+    b = playCard(b, "cut1", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b.enemy.hp).toBe(hp);
     expect(b.foeDodge).toBe(0);
     expect(b.lastHitRead ?? "").toMatch(/闪/);
@@ -427,7 +426,7 @@ describe("闪避 / 霸体", () => {
     b.foeEndure = 1;
     b.energy = 6;
     b.hand = [{ uid: "p1", defId: "strike2" }];
-    b = playCard(b, "p1", contextNow());
+    b = playCard(b, "p1", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b.enemy.hp).toBeLessThan(hp);
     expect(b.enemy.pos).toBe(pos);
     expect(b.foeEndure).toBe(0);
@@ -446,7 +445,7 @@ describe("破桩", () => {
     const hp = b.enemy.hp;
     b.energy = 6;
     b.hand = [{ uid: "cut1", defId: "cut" }];
-    b = playCard(b, "cut1", contextNow());
+    b = playCard(b, "cut1", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b.enemy.hp).toBe(hp);
     expect(b.stakes).not.toContain(2);
     expect(b.lastHitRead ?? "").toMatch(/破桩/);
@@ -461,7 +460,7 @@ describe("破桩", () => {
     saber.stakeHits = { 2: 2 };
     saber.energy = 6;
     saber.hand = [{ uid: "cut1", defId: "cut" }];
-    saber = playCard(saber, "cut1", contextNow());
+    saber = playCard(saber, "cut1", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(saber.stakes).toContain(2);
     expect(saber.stakeHits?.[2]).toBe(1);
 
@@ -473,7 +472,7 @@ describe("破桩", () => {
     staff.stakeHits = { 2: 2 };
     staff.energy = 6;
     staff.hand = [{ uid: "s1", defId: "split" }];
-    staff = playCard(staff, "s1", contextNow());
+    staff = playCard(staff, "s1", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(staff.stakes).not.toContain(2);
   });
 

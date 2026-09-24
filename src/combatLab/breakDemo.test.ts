@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import { contextNow } from "../game/runContext";
+import { breakTestContext } from "../game/testContext";
 import {
   clearBreakDemoDone,
   createBreakDemoRun,
@@ -97,10 +97,10 @@ describe("break demo", () => {
     expect(demoAllowsCard(run, "retreat")).toBe(false);
     const defend = synced.hand.find((c) => c.defId === "defend");
     expect(defend).toBeTruthy();
-    let b = playCard(synced, defend!.uid, contextNow());
+    let b = playCard(synced, defend!.uid, breakTestContext());
     expect(b.playerBlock).toBeGreaterThanOrEqual(8);
     const hpBefore = b.player.hp;
-    b = endTurn(b, contextNow());
+    b = endTurn(b, breakTestContext());
     expect(b.player.hp).toBeGreaterThan(hpBefore - 16);
   });
 
@@ -157,9 +157,9 @@ describe("break demo", () => {
     expect(b.hand.map((c) => c.defId)).toEqual(["retreat"]);
     const retreat = b.hand.find((c) => c.defId === "retreat");
     expect(retreat).toBeTruthy();
-    b = playCard(b, retreat!.uid, contextNow());
+    b = playCard(b, retreat!.uid, breakTestContext());
     expect(b.player.pos).toBeLessThan(3);
-    b = endTurn(b, contextNow());
+    b = endTurn(b, breakTestContext());
     expect(b.v2BreakCount ?? 0).toBeGreaterThanOrEqual(1);
     expect(b.v2BreakMomentum ?? 0).toBeGreaterThan(0);
     expect(b.v2LastTrueDamage ?? 0).toBe(0);
@@ -173,14 +173,14 @@ describe("break demo", () => {
     let b = applyBreakDemoBattle(startLabBattle(buildBreakDemoPreset(run), true, 1), run);
     const startPos = b.player.pos;
     const retreat = b.hand.find((c) => c.defId === "retreat")!;
-    b = playCard(b, retreat.uid, contextNow());
+    b = playCard(b, retreat.uid, breakTestContext());
     const afterRetreat = b.player.pos;
     expect(afterRetreat).toBeLessThan(startPos);
     run = afterDemoPlayCard(run, "retreat");
     b = syncBreakDemoBattle(b, run);
     expect(b.player.pos).toBe(afterRetreat);
     const enemyBefore = b.enemy.pos;
-    b = endTurn(b, contextNow());
+    b = endTurn(b, breakTestContext());
     run = afterDemoEndTurn(run);
     lockDemoAfterFoeTurn(b, afterRetreat, enemyBefore);
     b = syncBreakDemoBattle(b, run);
@@ -191,14 +191,14 @@ describe("break demo", () => {
     expect(b.hand.map((c) => c.defId)).toEqual(["advance"]);
     expect(b.player.pos).toBe(afterRetreat);
     const adv = b.hand[0]!;
-    b = playCard(b, adv.uid, contextNow());
+    b = playCard(b, adv.uid, breakTestContext());
     run = afterDemoPlayCard(run, "advance");
     b = syncBreakDemoBattle(b, run);
     expect(b.player.pos).toBeGreaterThan(afterRetreat);
     expect(Math.abs(b.enemy.pos - b.player.pos)).toBeLessThanOrEqual(2);
     expect(b.hand.map((c) => c.defId)).toEqual(["cut"]);
     const cut = b.hand[0]!;
-    expect(playCard(b, cut.uid, contextNow()).enemy.hp).toBeLessThan(b.enemy.hp);
+    expect(playCard(b, cut.uid, breakTestContext()).enemy.hp).toBeLessThan(b.enemy.hp);
   });
 
   it("rookie track does not teach break", () => {

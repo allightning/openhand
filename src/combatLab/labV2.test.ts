@@ -1,12 +1,11 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
-import { contextNow } from "../game/runContext";
 import { ENEMIES } from "../game/content";
 import { setLabMode, setLabTuning } from "../game/labTuning";
 import { addQi, clearQi, commitV2EndTurn, emptyV2Turn, previewBrokenSegments } from "../game/labV2";
 import { QI_MAX, QI_BURST_DMG, GRUDGE_NORMAL } from "../game/labV2Constants";
 import { simV2ChooseIntent, simV2OnHitPlayer } from "../game/simV2Hooks";
 import { evalWeakness } from "../game/intentWeakness";
-import { breakTestContext } from "../game/testContext";
+import { breakTestContext, makeTestContext } from "../game/testContext";
 import {
   canPlay,
   cloneBattle,
@@ -68,7 +67,7 @@ describe("Combat v2 势", () => {
     let b = v2Battle();
     b.v2PendingQi = 2;
     b.v2Turn = emptyV2Turn(b);
-    b = endTurn(b, contextNow());
+    b = endTurn(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, v2VariantAi: true, v2Grudge: true } }));
     expect(b.qi).toBeGreaterThanOrEqual(2);
   });
 
@@ -79,13 +78,13 @@ describe("Combat v2 势", () => {
     if (!fin) {
       b.qi = 2;
       const gather = b.hand.find((c) => c.defId === "gather" || c.defId === "combo");
-      if (gather) b = playCard(b, gather.uid, contextNow());
+      if (gather) b = playCard(b, gather.uid, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, v2VariantAi: true, v2Grudge: true } }));
     }
     b.qi = 3;
     const f = b.hand.find((c) => c.defId === "finisher");
     if (!f) return;
-    const prev = previewCard(b, f.uid, contextNow());
-    b = playCard(b, f.uid, contextNow());
+    const prev = previewCard(b, f.uid, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, v2VariantAi: true, v2Grudge: true } }));
+    b = playCard(b, f.uid, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, v2VariantAi: true, v2Grudge: true } }));
     expect(b.qi).toBe(0);
     expect(prev.legal).toBe(true);
   });
@@ -94,7 +93,7 @@ describe("Combat v2 势", () => {
     let b = v2Battle();
     const g = b.hand.find((c) => c.defId === "gather");
     if (!g) return;
-    b = playCard(b, g.uid, contextNow());
+    b = playCard(b, g.uid, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, v2VariantAi: true, v2Grudge: true } }));
     expect(b.qi).toBeGreaterThan(0);
   });
 });
@@ -154,7 +153,7 @@ describe("Combat v2 换人", () => {
     expect(b.labFreshSwap).toBeFalsy();
     expect(b.labEntranceActive).toBe(true);
     const card = b.hand[0];
-    if (card) expect(canPlay(b, card.uid, contextNow()).ok).toBe(true);
+    if (card) expect(canPlay(b, card.uid, breakTestContext()).ok).toBe(true);
   });
 
   it("resonance tier 1 auto-applies with two same-school on team", () => {
@@ -178,7 +177,7 @@ describe("Combat v2 鏖战", () => {
     let b = v2Battle();
     b.turn = GRUDGE_NORMAL + 1;
     b.v2GrudgeBonus = 0;
-    b = endTurn(b, contextNow());
+    b = endTurn(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, v2VariantAi: true, v2Grudge: true } }));
     expect(b.v2GrudgeBonus).toBeGreaterThan(0);
   });
 });
@@ -212,7 +211,7 @@ describe("Combat v2 三系统迁移", () => {
     let b = v2Battle();
     const c = b.hand.find((x) => x.defId === "combo");
     if (!c) return;
-    b = playCard(b, c.uid, contextNow());
+    b = playCard(b, c.uid, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, v2VariantAi: true, v2Grudge: true } }));
     expect(b.qi).toBeGreaterThan(0);
     expect(b.combo).toBe(0);
   });
