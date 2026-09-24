@@ -31,10 +31,6 @@ export {
   resonanceChargeStepsCut,
 } from "./labResonance";
 
-export function isLabV21(rc: RunContext): boolean {
-  return labV2(rc);
-}
-
 export { ITEM_GRANT_QTY };
 
 export function defaultItemCharges(items: LabItemId[]): Partial<Record<LabItemId, number>> {
