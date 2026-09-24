@@ -1,5 +1,4 @@
 import { readFileSync, writeFileSync } from "node:fs";
-import { contextNow } from "./runContext";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -12,7 +11,7 @@ import { setLabMode } from "./labTuning";
 import { setLabRuleset } from "./labRuleset";
 import { canPlay, endTurn, livingFoes, playCard, setBattleRng, setSegmentProbe } from "./sim";
 import { addStake } from "./stake";
-import { climbTestContext } from "./testContext";
+import { climbTestContext, makeTestContext } from "./testContext";
 import type { Battle, CardId } from "./types";
 
 const DIR = dirname(fileURLToPath(import.meta.url));
@@ -146,20 +145,21 @@ function mash(seed: number, loadout: string, ruleset: "climb" | "break"): Frame[
     setBattleRng(rng);
     const preset = applyAutoLoadout(loadout, 1, 1);
     let b = startLabBattle(preset, false, 1);
+    const rc = makeTestContext({ mode: ruleset, lab: true });
     take(b, "open", 0);
     let guard = 0;
     while (!battleOver(b) && guard < 36) {
       guard += 1;
       if (b.phase !== "player") break;
-      const legal = b.hand.filter((c) => canPlay(b, c.uid, contextNow()).ok);
+      const legal = b.hand.filter((c) => canPlay(b, c.uid, rc).ok);
       if (legal.length > 0 && b.energy > 0) {
         const card = legal[Math.floor(rng() * legal.length)]!;
         const before = b.log.length;
-        b = playCard(b, card.uid, contextNow());
+        b = playCard(b, card.uid, rc);
         take(b, `play:${card.defId}`, before);
       } else {
         const before = b.log.length;
-        b = endTurn(b, contextNow());
+        b = endTurn(b, rc);
         take(b, "end", before);
       }
     }
@@ -192,13 +192,13 @@ function buildCorpus(): Corpus {
       ...b.hand,
     ];
     const a = b.log.length;
-    b = playCard(b, "spk1", contextNow());
+    b = playCard(b, "spk1", climbTestContext());
     take(b, "spear-1", a);
     b.energy = 20;
     b.player.pos = 0;
     b.enemy.pos = 4;
     const c = b.log.length;
-    b = playCard(b, "spk2", contextNow());
+    b = playCard(b, "spk2", climbTestContext());
     take(b, "spear-debt", c);
   });
 
@@ -213,7 +213,7 @@ function buildCorpus(): Corpus {
     addStake(b, 3, 1, climbTestContext());
     b.hand = [{ uid: "spl", defId: "split" as CardId }, ...b.hand];
     const before = b.log.length;
-    b = playCard(b, "spl", contextNow());
+    b = playCard(b, "spl", climbTestContext());
     take(b, "split", before);
   });
 
@@ -225,7 +225,7 @@ function buildCorpus(): Corpus {
     b.youStun = b.hand.length;
     b.energy = 0;
     const before = b.log.length;
-    b = endTurn(b, contextNow());
+    b = endTurn(b, climbTestContext());
     take(b, "stun-end", before);
   });
 

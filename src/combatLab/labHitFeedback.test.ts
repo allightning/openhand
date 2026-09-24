@@ -1,8 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { contextNow } from "../game/runContext";
 import { setLabMode, setLabTuning } from "../game/labTuning";
 import { applyBreak, applyGraze, applyBreakMomentumOnAttack } from "../game/labV2";
-import { breakTestContext } from "../game/testContext";
+import { breakTestContext, makeTestContext } from "../game/testContext";
 import { endTurn, playCard, refreshFoeIntentsIfPending } from "../game/sim";
 import type { Battle } from "../game/types";
 import { startLabBattle } from "./factory";
@@ -79,7 +78,7 @@ describe("打击反馈：拆/让/空/打/拆势/劲尽", () => {
     b.v2Turn = { ...b.v2Turn!, turnStartPos: 0, endPos: 0 };
     b.intents = [{ kind: "strike", damage: 12 }];
     const hp = b.player.hp;
-    b = endTurn(b, contextNow());
+    b = endTurn(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: true, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b.player.hp).toBe(hp);
     expect(b.v2LastIntentRecap?.some((r) => r.outcome === "空")).toBe(true);
     expect(b.v2FxQueue).toContain("miss");
@@ -94,7 +93,7 @@ describe("打击反馈：拆/让/空/打/拆势/劲尽", () => {
     b.v2Turn = { ...b.v2Turn!, turnStartPos: 3, endPos: 3, moveCharges: 0 };
     b.intents = [{ kind: "strike", damage: 8 }];
     const hp = b.player.hp;
-    b = endTurn(b, contextNow());
+    b = endTurn(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: true, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b.player.hp).toBeLessThan(hp);
     expect(b.v2LastIntentRecap?.some((r) => (r.hpLost ?? 0) > 0)).toBe(true);
     expect(b.v2LastIntentRecap?.some((r) => r.outcome === "打")).toBe(true);
@@ -110,7 +109,7 @@ describe("打击反馈：拆/让/空/打/拆势/劲尽", () => {
     b.v2Turn = { ...b.v2Turn!, turnStartPos: 3, endPos: 3 };
     b.intents = [{ kind: "strike", damage: 8 }];
     const hp = b.player.hp;
-    b = endTurn(b, contextNow());
+    b = endTurn(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: true, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b.player.hp).toBe(hp);
     expect(b.v2LastIntentRecap?.some((r) => r.outcome === "劲尽")).toBe(true);
     expect(b.v2FxQueue).toContain("skip");
@@ -123,7 +122,7 @@ describe("打击反馈：拆/让/空/打/拆势/劲尽", () => {
     b.enemy.pos = 4;
     b.energy = 6;
     b.hand = [{ uid: "h1", defId: "strike" }];
-    const after = playCard(b, "h1", contextNow());
+    const after = playCard(b, "h1", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: true, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(after.lastHitRead).toMatch(/伤/);
     expect(renderFxLayer(after)).toMatch(/伤/);
   });
@@ -282,13 +281,13 @@ describe("意图条：招名 / 效果 / 劲尽", () => {
     ];
     b.intents = locked.map((x) => ({ ...x }));
     b.intent = b.intents[0]!;
-    b = endTurn(b, contextNow(), { deferIntentRefresh: true });
+    b = endTurn(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: true, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }), { deferIntentRefresh: true });
     expect(b.v2PendingIntentRefresh).toBe(true);
     expect(b.intents).toHaveLength(2);
     expect(b.intents[0]).toMatchObject({ kind: "strike", damage: 6 });
     expect(b.intents[1]).toMatchObject({ kind: "guard", block: 6 });
     expect(b.v2LastIntentRecap?.length).toBeGreaterThanOrEqual(2);
-    b = refreshFoeIntentsIfPending(b, contextNow());
+    b = refreshFoeIntentsIfPending(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: true, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b.v2PendingIntentRefresh).toBeFalsy();
     expect(b.intents.length).toBeGreaterThanOrEqual(1);
   });

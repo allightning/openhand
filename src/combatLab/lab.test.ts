@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { contextNow } from "../game/runContext";
 import { CARDS, ENEMIES, TECHNIQUES } from "../game/content";
 import { GEAR_WEAPONS } from "../game/weapons";
 import { ARSENAL_COUNTS } from "./arsenal";
@@ -14,7 +13,7 @@ import { normalizePreset } from "./draft";
 import { escapeHtml } from "./setupUi";
 import { clearEntityOverride, getContentOverrides, setContentOverride } from "../game/labContentOverrides";
 import { labEnemy } from "../game/labContent";
-import { breakTestContext } from "../game/testContext";
+import { breakTestContext, makeTestContext } from "../game/testContext";
 import type { LabPreset } from "./types";
 import { labCanPlay, labSwapFighter } from "./labCombat";
 import { setLabMode, setLabTuning } from "../game/labTuning";
@@ -176,7 +175,7 @@ describe("Combat Lab swap rules", () => {
     const strike = b.hand.find((c) => c.defId === "strike");
     if (strike) expect(labCanPlay(b, strike.uid).ok).toBe(false);
     const haste = b.hand.find((c) => c.defId === "haste" || c.defId === "sidestep");
-    if (haste) expect(labCanPlay(b, haste.uid).ok).toBe(canPlay(b, haste.uid, contextNow()).ok);
+    if (haste) expect(labCanPlay(b, haste.uid).ok).toBe(canPlay(b, haste.uid, makeTestContext({ mode: "climb", lab: true, tuning: { rulesV2: false } })).ok);
     setLabMode(false);
     setLabTuning({ rulesV2: true });
   });
@@ -187,11 +186,12 @@ describe("Combat Lab preview discipline", () => {
     setLabMode(true);
     setLabTuning({ dmgCoef: 1.35, paceBias: 1, aiAggression: 40 });
     let b = startLabBattle(BUILTIN_PRESETS[0]!, true);
-    applyLabFightScale(contextNow());
-    const card = b.hand.find((c) => canPlay(b, c.uid, contextNow()).ok);
+    const rc = makeTestContext({ mode: "climb", lab: true, tuning: { dmgCoef: 1.35, paceBias: 1, aiAggression: 40 } });
+    applyLabFightScale(rc);
+    const card = b.hand.find((c) => canPlay(b, c.uid, rc).ok);
     expect(card).toBeTruthy();
-    const prev = previewCard(b, card!.uid, contextNow());
-    b = playCard(b, card!.uid, contextNow());
+    const prev = previewCard(b, card!.uid, rc);
+    b = playCard(b, card!.uid, rc);
     expect(b.enemy.hp).toBe(prev.enemyHp);
     expect(b.enemy.pos).toBe(prev.enemyPos);
     expect(b.player.hp).toBe(prev.playerHp);
@@ -200,10 +200,11 @@ describe("Combat Lab preview discipline", () => {
 
   it("main-line tutorial still preview=play when lab mode off", () => {
     setLabMode(false);
-    const b = makeTutorialBattle(contextNow());
+    const rc = makeTestContext({ mode: "climb", lab: false });
+    const b = makeTutorialBattle(rc);
     const strike = b.hand.find((c) => c.defId === "strike")!;
-    const prev = previewCard(b, strike.uid, contextNow());
-    const after = playCard(b, strike.uid, contextNow());
+    const prev = previewCard(b, strike.uid, rc);
+    const after = playCard(b, strike.uid, rc);
     expect(after.enemy.hp).toBe(prev.enemyHp);
   });
 });

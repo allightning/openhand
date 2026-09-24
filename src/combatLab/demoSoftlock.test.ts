@@ -3,7 +3,7 @@
  * 严格按 main.ts 的 demo/hall 处理逻辑模拟每一步，找出卡死点。
  */
 import { describe, expect, it, beforeEach } from "vitest";
-import { contextNow } from "../game/runContext";
+import { breakTestContext } from "../game/testContext";
 import {
   applyBreakDemoBattle,
   afterDemoEndTurn,
@@ -64,7 +64,7 @@ function log(run: BreakDemoRun | HallRun, b: Battle, tag: string): void {
 function simPlay(b: Battle, uid: string): Battle | null {
   const gate = labCanPlay(b, uid);
   if (!gate.ok) return null;
-  return playCard(b, uid, contextNow());
+  return playCard(b, uid, breakTestContext());
 }
 
 /** 自由打收尾：优先打合法攻击牌，没有就打任意合法牌，再不行才收势。 */
@@ -72,8 +72,8 @@ function freePlayStep(b: Battle): { b: Battle; ended: boolean; note?: string } {
   const attack = b.hand.find((c) => CARDS[c.defId]?.type === "attack" && labCanPlay(b, c.uid).ok);
   const any = b.hand.find((c) => labCanPlay(b, c.uid).ok);
   const pick = attack ?? any;
-  if (pick) return { b: playCard(b, pick.uid, contextNow()), ended: false };
-  return { b: endTurn(b, contextNow()), ended: true };
+  if (pick) return { b: playCard(b, pick.uid, breakTestContext()), ended: false };
+  return { b: endTurn(b, breakTestContext()), ended: true };
 }
 
 function runDemoStage(stage: DemoStage, companion: CompanionId | null, opts?: { skipSwap?: boolean }): string[] {
@@ -111,7 +111,7 @@ function runDemoStage(stage: DemoStage, companion: CompanionId | null, opts?: { 
       const target = run.companion ?? DEMO_FIST_MATE;
       if (opts?.skipSwap) {
         // 不换也能打：收势跳过换人步，教案继续
-        b = endTurn(b, contextNow());
+        b = endTurn(b, breakTestContext());
         run = afterDemoEndTurn(run);
         if (currentDemoLesson(run).kind === "swap") {
           problems.push("收势没能跳过换人步");
@@ -159,7 +159,7 @@ function runDemoStage(stage: DemoStage, companion: CompanionId | null, opts?: { 
       break;
     }
     log(run, b, `demo${stage}-end前`);
-    b = endTurn(b, contextNow());
+    b = endTurn(b, breakTestContext());
     const you = b.player.pos;
     const foe = b.enemy.pos;
     run = afterDemoEndTurn(run);
@@ -234,7 +234,7 @@ function runHallGuide(courseId: string): string[] {
       break;
     }
     log(run, b, `hall-${courseId}-end前`);
-    b = endTurn(b, contextNow());
+    b = endTurn(b, breakTestContext());
     const you = b.player.pos;
     const foe = b.enemy.pos;
     run = afterHallEndTurn(run);
@@ -291,7 +291,7 @@ describe("新手关软锁复现", () => {
     b.enemy.hp = 1;
     const attack = b.hand.find((c) => CARDS[c.defId]?.type === "attack" && labCanPlay(b, c.uid).ok);
     expect(attack).toBeTruthy();
-    b = playCard(b, attack!.uid, contextNow());
+    b = playCard(b, attack!.uid, breakTestContext());
     // 替补接力：战斗没结束，仍是玩家回合——收势/出牌都可用
     expect(b.phase).toBe("player");
     expect(b.enemy.hp).toBeGreaterThan(0);
