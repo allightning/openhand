@@ -220,7 +220,7 @@ export function checkBountyOnWin(run: Run, enemyId: EnemyId): { run: Run; payout
     return { run: next, payout: "差事结了。银十两。" };
   }
   if (kind === "weapon") {
-    const up = softUpgradeTarget(next.weapon);
+    const up = softUpgradeTarget(next.weapon, contextNow());
     if (up) {
       next = {
         ...next,
@@ -232,7 +232,7 @@ export function checkBountyOnWin(run: Run, enemyId: EnemyId): { run: Run; payout
     next = { ...next, silver: (next.silver ?? 0) + 8 };
     return {
       run: next,
-      payout: softUpgradeBlockReason(next.weapon).includes("锻材")
+      payout: softUpgradeBlockReason(next.weapon, contextNow()).includes("锻材")
         ? "差事结了。精级须锻材，改结银八两。"
         : "差事结了。刀已到顶，改结银八两。",
     };

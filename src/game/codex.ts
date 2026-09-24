@@ -1,7 +1,7 @@
 import { CARDS, TECHNIQUES } from "./content";
 import { WEAPON_NAME } from "./party";
 import type { CardId, Run, TechniqueId } from "./types";
-import { contextNow } from "./runContext";
+import type { RunContext } from "./runContext";
 import { GEAR_WEAPONS, gearById, type GearWeapon } from "./weapons";
 
 /** 三本：明注 / 兵籍 / 势录 — 烫印后由账房发给，顶栏才出现。 */
@@ -268,22 +268,22 @@ export function upgradeCompareLine(from: CardId, to: CardId): string {
   return `比「${CARDS[from].name}」强：${beats.join(" · ")}`;
 }
 
-export function ownedWeaponIds(run: Run): Set<string> {
+export function ownedWeaponIds(run: Run, rc: RunContext): Set<string> {
   const set = new Set<string>();
   for (const id of run.weapons ?? []) {
-    const g = gearById(id, contextNow());
+    const g = gearById(id, rc);
     if (g) set.add(g.id);
     else set.add(id);
   }
   if (run.weapon) {
-    const g = gearById(run.weapon, contextNow());
+    const g = gearById(run.weapon, rc);
     if (g) set.add(g.id);
   }
   return set;
 }
 
-export function bingjiRows(run: Run): { school: string; items: { gear: GearWeapon; owned: boolean }[] }[] {
-  const owned = ownedWeaponIds(run);
+export function bingjiRows(run: Run, rc: RunContext): { school: string; items: { gear: GearWeapon; owned: boolean }[] }[] {
+  const owned = ownedWeaponIds(run, rc);
   const schools = ["palm", "saber", "spear", "sword", "staff", "hook"] as const;
   return schools.map((school) => ({
     school: WEAPON_NAME[school],
