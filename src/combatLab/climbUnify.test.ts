@@ -36,7 +36,7 @@ describe("S1–S10 爬塔收编", () => {
   it("S1 面伤公式不含连势×2 / 气脉", () => {
     const b = climbBattle();
     const fat = { ...b, combo: 9, flow: 3, mark: 5 };
-    expect(climbAttackFaceDamage(fat, CARDS.cut)).toBe(climbAttackFaceDamage(b, CARDS.cut));
+    expect(climbAttackFaceDamage(fat, CARDS.cut, climbTestContext())).toBe(climbAttackFaceDamage(b, CARDS.cut, climbTestContext()));
   });
 
   it("S2 预演与 chip 用格挡不用架势", () => {

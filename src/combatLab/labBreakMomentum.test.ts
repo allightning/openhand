@@ -8,6 +8,7 @@ import type { Battle, CardId } from "../game/types";
 import { startLabBattle } from "./factory";
 import { buildGauntletPreset, createGauntletRun } from "./gauntlet";
 import { setLabRuleset } from "./labRuleset";
+import { breakTestContext } from "../game/testContext";
 import type { WeaponId } from "../game/types";
 
 function v2Battle(school: WeaponId = "palm"): Battle {
@@ -71,7 +72,7 @@ describe("拆势：硬拆叠层，攻击才结算", () => {
     let b = hardBreakByMove("saber");
     const hp = b.enemy.hp;
     const pool = b.v2BreakMomentumTrue ?? 0;
-    expect(pool).toBe(breakCounterDamage(b));
+    expect(pool).toBe(breakCounterDamage(b, breakTestContext()));
     b = playAttack(b, "cut", 3, 5);
     expect(b.v2BreakMomentum ?? 0).toBe(0);
     expect(b.enemy.hp).toBeLessThan(hp);
@@ -98,7 +99,7 @@ describe("拆势：硬拆叠层，攻击才结算", () => {
     b = endTurn(b, contextNow());
     expect(b.v2BreakMomentum ?? 0).toBe(2);
     expect(b.enemy.hp).toBe(hp);
-    const per = breakCounterDamage(b);
+    const per = breakCounterDamage(b, breakTestContext());
     expect(b.v2BreakMomentumTrue ?? 0).toBe(per + per + BREAK_COUNTER_CHAIN);
   });
 
@@ -120,7 +121,7 @@ describe("拆势：硬拆叠层，攻击才结算", () => {
     expect(b.v2OffBalance ?? 0).toBeGreaterThan(0);
     expect(b.enemy.hp).toBe(hp);
     expect(b.v2BreakMomentum ?? 0).toBe(1);
-    expect(b.v2BreakMomentumTrue ?? 0).toBe(breakCounterDamage(b) + EYE_COUNTER_DMG);
+    expect(b.v2BreakMomentumTrue ?? 0).toBe(breakCounterDamage(b, breakTestContext()) + EYE_COUNTER_DMG);
   });
 });
 

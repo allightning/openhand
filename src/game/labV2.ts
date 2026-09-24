@@ -1,5 +1,5 @@
 import { ENEMIES } from "./content";
-import { contextNow, labV2, type RunContext } from "./runContext";
+import { labV2, type RunContext } from "./runContext";
 import {
   BOSS_VARIANT_BREAK_THRESHOLD,
   BREAK_COUNTER_BASE,
@@ -230,8 +230,8 @@ export function shouldBreakIntent(
 }
 
 /** §31.13 反拆真伤 = 底数 + 场上角色兵器品阶（精3/玄4/神5 → 5/6/7）。 */
-export function breakCounterDamage(b: Battle): number {
-  const grade = gearById(battleMateGearId(b, b.active), contextNow())?.grade ?? 3;
+export function breakCounterDamage(b: Battle, rc: RunContext): number {
+  const grade = gearById(battleMateGearId(b, b.active), rc)?.grade ?? 3;
   return BREAK_COUNTER_BASE + grade;
 }
 
@@ -239,7 +239,7 @@ export function breakCounterDamage(b: Battle): number {
 export function grantBreakMomentum(b: Battle, rc: RunContext, extraTrue = 0): void {
   // 旧破招核专属，阶段3拆 engine/break 时沉走，勿仿此新增
   if (!labV2(rc) || rc.ruleset.mode !== "break") return;
-  const add = breakCounterDamage(b) + extraTrue;
+  const add = breakCounterDamage(b, rc) + extraTrue;
   const stacks = b.v2BreakMomentum ?? 0;
   if (stacks < BREAK_MOMENTUM_CAP) b.v2BreakMomentum = stacks + 1;
   b.v2BreakMomentumTrue = (b.v2BreakMomentumTrue ?? 0) + add;

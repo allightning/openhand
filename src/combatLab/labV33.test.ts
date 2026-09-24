@@ -55,7 +55,7 @@ describe("§31.13 拆招 v4 · 以拆为杀", () => {
   beforeEach(() => setLabRuleset("break"));
   it("硬拆反打真伤 = 底数 + 兵器品阶（精阶 3 → 5）", () => {
     const b = v2Battle();
-    expect(breakCounterDamage(b)).toBe(BREAK_COUNTER_BASE + 3);
+    expect(breakCounterDamage(b, breakTestContext())).toBe(BREAK_COUNTER_BASE + 3);
   });
 
   it("硬拆一段（反架拆架式）：那段作废 + 拆势 + 势 +1", () => {

@@ -382,7 +382,7 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
       const gate = discardMode ? { ok: true as const } : canPlay(c.uid);
       const active = hoverUid === c.uid;
       const vBranch = isLabV2() ? variantBranch(def, b, shellRunContext()) : null;
-      const vLabel = vBranch ? variantActiveLabel(def, b) : null;
+      const vLabel = vBranch ? variantActiveLabel(def, b, shellRunContext()) : null;
       const vClass = vBranch ? `variant-on variant-${vBranch}` : def.variant ? "variant-idle" : "";
       const comboUnlock = isComboUnlockCard(b, c.defId, shellRunContext()) && gate.ok;
       const comboBadge = comboUnlock ? `<span class="combo-unlock-badge">合</span>` : "";

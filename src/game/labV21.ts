@@ -1,5 +1,5 @@
 import { CARDS } from "./content";
-import { contextNow, labV2, type RunContext } from "./runContext";
+import { labV2, type RunContext } from "./runContext";
 import { isSummonItem, SUMMON_ITEM_TO_SCHOOL } from "./labSummon";
 import { legalSummonCells, summonAssist } from "./sim";
 import {
@@ -97,14 +97,14 @@ export function initLabV21Battle(b: Battle, rc: RunContext): void {
 }
 
 /** @deprecated v2.5 用 resonanceStrikeBonus */
-export function auraDamageBonus(b: Battle, cardId: CardId): number {
+export function auraDamageBonus(b: Battle, cardId: CardId, rc: RunContext): number {
   const adj = dist(b) === 1;
-  return resonanceStrikeBonus(b, cardId, 0, adj, dist(b), contextNow());
+  return resonanceStrikeBonus(b, cardId, 0, adj, dist(b), rc);
 }
 
-export function auraExtraQiOnGain(b: Battle, cardId?: CardId): number {
+export function auraExtraQiOnGain(b: Battle, rc: RunContext, cardId?: CardId): number {
   if (!cardId) return 0;
-  return resonanceExtraQiOnGain(b, cardId, contextNow());
+  return resonanceExtraQiOnGain(b, cardId, rc);
 }
 
 /** 拆招绝招：门槛只看本系资源，不走通用势。 */
@@ -189,16 +189,16 @@ export function variantBranch(def: CardDef, b: Battle, rc: RunContext): "a" | "b
   return null;
 }
 
-export function variantActiveLabel(def: CardDef, b: Battle): string | null {
-  const br = variantBranch(def, b, contextNow());
+export function variantActiveLabel(def: CardDef, b: Battle, rc: RunContext): string | null {
+  const br = variantBranch(def, b, rc);
   if (!br || !def.variant) return null;
   return br === "a" ? def.variant.labelA : def.variant.labelB;
 }
 
-export function climbAttackFaceDamage(b: Battle, def: CardDef): number {
+export function climbAttackFaceDamage(b: Battle, def: CardDef, rc: RunContext): number {
   let dmg = def.damage ?? 0;
   dmg += b.nextDamage;
-  const g = gearById(b.labGearId, contextNow());
+  const g = gearById(b.labGearId, rc);
   if (g) dmg += g.damage ?? 0;
   if (b.active === "ananhuo") {
     const dist = Math.abs(b.player.pos - b.enemy.pos);
