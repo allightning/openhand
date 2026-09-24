@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { contextNow } from "../game/runContext";
 import { setLabMode, setLabTuning } from "../game/labTuning";
 import { BREAK_COUNTER_CHAIN, EYE_COUNTER_DMG } from "../game/labV2Constants";
 import { breakCounterDamage } from "../game/labV2";
@@ -8,7 +7,7 @@ import type { Battle, CardId } from "../game/types";
 import { startLabBattle } from "./factory";
 import { buildGauntletPreset, createGauntletRun } from "./gauntlet";
 import { setLabRuleset } from "./labRuleset";
-import { breakTestContext } from "../game/testContext";
+import { breakTestContext, makeTestContext } from "../game/testContext";
 import type { WeaponId } from "../game/types";
 
 function v2Battle(school: WeaponId = "palm"): Battle {
@@ -29,8 +28,8 @@ function hardBreakByMove(school: WeaponId): Battle {
   const move: CardId = school === "palm" ? "backpalm" : "retreat";
   b.hand = [{ uid: "m1", defId: move }];
   b.energy = 8;
-  b = playCard(b, "m1", contextNow());
-  return endTurn(b, contextNow());
+  b = playCard(b, "m1", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
+  return endTurn(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
 }
 
 function playAttack(b: Battle, id: CardId, playerPos: number, enemyPos: number): Battle {
@@ -38,7 +37,7 @@ function playAttack(b: Battle, id: CardId, playerPos: number, enemyPos: number):
   b.energy = 8;
   b.player.pos = playerPos;
   b.enemy.pos = enemyPos;
-  return playCard(b, "a1", contextNow());
+  return playCard(b, "a1", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
 }
 
 beforeEach(() => {
@@ -60,8 +59,8 @@ describe("拆势：硬拆叠层，攻击才结算", () => {
     b.hand = [{ uid: "g1", defId: "expose" }];
     b.energy = 8;
     const hp = b.enemy.hp;
-    b = playCard(b, "g1", contextNow());
-    b = endTurn(b, contextNow());
+    b = playCard(b, "g1", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
+    b = endTurn(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b.v2BreakCount ?? 0).toBe(1);
     expect(b.v2BreakMomentum ?? 0).toBe(1);
     expect(b.enemy.hp).toBe(hp);
@@ -93,10 +92,10 @@ describe("拆势：硬拆叠层，攻击才结算", () => {
       { uid: "g2", defId: "marking" },
     ];
     b.energy = 8;
-    b = playCard(b, "g1", contextNow());
-    b = playCard(b, "g2", contextNow());
+    b = playCard(b, "g1", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
+    b = playCard(b, "g2", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     const hp = b.enemy.hp;
-    b = endTurn(b, contextNow());
+    b = endTurn(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b.v2BreakMomentum ?? 0).toBe(2);
     expect(b.enemy.hp).toBe(hp);
     const per = breakCounterDamage(b, breakTestContext());
@@ -116,8 +115,8 @@ describe("拆势：硬拆叠层，攻击才结算", () => {
     b.hand = [{ uid: "m1", defId: "backpalm" }];
     b.energy = 6;
     const hp = b.enemy.hp;
-    b = playCard(b, "m1", contextNow());
-    b = endTurn(b, contextNow());
+    b = playCard(b, "m1", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
+    b = endTurn(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b.v2OffBalance ?? 0).toBeGreaterThan(0);
     expect(b.enemy.hp).toBe(hp);
     expect(b.v2BreakMomentum ?? 0).toBe(1);
