@@ -3,6 +3,7 @@
 import { bossCount } from "./hero";
 import { softUpgradeBlockReason, softUpgradeTarget } from "./economy";
 import type { EnemyId, HeroId, Run } from "./types";
+import type { RunContext } from "./runContext";
 import { gearById, nextGrade } from "./weapons";
 
 /** Beat this foe in this scene → scar flag that softens a gate. */
@@ -32,8 +33,8 @@ export function gateScarOpen(gate: string, flags: string[]): boolean {
   return false;
 }
 
-export function nextGradeId(weaponId: string): string | null {
-  return nextGrade(weaponId);
+export function nextGradeId(weaponId: string, rc: RunContext): string | null {
+  return nextGrade(weaponId, rc);
 }
 
 /** Scenes where a clean win can temper the blade one grade. */
@@ -201,7 +202,7 @@ export function clearBountyFlags(run: Run): Run {
   };
 }
 
-export function checkBountyOnWin(run: Run, enemyId: EnemyId): { run: Run; payout: string } {
+export function checkBountyOnWin(run: Run, enemyId: EnemyId, rc: RunContext): { run: Run; payout: string } {
   if (!run.flags.includes("bountyActive")) return { run, payout: "" };
   const target = bountyTarget(run);
   const kind = bountyKind(run);
@@ -219,19 +220,19 @@ export function checkBountyOnWin(run: Run, enemyId: EnemyId): { run: Run; payout
     return { run: next, payout: "差事结了。银十两。" };
   }
   if (kind === "weapon") {
-    const up = softUpgradeTarget(next.weapon);
+    const up = softUpgradeTarget(next.weapon, rc);
     if (up) {
       next = {
         ...next,
         weapon: up,
         weapons: next.weapons.includes(up) ? next.weapons : [...next.weapons, up],
       };
-      return { run: next, payout: `差事结了。兵刃升到「${gearById(up)?.name ?? up}」。` };
+      return { run: next, payout: `差事结了。兵刃升到「${gearById(up, rc)?.name ?? up}」。` };
     }
     next = { ...next, silver: (next.silver ?? 0) + 8 };
     return {
       run: next,
-      payout: softUpgradeBlockReason(next.weapon).includes("锻材")
+      payout: softUpgradeBlockReason(next.weapon, rc).includes("锻材")
         ? "差事结了。精级须锻材，改结银八两。"
         : "差事结了。刀已到顶，改结银八两。",
     };

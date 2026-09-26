@@ -1,3 +1,4 @@
+import { shellRunContext } from "./shellContext";
 import { CARDS, TECHNIQUES } from "../game/content";
 import { cardWikiBody, godSkillText, pathSkillText } from "../game/cardTextV2";
 import { MIND_ARTS } from "../game/mindArts";
@@ -50,7 +51,7 @@ function cardRelated(id: CardId): CodexRelated[] {
 }
 
 function weaponRelated(weaponId: string): CodexRelated[] {
-  const g = gearById(weaponId);
+  const g = gearById(weaponId, shellRunContext());
   if (!g) return [];
   return ALL_CARD_IDS.filter((id) => CARDS[id]?.school === g.school)
     .slice(0, 10)
@@ -65,7 +66,7 @@ export function catalogUlt(): CodexEntry[] {
       id,
       name: c.name,
       kicker: `绝 · ${schoolLabel(id)} · ${c.cost}劲`,
-      text: cardWikiBody(c),
+      text: cardWikiBody(c, shellRunContext()),
       flavor: c.flavor,
       related: cardRelated(id),
     };
@@ -80,7 +81,7 @@ export function catalogSkill(): CodexEntry[] {
       id,
       name: c.name,
       kicker: `${c.type === "attack" ? "攻" : "技"} · ${schoolLabel(id)} · ${c.cost}劲`,
-      text: cardWikiBody(c),
+      text: cardWikiBody(c, shellRunContext()),
       flavor: c.flavor,
       related: cardRelated(id),
     };
@@ -123,8 +124,8 @@ export function catalogSkill(): CodexEntry[] {
 export function catalogGear(): CodexEntry[] {
   return GEAR_WEAPONS.map((g) => {
     const pathKey = `${g.school}-${g.path}`;
-    const path = PATH_SKILL[pathKey] ? pathSkillText(pathKey) : "";
-    const god = g.godSkill && GOD_SKILL[pathKey] ? godSkillText(pathKey) : g.godSkill ?? "";
+    const path = PATH_SKILL[pathKey] ? pathSkillText(pathKey, shellRunContext()) : "";
+    const god = g.godSkill && GOD_SKILL[pathKey] ? godSkillText(pathKey, shellRunContext()) : g.godSkill ?? "";
     const bits = [`伤+${g.damage}`, `推+${g.knock}`, `架+${g.ward}`];
     const hit =
       g.grade < 5

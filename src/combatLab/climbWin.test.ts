@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { makeTestContext } from "./testContext";
 import { endTurn, isBattleWon, livingFoes } from "../game/sim";
-import { setLabMode, setLabTuning } from "../game/labTuning";
+import { setLabMode, setLabTuning } from "./labTuning";
 import { startLabBattle } from "./factory";
 import { buildGauntletPreset, createGauntletRun } from "./gauntlet";
 import { setLabRuleset } from "./labRuleset";
@@ -32,7 +33,7 @@ describe("最后一人倒下当场判胜", () => {
     b.intent = b.intents[0]!;
     b.enemyEnergy = 20;
     const hpBefore = b.player.hp;
-    b = endTurn(b);
+    b = endTurn(b, makeTestContext({ mode: "climb", lab: true, tuning: { rulesV2: true, v2Fx: false, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(livingFoes(b).length).toBe(0);
     expect(isBattleWon(b)).toBe(true);
     expect(skipFoeRecap(b)).toBe(true);
@@ -53,7 +54,7 @@ describe("最后一人倒下当场判胜", () => {
     b.intent = b.intents[0]!;
     const hpBefore = b.player.hp;
     expect(isBattleWon(b)).toBe(true);
-    b = endTurn(b);
+    b = endTurn(b, makeTestContext({ mode: "climb", lab: true, tuning: { rulesV2: true, v2Fx: false, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(isBattleWon(b)).toBe(true);
     expect(b.player.hp).toBe(hpBefore);
   });

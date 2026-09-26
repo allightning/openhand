@@ -14,11 +14,12 @@ import { cardDisplayText } from "../game/cardTextV2";
 import { breakdownTipLine, previewShortLine } from "../game/damageBreakdown";
 import { variantActiveLabel, variantBranch, labV21EffectiveCost } from "../game/labV21";
 import { ROLE_LABEL } from "../game/labV25Constants";
-import { isLabV2 } from "../game/labTuning";
+import { isLabV2 } from "./labTuning";
 import { MOVE_CARD_IDS } from "../game/intentWeakness";
 import { isBreakAlign } from "./labRuleset";
 import { MATES, MATE_PASSIVE, WEAPON_NAME, schoolLabel } from "../game/party";
 import { dangerCells, livingFoes, statusChips, yourPace, isComboUnlockCard, climbCardLocked } from "../game/sim";
+import { shellRunContext } from "./shellContext";
 import { battleTechRank } from "../game/techRank";
 import { BOARD_SIZE, type Battle, type EnemyId, type Preview } from "../game/types";
 import { gearById, starterGear } from "../game/weapons";
@@ -89,7 +90,7 @@ function qiBar(current: number, max: number, regen?: number): string {
 }
 
 function renderStatusCol(b: Battle, side: "you" | "foe"): string {
-  const chips = statusChips(b, side).filter((c) => !c.key.startsWith("mind-") && !c.name.includes("心法"));
+  const chips = statusChips(b, side, shellRunContext()).filter((c) => !c.key.startsWith("mind-") && !c.name.includes("心法"));
   if (!chips.length) return `<div class="status-col ${side}-status empty" aria-hidden="true"></div>`;
   const rows = chips
     .map(
@@ -106,7 +107,7 @@ function typeLabel(type: string): string {
 
 function mateSideTip(b: Battle): string {
   const m = MATES[b.active];
-  const eq = battleEquippedSchool(b, b.active);
+  const eq = battleEquippedSchool(b, b.active, shellRunContext());
   const techs = b.techniques.map((id) => TECHNIQUES[id].name).join("、") || "无外功";
   return `${m.name} · ${m.title} · 气血 ${b.player.hp}/${b.player.maxHp} · 劲 ${b.energy}/${b.energyMax} · ${WEAPON_NAME[eq]} · ${ROLE_LABEL[m.role]} · 外功 ${techs}`;
 }
@@ -127,7 +128,7 @@ export function renderProdBoard(
     slashTick?: number;
   },
 ): string {
-  const danger = dangerCells(b);
+  const danger = dangerCells(b, shellRunContext());
   // §31.10 兵刃威胁圈：敌当前位置 ±reach 的格常亮淡红——「退一步是否还挨刀」一眼可查。
   const reach = ENEMIES[b.enemyId]?.reach ?? 1;
   const reachCells: number[] = [];
@@ -249,9 +250,9 @@ export function renderHoverPreview(b: Battle, prev: Preview | null): string {
 }
 
 function weaponPlate(id: string, _side: "you" | "foe"): string {
-  const g = gearById(id);
+  const g = gearById(id, shellRunContext());
   const tip = g ? `${g.name} · ${g.tip}（点开细看）` : "兵刃";
-  return weaponArtMarkup(id, { button: true }).replace(
+  return weaponArtMarkup(id, shellRunContext(), { button: true }).replace(
     'class="weapon-plate"',
     `class="weapon-plate lab-weapon-open" data-weapon-open="${id}" data-tip="${escapeAttr(tip)}"`,
   );
@@ -360,7 +361,7 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
     : hpBar(foeHp, foeMax);
   const threatHighlight = threatCellsForHover(b, hoverIntentIdx);
   const gearId = weaponId || starterGear(mate.weapon);
-  const eqSchool = battleEquippedSchool(b, b.active);
+  const eqSchool = battleEquippedSchool(b, b.active, shellRunContext());
   const techList =
     b.techniques.length > 0
       ? `<div class="tech-list">${b.techniques
@@ -377,20 +378,20 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
 
   const hand = b.hand
     .map((c, idx) => {
-      const def = labCard(c.defId);
+      const def = labCard(c.defId, shellRunContext());
       const gate = discardMode ? { ok: true as const } : canPlay(c.uid);
       const active = hoverUid === c.uid;
-      const vBranch = isLabV2() ? variantBranch(def, b) : null;
-      const vLabel = vBranch ? variantActiveLabel(def, b) : null;
+      const vBranch = isLabV2() ? variantBranch(def, b, shellRunContext()) : null;
+      const vLabel = vBranch ? variantActiveLabel(def, b, shellRunContext()) : null;
       const vClass = vBranch ? `variant-on variant-${vBranch}` : def.variant ? "variant-idle" : "";
-      const comboUnlock = isComboUnlockCard(b, c.defId) && gate.ok;
+      const comboUnlock = isComboUnlockCard(b, c.defId, shellRunContext()) && gate.ok;
       const comboBadge = comboUnlock ? `<span class="combo-unlock-badge">合</span>` : "";
       const vBadge = vLabel ? `<span class="variant-badge">${escapeHtml(vLabel)}</span>` : "";
       const chargeCard = breakAlign && MOVE_CHARGE_CARDS.has(def.id) ? "break-charge-card" : "";
       const mom = (b.v2BreakMomentum ?? 0) > 0 && def.type === "attack";
       const momClass = mom ? "break-momentum" : "";
       const momBadge = mom
-        ? `<span class="combo-unlock-badge break-mom">${escapeHtml(`拆势·${breakMomentumRiderLabel(battleEquippedSchool(b, b.active))}`)}</span>`
+        ? `<span class="combo-unlock-badge break-mom">${escapeHtml(`拆势·${breakMomentumRiderLabel(battleEquippedSchool(b, b.active, shellRunContext()))}`)}</span>`
         : "";
       const guided = guideSet.has(def.id);
       const lockedOut = Boolean(demoGuide?.lockOthers && !guided && !discardMode);
@@ -398,13 +399,13 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
       const cardTip = [
         def.name,
         `${typeLabel(def.type)} · ${schoolLabel(c.defId)}${def.tags?.includes("组合") ? " · 组合" : ""}`,
-        cardDisplayText(def, { breakAlign }),
-        playGate.ok && def.type === "attack" ? breakdownTipLine(b, def) : "",
+        cardDisplayText(def, shellRunContext(), { breakAlign }),
+        playGate.ok && def.type === "attack" ? breakdownTipLine(b, def, shellRunContext()) : "",
         playGate.ok ? def.flavor : (playGate.reason ?? def.flavor),
       ]
         .filter(Boolean)
         .join("\n");
-      const stunLock = climbCardLocked(b, c.uid);
+      const stunLock = climbCardLocked(b, c.uid, shellRunContext());
       const teachBadge =
         breakAlign &&
         ((demoGuide && guided) || (!demoGuide && teachStage === 1 && MOVE_CHARGE_CARDS.has(def.id)))
@@ -412,7 +413,7 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
           : guided && demoGuide?.stage === 2
             ? `<span class="combo-unlock-badge teach-move">让</span>`
             : "";
-      const qiCost = labV21EffectiveCost(b, def);
+      const qiCost = labV21EffectiveCost(b, def, shellRunContext());
       return `
         <button class="card ${def.type} ${active ? "hot" : ""} ${playGate.ok ? "" : "dead"} ${stunLock ? "stun-lock" : ""} ${comboUnlock ? "combo-unlock" : ""} ${vClass} ${chargeCard} ${momClass} ${guided ? "demo-guide-card" : ""}"
           data-uid="${c.uid}" data-sfx="play-card" data-tip="${escapeAttr(cardTip)}" style="--i:${idx}" ${playGate.ok ? "" : "disabled"}>
@@ -421,7 +422,7 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
           <div class="art">${cardArt(def.id)}</div>
           <div class="banner">${typeLabel(def.type)} · ${schoolLabel(c.defId)}${def.tags?.includes("组合") ? " · 组合" : ""}</div>
           <h3>${def.name}</h3>
-          <p class="text">${cardBodyHtml(cardDisplayText(def, { breakAlign }))}</p>
+          <p class="text">${cardBodyHtml(cardDisplayText(def, shellRunContext(), { breakAlign }))}</p>
           <p class="flavor">${playGate.ok ? def.flavor : playGate.reason ?? def.flavor}</p>
           <span class="hotkey">${idx + 1}</span>
         </button>`;
@@ -474,7 +475,7 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
           <div class="fy-stats lab-combat-tools">
             ${toolbarExtra}
             <span class="fy-btn hp" data-tip="当前回合">回合 ${b.turn}</span>
-            <span class="fy-btn" data-tip="先机对比">先机 ${yourPace(b)}/${b.foePace}</span>
+            <span class="fy-btn" data-tip="先机对比">先机 ${yourPace(b, shellRunContext())}/${b.foePace}</span>
             ${chromeHtml ?? ""}
           </div>
         </header>

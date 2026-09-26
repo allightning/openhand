@@ -1,4 +1,4 @@
-import { isLabV2 } from "./labTuning";
+import { labV2, type RunContext } from "./runContext";
 import type { CardDef, CardId } from "./types";
 import { GOD_SKILL, PATH_SKILL } from "./weapons";
 
@@ -106,8 +106,8 @@ export function cardStatLine(def: Pick<CardDef, "cost" | "damage" | "block" | "k
   return bits.join(" · ");
 }
 
-export function cardWikiBody(def: CardDef, opts?: { breakAlign?: boolean }): string {
-  const body = cardDisplayText(def, opts);
+export function cardWikiBody(def: CardDef, rc: RunContext, opts?: { breakAlign?: boolean }): string {
+  const body = cardDisplayText(def, rc, opts);
   const stats = cardStatLine(def);
   if (!stats || body.includes(stats)) return body;
   return `${body}\n数值：${stats}`;
@@ -115,9 +115,10 @@ export function cardWikiBody(def: CardDef, opts?: { breakAlign?: boolean }): str
 
 export function cardDisplayText(
   def: Pick<CardDef, "id" | "text">,
+  rc: RunContext,
   opts?: { breakAlign?: boolean },
 ): string {
-  if (!isLabV2()) return def.text;
+  if (!labV2(rc)) return def.text;
   if (opts?.breakAlign !== true) {
     const climb = CARD_TEXT_CLIMB[def.id];
     if (climb) return climb;
@@ -136,20 +137,20 @@ const GOD_SKILL_V2: Record<string, string> = {
   "palm-b": "叠浪三连：势≥2时本息第三击免费",
 };
 
-export function pathSkillDisplay(key: string, fallback: string): string {
-  if (!isLabV2()) return fallback;
+export function pathSkillDisplay(key: string, fallback: string, rc: RunContext): string {
+  if (!labV2(rc)) return fallback;
   return PATH_SKILL_V2[key] ?? migrateLegacyText(fallback);
 }
 
-export function godSkillDisplay(key: string, fallback: string): string {
-  if (!isLabV2()) return fallback;
+export function godSkillDisplay(key: string, fallback: string, rc: RunContext): string {
+  if (!labV2(rc)) return fallback;
   return GOD_SKILL_V2[key] ?? migrateLegacyText(fallback);
 }
 
-export function pathSkillText(key: string): string {
-  return pathSkillDisplay(key, PATH_SKILL[key] ?? "");
+export function pathSkillText(key: string, rc: RunContext): string {
+  return pathSkillDisplay(key, PATH_SKILL[key] ?? "", rc);
 }
 
-export function godSkillText(key: string): string {
-  return godSkillDisplay(key, GOD_SKILL[key] ?? "");
+export function godSkillText(key: string, rc: RunContext): string {
+  return godSkillDisplay(key, GOD_SKILL[key] ?? "", rc);
 }

@@ -1,4 +1,5 @@
 import { CARDS, ENEMIES, ENEMY_WEAPON, HEARTS, HEROES, TECHNIQUES, WORLD, intentLabel, intentTip, isSparEnemy, winHeal } from "./game/content";
+import { contextNow } from "./game/runContext";
 import { applyReward, rollRewards } from "./game/rewards";
 import {
   CODEX,
@@ -439,7 +440,7 @@ function applyMapInteract(pick?: string): void {
         paintMap();
         return;
       }
-      const g = gearById(run.weapon);
+      const g = gearById(run.weapon, contextNow());
       const cost = temperCost(g?.grade ?? 1);
       if ((run.silver ?? 0) < cost) {
         world.said = `“银不够 ${cost} 两。淬火不赊。”`;
@@ -454,7 +455,7 @@ function applyMapInteract(pick?: string): void {
         weapon: up,
         weapons: run.weapons.includes(up) ? run.weapons : [...run.weapons, up],
       };
-      world.said = `“淬完了。成色涨到「${gearById(up)?.name ?? up}」。花了 ${cost} 两。”`;
+      world.said = `“淬完了。成色涨到「${gearById(up, contextNow())?.name ?? up}」。花了 ${cost} 两。”`;
       world.thought = "砂认汗，也认银。精以上另走锻材。";
       world.message = world.said;
       continue;
@@ -530,7 +531,7 @@ function applyMapInteract(pick?: string): void {
     world.hp = run.hp;
     paintMap();
   } else if (r.action === "shop" && r.itemId) {
-    const gear = gearById(r.itemId);
+    const gear = gearById(r.itemId, contextNow());
     if (!gear) {
       paintMap();
       return;
@@ -667,13 +668,13 @@ function applyMapInteract(pick?: string): void {
       weapons: taken.weapons.includes(up) ? taken.weapons : [...taken.weapons, up],
     };
     run = syncBagCurrency(run, save);
-    world.said = `通宝锻刃。入手 ${gearById(up)?.name ?? "新刃"}。`;
+    world.said = `通宝锻刃。入手 ${gearById(up, contextNow())?.name ?? "新刃"}。`;
     world.thought = "刃上多一成劲。精以上另吃锻材。";
     world.message = world.said;
     persist();
     paintMap();
   } else if (r.action === "matForge") {
-    const cur = gearById(run.weapon);
+    const cur = gearById(run.weapon, contextNow());
     const targetGrade = (cur?.grade ?? 1) + 1;
     if (targetGrade < 3) {
       world.said = "凡良成色走通宝炉。精以上才吃锻材。";
@@ -725,7 +726,7 @@ function applyMapInteract(pick?: string): void {
       weapon: up,
       weapons: next.weapons.includes(up) ? next.weapons : [...next.weapons, up],
     };
-    world.said = `锻材入炉。入手 ${gearById(up)?.name ?? "新刃"}。`;
+    world.said = `锻材入炉。入手 ${gearById(up, contextNow())?.name ?? "新刃"}。`;
     world.thought = "精玄神认材，不认空话。";
     world.message = world.said;
     persist();
@@ -1585,7 +1586,7 @@ function renderCombat(): string {
   const live = livingFoes(b);
   const foeHp = live.reduce((s, f) => s + f.hp, 0);
   const foeMax = live.reduce((s, f) => s + f.maxHp, 0) || b.enemy.maxHp;
-  const gear = gearById(run.weapon);
+  const gear = gearById(run.weapon, contextNow());
   const intentHint =
     b.intents.length > 1
       ? `${intentLabel(b.intent)} · 后手隐 ${b.intents.length - 1}`
@@ -1657,7 +1658,7 @@ function renderCombat(): string {
 
       <footer class="bottombar">
         <div class="draw-col">
-          ${gear ? weaponArtMarkup(gear.id, { button: true }) : weaponArtMarkup(starterGear(mate.weapon), { button: true })}
+          ${gear ? weaponArtMarkup(gear.id, contextNow(), { button: true }) : weaponArtMarkup(starterGear(mate.weapon), contextNow(), { button: true })}
           <button type="button" class="pile-card" data-pile="draw" title="残谱">
             <em>残谱</em>
             <b>${b.drawPile.length}</b>
@@ -1670,7 +1671,7 @@ function renderCombat(): string {
         </div>
         ${renderStatusCol(b, "foe")}
         <div class="foe-col">
-          ${weaponArtMarkup(foeWeaponId(b.enemyId), { button: true })}
+          ${weaponArtMarkup(foeWeaponId(b.enemyId), contextNow(), { button: true })}
           <button type="button" class="pile-card discard" data-pile="discard" title="战记">
             <em>战记</em>
             <b>${b.journal.length}</b>
@@ -1685,14 +1686,14 @@ function renderCombat(): string {
 }
 
 function renderWeaponSheet(id: string): string {
-  const d = weaponDetail(id);
+  const d = weaponDetail(id, contextNow());
   if (!d) return "";
   return `
     <div class="sheet-mask" id="weapon-mask">
       <div class="sheet-panel weapon-sheet ink-sheet">
         ${sheetClose()}
         <div class="kicker">兵刃</div>
-        <div class="weapon-sheet-art">${weaponArt(id)}</div>
+        <div class="weapon-sheet-art">${weaponArt(id, contextNow())}</div>
         <h2>${d.name}</h2>
         <p class="weapon-school">${d.school}</p>
         <p>${d.text}</p>
@@ -1749,7 +1750,7 @@ function rewardBody(r: Reward): {
     return { name: "残谱箱", text: "开箱得一张未见过的谱，先收入卷。", flavor: "箱盖一响，墨气扑面。", art: cardArt("strike") };
   }
   if (r.kind === "gear") {
-    const g = gearById(r.id);
+    const g = gearById(r.id, contextNow());
     return {
       name: g?.name ?? r.id,
       text: g?.tip ?? "入手一把兵刃（最高玄）。",

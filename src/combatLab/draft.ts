@@ -1,6 +1,7 @@
 import type { CompanionId, HeroId, TechniqueId } from "../game/types";
 import { MATES } from "../game/party";
 import { canMateEquipGear } from "../game/equippedWeapon";
+import { shellRunContext } from "./shellContext";
 import { starterGear } from "../game/weapons";
 import { uniqueRecipe, LAB_PARTY_CAP, LAB_TECH_CAP } from "./rules";
 import { climbTechSlotMax } from "./loadout";
@@ -19,7 +20,7 @@ export function normalizePreset(p: LabPreset): LabPreset {
   const legacyWeapon = p.weapon ?? starterGear(MATES[fieldMate].weapon);
   for (const id of party) {
     if (!mateWeapons[id]) mateWeapons[id] = starterGear(MATES[id].weapon);
-    else if (!canMateEquipGear(id, mateWeapons[id]!)) mateWeapons[id] = starterGear(MATES[id].weapon);
+    else if (!canMateEquipGear(id, mateWeapons[id]!, shellRunContext())) mateWeapons[id] = starterGear(MATES[id].weapon);
   }
   if (!mateWeapons[fieldMate]) mateWeapons[fieldMate] = legacyWeapon;
 

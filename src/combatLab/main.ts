@@ -25,7 +25,7 @@ import {
 } from "../game/sim";
 import { handRefillAmount } from "./rogueRoster";
 import { BREAK_MODE_OPEN, isBreakAlign, setLabRuleset } from "./labRuleset";
-import { getLabTuning, isLabV2, setLabMode, setLabTuning } from "../game/labTuning";
+import { getLabTuning, isLabV2, setLabMode, setLabTuning } from "./labTuning";
 import { computeResonance, grantLabItem, itemChargeCount, labCanUseItem, useLabItem } from "../game/labV21";
 import { isSummonItem } from "../game/labSummon";
 import { canUseSignature, signatureActionCopy, useSignature } from "../game/labSignature";
@@ -35,6 +35,7 @@ import { assistEnergyCost, callAssist, canCallAssist, isComboRulesEnabled } from
 import { MATES, ROLE_LABEL, WEAPON_NAME, WEAPON_PACE } from "../game/party";
 import { type Battle, type CardId, type CompanionId, type EnemyId, type LabItemId, type TechniqueId } from "../game/types";
 import { clonePreset, endLabMode, normalizePreset, primaryWeapon, startLabBattle } from "./factory";
+import { shellRunContext } from "./shellContext";
 import {
   labCanPlay,
   labCanSwap,
@@ -403,7 +404,7 @@ function resetCombatPlayback(): void {
 /** 爬塔开局：场上摸牌 →（有则）后场摸牌 → 亮招 → 先机决定是否敌先。 */
 function scheduleClimbBattleOpen(): void {
   resetCombatPlayback();
-  if (!battle || !isClimbQi()) {
+  if (!battle || !isClimbQi(shellRunContext())) {
     scheduleFoeFirstHold();
     return;
   }
@@ -449,7 +450,7 @@ function scheduleClimbBattleOpen(): void {
         return;
       }
       battle = { ...battle, climbPhaseLabel: undefined, lastHitRead: "" };
-      if (yourPace(battle) < battle.foePace) {
+      if (yourPace(battle, shellRunContext()) < battle.foePace) {
         scheduleFoeFirstHold();
         render();
         return;
@@ -472,7 +473,7 @@ function scheduleClimbBattleOpen(): void {
 /** 敌先机：先让意图条露出来，再按收势同一套兑一条、播一条。 */
 function scheduleFoeFirstHold(): void {
   clearFoeFirstHold();
-  if (!battle || yourPace(battle) >= battle.foePace) {
+  if (!battle || yourPace(battle, shellRunContext()) >= battle.foePace) {
     foePlaybackBusy = false;
     return;
   }
@@ -500,7 +501,7 @@ function scheduleFoeFirstHold(): void {
     }
     foePlaybackIntents = battle.intents.length ? battle.intents.map((x) => ({ ...x })) : [{ ...battle.intent }];
     const origin = { playerPos: battle.player.pos, enemyPos: battle.enemy.pos };
-    seizeOpening(battle);
+    seizeOpening(battle, shellRunContext());
     playFoeRecapThen(() => {
       if (!battle) return;
       if (battle.player.hp <= 0) {
@@ -548,7 +549,7 @@ function playFoeRecapThen(onDone: () => void, origin?: { playerPos: number; enem
     return;
   }
   const recapAll = [...(battle.v2LastIntentRecap ?? [])];
-  const keepEmpty = isClimbQi();
+  const keepEmpty = isClimbQi(shellRunContext());
   const recap = keepEmpty ? recapAll : filterEmptyRecap(recapAll);
   const recapIdx = keepEmpty
     ? recapAll.map((_, i) => i)
@@ -816,7 +817,7 @@ function loadDraft(id: string): void {
 }
 
 function previewMatchesPlay(b: Battle, uid: string, after: Battle): boolean {
-  const prev = previewCard(b, uid);
+  const prev = previewCard(b, uid, shellRunContext());
   return (
     after.enemy.hp === prev.enemyHp &&
     after.enemy.pos === prev.enemyPos &&
@@ -1472,7 +1473,7 @@ function beginCampaignBattle(): void {
       v2Fx: true,
       rulesCombo: false,
     });
-    applyLabFightScale();
+    applyLabFightScale(shellRunContext());
     paused = false;
     hoverUid = null;
     weaponOpen = null;
@@ -2030,7 +2031,7 @@ function renderBattle(): string {
   let b = battle;
   if (playbackShow) b = overlayRecapBattle(b, playbackShow);
   // 悬停任意牌都给全量预演：位移牌照旧画落脚小人，所有牌驱动底部预演条
-  const prev = hoverUid ? previewCard(b, hoverUid) : null;
+  const prev = hoverUid ? previewCard(b, hoverUid, shellRunContext()) : null;
   const swapCost = labSwapCost();
   const partyMode = inDemo
     ? Boolean(breakDemoRun!.companion)
@@ -2066,7 +2067,7 @@ function renderBattle(): string {
             ? { ok: false as const, reason: "本步请换同伴上场" }
             : baseGate;
           const def = MATES[m.id];
-          const school = battleEquippedSchool(b, m.id);
+          const school = battleEquippedSchool(b, m.id, shellRunContext());
           const teachTarget =
             (inDemo ? breakDemoRun?.companion : inHallGuide ? hallRun?.companion : null) ?? DEMO_FIST_MATE;
           const teachFist = swapTeach && m.id === teachTarget;
@@ -2079,16 +2080,16 @@ function renderBattle(): string {
           return `<button type="button" class="swap-btn lab-swap-btn ${teachFist ? "demo-swap-teach" : ""}" data-swap="${m.id}" data-tip="${escapeHtml(teachTip)}" ${gate.ok ? "" : "disabled"}><b>换人·${def.name}</b><small>${WEAPON_NAME[school]} · 先机 ${WEAPON_PACE[school]} · ${m.hp}</small><span class="status-tip">${escapeHtml(teachTip)}</span></button>`;
         })
         .join("");
-  const assistCost = assistEnergyCost(b);
-  const fieldSchool = battleEquippedSchool(b, b.active);
+  const assistCost = assistEnergyCost(b, shellRunContext());
+  const fieldSchool = battleEquippedSchool(b, b.active, shellRunContext());
   // §31.12 助战与同行分家：v2 不再有「叫队友上场」的助战按钮（助战=助战符，同行=换人/光环/组合技）
   const assists =
-    partyMode && isComboRulesEnabled() && !isLabV2()
+    partyMode && isComboRulesEnabled(shellRunContext()) && !isLabV2()
       ? b.bench
           .map((m) => {
-            const gate = canCallAssist(b, m.id);
+            const gate = canCallAssist(b, shellRunContext(), m.id);
             const def = MATES[m.id];
-            const assistSchool = battleEquippedSchool(b, m.id);
+            const assistSchool = battleEquippedSchool(b, m.id, shellRunContext());
             const cross = assistSchool !== fieldSchool;
             const comboMark = cross ? `<span class="lab-combo-mark">合</span>` : "";
             const tip = gate.ok
@@ -2099,7 +2100,7 @@ function renderBattle(): string {
           .join("")
       : "";
   const assistBadge =
-    !inGauntlet && !isLabV2() && b.labAssistActive && isComboRulesEnabled()
+    !inGauntlet && !isLabV2() && b.labAssistActive && isComboRulesEnabled(shellRunContext())
       ? (() => {
           const id = b.labAssistActive!;
           const segs = Math.max(1, (b.intents?.length ?? 1) - (b.v2ResolveIntentIdx ?? 0));
@@ -2107,7 +2108,7 @@ function renderBattle(): string {
           return `<span class="lab-assist-active-badge" data-tip="${escapeHtml(tip)}">助战中：${MATES[id].name} · 剩${segs}段<span class="status-tip">${escapeHtml(tip)}</span></span>`;
         })()
       : "";
-  const res = computeResonance(b);
+  const res = computeResonance(b, shellRunContext());
   const schoolChips = inGauntlet
     ? ""
     : res.schools
@@ -2125,7 +2126,7 @@ function renderBattle(): string {
       ? `<span class="lab-aura-chip lab-aura-flowers" data-tip="四系各异 · 先机+1 · 助战耗劲-1 · 首张组合卡-1劲">百花齐放<span class="status-tip">四系各异 · 先机+1 · 助战耗劲-1 · 首张组合卡-1劲</span></span>`
       : "";
   const sig = signatureActionCopy(b.active);
-  const sigGate = canUseSignature(b);
+  const sigGate = canUseSignature(b, shellRunContext());
   const sigBtn =
     isLabV2() && sig
       ? actionTipWrap(
@@ -2135,7 +2136,7 @@ function renderBattle(): string {
       : "";
   const itemBtns = (b.labItems ?? [])
     .map((id) => {
-      const gate = labCanUseItem(b, id);
+      const gate = labCanUseItem(b, id, shellRunContext());
           const n = itemChargeCount(b, id);
           const tip = gate.ok ? (LAB_ITEM_TIP[id] ?? LAB_ITEM_LABEL[id] ?? id) : (gate.reason ?? "不可用");
           return actionTipWrap(
@@ -2154,10 +2155,10 @@ function renderBattle(): string {
       ? `<span class="lab-action-group lab-action-aura">${schoolChips}${flower}</span>`
       : "";
   const abortBtn = `<button type="button" class="fy-btn" id="btn-abort">中止报告</button>`;
-  const overCap = needsDiscardToHandCap(b);
+  const overCap = needsDiscardToHandCap(b, shellRunContext());
   const handCap = battleHandCap(b);
   const refillN = handRefillAmount(handCap);
-  const climb = isClimbQi();
+  const climb = isClimbQi(shellRunContext());
   const discardBtn =
     climb || overCap
       ? actionTipWrap(
@@ -2167,7 +2168,7 @@ function renderBattle(): string {
             : `手牌超过上限 ${handCap}：可打牌压张数，或点「弃牌」丢掉（不摸）。≤ 上限才能收势。`,
         )
       : "";
-  const cycleGate = labCanCycle(b);
+  const cycleGate = labCanCycle(b, shellRunContext());
   const cycleBtn =
     isLabV2() && !(overCap && !climb)
       ? actionTipWrap(
@@ -2181,7 +2182,7 @@ function renderBattle(): string {
               : (cycleGate.reason ?? "本回已置换"),
         )
       : "";
-  const comboGate = labCanComboReplay(b);
+  const comboGate = labCanComboReplay(b, shellRunContext());
   const comboBtn =
     climb && (comboGate.ok || (b.combo ?? 0) > 0)
       ? actionTipWrap(
@@ -2206,7 +2207,7 @@ function renderBattle(): string {
       : "";
   const canEnd =
     b.phase === "player" &&
-    canEndPlayerTurn(b).ok &&
+    canEndPlayerTurn(b, shellRunContext()).ok &&
     (!inDemo || demoAllowsEndTurn(breakDemoRun!)) &&
     (!inHallGuide || hallAllowsEndTurn(hallRun!)) &&
     (!inCampaign || campaignAllowsEndTurn(campaignRun!));
@@ -2244,10 +2245,10 @@ function renderBattle(): string {
       ${discardBtn}
       ${cycleBtn}
       ${comboBtn}
-      ${actionTipWrap(`<button class="endturn fy-btn" id="btn-end" data-sfx="end-turn" ${b.phase === "player" && canEndPlayerTurn(b).ok ? "" : "disabled"}>收势</button>`, endTip)}
+      ${actionTipWrap(`<button class="endturn fy-btn" id="btn-end" data-sfx="end-turn" ${b.phase === "player" && canEndPlayerTurn(b, shellRunContext()).ok ? "" : "disabled"}>收势</button>`, endTip)}
       ${abortBtn}
     </span>`;
-  const summonPickCells = summonPending && battle ? legalSummonCells(battle) : [];
+  const summonPickCells = summonPending && battle ? legalSummonCells(battle, shellRunContext()) : [];
   const freshNote = !isLabV2() && b.labFreshSwap ? `<p class="lab-fresh-swap">刚换上场 — 本回合不能出招</p>` : "";
   const tuning = getLabTuning();
   const pausePanel = paused
@@ -2274,7 +2275,7 @@ function renderBattle(): string {
     hoverIntentIdx,
     weaponId: primaryWeapon(draft),
     canPlay: (uid) => {
-      const base = labCanPlay(b, uid);
+      const base = labCanPlay(b, uid, shellRunContext());
       if (!base.ok) return base;
       const card = b.hand.find((c) => c.uid === uid);
       if (!card) return base;
@@ -2406,7 +2407,7 @@ function beginBattle(): void {
   paused = false;
   hoverUid = null;
   weaponOpen = null;
-  if (isClimbQi()) scheduleClimbBattleOpen();
+  if (isClimbQi(shellRunContext())) scheduleClimbBattleOpen();
   else {
     resetCombatPlayback();
     scheduleFoeFirstHold();
@@ -2452,7 +2453,7 @@ function bindSlider(id: string, key: keyof ReturnType<typeof getLabTuning>, valI
     if (!getLabTuning().designerMode && id.startsWith("sl-") && !id.includes("deck-mult")) return;
     const val = parse(el.value);
     setLabTuning({ [key]: val });
-    if (key === "dmgCoef") applyLabFightScale();
+    if (key === "dmgCoef") applyLabFightScale(shellRunContext());
     const label = document.getElementById(valId);
     if (label) label.textContent = key === "dmgCoef" ? val.toFixed(2) : String(val);
     if (key === "deckMultiplier" && phase === "setup") {
@@ -2509,7 +2510,7 @@ function bindPickPanelEvents(): void {
     el.addEventListener("click", () => {
       const mateId = el.dataset.weaponMate as CompanionId;
       const wid = el.dataset.pickWeapon!;
-      if (!canMateEquipGear(mateId, wid)) return;
+      if (!canMateEquipGear(mateId, wid, shellRunContext())) return;
       draft.mateWeapons[mateId] = wid;
       if (mateId === draft.fieldMate) {
         draft.deckRecipe = pruneDeckForWeapon(draft.deckRecipe, wid);
@@ -2732,7 +2733,7 @@ function paintHoverBoard(): void {
   let b = battle;
   if (playbackShow) b = overlayRecapBattle(b, playbackShow);
   // 悬停任意牌：全量预演同时驱动棋盘落点小人与底部预演条
-  const prev = hoverUid ? previewCard(b, hoverUid) : null;
+  const prev = hoverUid ? previewCard(b, hoverUid, shellRunContext()) : null;
   const pslot = root.querySelector("#preview-slot");
   if (pslot) pslot.outerHTML = renderHoverPreview(b, prev);
   const slot = root.querySelector("#strip");
@@ -2741,7 +2742,7 @@ function paintHoverBoard(): void {
     b,
     prev,
     threatCellsForHover(b, hoverIntentIdx),
-    summonPending && battle ? legalSummonCells(battle) : [],
+    summonPending && battle ? legalSummonCells(battle, shellRunContext()) : [],
     {
       youAnim: youPlayAnim
         ? `board-anim-${youPlayAnim === "swing" ? "hit" : youPlayAnim === "step" ? "windup" : "break"}`
@@ -3668,21 +3669,21 @@ function bindEvents(): void {
       if (!battle || battle.phase !== "player" || paused || foePlaybackBusy) return;
       const uid = el.dataset.uid!;
       // 弃牌/置换：须先点按钮，超上限不会自动改点牌为弃牌
-      if ((discardMode || battle.climbDiscardPhase) && (isClimbQi() || needsDiscardToHandCap(battle))) {
-        battle = labDiscardCard(battle, uid);
-        if (!isClimbQi() && !needsDiscardToHandCap(battle)) discardMode = false;
+      if ((discardMode || battle.climbDiscardPhase) && (isClimbQi(shellRunContext()) || needsDiscardToHandCap(battle, shellRunContext()))) {
+        battle = labDiscardCard(battle, uid, shellRunContext());
+        if (!isClimbQi(shellRunContext()) && !needsDiscardToHandCap(battle, shellRunContext())) discardMode = false;
         render();
         return;
       }
       if (cycleMode) {
-        const dGate = labCanCycle(battle);
+        const dGate = labCanCycle(battle, shellRunContext());
         if (!dGate.ok) return;
-        battle = labCycleCard(battle, uid);
+        battle = labCycleCard(battle, uid, shellRunContext());
         cycleMode = false;
         render();
         return;
       }
-      const gate = labCanPlay(battle, uid);
+      const gate = labCanPlay(battle, uid, shellRunContext());
       if (!gate.ok) return;
       if (breakDemoRun) {
         const cardCheck = battle.hand.find((c) => c.uid === uid);
@@ -3699,7 +3700,7 @@ function bindEvents(): void {
       const card = battle.hand.find((c) => c.uid === uid);
       const ms = Math.round(performance.now() - turnStartedAt);
       const before = battle;
-      const after = playCard(battle, uid);
+      const after = playCard(battle, uid, shellRunContext());
       if (card) playSfx(CARDS[card.defId]?.type === "attack" ? "swing" : "drop");
       const matched = previewMatchesPlay(before, uid, after);
       battle = after;
@@ -3784,7 +3785,7 @@ function bindEvents(): void {
   for (const el of root.querySelectorAll<HTMLButtonElement>("[data-assist]")) {
     el.addEventListener("click", () => {
       if (!battle || battle.phase !== "player" || paused) return;
-      battle = callAssist(battle, el.dataset.assist as CompanionId);
+      battle = callAssist(battle, el.dataset.assist as CompanionId, shellRunContext());
       render();
     });
   }
@@ -3798,7 +3799,7 @@ function bindEvents(): void {
         render();
         return;
       }
-      const r = useLabItem(battle, itemId);
+      const r = useLabItem(battle, itemId, shellRunContext());
       if (!r.ok || !r.battle) return;
       battle = r.battle;
       render();
@@ -3809,7 +3810,7 @@ function bindEvents(): void {
     el.addEventListener("click", () => {
       if (!battle || !summonPending || battle.phase !== "player" || paused) return;
       const pos = Number(el.dataset.pos);
-      const r = useLabItem(battle, summonPending, pos);
+      const r = useLabItem(battle, summonPending, shellRunContext(), pos);
       summonPending = null;
       if (!r.ok || !r.battle) return;
       battle = r.battle;
@@ -3818,15 +3819,15 @@ function bindEvents(): void {
   }
   root.querySelector("#lab-signature")?.addEventListener("click", () => {
     if (!battle || battle.phase !== "player" || paused) return;
-    const r = useSignature(battle);
+    const r = useSignature(battle, shellRunContext());
     if (!r.ok || !r.battle) return;
     battle = r.battle;
     render();
   });
   root.querySelector("#btn-discard")?.addEventListener("click", () => {
     if (!battle || battle.phase !== "player" || paused) return;
-    if (isClimbQi()) {
-      battle = labEnterDiscardPhase(battle);
+    if (isClimbQi(shellRunContext())) {
+      battle = labEnterDiscardPhase(battle, shellRunContext());
       discardMode = true;
       cycleMode = false;
       render();
@@ -3838,15 +3839,15 @@ function bindEvents(): void {
   });
   root.querySelector("#btn-cycle")?.addEventListener("click", () => {
     if (!battle || battle.phase !== "player" || paused) return;
-    if (!labCanCycle(battle).ok && !cycleMode) return;
+    if (!labCanCycle(battle, shellRunContext()).ok && !cycleMode) return;
     cycleMode = !cycleMode;
     discardMode = false;
     render();
   });
   root.querySelector("#btn-combo-replay")?.addEventListener("click", () => {
     if (!battle || battle.phase !== "player" || paused || foePlaybackBusy) return;
-    if (!labCanComboReplay(battle).ok) return;
-    battle = labComboReplay(battle);
+    if (!labCanComboReplay(battle, shellRunContext()).ok) return;
+    battle = labComboReplay(battle, shellRunContext());
     playSfx("swing");
     render();
   });
@@ -3856,7 +3857,7 @@ function bindEvents(): void {
       endBattle("win");
       return;
     }
-    if (!canEndPlayerTurn(battle).ok) return;
+    if (!canEndPlayerTurn(battle, shellRunContext()).ok) return;
     if (breakDemoRun && !demoAllowsEndTurn(breakDemoRun)) return;
     if (hallRun && !hallAllowsEndTurn(hallRun)) return;
     if (campaignRun && !campaignAllowsEndTurn(campaignRun)) return;
@@ -3870,7 +3871,7 @@ function bindEvents(): void {
     foePlaybackIntents = battle.intents.length ? battle.intents.map((x) => ({ ...x })) : [{ ...battle.intent }];
     const origin = { playerPos: battle.player.pos, enemyPos: battle.enemy.pos };
     // 先兑完整队、暂不刷下一手；播报完再亮下回合全套意图
-    battle = endTurn(battle, { deferIntentRefresh: true, deferStatusTicks: !isBreakAlign() });
+    battle = endTurn(battle, shellRunContext(), { deferIntentRefresh: true, deferStatusTicks: !isBreakAlign() });
     if (!campaignRun && skipFoeRecap(battle)) {
       endBattle("win");
       return;
@@ -3893,22 +3894,22 @@ function bindEvents(): void {
     const afterPlayback = (): void => {
       if (!battle) return;
       // playFoeRecapThen 会先放开 busy；爬塔尾部仍锁手，直到【中期】出牌
-      if (isClimbQi()) foePlaybackBusy = true;
+      if (isClimbQi(shellRunContext())) foePlaybackBusy = true;
 
       const unlockMid = (): void => {
         if (!battle) return;
-        if (isClimbQi() && battle.climbNeedFoeOpenPlayback) {
+        if (isClimbQi(shellRunContext()) && battle.climbNeedFoeOpenPlayback) {
           battle = { ...battle, climbNeedFoeOpenPlayback: false, climbPhaseLabel: "【开始】敌招", lastHitRead: "【开始】兑他整条意图" };
           const origin = { playerPos: battle.player.pos, enemyPos: battle.enemy.pos };
           foePlaybackBusy = true;
           foePlaybackIntents = battle.intents.length ? battle.intents.map((x) => ({ ...x })) : [{ ...battle.intent }];
-          seizeOpening(battle);
+          seizeOpening(battle, shellRunContext());
           const recap = [...(battle.v2LastIntentRecap ?? [])];
           playbackSegFate = {};
           playbackShow = recapDisplayStart(
             battle.player.hp,
             battle.playerBlock,
-            isClimbQi() ? recap : filterEmptyRecap(recap),
+            isClimbQi(shellRunContext()) ? recap : filterEmptyRecap(recap),
             origin.playerPos,
             origin.enemyPos,
           );
@@ -3957,7 +3958,7 @@ function bindEvents(): void {
         }
         battle = {
           ...battle,
-          climbPhaseLabel: isClimbQi() ? undefined : battle.climbPhaseLabel,
+          climbPhaseLabel: isClimbQi(shellRunContext()) ? undefined : battle.climbPhaseLabel,
           lastHitRead: (battle.youStun ?? 0) > 0 ? battle.lastHitRead : "",
         };
         foePlaybackBusy = false;
@@ -3971,7 +3972,7 @@ function bindEvents(): void {
           unlockMid();
           return;
         }
-        const beat = applyClimbPhaseBeat(battle);
+        const beat = applyClimbPhaseBeat(battle, shellRunContext());
         battle = beat.battle;
         if (battle.player.hp <= 0) {
           foePlaybackBusy = false;
@@ -3991,26 +3992,26 @@ function bindEvents(): void {
         window.setTimeout(playClimbBeatsThenUnlock, CLIMB_PHASE_BEAT_MS);
       };
 
-      if (isClimbQi() && peekClimbPhaseQueue(battle).length) {
+      if (isClimbQi(shellRunContext()) && peekClimbPhaseQueue(battle).length) {
         playClimbBeatsThenUnlock();
         return;
       }
 
       // 非爬塔 / 无队列：沿用原裂创补丁 + 亮招
       if (battle.v2PendingStatusTicks) {
-        battle = applyPendingStatusTicks(battle);
+        battle = applyPendingStatusTicks(battle, shellRunContext());
         render();
         window.setTimeout(() => {
           if (!battle) return;
-          battle = refreshFoeIntentsIfPending(battle);
+          battle = refreshFoeIntentsIfPending(battle, shellRunContext());
           unlockMid();
         }, 520);
         return;
       }
-      battle = refreshFoeIntentsIfPending(battle);
+      battle = refreshFoeIntentsIfPending(battle, shellRunContext());
       unlockMid();
     };
-    if (isClimbQi() && battle) {
+    if (isClimbQi(shellRunContext()) && battle) {
       battle = { ...battle, climbPhaseLabel: "【结束】敌招", lastHitRead: "【结束】兑他整条意图" };
       const recap = [...(battle.v2LastIntentRecap ?? [])];
       playbackSegFate = {};

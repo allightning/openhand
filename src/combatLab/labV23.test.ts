@@ -1,7 +1,8 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { canCallAssist, retreatAssistIfDown } from "../game/labAssist";
 import { simV2OnHitPlayer } from "../game/simV2Hooks";
-import { setLabMode, setLabTuning } from "../game/labTuning";
+import { breakTestContext, climbTestContext } from "./testContext";
+import { setLabMode, setLabTuning } from "./labTuning";
 import { balanceReport, startTelemetry } from "./telemetry";
 import { startLabBattle } from "./factory";
 import { BUILTIN_PRESETS } from "./presets";
@@ -30,10 +31,10 @@ describe("v2.3 §16.2 助战濒死", () => {
       bench: [{ id: "hermit", hp: 0, maxHp: 20 }],
       journal: [],
     };
-    b = retreatAssistIfDown(b);
+    b = retreatAssistIfDown(b, climbTestContext());
     expect(b.labAssistActive).toBeUndefined();
     expect(b.labAssistBanned).toBe(true);
-    expect(canCallAssist(b).ok).toBe(false);
+    expect(canCallAssist(b, climbTestContext()).ok).toBe(false);
   });
 });
 
@@ -61,7 +62,7 @@ describe("v2.3 §2.2 势穿盾", () => {
   it("simV2OnHitPlayer ignores zero pierce", () => {
     const b = v2Battle();
     b.qi = 3;
-    simV2OnHitPlayer(b, 0);
+    simV2OnHitPlayer(b, 0, breakTestContext());
     expect(b.qi).toBe(3);
   });
 });

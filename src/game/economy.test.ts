@@ -13,6 +13,7 @@ import { addBag } from "./bag";
 import { makeRun } from "./run";
 import { applyReward } from "./rewards";
 import { starterGear } from "./weapons";
+import { climbTestContext } from "../combatLab/testContext";
 
 describe("economy", () => {
   it("names three pill tiers", () => {
@@ -46,9 +47,9 @@ describe("economy", () => {
 
   it("soft upgrades stop at 良", () => {
     const starter = starterGear("palm");
-    expect(softUpgradeTarget(starter)).toBe("palm-a-2");
-    expect(softUpgradeTarget("palm-a-2")).toBeNull();
-    expect(softUpgradeBlockReason("palm-a-2")).toMatch(/锻材/);
+    expect(softUpgradeTarget(starter, climbTestContext())).toBe("palm-a-2");
+    expect(softUpgradeTarget("palm-a-2", climbTestContext())).toBeNull();
+    expect(softUpgradeBlockReason("palm-a-2", climbTestContext())).toMatch(/锻材/);
   });
 
   it("weights mid loot toward yuanbao and forge more than early", () => {
@@ -58,8 +59,8 @@ describe("economy", () => {
 
   it("applies goods and yuanbao rewards", () => {
     let run = makeRun("iron");
-    run = applyReward(run, { kind: "yuanbao", amount: 2 });
-    run = applyReward(run, { kind: "goods", id: "forgeJing", n: 1 });
+    run = applyReward(run, { kind: "yuanbao", amount: 2 }, climbTestContext());
+    run = applyReward(run, { kind: "goods", id: "forgeJing", n: 1 }, climbTestContext());
     expect(run.yuanbao).toBe(2);
     expect(run.bag?.some((s) => s.id === "forgeJing" && s.n === 1)).toBe(true);
   });

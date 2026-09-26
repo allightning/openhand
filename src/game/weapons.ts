@@ -1,7 +1,6 @@
 import type { WeaponId } from "./types";
 import { WEAPON_NAME } from "./party";
-import { getContentOverrides } from "./labContentOverrides";
-import { isLabMode } from "./labTuning";
+import type { RunContext } from "./runContext";
 
 /** 凡良精玄神 — five combat gear tiers. */
 export type WeaponTier = "fan" | "liang" | "jing" | "xuan" | "shen";
@@ -186,13 +185,13 @@ function buildAll(): GearWeapon[] {
 
 export const GEAR_WEAPONS: GearWeapon[] = buildAll();
 
-export function nextGrade(id: string): string | null {
-  const g = gearById(id);
+export function nextGrade(id: string, rc: RunContext): string | null {
+  const g = gearById(id, rc);
   if (!g || g.grade >= 5) return null;
   return `${g.school}-${g.path}-${g.grade + 1}`;
 }
 
-export function gearById(id: string | null | undefined): GearWeapon | null {
+export function gearById(id: string | null | undefined, ctx: RunContext): GearWeapon | null {
   if (!id) return null;
   let base = GEAR_WEAPONS.find((g) => g.id === id) ?? null;
   if (!base) {
@@ -206,8 +205,8 @@ export function gearById(id: string | null | undefined): GearWeapon | null {
     base = GEAR_WEAPONS.find((g) => g.school === school && g.path === path && g.grade === grade) ?? null;
   }
   if (!base) return null;
-  if (!isLabMode()) return base;
-  const ov = getContentOverrides().weapons[base.id];
+  if (!ctx.lab) return base;
+  const ov = ctx.contentOverrides.weapons[base.id];
   return ov ? { ...base, ...ov } : base;
 }
 
@@ -254,6 +253,7 @@ export type PathSkillCtx = {
 
 export function pathSkillMods(
   idOrGear: string | GearWeapon | null | undefined,
+  rc: RunContext,
   ctx?: PathSkillCtx,
 ): {
   wallBlock?: number;
@@ -274,7 +274,7 @@ export function pathSkillMods(
   ward?: number;
   note?: string;
 } {
-  const g = typeof idOrGear === "object" && idOrGear ? idOrGear : gearById(idOrGear ?? null);
+  const g = typeof idOrGear === "object" && idOrGear ? idOrGear : gearById(idOrGear ?? null, rc);
   if (!g?.skill) return { qiRegen: g?.secondary.qiRegen };
   const sec = g.secondary;
   const base =

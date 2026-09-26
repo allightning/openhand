@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { setLabMode, setLabTuning } from "../game/labTuning";
+import { makeTestContext } from "./testContext";
+import { setLabMode, setLabTuning } from "./labTuning";
 import { endTurn, playCard, hasTech } from "../game/sim";
 import { TECHNIQUES } from "../game/content";
 import { MIND_ARTS, sumMindArtBonuses } from "../game/mindArts";
@@ -54,7 +55,7 @@ describe("§31.19 分系外功", () => {
     plain.foes = [plain.enemy];
     plain.hand = [{ uid: "t1", defId: "thrust" }];
     plain.energy = 10;
-    const plainDrop = plain.enemy.hp - playCard(plain, "t1").enemy.hp;
+    const plainDrop = plain.enemy.hp - playCard(plain, "t1", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false } })).enemy.hp;
 
     const run = createGauntletRun("bandit", "spear");
     run.mateTechs = { huochangchuan: ["spearWind"] };
@@ -64,7 +65,7 @@ describe("§31.19 分系外功", () => {
     tech.foes = [tech.enemy];
     tech.hand = [{ uid: "t1", defId: "thrust" }];
     tech.energy = 10;
-    const techDrop = tech.enemy.hp - playCard(tech, "t1").enemy.hp;
+    const techDrop = tech.enemy.hp - playCard(tech, "t1", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false } })).enemy.hp;
 
     expect(techDrop - plainDrop).toBe(3);
   });
@@ -75,7 +76,7 @@ describe("§31.19 分系外功", () => {
     run.deckRecipe = ["defend", "strike", "strike", "strike", "strike", "strike", "strike", "strike", "strike", "strike", "strike", "strike", "strike", "strike"];
     const b = startLabBattle(buildGauntletPreset(run), true, 1);
     const defend = b.hand.find((c) => c.defId === "defend")!;
-    const after = playCard(b, defend.uid);
+    const after = playCard(b, defend.uid, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false } }));
     expect(after.playerBlock).toBe(b.playerBlock + 8 + 2); // 卸力 8 + 绵里针 2
   });
 });
@@ -103,7 +104,7 @@ describe("§31.18 心法接线", () => {
     run.mateMindArts = { baimenghe: ["springQi"] }; // turnHeal 4
     let b = startLabBattle(buildGauntletPreset(run), true, 1);
     b = { ...b, player: { ...b.player, hp: Math.max(1, b.player.maxHp - 10) } };
-    const after = endTurn(b);
+    const after = endTurn(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false } }));
     expect(after.log.some((l) => l.includes("心法 回血"))).toBe(true);
   });
 

@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeEach } from "vitest";
+import { breakTestContext } from "./testContext";
 import { setLabRuleset } from "./labRuleset";
 import {
   applyScarPass,
@@ -23,7 +24,7 @@ import {
   shouldShowFinale,
 } from "./encounter";
 import { startLabBattle } from "./factory";
-import { setLabMode } from "../game/labTuning";
+import { setLabMode } from "./labTuning";
 import { canPlay } from "../game/sim";
 
 function findChoice(
@@ -291,8 +292,8 @@ describe("馆间遭遇 / 终局 / 带伤过馆", () => {
     const b = startLabBattle(buildGauntletPreset(run), true, 1);
     b.energy = 6;
     b.hand = [{ uid: "ad", defId: "advance" }];
-    expect(canPlay(b, "ad").ok).toBe(false);
-    expect(canPlay(b, "ad").reason).toMatch(/禁位移/);
+    expect(canPlay(b, "ad", breakTestContext()).ok).toBe(false);
+    expect(canPlay(b, "ad", breakTestContext()).reason).toMatch(/禁位移/);
   });
 
   it("无尽不开终局抉择，也不进遭遇", () => {

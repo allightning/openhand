@@ -2,16 +2,17 @@ import { ENEMIES, intentShortName } from "../game/content";
 import { foeIntentAlias } from "../game/enemyKit";
 import { intentFirePlan, stressMetaAt } from "../game/labEnemyStress";
 import { previewIntentSegments, type IntentSegmentPreview } from "../game/intentPreview";
-import { isLabV2 } from "../game/labTuning";
+import { isLabV2 } from "./labTuning";
 import { isBreakAlign, isBreakLesson } from "./labRuleset";
 import { MATES } from "../game/party";
 import { dangerCellsForIntent, intentIncoming, livingFoes, projectedQueueThreat } from "../game/sim";
+import { shellRunContext } from "./shellContext";
 import type { Battle, Intent, Unit } from "../game/types";
 import { escapeHtml } from "./setupUi";
 
 /** 意图条效果数：一律带阿拉伯数字（架/回/进撤/伤）。 */
 function intentOneNumber(b: Battle, intent: Intent, segPreview?: IntentSegmentPreview): { text: string; modified: boolean; tipExtra: string } {
-  const inc = intentIncoming(b, intent);
+  const inc = intentIncoming(b, intent, shellRunContext());
   if (intent.kind === "advance") return { text: `进${intent.steps}`, modified: false, tipExtra: "" };
   if (segPreview?.tierCode === "空" && (intent.kind === "lunge" || intent.kind === "charge")) {
     const steps = intent.kind === "charge" ? intent.steps : 1;
@@ -183,7 +184,7 @@ function segmentHtml(
   const isEye = breakMode && i === eyeIdx && eyeIdx >= 0;
   const previewRow =
     segPreview ??
-    previewIntentSegments(b, [intent], [projectedCells ?? dangerCellsForIntent(b, intent)])[0]!;
+    previewIntentSegments(b, [intent], [projectedCells ?? dangerCellsForIntent(b, intent, shellRunContext())], shellRunContext())[0]!;
   const cellsArr = previewRow.threatCells;
   const num = intentOneNumber(b, intent, previewRow);
   const skip = previewRow.tierCode === "劲尽";
@@ -262,8 +263,8 @@ function timelineRow(
   segFate?: Record<number, "gone" | "grey">,
 ): string {
   const fire = intentFirePlan(b.enemyEnergy, queue);
-  const threat = projected ?? projectedQueueThreat(b);
-  const segPreviews = previewIntentSegments(b, queue, threat);
+  const threat = projected ?? projectedQueueThreat(b, shellRunContext());
+  const segPreviews = previewIntentSegments(b, queue, threat, shellRunContext());
   const cards = queue
     .map((intent, i) => {
       if (segFate?.[i] === "gone") return "";
@@ -356,7 +357,7 @@ export function renderFoeIntentStrip(
   // 眼标在段上已有；不再另起教学条。上息回顾改由石台下播报承担。
   const eyeHint = "";
   const recap = "";
-  const projected = projectedQueueThreat(b);
+  const projected = projectedQueueThreat(b, shellRunContext());
   if (live.length <= 1) {
     const queue = mainQueue;
     return `<div class="lab-intent-slot">${head}${recap}${eyeHint}<div class="lab-intent-timeline foe-inline">${timelineRow(b, b.enemy, queue, hoverIdx, broken, preview, grazed, grazePreview, currentIdx, eyeIdx, live.length, projected, hideResolvedBefore, segFate)}</div></div>`;
@@ -392,7 +393,7 @@ export function threatCellsForHover(b: Battle, hoverIdx: number | null): number[
   const queue = b.intents.length ? b.intents : [b.intent];
   const intent = queue[hoverIdx];
   if (!intent) return [];
-  return projectedQueueThreat(b)[hoverIdx] ?? [];
+  return projectedQueueThreat(b, shellRunContext())[hoverIdx] ?? [];
 }
 
 export function renderGrudgeBadge(b: Battle): string {

@@ -1,7 +1,8 @@
+import { shellRunContext } from "./shellContext";
 import { ENEMIES, TECHNIQUES } from "../game/content";
 import { gearIdsForMateSchools, schoolFromGearId } from "../game/equippedWeapon";
 import { computeResonance, type ResonanceStatus } from "../game/labResonance";
-import { getLabTuning } from "../game/labTuning";
+import { getLabTuning } from "./labTuning";
 import { MATES, ROLE_LABEL, WEAPON_NAME } from "../game/party";
 import type { CompanionId, TechniqueId } from "../game/types";
 import { gearById, TIER_NAME } from "../game/weapons";
@@ -41,7 +42,7 @@ function mateTechList(p: LabPreset, id: CompanionId): TechniqueId[] {
 }
 
 function weaponsForMate(mateId: CompanionId): { main: string[]; alt: string[] } {
-  return gearIdsForMateSchools(mateId, ALL_WEAPON_IDS);
+  return gearIdsForMateSchools(mateId, ALL_WEAPON_IDS, shellRunContext());
 }
 
 export function computeAurasFromPreset(draft: LabPreset): ResonanceStatus {
@@ -53,7 +54,7 @@ export function computeAurasFromPreset(draft: LabPreset): ResonanceStatus {
       .map((id) => ({ id, hp: 1, maxHp: 1, hand: [], drawPile: [], discardPile: [] })),
     labMateWeapons: draft.mateWeapons,
   } as unknown as import("../game/types").Battle;
-  return computeResonance(mock);
+  return computeResonance(mock, shellRunContext());
 }
 
 export function pickPanelTitle(focus: PickFocus, mateId: CompanionId): string {
@@ -133,7 +134,7 @@ function renderWeaponPick(draft: LabPreset, mateId: CompanionId): string {
   const renderGroup = (_label: string, ids: string[]) =>
     ids
       .map((wid) => {
-        const g = gearById(wid);
+        const g = gearById(wid, shellRunContext());
         if (!g) return "";
         const on = current === wid ? "active" : "";
         return `<button type="button" class="lab-pick-item weapon ${on}" data-pick-weapon="${wid}" data-weapon-mate="${mateId}">
@@ -240,8 +241,8 @@ function renderMateRow(draft: LabPreset, id: CompanionId, focus: PickFocus, focu
   const m = MATES[id];
   const techs = mateTechList(draft, id);
   const weaponId = draft.mateWeapons[id] ?? "";
-  const weaponName = gearById(weaponId)?.name ?? "选兵器";
-  const equippedSchool = schoolFromGearId(weaponId, m.weapon);
+  const weaponName = gearById(weaponId, shellRunContext())?.name ?? "选兵器";
+  const equippedSchool = schoolFromGearId(weaponId, m.weapon, shellRunContext());
   const isField = draft.fieldMate === id;
   const mateFocused = focus === "mates" && focusMate === id;
   const weaponFocused = focus === "weapon" && focusMate === id;
@@ -333,7 +334,7 @@ export function renderSetupBody(
   const cardsFocused = opts.pickFocus === "cards";
   const enemyFocused = opts.pickFocus === "enemy";
   const fieldGear = draft.mateWeapons[draft.fieldMate] ?? primaryWeapon(draft);
-  const fieldSchool = schoolFromGearId(fieldGear, MATES[draft.fieldMate].weapon);
+  const fieldSchool = schoolFromGearId(fieldGear, MATES[draft.fieldMate].weapon, shellRunContext());
   const quota = quotaCheck(draft.deckRecipe, fieldSchool);
   const quotaHint = quota.ok
     ? `<span class="lab-quota-ok">配额 OK · field ${WEAPON_NAME[fieldSchool]} ${quota.schoolCount} · 通用 ${quota.anyCount}</span>`

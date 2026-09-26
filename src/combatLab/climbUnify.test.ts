@@ -2,13 +2,14 @@ import { afterEach, describe, expect, it } from "vitest";
 import { labCard } from "../game/labContent";
 import { CARDS } from "../game/content";
 import { climbAttackFaceDamage } from "../game/labV21";
-import { setLabMode } from "../game/labTuning";
+import { setLabMode } from "./labTuning";
 import { comboCardDamage } from "../game/labCombo";
 import { pairFusionId, auraCardId } from "../game/rogueCards";
 import { battleEquippedSchool } from "../game/equippedWeapon";
 import { profileFor } from "../game/enemyKit";
 import { canPlay, playCard, statusChips, previewCard, endTurn, seizeOpening } from "../game/sim";
 import { damageBreakdown } from "../game/damageBreakdown";
+import { climbTestContext } from "./testContext";
 import { startLabBattle } from "./factory";
 import { applyAutoLoadout } from "./autoLoadouts";
 import { labCanSwap, labSwapFighter } from "./labCombat";
@@ -34,15 +35,15 @@ describe("S1–S10 爬塔收编", () => {
   it("S1 面伤公式不含连势×2 / 气脉", () => {
     const b = climbBattle();
     const fat = { ...b, combo: 9, flow: 3, mark: 5 };
-    expect(climbAttackFaceDamage(fat, CARDS.cut)).toBe(climbAttackFaceDamage(b, CARDS.cut));
+    expect(climbAttackFaceDamage(fat, CARDS.cut, climbTestContext())).toBe(climbAttackFaceDamage(b, CARDS.cut, climbTestContext()));
   });
 
   it("S2 预演与 chip 用格挡不用架势", () => {
     const b = climbBattle();
     b.enemyBlock = 4;
     expect(renderHoverPreview(b, null)).not.toContain("架势");
-    expect(statusChips(b, "foe").some((c) => c.name === "架势")).toBe(false);
-    expect(statusChips(b, "foe").some((c) => c.name === "格挡")).toBe(true);
+    expect(statusChips(b, "foe", climbTestContext()).some((c) => c.name === "架势")).toBe(false);
+    expect(statusChips(b, "foe", climbTestContext()).some((c) => c.name === "格挡")).toBe(true);
   });
 
   it("S5 组合卡牌面与结算对齐", () => {
@@ -57,7 +58,7 @@ describe("S1–S10 爬塔收编", () => {
   it("S6 无序对共用一张连携", () => {
     expect(pairFusionId("palm", "spear")).toBe(pairFusionId("spear", "palm"));
     expect(pairFusionId("palm", "palm")).toBeNull();
-    expect(labCard("fusePalmSpear").name).toBe("送客枪");
+    expect(labCard("fusePalmSpear", climbTestContext()).name).toBe("送客枪");
   });
 
   it("S8 馆 1 无闪避霸体，馆 8 有", () => {
@@ -70,14 +71,14 @@ describe("S1–S10 爬塔收编", () => {
     b.energy = 20;
     b.player.pos = 3;
     b.enemy.pos = 4;
-    const atk = b.hand.filter((c) => labCard(c.defId).type === "attack");
+    const atk = b.hand.filter((c) => labCard(c.defId, climbTestContext()).type === "attack");
     const a = atk[0] ?? b.hand[0]!;
     const extra = { uid: "atk-right", defId: "cut" as const };
     b.hand = [a, extra, ...b.hand.filter((c) => c.uid !== a.uid)];
     b.youStun = 1;
-    expect(canPlay(b, a.uid).ok).toBe(false);
-    expect(canPlay(b, a.uid).reason).toContain("最左");
-    expect(canPlay(b, extra.uid).ok).toBe(true);
+    expect(canPlay(b, a.uid, climbTestContext()).ok).toBe(false);
+    expect(canPlay(b, a.uid, climbTestContext()).reason).toContain("最左");
+    expect(canPlay(b, extra.uid, climbTestContext()).ok).toBe(true);
   });
 
   it("S7 三同系开战发光环，打出后本场攻击 +3", () => {
@@ -85,7 +86,7 @@ describe("S1–S10 爬塔收编", () => {
     const b = startLabBattle(p, true, 1);
     expect(b.hand.some((c) => c.defId === auraCardId("saber"))).toBe(true);
     const uid = b.hand.find((c) => c.defId === auraCardId("saber"))!.uid;
-    const after = playCard({ ...b, energy: 20 }, uid);
+    const after = playCard({ ...b, energy: 20 }, uid, climbTestContext());
     expect(after.labAuraStrike).toBe(3);
   });
 
@@ -94,7 +95,7 @@ describe("S1–S10 爬塔收编", () => {
     const b = startLabBattle(p, true, 1);
     b.combo = 0;
     b.hand = [{ uid: "w", defId: "weave" }, ...b.hand];
-    const after = playCard({ ...b, energy: 20, playerBlock: 0 }, "w");
+    const after = playCard({ ...b, energy: 20, playerBlock: 0 }, "w", climbTestContext());
     expect(after.combo).toBe(0);
     expect(after.playerBlock).toBeGreaterThanOrEqual(6);
   });
@@ -102,8 +103,8 @@ describe("S1–S10 爬塔收编", () => {
   it("S6 异系换人入手连携卡", () => {
     const p = applyAutoLoadout("t9-palm-saber", 1, 1);
     let b = startLabBattle(p, true, 1);
-    const fieldSch = battleEquippedSchool(b, b.active);
-    const other = b.bench.find((m) => battleEquippedSchool(b, m.id) !== fieldSch);
+    const fieldSch = battleEquippedSchool(b, b.active, climbTestContext());
+    const other = b.bench.find((m) => battleEquippedSchool(b, m.id, climbTestContext()) !== fieldSch);
     expect(other).toBeTruthy();
     b = { ...b, energy: 20 };
     const after = labSwapFighter(b, other!.id);
@@ -113,26 +114,26 @@ describe("S1–S10 爬塔收编", () => {
   it("S10 枪 a 命中锁步", () => {
     const spear = applyAutoLoadout("t8-three-spear-palm", 3, 1);
     const b = startLabBattle(spear, true, 1);
-    const atk = b.hand.find((c) => labCard(c.defId).type === "attack")!;
+    const atk = b.hand.find((c) => labCard(c.defId, climbTestContext()).type === "attack")!;
     b.enemy.pos = Math.min(6, b.player.pos + 2);
-    const rooted = playCard({ ...b, energy: 20 }, atk.uid);
+    const rooted = playCard({ ...b, energy: 20 }, atk.uid, climbTestContext());
     expect(rooted.foeRootTurns).toBeGreaterThanOrEqual(1);
   });
 
   it("爬塔聚势牌面不再写气脉", () => {
     setLabRuleset("climb");
     setLabMode(true);
-    expect(labCard("gather").text).toContain("势");
-    expect(labCard("gather").text).not.toContain("气脉");
-    expect(labCard("weave").text).toContain("格挡 6");
+    expect(labCard("gather", climbTestContext()).text).toContain("势");
+    expect(labCard("gather", climbTestContext()).text).not.toContain("气脉");
+    expect(labCard("weave", climbTestContext()).text).toContain("格挡 6");
   });
 
   it("神兵枪 a 命中封技", () => {
     const spear = applyAutoLoadout("t8-three-spear-palm", 5, 1);
     const b = startLabBattle(spear, true, 1);
-    const atk = b.hand.find((c) => labCard(c.defId).type === "attack")!;
+    const atk = b.hand.find((c) => labCard(c.defId, climbTestContext()).type === "attack")!;
     b.enemy.pos = Math.min(6, b.player.pos + 2);
-    const after = playCard({ ...b, energy: 20 }, atk.uid);
+    const after = playCard({ ...b, energy: 20 }, atk.uid, climbTestContext());
     expect(after.foeMute).toBeGreaterThanOrEqual(1);
   });
 
@@ -153,10 +154,10 @@ describe("S1–S10 爬塔收编", () => {
       b.hand.unshift({ uid: "wipe1", defId: "hitSaber" });
       return b.hand[0]!;
     })();
-    const def = labCard("hitSaber");
+    const def = labCard("hitSaber", climbTestContext());
     expect(def.name).toBe("抹刀");
-    const br = damageBreakdown(b, def);
-    const prev = previewCard({ ...b, energy: 20 }, inst.uid);
+    const br = damageBreakdown(b, def, climbTestContext());
+    const prev = previewCard({ ...b, energy: 20 }, inst.uid, climbTestContext());
     const dealt = b.enemy.hp - prev.enemyHp;
     expect(br.total).toBe(dealt);
     expect(br.parts.reduce((s, p) => s + p.n, 0)).toBe(br.total);
@@ -179,13 +180,13 @@ describe("S1–S10 爬塔收编", () => {
       b.hand.unshift({ uid: "cut1", defId: "cut" });
       return b.hand[0]!;
     })();
-    const def = labCard("cut");
-    const br = damageBreakdown(b, def);
+    const def = labCard("cut", climbTestContext());
+    const br = damageBreakdown(b, def, climbTestContext());
     expect(br.parts.find((p) => p.label === "牌面")?.n).toBe(4);
     expect(br.parts.some((p) => p.label === "挨打加伤")).toBe(false);
     expect(br.riders.join()).toMatch(/裂创/);
     expect(br.riders.join()).not.toMatch(/流血/);
-    const prev = previewCard({ ...b, energy: 20 }, inst.uid);
+    const prev = previewCard({ ...b, energy: 20 }, inst.uid, climbTestContext());
     expect(prev.breakdown).toContain("构成");
     expect(prev.breakdown).not.toContain("埋招");
     expect(prev.breakdown).not.toContain("流血");
@@ -210,7 +211,7 @@ describe("S1–S10 爬塔收编", () => {
     b.intent = b.intents[0]!;
     b.enemyEnergy = 20;
     const hp = b.player.hp;
-    const after = endTurn(b, { deferIntentRefresh: true });
+    const after = endTurn(b, climbTestContext(), { deferIntentRefresh: true });
     expect(after.player.hp).toBe(hp);
     expect(after.v2LastIntentRecap?.every((r) => r.outcome === "空" || r.outcome === "出" || r.outcome === "架")).toBe(true);
     expect(after.v2LastIntentRecap?.length).toBeGreaterThanOrEqual(2);
@@ -229,7 +230,7 @@ describe("S1–S10 爬塔收编", () => {
     b.intent = b.intents[0]!;
     b.enemyEnergy = 20;
     const blk = b.playerBlock;
-    const after = endTurn(b, { deferIntentRefresh: true });
+    const after = endTurn(b, climbTestContext(), { deferIntentRefresh: true });
     expect(after.v2LastIntentRecap?.map((r) => r.outcome).slice(0, 2)).toEqual(["架", "打"]);
     expect(after.enemyBlock).toBeGreaterThan(0);
     expect(after.playerBlock).toBe(blk); // 敌架不加你挡
@@ -255,7 +256,7 @@ describe("S1–S10 爬塔收编", () => {
     b.intent = b.intents[0]!;
     b.enemyEnergy = 20;
     const hp = b.player.hp;
-    seizeOpening(b);
+    seizeOpening(b, climbTestContext());
     expect(b.player.hp).toBe(hp);
     expect(b.climbEnemyActedThisRound).toBe(true);
   });
@@ -267,7 +268,7 @@ describe("S1–S10 爬塔收编", () => {
     b.intent = { kind: "bleedcut", damage: 20, bleed: 3 };
     b.intents = [b.intent];
     const hp = b.player.hp;
-    const after = endTurn(b);
+    const after = endTurn(b, climbTestContext());
     expect(after.player.hp).toBe(hp);
     expect(after.youBleed).toBe(0);
   });
@@ -285,7 +286,7 @@ describe("S1–S10 爬塔收编", () => {
     ];
     b.intent = b.intents[0]!;
     b.enemyEnergy = 20;
-    const after = endTurn(b, { deferIntentRefresh: true });
+    const after = endTurn(b, climbTestContext(), { deferIntentRefresh: true });
     expect(after.v2LastIntentRecap?.length).toBe(2);
     expect(after.intents[0]?.kind).not.toBe("guard");
   });
@@ -304,7 +305,7 @@ describe("S1–S10 爬塔收编", () => {
     ];
     b.intent = b.intents[0]!;
     b.enemyEnergy = 20;
-    const after = endTurn(b, { deferIntentRefresh: true });
+    const after = endTurn(b, climbTestContext(), { deferIntentRefresh: true });
     expect(after.v2LastIntentRecap?.length).toBeGreaterThanOrEqual(3);
   });
 
@@ -344,7 +345,7 @@ describe("S1–S10 爬塔收编", () => {
 
   it("破绽穿挡：格挡吃满面伤后仍掉 4 血", () => {
     const b = climbBattle();
-    const atk = b.hand.find((c) => labCard(c.defId).type === "attack") ?? b.hand[0]!;
+    const atk = b.hand.find((c) => labCard(c.defId, climbTestContext()).type === "attack") ?? b.hand[0]!;
     const fat = {
       ...b,
       energy: 10,
@@ -354,13 +355,13 @@ describe("S1–S10 爬塔收编", () => {
       enemy: { ...b.enemy, pos: 4 },
       foes: [{ ...b.enemy, pos: 4 }],
     };
-    const drop = fat.enemy.hp - playCard(fat, atk.uid).enemy.hp;
+    const drop = fat.enemy.hp - playCard(fat, atk.uid, climbTestContext()).enemy.hp;
     expect(drop).toBe(4);
   });
 
   it("爬塔 chip 不出现硬拆资源", () => {
     const b = { ...climbBattle(), v2BreakMomentum: 2, qi: 4, combo: 3, flow: 2 };
-    const names = statusChips(b, "you").map((c) => c.name);
+    const names = statusChips(b, "you", climbTestContext()).map((c) => c.name);
     expect(names).not.toContain("拆势");
     expect(names).not.toContain("连势");
     expect(names).not.toContain("气脉");

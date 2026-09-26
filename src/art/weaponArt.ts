@@ -1,6 +1,7 @@
 /** Weapon 立绘 — AI ink plates per school (like character stands), named in UI. */
 
 import { gearById, type GearWeapon } from "../game/weapons";
+import type { RunContext } from "../game/runContext";
 import { WEAPON_NAME } from "../game/party";
 import type { WeaponId } from "../game/types";
 import { artUrl } from "./artUrl";
@@ -19,18 +20,22 @@ export function weaponSrc(school: WeaponId): string {
 }
 
 /** Tall plate: PNG 立绘 + grade seal. Readable at a glance. */
-export function weaponArt(id: string | null | undefined): string {
-  const g = gearById(id);
+export function weaponArt(id: string | null | undefined, rc: RunContext): string {
+  const g = gearById(id, rc);
   if (!g) {
     return `<span class="weapon-art weapon-art-empty" aria-hidden="true"></span>`;
   }
   return `<img class="weapon-art" src="${weaponSrc(g.school)}" alt="${g.name}" draggable="false"><em class="weapon-grade">${g.grade}</em>`;
 }
 
-export function weaponArtMarkup(id: string | null | undefined, opts?: { title?: string; button?: boolean }): string {
-  const g = gearById(id);
+export function weaponArtMarkup(
+  id: string | null | undefined,
+  rc: RunContext,
+  opts?: { title?: string; button?: boolean },
+): string {
+  const g = gearById(id, rc);
   const tip = opts?.title ?? (g ? `${g.name} · ${g.tip}` : "");
-  const art = weaponArt(id);
+  const art = weaponArt(id, rc);
   const caption = g ? `<b class="weapon-caption">${g.name}</b>` : "";
   if (opts?.button && g) {
     return `<button type="button" class="weapon-plate" data-weapon="${g.id}" title="${g.name}（点开细看）" aria-label="${g.name}">${art}${caption}</button>`;
@@ -38,8 +43,8 @@ export function weaponArtMarkup(id: string | null | undefined, opts?: { title?: 
   return `<span class="weapon-art-wrap" title="${tip}">${art}${caption}</span>`;
 }
 
-export function weaponDetail(id: string): { name: string; school: string; tip: string; text: string } | null {
-  const g = gearById(id);
+export function weaponDetail(id: string, rc: RunContext): { name: string; school: string; tip: string; text: string } | null {
+  const g = gearById(id, rc);
   if (!g) return null;
   const bits = [
     `伤 +${g.damage}`,

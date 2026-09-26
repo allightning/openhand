@@ -7,7 +7,8 @@ import {
   teamSchoolCounts,
 } from "../game/labResonance";
 import { canUseSignature, signatureDef, useSignature } from "../game/labSignature";
-import { setLabMode, setLabTuning } from "../game/labTuning";
+import { breakTestContext } from "./testContext";
+import { setLabMode, setLabTuning } from "./labTuning";
 import { MATES, ROLE_LABEL } from "../game/party";
 import { startLabBattle } from "./factory";
 import { computeAurasFromPreset } from "./setupUi";
@@ -46,7 +47,7 @@ describe("v2.5 §17 共鸣阶梯", () => {
       },
     );
     let res = computeAurasFromPreset({ ...p, party: ["rail", "hermit"] });
-    expect(schoolTier({ ...p, active: "rail", party: ["rail", "hermit"], bench: [], labMateWeapons: p.mateWeapons } as never, "palm")).toBe(1);
+    expect(schoolTier({ ...p, active: "rail", party: ["rail", "hermit"], bench: [], labMateWeapons: p.mateWeapons } as never, "palm", breakTestContext())).toBe(1);
 
     res = computeAurasFromPreset({ ...p, party: ["rail", "hermit", "bard"] });
     const mock3 = {
@@ -55,7 +56,7 @@ describe("v2.5 §17 共鸣阶梯", () => {
       bench: [{ id: "hermit", hp: 1, maxHp: 1 }],
       labMateWeapons: { ...p.mateWeapons, bard: starterGear("palm") },
     };
-    expect(schoolTier(mock3 as never, "palm")).toBe(2);
+    expect(schoolTier(mock3 as never, "palm", breakTestContext())).toBe(2);
 
     const mock4 = {
       active: "rail",
@@ -68,7 +69,7 @@ describe("v2.5 §17 共鸣阶梯", () => {
         porter: starterGear("palm"),
       },
     };
-    expect(schoolTier(mock4 as never, "palm")).toBe(3);
+    expect(schoolTier(mock4 as never, "palm", breakTestContext())).toBe(3);
   });
 
   it("includes field mate in team count", () => {
@@ -79,8 +80,8 @@ describe("v2.5 §17 共鸣阶梯", () => {
       ),
       true,
     );
-    expect(teamSchoolCounts(b).palm).toBe(2);
-    expect(schoolTier(b, "palm")).toBe(1);
+    expect(teamSchoolCounts(b, breakTestContext()).palm).toBe(2);
+    expect(schoolTier(b, "palm", breakTestContext())).toBe(1);
   });
 
   it("recounts when secondary weapon changes equipped school", () => {
@@ -154,18 +155,18 @@ describe("v2.5 §21 角色定位与专属技", () => {
       preset(["porter"], { porter: starterGear("staff") }, "porter"),
       true,
     );
-    expect(canUseSignature(b).ok).toBe(true);
+    expect(canUseSignature(b, breakTestContext()).ok).toBe(true);
     expect(signatureDef("porter").name).toBe("稳肩");
-    const r = useSignature(b);
+    const r = useSignature(b, breakTestContext());
     expect(r.ok).toBe(true);
     b = r.battle!;
     expect(b.playerBlock).toBeGreaterThan(0);
     expect(b.labSigUsesLeft).toBe(1);
-    const r2 = useSignature(b);
+    const r2 = useSignature(b, breakTestContext());
     expect(r2.ok).toBe(true);
     b = r2.battle!;
     expect(b.labSigUsesLeft).toBe(0);
-    expect(canUseSignature(b).ok).toBe(false);
+    expect(canUseSignature(b, breakTestContext()).ok).toBe(false);
   });
 
   it("mechanic-keyed signature fails without condition", () => {
@@ -175,7 +176,7 @@ describe("v2.5 §21 角色定位与专属技", () => {
     );
     b.player = { ...b.player, pos: 0 };
     b.enemy = { ...b.enemy, pos: 4 };
-    const r = useSignature(b);
+    const r = useSignature(b, breakTestContext());
     expect(r.ok).toBe(false);
     expect(r.reason).toContain("贴身");
   });
@@ -191,7 +192,7 @@ describe("v2.5 三主角同框", () => {
       }),
       true,
     );
-    expect(computeResonance(b).duoHeroes).toBe(true);
+    expect(computeResonance(b, breakTestContext()).duoHeroes).toBe(true);
     expect(b.qi ?? 0).toBeGreaterThanOrEqual(1);
   });
 });

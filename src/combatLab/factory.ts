@@ -1,7 +1,7 @@
 import { labEnemy, labMate } from "../game/labContent";
 import { sumMindArtBonuses } from "../game/mindArts";
 import { initBattleMateWeapons } from "../game/equippedWeapon";
-import { setLabMode, getLabTuning } from "../game/labTuning";
+import { setLabMode, getLabTuning } from "./labTuning";
 import { makeRun } from "../game/run";
 import { applyLabFightScale, applyLabEnemyKit, applyClimbOpeningPositions, battlePace, makeBattle, syncBattleGear, dealToHand } from "../game/sim";
 import { MATES, cardSchool } from "../game/party";
@@ -14,6 +14,7 @@ import { expandDeckRecipe } from "./rules";
 import { pruneDeckForWeapon } from "./cardUi";
 import { gearSlotMax } from "./loadout";
 import { isBreakAlign } from "./labRuleset";
+import { shellRunContext } from "./shellContext";
 import { auraCardId } from "../game/rogueCards";
 import type { LabPreset } from "./types";
 import { battleEquippedSchool } from "../game/equippedWeapon";
@@ -39,6 +40,7 @@ function fieldSchoolDeckPct(p: LabPreset, expanded: CardId[]): number {
   const school = battleEquippedSchool(
     { labMateWeapons: p.mateWeapons, active: p.fieldMate, party: p.party } as Battle,
     p.fieldMate,
+    shellRunContext(),
   );
   let schoolN = 0;
   for (const id of expanded) {
@@ -49,7 +51,7 @@ function fieldSchoolDeckPct(p: LabPreset, expanded: CardId[]): number {
 }
 
 function extraUnit(id: EnemyId, hpScale: number): Unit {
-  const def = labEnemy(id);
+  const def = labEnemy(id, shellRunContext());
   const hp = Math.max(8, Math.round(def.hp * hpScale));
   return { id: def.id, name: def.name, title: def.title, hp, maxHp: hp, pos: def.pos };
 }
@@ -73,7 +75,7 @@ export function runFromPreset(preset: LabPreset): Run {
   run.companionHp = {};
   for (const id of p.party) {
     const mindHp = sumMindArtBonuses(p.mateMinds?.[id] ?? []).hpMax;
-    run.companionHp[id] = id === p.fieldMate ? run.hp : labMate(id).hp + mindHp;
+    run.companionHp[id] = id === p.fieldMate ? run.hp : labMate(id, shellRunContext()).hp + mindHp;
   }
   run.silver = 999;
   run.bag = [];
@@ -86,9 +88,9 @@ export function startLabBattle(preset: LabPreset, ordered = false, deckMultiplie
   setLabMode(true);
   const p = normalizePreset(preset);
   const run = runFromPreset(p);
-  let b = makeBattle(p.enemyId, run, ordered, p.enemyId.startsWith("tutor"));
+  let b = makeBattle(p.enemyId, shellRunContext(), run, ordered, p.enemyId.startsWith("tutor"));
   if (p.extraFoeIds?.length) {
-    const hpScale = b.enemy.maxHp / labEnemy(p.enemyId).hp;
+    const hpScale = b.enemy.maxHp / labEnemy(p.enemyId, shellRunContext()).hp;
     const extras = p.extraFoeIds.map((id) => extraUnit(id, hpScale));
     b = { ...b, foes: [...b.foes, ...extras] };
   }
@@ -108,9 +110,9 @@ export function startLabBattle(preset: LabPreset, ordered = false, deckMultiplie
       labItemCharges: p.labItemCharges ? { ...p.labItemCharges } : defaultItemCharges(ids),
     };
   }
-  initBattleMateWeapons(b, p.mateWeapons);
+  initBattleMateWeapons(b, p.mateWeapons, shellRunContext());
   syncBattleGear(b, p.fieldMate);
-  applyLabFightScale();
+  applyLabFightScale(shellRunContext());
   let out: Battle = {
     ...b,
     labFreshSwap: false,
@@ -132,15 +134,15 @@ export function startLabBattle(preset: LabPreset, ordered = false, deckMultiplie
   const mult = deckMultiplier ?? getLabTuning().deckMultiplier;
   const expanded = expandDeckRecipe(p.deckRecipe, mult);
   out.v2FieldSchoolDeckPct = fieldSchoolDeckPct(p, expanded);
-  out.v2OpeningPaceBehind = battlePace(out) < out.foePace;
+  out.v2OpeningPaceBehind = battlePace(out, shellRunContext()) < out.foePace;
   out.labGauntletStage = p.gauntletStage;
   if (p.hallLaw) out.labHallLaw = p.hallLaw;
   if (p.sceneBg) out.labSceneBg = p.sceneBg;
-  if (!isBreakAlign() && p.gauntletStage != null) applyClimbOpeningPositions(out);
-  applyLabEnemyKit(out);
+  if (!isBreakAlign() && p.gauntletStage != null) applyClimbOpeningPositions(out, shellRunContext());
+  applyLabEnemyKit(out, shellRunContext());
   if (!isBreakAlign()) {
-    const fieldSch = battleEquippedSchool(out, p.fieldMate);
-    const same = p.party.filter((id) => battleEquippedSchool(out, id) === fieldSch).length;
+    const fieldSch = battleEquippedSchool(out, p.fieldMate, shellRunContext());
+    const same = p.party.filter((id) => battleEquippedSchool(out, id, shellRunContext()) === fieldSch).length;
     if (same >= 3) dealToHand(out, auraCardId(fieldSch));
   }
   return out;

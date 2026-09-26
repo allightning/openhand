@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { breakTestContext } from "./testContext";
 import { schoolFromGearId } from "../game/equippedWeapon";
-import { setLabMode, setLabTuning } from "../game/labTuning";
+import { setLabMode, setLabTuning } from "./labTuning";
 import { MATES, cardSchool } from "../game/party";
 import { canPlay, drawOneCard, isComboUnlockCard } from "../game/sim";
 import { AUTO_LOADOUTS, applyAutoLoadout, validateLoadoutPreset } from "./autoLoadouts";
@@ -68,8 +69,8 @@ describe("§28.4 组合技开闸 canPlay", () => {
       hand: [{ uid: "t-cut", defId: "cut" }],
     };
     b.enemy.pos = b.player.pos + 2; // §31.11 距离闸：刀打到 2 格
-    expect(isComboUnlockCard(b, "cut")).toBe(true);
-    expect(canPlay(b, "t-cut").ok).toBe(true);
+    expect(isComboUnlockCard(b, "cut", breakTestContext())).toBe(true);
+    expect(canPlay(b, "t-cut", breakTestContext()).ok).toBe(true);
   });
 
   it("same-school assist does not mark combo unlock", () => {
@@ -83,21 +84,18 @@ describe("§28.4 组合技开闸 canPlay", () => {
       energy: 9,
       hand: [{ uid: "t-strike", defId: "strike" }],
     };
-    expect(isComboUnlockCard(b, "strike")).toBe(false);
+    expect(isComboUnlockCard(b, "strike", breakTestContext())).toBe(false);
   });
 
   it("blocks off-school card without assist", () => {
     setLabMode(true);
     setLabTuning({ rulesV2: true });
     const b = startLabBattle({ ...BUILTIN_PRESETS[0]!, party: ["rail"], fieldMate: "rail" }, true);
-    const gate = canPlay(
-      {
+    const gate = canPlay({
         ...b,
         energy: 9,
         hand: [{ uid: "t-cut", defId: "cut" }],
-      },
-      "t-cut",
-    );
+      }, "t-cut", breakTestContext());
     expect(gate.ok).toBe(false);
   });
 });

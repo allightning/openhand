@@ -1,5 +1,5 @@
 import { battleEquippedSchool } from "./equippedWeapon";
-import { isLabV2 } from "./labTuning";
+import { labV2, type RunContext } from "./runContext";
 import {
   AURA_DUO_START_QI,
   LAB_HUNDRED_FLOWERS,
@@ -38,10 +38,10 @@ export interface ResonanceStatus {
   advanced: boolean;
 }
 
-export function teamSchoolCounts(b: Battle): Record<WeaponId, number> {
+export function teamSchoolCounts(b: Battle, rc: RunContext): Record<WeaponId, number> {
   const out: Partial<Record<WeaponId, number>> = {};
   for (const id of b.party ?? []) {
-    const s = battleEquippedSchool(b, id);
+    const s = battleEquippedSchool(b, id, rc);
     out[s] = (out[s] ?? 0) + 1;
   }
   return out as Record<WeaponId, number>;
@@ -60,9 +60,9 @@ export function tierFx(school: WeaponId, tier: ResonanceTier): LadderTierFx | nu
   return tier === 1 ? row.t1 : tier === 2 ? row.t2 : row.t3;
 }
 
-export function schoolTier(b: Battle, school: WeaponId): ResonanceTier {
-  if (!isLabV2()) return 0;
-  return countToTier(teamSchoolCounts(b)[school] ?? 0);
+export function schoolTier(b: Battle, school: WeaponId, rc: RunContext): ResonanceTier {
+  if (!labV2(rc)) return 0;
+  return countToTier(teamSchoolCounts(b, rc)[school] ?? 0);
 }
 
 export function classifyPartyComposition(counts: number[]): PartyComposition {
@@ -74,8 +74,8 @@ export function classifyPartyComposition(counts: number[]): PartyComposition {
   return "2plus1plus1";
 }
 
-export function computeResonance(b: Battle): ResonanceStatus {
-  const counts = teamSchoolCounts(b);
+export function computeResonance(b: Battle, rc: RunContext): ResonanceStatus {
+  const counts = teamSchoolCounts(b, rc);
   const schools: SchoolResonanceChip[] = ALL_SCHOOLS.map((school) => {
     const count = counts[school] ?? 0;
     const tier = countToTier(count);
@@ -92,7 +92,7 @@ export function computeResonance(b: Battle): ResonanceStatus {
     };
   }).filter((c) => c.count > 0);
 
-  const equipped = (b.party ?? []).map((id) => battleEquippedSchool(b, id));
+  const equipped = (b.party ?? []).map((id) => battleEquippedSchool(b, id, rc));
   const hundredFlowers = equipped.length === 4 && new Set(equipped).size === 4;
   const benchIds = b.bench?.map((m) => m.id) ?? [];
   const duoHeroes = TRIO_HEROES.filter((h) => benchIds.includes(h)).length >= 2;
@@ -109,7 +109,7 @@ export function computeResonance(b: Battle): ResonanceStatus {
   if (hundredFlowers) labels.push("百花齐放");
   if (duoHeroes) labels.push("三主角同框");
 
-  const fieldSchool = battleEquippedSchool(b, b.active);
+  const fieldSchool = battleEquippedSchool(b, b.active, rc);
   const maxTier = Math.max(0, ...schools.map((s) => s.tier));
   return {
     schools,
@@ -138,26 +138,26 @@ function schoolLabel(s: WeaponId): string {
 /** 兼容旧名 */
 export const computeAuras = computeResonance;
 
-export function resonancePaceBonus(b: Battle): number {
-  if (!isLabV2()) return 0;
+export function resonancePaceBonus(b: Battle, rc: RunContext): number {
+  if (!labV2(rc)) return 0;
   let bonus = 0;
-  const spearFx = tierFx("spear", schoolTier(b, "spear"));
+  const spearFx = tierFx("spear", schoolTier(b, "spear", rc));
   if (spearFx?.paceBonus) bonus += spearFx.paceBonus;
-  if (computeResonance(b).hundredFlowers) bonus += LAB_HUNDRED_FLOWERS.paceBonus;
+  if (computeResonance(b, rc).hundredFlowers) bonus += LAB_HUNDRED_FLOWERS.paceBonus;
   return bonus;
 }
 
-export function initResonanceBattle(b: Battle): void {
-  if (!isLabV2()) return;
-  const res = computeResonance(b);
-  if (res.duoHeroes) addQi(b, AURA_DUO_START_QI);
-  const swordFx = tierFx("sword", schoolTier(b, "sword"));
+export function initResonanceBattle(b: Battle, rc: RunContext): void {
+  if (!labV2(rc)) return;
+  const res = computeResonance(b, rc);
+  if (res.duoHeroes) addQi(b, AURA_DUO_START_QI, rc);
+  const swordFx = tierFx("sword", schoolTier(b, "sword", rc));
   if (swordFx?.startExpose) b.expose += swordFx.startExpose;
-  const staffFx = tierFx("staff", schoolTier(b, "staff"));
+  const staffFx = tierFx("staff", schoolTier(b, "staff", rc));
   if (staffFx?.startBlock) b.playerBlock += staffFx.startBlock;
   if (staffFx?.startStake) {
     const spot = Math.min(BOARD_SIZE - 2, Math.max(0, b.player.pos + 1));
-    if (!b.stakes.includes(spot) && spot < BOARD_SIZE - 1) addStake(b, spot, 2);
+    if (!b.stakes.includes(spot) && spot < BOARD_SIZE - 1) addStake(b, spot, 2, rc);
   }
   b.v2PartyComposition = res.composition;
   b.v2ResonanceTierMax = Math.max(0, ...res.schools.map((s) => s.tier));
@@ -166,44 +166,51 @@ export function initResonanceBattle(b: Battle): void {
 
 const BOARD_SIZE = 7;
 
-export function resonanceStrikeBonus(b: Battle, cardId: CardId, _base: number, adjacent: boolean, dist: number): number {
-  if (!isLabV2()) return 0;
+export function resonanceStrikeBonus(
+  b: Battle,
+  cardId: CardId,
+  _base: number,
+  adjacent: boolean,
+  dist: number,
+  rc: RunContext,
+): number {
+  if (!labV2(rc)) return 0;
   const cs = cardSchool(cardId);
   if (cs === "any") return 0;
   let bonus = 0;
-  const fx = tierFx(cs, schoolTier(b, cs));
+  const fx = tierFx(cs, schoolTier(b, cs, rc));
   if (fx?.meleeBonus && adjacent) bonus += fx.meleeBonus;
   if (fx?.rangeAttackBonus && dist >= 3) bonus += fx.rangeAttackBonus;
   if (b.labSigMeleeBonus && adjacent) bonus += b.labSigMeleeBonus;
   return bonus;
 }
 
-export function resonanceKnockBonus(b: Battle, cardId: CardId): number {
-  if (!isLabV2()) return 0;
+export function resonanceKnockBonus(b: Battle, cardId: CardId, rc: RunContext): number {
+  if (!labV2(rc)) return 0;
   const cs = cardSchool(cardId);
   if (cs !== "palm") return 0;
-  return tierFx("palm", schoolTier(b, "palm"))?.knockBonus ?? 0;
+  return tierFx("palm", schoolTier(b, "palm", rc))?.knockBonus ?? 0;
 }
 
-export function resonanceWallCrashBonus(b: Battle, cardId: CardId): number {
-  if (!isLabV2()) return 0;
+export function resonanceWallCrashBonus(b: Battle, cardId: CardId, rc: RunContext): number {
+  if (!labV2(rc)) return 0;
   const cs = cardSchool(cardId);
   if (cs !== "palm") return 0;
-  return tierFx("palm", schoolTier(b, "palm"))?.wallCrashBonus ?? 0;
+  return tierFx("palm", schoolTier(b, "palm", rc))?.wallCrashBonus ?? 0;
 }
 
-export function resonancePullBonus(b: Battle, cardId: CardId): number {
-  if (!isLabV2()) return 0;
+export function resonancePullBonus(b: Battle, cardId: CardId, rc: RunContext): number {
+  if (!labV2(rc)) return 0;
   const cs = cardSchool(cardId);
   if (cs !== "hook") return 0;
-  return tierFx("hook", schoolTier(b, "hook"))?.pullBonus ?? 0;
+  return tierFx("hook", schoolTier(b, "hook", rc))?.pullBonus ?? 0;
 }
 
-export function resonanceExtraQiOnGain(b: Battle, cardId: CardId): number {
-  if (!isLabV2() || b.v2AuraQiBonusUsed) return 0;
+export function resonanceExtraQiOnGain(b: Battle, cardId: CardId, rc: RunContext): number {
+  if (!labV2(rc) || b.v2AuraQiBonusUsed) return 0;
   const cs = cardSchool(cardId);
   if (cs !== "sword") return 0;
-  const fx = tierFx("sword", schoolTier(b, "sword"));
+  const fx = tierFx("sword", schoolTier(b, "sword", rc));
   if (!fx?.exposeCardQiBonus) return 0;
   const def = cardId.replace(/2$/, "");
   if (def === "expose" || def === "marking" || def === "pierce" || def === "swordMute") {
@@ -213,11 +220,11 @@ export function resonanceExtraQiOnGain(b: Battle, cardId: CardId): number {
   return 0;
 }
 
-export function staffBlockRetain(b: Battle): boolean {
-  return isLabV2() && Boolean(tierFx("staff", schoolTier(b, "staff"))?.blockRetainOnEndTurn);
+export function staffBlockRetain(b: Battle, rc: RunContext): boolean {
+  return labV2(rc) && Boolean(tierFx("staff", schoolTier(b, "staff", rc))?.blockRetainOnEndTurn);
 }
 
-export function resonanceChargeStepsCut(b: Battle): number {
-  if (!isLabV2()) return 0;
-  return tierFx("spear", schoolTier(b, "spear"))?.chargeStepsCut ?? 0;
+export function resonanceChargeStepsCut(b: Battle, rc: RunContext): number {
+  if (!labV2(rc)) return 0;
+  return tierFx("spear", schoolTier(b, "spear", rc))?.chargeStepsCut ?? 0;
 }

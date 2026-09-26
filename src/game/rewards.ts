@@ -6,6 +6,7 @@ import { cardSchool, addCompanion, stashOrTeach, wielderOf } from "./party";
 import { stageOfScene, stageSilver, type Stage } from "./progress";
 import { addTechnique, replaceFirst } from "./run";
 import type { CardId, ChapterId, CompanionId, EnemyId, Reward, Run, SaveFile, TechniqueId } from "./types";
+import type { RunContext } from "./runContext";
 import { gearById } from "./weapons";
 
 function shuffle<T>(items: T[]): T[] {
@@ -116,6 +117,7 @@ export function rollRewards(
   run: Run,
   save: SaveFile,
   source: { type: "duel"; enemyId: EnemyId } | { type: "chest" },
+  rc: RunContext,
 ): Reward[] {
   const stage = runStage(run);
   const remnant = source.type === "duel" ? ENEMIES[source.enemyId].remnant : undefined;
@@ -184,7 +186,7 @@ export function rollRewards(
     const school = run.weapon?.split("-")[0] ?? "palm";
     const grade = stage === "late" ? 3 : 2;
     const gid = `${school}-a-${grade}`;
-    if (gearById(gid) && !used.has(`g:${gid}`)) {
+    if (gearById(gid, rc) && !used.has(`g:${gid}`)) {
       used.add(`g:${gid}`);
       picked.push({ kind: "gear", id: gid });
     }
@@ -213,7 +215,7 @@ export function rollRewards(
   return picked.slice(0, 3);
 }
 
-export function applyReward(run: Run, reward: Reward): Run {
+export function applyReward(run: Run, reward: Reward, rc: RunContext): Run {
   const next = structuredClone(run);
   if (reward.kind === "silver") {
     next.silver = (next.silver ?? 0) + reward.amount;
@@ -234,7 +236,7 @@ export function applyReward(run: Run, reward: Reward): Run {
     return next;
   }
   if (reward.kind === "gear") {
-    const g = gearById(reward.id);
+    const g = gearById(reward.id, rc);
     if (!g || g.grade > 4) return next; // 最高玄，神兵不直接掉
     if (next.weapons.includes(reward.id)) {
       next.silver = (next.silver ?? 0) + Math.max(4, Math.floor(g.price / 4));

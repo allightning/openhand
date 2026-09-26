@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { makeTestContext } from "../combatLab/testContext";
 import { MATES, MATE_OFFER, WEAPON_NAME, WEAPON_PACE, addCompanion, deckFor, grantChapterTwo, healRun, mateJoinReady, noteFall, reviveHp, schoolLabel, stashOrTeach } from "./party";
 import { makeRun } from "./run";
 import { makeBattle, swapFighter } from "./sim";
@@ -62,10 +63,10 @@ describe("party and weapons", () => {
 describe("swap and packs", () => {
   it("lets a second fighter take the floor for one energy", () => {
     const run = addCompanion(makeRun("empty"), "porter");
-    let b = makeBattle("catcher", run, true);
+    let b = makeBattle("catcher", makeTestContext({ mode: "climb", lab: false }), run, true);
     expect(b.active).toBe("rail");
     expect(b.bench.some((m) => m.id === "porter")).toBe(true);
-    b = swapFighter(b, "porter");
+    b = swapFighter(b, "porter", makeTestContext({ mode: "climb", lab: false }));
     expect(b.active).toBe("porter");
     expect(b.energy).toBe(7);
     expect(b.player.name).toBe("韩铁");
@@ -74,14 +75,14 @@ describe("swap and packs", () => {
 
   it("lets the hermit take the floor with a palm kit", () => {
     const run = addCompanion(makeRun("empty"), "hermit");
-    let b = makeBattle("catcher", run, true);
-    b = swapFighter(b, "hermit");
+    let b = makeBattle("catcher", makeTestContext({ mode: "climb", lab: false }), run, true);
+    b = swapFighter(b, "hermit", makeTestContext({ mode: "climb", lab: false }));
     expect(b.player.name).toBe("井清源");
     expect(b.hand.some((c) => c.defId === "elbow")).toBe(true);
   });
 
   it("puts a second body on the twin's stone", () => {
-    const b = makeBattle("twin");
+    const b = makeBattle("twin", makeTestContext({ mode: "climb", lab: false }));
     expect(b.foes).toHaveLength(2);
     expect(b.foes.filter((f) => f.hp > 0)).toHaveLength(2);
   });
@@ -106,8 +107,8 @@ describe("weapon scrolls", () => {
     run = addCompanion(run, "watch");
     expect(run.scrolls).toEqual([]);
     expect(run.mateDecks.watch).toContain("cut");
-    expect(deckFor(run, "watch")).toContain("cut");
-    expect(deckFor(run, "seer")).not.toContain("cut");
+    expect(deckFor(run, "watch", makeTestContext({ lab: false }))).toContain("cut");
+    expect(deckFor(run, "seer", makeTestContext({ lab: false }))).not.toContain("cut");
   });
 
   it("teaches secondary-family scroll to hero when primary party lacks school", () => {

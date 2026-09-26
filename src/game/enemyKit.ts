@@ -1,7 +1,7 @@
 import type { EnemyId, Intent, TechniqueId, WeaponId } from "./types";
 import { enemyGear, enemyGradeForStage, enemyStrikeAtDist, type EnemyGearGrade } from "./enemyGear";
 import { SIGNATURE_BREAK, type EnemySigId } from "./enemySignatures";
-import { getLabTuning } from "./labTuning";
+import type { RunContext } from "./runContext";
 
 export type EnergyArchive = "short" | "steady" | "burst" | "turtle";
 
@@ -286,7 +286,7 @@ export interface KitCtx {
   sigs: EnemySigId[];
 }
 
-export function followFromKit(ctx: KitCtx, prior: Intent): Intent {
+export function followFromKit(ctx: KitCtx, prior: Intent, rc: RunContext): Intent {
   const inReach = ctx.dist <= ctx.reach;
   const lowEnergy = ctx.energy <= Math.floor(ctx.energyMax / 3);
   const retreatSteps = ctx.stage >= 5 ? 2 : 1;
@@ -294,7 +294,7 @@ export function followFromKit(ctx: KitCtx, prior: Intent): Intent {
   const strike: Intent = { kind: "strike", damage: enemyStrikeAtDist(ctx.school, ctx.grade, Math.max(1, ctx.dist)) };
 
   if (lowEnergy) {
-    const agg = getLabTuning().aiAggression;
+    const agg = rc.tuning.aiAggression;
     if (ctx.stage >= 4 && inReach && agg >= 50) {
       if (ctx.school === "saber" && ctx.dist <= 2) {
         return { kind: "bleedcut", damage: enemyStrikeAtDist("saber", ctx.grade, 2), bleed: 2 };
@@ -352,7 +352,7 @@ export function followFromKit(ctx: KitCtx, prior: Intent): Intent {
   return strike;
 }
 
-export function chooseFromKit(ctx: KitCtx): Intent {
+export function chooseFromKit(ctx: KitCtx, rc: RunContext): Intent {
   const inReach = ctx.dist <= ctx.reach;
   if (ctx.stage >= 7 && ctx.sigs.length && ctx.turn % 3 === 1) {
     const sig = SIGNATURE_BREAK[ctx.sigs[0]!];
@@ -371,7 +371,7 @@ export function chooseFromKit(ctx: KitCtx): Intent {
     }
     return first;
   }
-  return followFromKit(ctx, { kind: "breathe", amount: 3 });
+  return followFromKit(ctx, { kind: "breathe", amount: 3 }, rc);
 }
 
 const KIT_REACH: Record<WeaponId, number> = {

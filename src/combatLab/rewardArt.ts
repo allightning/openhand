@@ -1,6 +1,7 @@
 import { cardArt } from "../art/cardArt";
 import { charArt, hasCharArt } from "../art/charArt";
 import { cardDisplayText } from "../game/cardTextV2";
+import { shellRunContext } from "./shellContext";
 import { CARDS } from "../game/content";
 import { MATE_PASSIVE, MATES, schoolLabel } from "../game/party";
 import type { CardId, CompanionId } from "../game/types";
@@ -79,7 +80,7 @@ export function campBattleCardHtml(opts: CampCardOpts): string {
     ? `${typeLabel(def.type)} · ${schoolLabel(cardId!)}${def.tags?.includes("组合") ? " · 组合" : ""}`
     : (KIND_BANNER[opts.kind] ?? "营地");
   const name = def?.name ?? stripOfferPrefix(opts.title);
-  const text = def ? cardDisplayText(def, { breakAlign: isBreakAlign() }) : opts.text;
+  const text = def ? cardDisplayText(def, shellRunContext(), { breakAlign: isBreakAlign() }) : opts.text;
   const flavor = def?.flavor ?? "";
   const art = cardArt(def?.id ?? opts.artId ?? KIND_ART[opts.kind] ?? "strike");
   const cost = def ? `<span class="cost">${def.cost}</span>` : "";

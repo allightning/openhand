@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { makeTestContext } from "../combatLab/testContext";
 import {
   addBag,
   BAG_NAME,
@@ -47,7 +48,7 @@ describe("bag economy", () => {
 
   it("keeps battle goods weak and once per fight", () => {
     let run = addBag(makeRun("empty"), "dart", 2);
-    let b = makeBattle("catcher", run);
+    let b = makeBattle("catcher", makeTestContext({ mode: "climb", lab: false }), run);
     const first = useBattleGood(b, run, "dart");
     expect(first.ok).toBe(true);
     if (!first.ok) return;

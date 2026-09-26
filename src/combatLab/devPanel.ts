@@ -1,3 +1,4 @@
+import { shellRunContext } from "./shellContext";
 import { cardStatLine } from "../game/cardTextV2";
 import { CARDS, ENEMIES, TECHNIQUES } from "../game/content";
 import {
@@ -7,12 +8,12 @@ import {
   type EnemyGearGrade,
 } from "../game/enemyGear";
 import { GAUNTLET_FOE_IDENTITY, profileFor, schoolForGeneratedEnemy } from "../game/enemyKit";
-import { getLabTuning, resetLabTuning, setLabTuning } from "../game/labTuning";
+import { getLabTuning, resetLabTuning, setLabTuning } from "./labTuning";
 import {
   getContentOverrides,
   resetContentOverrides,
   setContentOverride,
-} from "../game/labContentOverrides";
+} from "./labContentOverrides";
 import { MATE_PASSIVE, MATES, WEAPON_NAME } from "../game/party";
 import { gearById } from "../game/weapons";
 import type { CardId, CompanionId, EnemyId, TechniqueId, WeaponId } from "../game/types";
@@ -307,11 +308,11 @@ function renderFoeGearEditor(): string {
 }
 
 function renderWeaponEditor(): string {
-  const base = gearById(pickWeapon);
+  const base = gearById(pickWeapon, shellRunContext());
   if (!base) return "<p class='muted'>无效兵刃</p>";
   const ov = getContentOverrides().weapons[pickWeapon] ?? {};
   const options = ALL_WEAPON_IDS.map((id) => {
-    const g = gearById(id);
+    const g = gearById(id, shellRunContext());
     return { value: id, label: g ? `${g.name} (${id})` : id };
   });
   return `

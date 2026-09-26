@@ -1,3 +1,4 @@
+import { shellRunContext } from "./shellContext";
 import { CARDS } from "../game/content";
 import { WEAPON_NAME, WEAPON_VERB, cardSchool, schoolLabel } from "../game/party";
 import type { CardId, WeaponId } from "../game/types";
@@ -10,7 +11,7 @@ import {
 } from "../game/weapons";
 
 export function weaponSchool(weaponId: string): WeaponId | null {
-  return gearById(weaponId)?.school ?? null;
+  return gearById(weaponId, shellRunContext())?.school ?? null;
 }
 
 /** 通用谱 + 当前兵器门派谱可装。 */
@@ -119,7 +120,7 @@ function fmtSecondary(sec: GearSecondary): string {
 
 /** 选中兵器时展示的路线技 / 神技说明。 */
 export function renderWeaponHint(weaponId: string): string {
-  const g = gearById(weaponId);
+  const g = gearById(weaponId, shellRunContext());
   if (!g) {
     return `<div class="lab-weapon-hint empty"><p>未选兵器</p></div>`;
   }

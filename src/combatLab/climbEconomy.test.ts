@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { CARDS } from "../game/content";
 import { labV21EffectiveCost } from "../game/labV21";
-import { setLabMode } from "../game/labTuning";
+import { setLabMode } from "./labTuning";
+import { climbTestContext, breakTestContext } from "./testContext";
 import { climbCardCost, labPlayCost, scaleClimbResource } from "./climbEconomy";
 import { startLabBattle } from "./factory";
 import { buildGauntletPreset, createGauntletRun } from "./gauntlet";
@@ -17,12 +18,12 @@ describe("climbEconomy", () => {
     setLabMode(true);
     setLabRuleset("break");
     expect(labPlayCost(1)).toBe(1);
-    expect(scaleClimbResource(5, "pool")).toBe(5);
+    expect(scaleClimbResource(5, "pool", breakTestContext())).toBe(5);
     setLabRuleset("climb");
     expect(climbCardCost(1)).toBe(1);
     expect(climbCardCost(2)).toBe(2);
     expect(labPlayCost(1)).toBe(1);
-    expect(scaleClimbResource(5, "pool")).toBe(5);
+    expect(scaleClimbResource(5, "pool", climbTestContext())).toBe(5);
   });
 
   it("爬塔开战按角色档位给劲，一档刀客上限 10", () => {
@@ -34,6 +35,6 @@ describe("climbEconomy", () => {
     expect(b.energy).toBe(6);
     expect(b.player.maxHp).toBe(50);
     // 攻击牌费用回退为牌面 cost（爬塔 floor 1），实际伤害看悬停预演条
-    expect(labV21EffectiveCost(b, CARDS.direct)).toBe(Math.max(1, CARDS.direct.cost));
+    expect(labV21EffectiveCost(b, CARDS.direct, climbTestContext())).toBe(Math.max(1, CARDS.direct.cost));
   });
 });

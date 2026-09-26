@@ -14,7 +14,8 @@ import {
   isComboCard,
 } from "../game/labCombo";
 import { comboAssistMods } from "../game/comboAssist";
-import { setLabMode, setLabTuning } from "../game/labTuning";
+import { setLabMode, setLabTuning } from "./labTuning";
+import { breakTestContext, makeTestContext } from "./testContext";
 import { setLabRuleset } from "./labRuleset";
 import { canPlay } from "../game/sim";
 import { startLabBattle } from "./factory";
@@ -47,15 +48,15 @@ afterEach(() => {
 describe("§16 labTuning 总开关", () => {
   it("rulesCombo off keeps v2.5 baseline", () => {
     setLabTuning({ rulesV2: true, rulesCombo: false });
-    expect(isComboRulesEnabled()).toBe(false);
+    expect(isComboRulesEnabled(breakTestContext({ rulesCombo: false }))).toBe(false);
     setLabMode(true);
     const b = startLabBattle({ ...BUILTIN_PRESETS[0]!, enemyId: "catcher" }, true);
-    expect(canCallAssist(b).ok).toBe(false);
+    expect(canCallAssist(b, breakTestContext({ rulesV2: true, rulesCombo: false })).ok).toBe(false);
   });
 
   it("rulesCombo on enables assist", () => {
     setLabTuning({ rulesV2: true, rulesCombo: true });
-    expect(isComboRulesEnabled()).toBe(true);
+    expect(isComboRulesEnabled(breakTestContext())).toBe(true);
   });
 });
 
@@ -64,8 +65,8 @@ describe("§16.1 助战占格", () => {
     let b = comboBattle();
     b.energy = 5;
     b.player.pos = 2;
-    expect(pickAssistPos(b)).toBe(1);
-    b = callAssist(b, "hermit");
+    expect(pickAssistPos(b, breakTestContext())).toBe(1);
+    b = callAssist(b, "hermit", breakTestContext());
     expect(b.labAssistActive).toBe("hermit");
     expect(b.labAssistPos).toBe(1);
     expect(b.labAssistCalls).toBe(1);
@@ -74,13 +75,13 @@ describe("§16.1 助战占格", () => {
   it("blocks swap same turn as assist intent", () => {
     const b = comboBattle();
     b.swappedThisTurn = true;
-    expect(canCallAssist(b, "hermit").ok).toBe(false);
+    expect(canCallAssist(b, breakTestContext(), "hermit").ok).toBe(false);
   });
 
   it("百花减助战耗劲", () => {
     let b = comboBattle();
     b.v2HundredFlowers = true;
-    expect(assistEnergyCost(b)).toBe(1);
+    expect(assistEnergyCost(b, breakTestContext())).toBe(1);
   });
 });
 
@@ -107,9 +108,9 @@ describe("§16.4 同门合击卡", () => {
     const b = comboBattle();
     // rail(拳) 在场，后场换成 watch(刀)：拳系组合卡无人可合
     b.bench = [{ id: "watch", hp: 20, maxHp: 20, hand: [], drawPile: [], discardPile: [] }];
-    expect(comboPlayGate(b, "comboPalm").ok).toBe(false);
+    expect(comboPlayGate(b, "comboPalm", breakTestContext()).ok).toBe(false);
     b.hand.push({ uid: "t-x", defId: "comboPalm" });
-    expect(canPlay(b, "t-x").ok).toBe(false);
+    expect(canPlay(b, "t-x", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, rulesCombo: true, v2Fx: false } })).ok).toBe(false);
   });
 
   it("§31.12 v2 组合技：开踢禁组合技，异系走融合卡", () => {
@@ -117,17 +118,17 @@ describe("§16.4 同门合击卡", () => {
     b.energy = 5;
     expect(b.bench.some((m) => m.id === "hermit")).toBe(true);
     b.hand.push({ uid: "t-combo", defId: "comboPalm" });
-    const g = comboPlayGate(b, "comboPalm");
+    const g = comboPlayGate(b, "comboPalm", breakTestContext());
     expect(g.ok).toBe(false);
     expect(g.reason).toContain("融合卡");
-    expect(canPlay(b, "t-combo").ok).toBe(false);
+    expect(canPlay(b, "t-combo", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, rulesCombo: true, v2Fx: false } })).ok).toBe(false);
   });
 
   it("拆招开踢禁组合技开闸，异系走融合卡", () => {
     setLabRuleset("break");
     const b = comboBattle();
     b.hand.push({ uid: "t-combo", defId: "comboPalm" });
-    const g = comboPlayGate(b, "comboPalm");
+    const g = comboPlayGate(b, "comboPalm", breakTestContext());
     expect(g.ok).toBe(false);
     expect(g.reason).toContain("融合卡");
   });
@@ -138,7 +139,7 @@ describe("§16.2 濒死退场", () => {
     let b = comboBattle();
     b.labAssistActive = "hermit";
     b.bench = [{ id: "hermit", hp: 0, maxHp: 20 }];
-    b = retreatAssistIfDown(b);
+    b = retreatAssistIfDown(b, breakTestContext());
     expect(b.labAssistBanned).toBe(true);
   });
 });
@@ -148,8 +149,8 @@ describe("§17.3 百花首张组合卡减劲", () => {
     let b = comboBattle();
     b.v2HundredFlowers = true;
     b.energy = 2;
-    b = callAssist(b, "hermit");
+    b = callAssist(b, "hermit", breakTestContext());
     b.hand.push({ uid: "t-combo2", defId: "comboPalm" });
-    expect(canPlay(b, "t-combo2").ok).toBe(false);
+    expect(canPlay(b, "t-combo2", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, rulesCombo: true, v2Fx: false } })).ok).toBe(false);
   });
 });

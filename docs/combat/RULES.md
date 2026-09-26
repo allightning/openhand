@@ -9,7 +9,7 @@
 >
 > **2026-09-15 设计（已落代码 2026-09-17）：** 爬塔回合开始 / 中期 / 结束；并手玩家先；后手空条故意惩罚；摸牌开始；回劲与裂创在结束；格挡不随回合清。六系各 1 核 1 副已落 sim（见下表与 `climbCaps.ts`）。
 
-> **2026-09-17 试玩默认已落代码：** 待定数字按 [Notion 待定清单](https://app.notion.com/p/3dd427beba9c815d9101c5ad3b76bb4c) 先定。常量 `src/combatLab/climbCaps.ts`。用户上手后再逐条改。
+> **2026-09-17 试玩默认已落代码：** 待定数字按 [Notion 待定清单](https://app.notion.com/p/3dd427beba9c815d9101c5ad3b76bb4c) 先定。常量 `src/game/climbCaps.ts`。用户上手后再逐条改。
 
 > **2026-09-16 设计（已落）：** 晕：本手能咬则跳段/锁牌；本手已打完则挂下手（敌少段 / 你少摸）。摸牌 `D=⌈上限/2⌉`：场上 D，后场 D−1。霸体出招赋、结束 −1。三人分池 ×3。置换费−1。弃牌常亮；收势仅手牌≤上限。不做 0 费牌。
 
@@ -79,7 +79,7 @@
 | 5–7 | 4 |
 | 8+ 或精英 | 5 |
 
-常量：`climbOpeningDistance` / `climbOpeningPositions` in [`climbCaps.ts`](../../src/combatLab/climbCaps.ts)。
+常量：`climbOpeningDistance` / `climbOpeningPositions` in [`climbCaps.ts`](../../src/game/climbCaps.ts)。
 
 ---
 

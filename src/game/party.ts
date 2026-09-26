@@ -1,8 +1,7 @@
 import { CARDS, STARTER_DECK } from "./content";
 import { remapLegacyCardId } from "./rogueCards";
 import { SAPPER_DECK, SEER_DECK } from "./hero";
-import { isLabMode } from "./labTuning";
-import { getContentOverrides } from "./labContentOverrides";
+import type { RunContext } from "./runContext";
 import type { CardId, CompanionId, Run, WeaponId } from "./types";
 import type { MateRole } from "./labV25Constants";
 import { ROLE_LABEL } from "./labV25Constants";
@@ -595,10 +594,10 @@ export const MATE_PASSIVE: Partial<Record<CompanionId, MatePassive>> = {
   ouyangyingou: { name: "饮血", text: "敌缴械期间，你的攻击吸血 2。" },
 };
 
-export function matePassive(id: CompanionId): MatePassive | undefined {
+export function matePassive(id: CompanionId, ctx: RunContext): MatePassive | undefined {
   const base = MATE_PASSIVE[id];
-  if (!isLabMode()) return base;
-  const ov = getContentOverrides().mates[id]?.passive;
+  if (!ctx.lab) return base;
+  const ov = ctx.contentOverrides.mates[id]?.passive;
   if (!ov) return base;
   return { name: ov.name || base?.name || "", text: ov.text || base?.text || "" };
 }
@@ -760,9 +759,9 @@ export function syncActiveHp(run: Run, hp: number): Run {
   return { ...run, hp, companionHp: { ...run.companionHp, [run.active]: hp } };
 }
 
-export function deckFor(run: Run, id: CompanionId): CardId[] {
+export function deckFor(run: Run, id: CompanionId, ctx: RunContext): CardId[] {
   const extra = run.mateDecks[id] ?? [];
-  if (isLabMode()) return extra.length ? [...extra] : isLead(run, id) ? [...run.deck] : [];
+  if (ctx.lab) return extra.length ? [...extra] : isLead(run, id) ? [...run.deck] : [];
   if (isLead(run, id)) return [...run.deck, ...extra];
   return [...MATES[id].deck, ...extra];
 }

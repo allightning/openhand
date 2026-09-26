@@ -1,4 +1,8 @@
-export type LabRuleset = "climb" | "break";
+import type { LabRuleset } from "../game/labTypes";
+
+export type { LabRuleset };
+
+/** 行路 / 登门开关。类型在引擎 `labTypes`，单例留在壳层。 */
 
 /** 门厅读招轨。2026-09-10 架势胜负手测期间打开；默认规则仍是 climb。 */
 export const BREAK_MODE_OPEN = true;

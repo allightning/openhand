@@ -1,8 +1,9 @@
-import { isLabMode, isLabV2, getLabTuning } from "../game/labTuning";
-import { isLabV21 } from "../game/labV21";
+import { isLabMode, isLabV2, getLabTuning } from "./labTuning";
 import { MATES } from "../game/party";
 import type { Battle, CompanionId, WeaponId } from "../game/types";
 import { cloneBattle, canPlay, canSwap, swapFighter, livingFoes, rebindMindStats, dealToHand } from "../game/sim";
+import { shellRunContext } from "./shellContext";
+import type { RunContext } from "../game/runContext";
 import { pairFusionId } from "../game/rogueCards";
 import { battleEquippedSchool } from "../game/equippedWeapon";
 import { isBreakAlign } from "./labRuleset";
@@ -33,12 +34,12 @@ export function labSwapCost(): number {
   return LAB_SWAP_COST;
 }
 
-export function labCanPlay(b: Battle, uid: string): { ok: boolean; reason?: string } {
-  return canPlay(b, uid);
+export function labCanPlay(b: Battle, uid: string, rc: RunContext = shellRunContext()): { ok: boolean; reason?: string } {
+  return canPlay(b, uid, rc);
 }
 
 export function labCanSwap(b: Battle, id: CompanionId): { ok: boolean; reason?: string } {
-  if (!isLabMode()) return canSwap(b, id);
+  if (!isLabMode()) return canSwap(b, id, shellRunContext());
   if (b.phase !== "player") return { ok: false, reason: "现在不是你的回合" };
   if (id === b.active) return { ok: false, reason: "已经在场上" };
   if (b.swappedThisTurn) return { ok: false, reason: "这一息已经换过人" };
@@ -51,11 +52,11 @@ export function labCanSwap(b: Battle, id: CompanionId): { ok: boolean; reason?: 
 }
 
 export function labSwapFighter(b: Battle, id: CompanionId): Battle {
-  if (!isLabMode()) return swapFighter(b, id);
+  if (!isLabMode()) return swapFighter(b, id, shellRunContext());
   const gate = labCanSwap(b, id);
   if (!gate.ok) return b;
   const prevActive = b.active;
-  let next = swapFighter(b, id);
+  let next = swapFighter(b, id, shellRunContext());
   const cost = labSwapCost();
   if (next.labMateTechs?.[id]?.length) {
     next = { ...next, techniques: [...next.labMateTechs[id]!] };
@@ -69,10 +70,10 @@ export function labSwapFighter(b: Battle, id: CompanionId): Battle {
   }
   next.v2SwapCount = (next.v2SwapCount ?? 0) + 1;
   if (isLabV2() && !isBreakAlign()) {
-    const fid = pairFusionId(battleEquippedSchool(b, prevActive), battleEquippedSchool(next, id));
+    const fid = pairFusionId(battleEquippedSchool(b, prevActive, shellRunContext()), battleEquippedSchool(next, id, shellRunContext()));
     if (fid) {
       dealToHand(next, fid);
-      next = note(next, `${MATES[id].name}换上场，连携「${labCard(fid).name}」入手`);
+      next = note(next, `${MATES[id].name}换上场，连携「${labCard(fid, shellRunContext()).name}」入手`);
     }
   }
   if (isLabV2()) {
@@ -84,14 +85,14 @@ export function labSwapFighter(b: Battle, id: CompanionId): Battle {
 }
 
 export function labResonanceTargets(b: Battle): CompanionId[] {
-  if (isLabV21()) return [];
+  if (isLabV2()) return [];
   if (!isLabMode() || b.phase !== "player") return [];
   const school = MATES[b.active].weapon;
   return b.bench.filter((m) => MATES[m.id].weapon === school).map((m) => m.id);
 }
 
 export function labCanResonance(b: Battle, benchId: CompanionId): { ok: boolean; reason?: string } {
-  if (isLabV21()) return { ok: false, reason: "v2.1 共鸣已改为构成光环" };
+  if (isLabV2()) return { ok: false, reason: "v2.1 共鸣已改为构成光环" };
   if (!isLabMode()) return { ok: false, reason: "仅踢馆" };
   if (b.phase !== "player") return { ok: false, reason: "不是你的回合" };
   if (!isLabV2() && b.labFreshSwap) return { ok: false, reason: "刚换上场，不能共鸣" };
@@ -124,8 +125,8 @@ export function labResonance(b: Battle, benchId: CompanionId): Battle {
   next.energy -= def.cost;
   next.labResonanceTurn = true;
   next.v2ResonanceCount = (next.v2ResonanceCount ?? 0) + 1;
-  if (isLabV2()) addQi(next, 1);
-  if (getLabTuning().v2Fx) pushFx(next, "resonance");
+  if (isLabV2()) addQi(next, 1, shellRunContext());
+  if (getLabTuning().v2Fx) pushFx(next, "resonance", shellRunContext());
 
   const mate = MATES[benchId].name;
   if (school === "palm") {

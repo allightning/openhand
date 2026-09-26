@@ -1,15 +1,13 @@
 import type { Battle, CardDef, TechniqueId } from "./types";
 import { gearById, pathSkillMods } from "./weapons";
 import { battleEquippedSchool } from "./equippedWeapon";
-import { saberReachDamage } from "../combatLab/rogueRoster";
-import { getLabTuning, isLabMode, isLabV2 } from "./labTuning";
+import { saberReachDamage } from "./rogueRoster";
 import { LAB_ENTRANCE_BONUS, OFFBALANCE_MULT } from "./labV2Constants";
 import { cardSchool, WEAPON_PACE } from "./party";
 import { schoolTier, tierFx, resonancePaceBonus } from "./labResonance";
 import { techBonus } from "./techRank";
 import { comboAssistMods } from "./comboAssist";
-import { isBreakAlign } from "../combatLab/labRuleset";
-import { CLIMB_LIFESTEAL_PCT } from "../combatLab/climbCaps";
+import { labV2, type RunContext } from "./runContext";
 
 export interface BreakdownPart {
   label: string;
@@ -25,13 +23,17 @@ function add(parts: BreakdownPart[], label: string, n: number): void {
   parts.push({ label, n });
 }
 
-function youPaceNow(b: Battle): number {
-  const school = battleEquippedSchool(b, b.active);
-  const res = isLabV2() ? resonancePaceBonus(b) : 0;
+function youPaceNow(b: Battle, ctx: RunContext): number {
+  const school = battleEquippedSchool(b, b.active, ctx);
+  const res = labV2(ctx) ? resonancePaceBonus(b, ctx) : 0;
   return Math.max(1, WEAPON_PACE[school] + res + (b.paceBoost ?? 0) - (b.youSlow ?? 0));
 }
 
-export function damageBreakdown(b: Battle, def: CardDef): { parts: BreakdownPart[]; riders: string[]; total: number } {
+export function damageBreakdown(
+  b: Battle,
+  def: CardDef,
+  ctx: RunContext,
+): { parts: BreakdownPart[]; riders: string[]; total: number } {
   const parts: BreakdownPart[] = [];
   const riders: string[] = [];
   if (def.type !== "attack") {
@@ -40,74 +42,71 @@ export function damageBreakdown(b: Battle, def: CardDef): { parts: BreakdownPart
   }
   const dist = Math.abs(b.player.pos - b.enemy.pos);
   const adj = dist === 1;
-  const table = isLabMode() ? saberReachDamage(def.id, dist) : null;
+  const caps = ctx.caps.breakdown;
+  const table = ctx.lab ? saberReachDamage(def.id, dist) : null;
   const face = table ?? (def.damage ?? 0);
   add(parts, "牌面", face);
   add(parts, "蓄劲", b.nextDamage);
-  if ((b.expose ?? 0) > 0 && !(isLabMode() && !isBreakAlign())) add(parts, "破绽", 4);
+  if ((b.expose ?? 0) > 0 && caps.exposeBeforeBlock) add(parts, "破绽", caps.exposeBeforeBlock);
   if (b.youSway > 0 || (b.youUnseat ?? 0) > 0) add(parts, "乱步", -2);
   if ((b.foeSway ?? 0) > 0 || (b.foeUnseat ?? 0) > 0) add(parts, "他失位", 3);
 
   let sub = parts.reduce((s, p) => s + p.n, 0);
-  if (isLabV2() && (b.v2OffBalance ?? 0) > 0) {
+  if (labV2(ctx) && (b.v2OffBalance ?? 0) > 0) {
     const next = Math.ceil(sub * OFFBALANCE_MULT);
     add(parts, "失衡", next - sub);
     sub = next;
   }
 
-  if (isLabV2() && def.type === "attack" && b.labEntranceActive && !b.labEntranceUsed) {
+  if (labV2(ctx) && def.type === "attack" && b.labEntranceActive && !b.labEntranceUsed) {
     add(parts, "登场", LAB_ENTRANCE_BONUS);
   }
-  if (isLabV2() && (b.labChaseMeleeBonus ?? 0) > 0 && dist <= 1) {
+  if (labV2(ctx) && (b.labChaseMeleeBonus ?? 0) > 0 && dist <= 1) {
     add(parts, "追击", b.labChaseMeleeBonus!);
   }
-  if (isBreakAlign() && battleEquippedSchool(b, b.active) === "sword") {
+  if (caps.swordChainPerLayer > 0 && battleEquippedSchool(b, b.active, ctx) === "sword") {
     const n = b.v2SwordChain ?? 0;
-    if (n > 0) add(parts, "剑链", 2 * n);
+    if (n > 0) add(parts, "剑链", caps.swordChainPerLayer * n);
   }
   add(parts, "鏖战", b.v2GrudgeBonus ?? 0);
-  const mul = getLabTuning().playerDmgMul ?? 1;
-  if (mul > 1 && isLabV2()) {
+  const mul = ctx.tuning.playerDmgMul ?? 1;
+  if (mul > 1 && labV2(ctx)) {
     const now = parts.reduce((s, p) => s + p.n, 0);
     add(parts, "倍率", Math.floor(now * mul) - now);
   }
 
   const cs = cardSchool(def.id);
-  if (isLabV2() && cs !== "any") {
-    const fx = tierFx(cs, schoolTier(b, cs));
+  if (labV2(ctx) && cs !== "any") {
+    const fx = tierFx(cs, schoolTier(b, cs, ctx));
     if (fx?.meleeBonus && adj) add(parts, "系贴身", fx.meleeBonus);
     if (fx?.rangeAttackBonus && dist >= 3) add(parts, "系远攻", fx.rangeAttackBonus);
   }
-  if (isLabV2() && b.labSigMeleeBonus && adj) add(parts, "贴刃", b.labSigMeleeBonus);
-  if (isLabV2() && b.labSigPullBuff) add(parts, "拉近加伤", 2);
+  if (labV2(ctx) && b.labSigMeleeBonus && adj) add(parts, "贴刃", b.labSigMeleeBonus);
+  if (labV2(ctx) && b.labSigPullBuff) add(parts, "拉近加伤", 2);
 
-  const school = battleEquippedSchool(b, b.active);
-  if (school === "saber") {
-    if (isLabMode() && !isBreakAlign()) {
-      /* 快刀核心 +2 已关 */
-    } else if (b.foeHitLastTurn) add(parts, "挨打加伤", 4);
-  }
-  if (hasTech(b, "saberGrudge") && b.foeHitLastTurn && !(isLabMode() && isBreakAlign())) {
+  const school = battleEquippedSchool(b, b.active, ctx);
+  if (school === "saber" && b.foeHitLastTurn && caps.saberOnHit) add(parts, "挨打加伤", caps.saberOnHit);
+  if (hasTech(b, "saberGrudge") && b.foeHitLastTurn && caps.saberGrudge) {
     add(parts, "记仇", techBonus(b, "saberGrudge", 2));
   }
-  if (school === "spear" && !(isLabMode() && isBreakAlign())) add(parts, dist >= 2 ? "远枪" : "贴枪", dist >= 2 ? 3 : -2);
+  if (school === "spear" && caps.spearStance) add(parts, dist >= 2 ? "远枪" : "贴枪", dist >= 2 ? 3 : -2);
   if (hasTech(b, "spearWind") && dist >= 3) add(parts, "枪风", techBonus(b, "spearWind", 3));
   if (school === "sword") {
-    if (isLabMode() && !isBreakAlign()) add(parts, "剑势", b.v2SwordChain ?? 0);
-    else add(parts, "创叠", Math.floor((b.bleed ?? 0) / 3));
+    if (caps.swordAsMomentum) add(parts, "剑势", b.v2SwordChain ?? 0);
+    else if (caps.swordBleedStack) add(parts, "创叠", Math.floor((b.bleed ?? 0) / 3));
   }
   if (hasTech(b, "swordRain") && (b.bleed ?? 0) >= 3) add(parts, "剑雨", techBonus(b, "swordRain", 3));
   if (school === "hook" && (b.foeDisarm ?? 0) > 0) {
     add(parts, "缴械", 3);
-    if (isLabMode() && !isBreakAlign()) riders.push(`噬血 ${Math.round(CLIMB_LIFESTEAL_PCT * 100)}%`);
+    if (caps.hookLifestealPct > 0) riders.push(`噬血 ${Math.round(caps.hookLifestealPct * 100)}%`);
   }
   if (b.active === "ananhuo" && dist >= 2) add(parts, "远打", 2);
-  if (hasTech(b, "brightBlade") && adj) {
-    if (!(isLabMode() && isBreakAlign())) add(parts, "亮刀", techBonus(b, "brightBlade", 3));
+  if (hasTech(b, "brightBlade") && adj && caps.brightBlade) {
+    add(parts, "亮刀", techBonus(b, "brightBlade", 3));
   }
 
-  if (isLabMode() && isLabV2() && getLabTuning().rulesCombo && b.labAssistActive && def.type === "attack") {
-    const mods = comboAssistMods(battleEquippedSchool(b, b.labAssistActive), school);
+  if (labV2(ctx) && ctx.tuning.rulesCombo && b.labAssistActive && def.type === "attack") {
+    const mods = comboAssistMods(battleEquippedSchool(b, b.labAssistActive, ctx), school);
     if (mods) {
       if (mods.meleeBonus && dist === 1) add(parts, "助战近", mods.meleeBonus);
       if (mods.rangeBonus && dist >= 2) add(parts, "助战远", mods.rangeBonus);
@@ -121,12 +120,12 @@ export function damageBreakdown(b: Battle, def: CardDef): { parts: BreakdownPart
     add(parts, "难度", Math.max(1, Math.round(now * youDmg)) - now);
   }
 
-  const g = gearById(b.labGearId);
+  const g = gearById(b.labGearId, ctx);
   add(parts, "兵器", g?.damage ?? 0);
-  const mods = pathSkillMods(g, {
+  const mods = pathSkillMods(g, ctx, {
     dist,
     combo: b.combo,
-    paceAdvantage: youPaceNow(b) >= b.foePace,
+    paceAdvantage: youPaceNow(b, ctx) >= b.foePace,
     hasBlock: b.playerBlock > 0,
   });
   if (mods.damage) add(parts, mods.note ?? "兵路", mods.damage);
@@ -137,7 +136,7 @@ export function damageBreakdown(b: Battle, def: CardDef): { parts: BreakdownPart
     if (!sk) add(parts, "神兵", 2);
     else if (sk === "palm-b" && (b.qi ?? 0) >= 2 && hits >= 3) add(parts, "叠浪", 4);
     else if (sk === "staff-b" && (b.foes ?? [b.enemy]).filter((f) => f.hp > 0).length > 1) add(parts, "千斤", 3);
-    else if (sk === "saber-b" && youPaceNow(b) >= b.foePace) {
+    else if (sk === "saber-b" && youPaceNow(b, ctx) >= b.foePace) {
       riders.push("快刀抽 1 · 回 1 劲");
     } else if (sk === "spear-a") riders.push("锁喉封技");
     else if (sk === "spear-b" && (b.expose ?? 0) >= 3) riders.push("三封削手");
@@ -163,9 +162,9 @@ export function damageBreakdown(b: Battle, def: CardDef): { parts: BreakdownPart
     add(parts, "他卸了", -blocked);
     total -= blocked;
   }
-  if (isLabMode() && !isBreakAlign() && (b.expose ?? 0) > 0) {
-    add(parts, "破绽穿挡", 4);
-    total += 4;
+  if (caps.exposeThroughBlock && (b.expose ?? 0) > 0) {
+    add(parts, "破绽穿挡", caps.exposeThroughBlock);
+    total += caps.exposeThroughBlock;
   }
   if ((b.foeGift ?? 0) > 0) {
     add(parts, "送手", 4);
@@ -174,14 +173,14 @@ export function damageBreakdown(b: Battle, def: CardDef): { parts: BreakdownPart
   return { parts, riders, total: Math.max(0, total) };
 }
 
-export function breakdownTipLine(b: Battle, def: CardDef): string {
-  const { inner, riders } = breakdownDisplay(b, def);
+export function breakdownTipLine(b: Battle, def: CardDef, ctx: RunContext): string {
+  const { inner, riders } = breakdownDisplay(b, def, ctx);
   if (!inner && !riders.length) return "";
   return riders.length ? `${inner} ${riders.join(" · ")}`.trim() : inner;
 }
 
-export function breakdownDisplay(b: Battle, def: CardDef): { inner: string; riders: string[] } {
-  const { parts, riders, total } = damageBreakdown(b, def);
+export function breakdownDisplay(b: Battle, def: CardDef, ctx: RunContext): { inner: string; riders: string[] } {
+  const { parts, riders, total } = damageBreakdown(b, def, ctx);
   if (!parts.length && !riders.length) return { inner: "", riders };
   const body = parts.filter((p) => p.n).map((p) => `${p.n > 0 ? "+" : ""}${p.n} ${p.label}`).join(" ");
   const inner = parts.length ? `构成 ${total}：${body}` : "";

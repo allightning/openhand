@@ -1,4 +1,5 @@
 import { battleEquippedSchool } from "../game/equippedWeapon";
+import { shellRunContext } from "./shellContext";
 import { computeResonance } from "../game/labResonance";
 import { MATES } from "../game/party";
 import type { Battle } from "../game/types";
@@ -8,10 +9,10 @@ import type { LabPreset, LabTelemetry } from "./types";
 export function initLabAuditFromPreset(b: Battle, preset: LabPreset): Battle {
   let secondaryEquipped = 0;
   for (const id of preset.party) {
-    const school = battleEquippedSchool(b, id);
+    const school = battleEquippedSchool(b, id, shellRunContext());
     if (school === MATES[id].secondFamily) secondaryEquipped += 1;
   }
-  const res = computeResonance(b);
+  const res = computeResonance(b, shellRunContext());
   return {
     ...b,
     v2SecondaryWeaponEquip: secondaryEquipped,

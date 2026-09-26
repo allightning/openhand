@@ -9,6 +9,7 @@ import {
 } from "./codex";
 import { makeRun } from "./run";
 import { questLog } from "./quest";
+import { climbTestContext } from "../combatLab/testContext";
 
 describe("codex", () => {
   it("explains how an upgrade beats the old card", () => {
@@ -29,7 +30,7 @@ describe("codex", () => {
 
   it("puts the account books on the side quest after branding", () => {
     const run = { ...makeRun("empty"), flags: ["branded", "mainOpen"] };
-    const sides = questLog(run).sides.map((q) => q.title);
+    const sides = questLog(run, climbTestContext()).sides.map((q) => q.title);
     expect(sides).toContain("账房三本");
   });
 });

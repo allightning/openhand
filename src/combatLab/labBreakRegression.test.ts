@@ -6,7 +6,8 @@ import {
   previewBrokenSegments,
   shouldBreakIntent,
 } from "../game/labV2";
-import { setLabMode, setLabTuning } from "../game/labTuning";
+import { breakTestContext } from "./testContext";
+import { setLabMode, setLabTuning } from "./labTuning";
 import type { Battle, Intent, V2TurnFlags } from "../game/types";
 import { startLabBattle } from "./factory";
 import { setLabRuleset } from "./labRuleset";
@@ -126,7 +127,7 @@ describe("§4.3 破绽条件 · 正例", () => {
       const f = flags(b);
       row.setup(b, f);
       const phase = row.phase ?? "preview";
-      expect(evalWeakness(row.intent, b, f, phase, row.resolveCtx)).toBe(true);
+      expect(evalWeakness(row.intent, b, f, phase, breakTestContext(), row.resolveCtx)).toBe(true);
     });
   }
 });
@@ -186,7 +187,7 @@ describe("§4.3 破绽条件 · 反例", () => {
       const b = v2Battle();
       const f = flags(b);
       row.setup(b, f);
-      expect(evalWeakness(row.intent, b, f, "preview")).toBe(false);
+      expect(evalWeakness(row.intent, b, f, "preview", breakTestContext())).toBe(false);
     });
   }
 });
@@ -196,11 +197,11 @@ describe("§4.3 D4 · 预览与结算", () => {
     const b = v2Battle();
     const intent: Intent = { kind: "bleedcut", damage: 8, bleed: 2 };
     const f = flags(b);
-    expect(evalWeakness(intent, b, f, "preview")).toBe(false);
+    expect(evalWeakness(intent, b, f, "preview", breakTestContext())).toBe(false);
     expect(
-      evalWeakness(intent, b, f, "resolve", { bleedcutRaw: 8, bleedcutBlocked: 8 }),
+      evalWeakness(intent, b, f, "resolve", breakTestContext(), { bleedcutRaw: 8, bleedcutBlocked: 8 }),
     ).toBe(true);
-    expect(shouldBreakIntent(b, intent, 0, { bleedcutRaw: 8, bleedcutBlocked: 8 })).toBe(true);
+    expect(shouldBreakIntent(b, intent, 0, breakTestContext(), { bleedcutRaw: 8, bleedcutBlocked: 8 })).toBe(true);
   });
 
   it("§31.9/§31.14 空间版：预览=计划=结算语义（出红格+充能=破，出红格=让，架类耗破架充能）", () => {
@@ -215,8 +216,8 @@ describe("§4.3 D4 · 预览与结算", () => {
     b.enemy.pos = 4;
     b.v2Turn = flags(b, { moveCardPlayed: true, antiGuardPlayed: true, moveCharges: 1, antiGuardCharges: 1 });
     b.player.pos = 1; // 收势撤到第 1 格：打击圈（3-5）外；抢步锁定格 3（贴脸，落点 4，覆盖 3-5）也在圈外
-    commitV2EndTurn(b);
-    const preview = previewBrokenSegments(b);
+    commitV2EndTurn(b, breakTestContext());
+    const preview = previewBrokenSegments(b, breakTestContext());
     expect(preview).toContain(0); // strike 出红圈 + 位移充能 = 硬拆
     expect(preview).toContain(2); // guard 耗 1 破架充能
     expect(preview).not.toContain(1); // lunge 出圈但充能已被 strike 用掉 = 让
@@ -230,8 +231,8 @@ describe("§4.3 D4 · 预览与结算", () => {
     b.enemy.pos = 3;
     b.v2Turn = flags(b, { moveCardPlayed: true, moveCharges: 1 });
     // 原地：收势位置 = 锁定格（0），在红圈里 → 不破，充能也不消耗
-    commitV2EndTurn(b);
-    expect(previewBrokenSegments(b)).toEqual([]);
+    commitV2EndTurn(b, breakTestContext());
+    expect(previewBrokenSegments(b, breakTestContext())).toEqual([]);
   });
 
   it("§31.8 v3 充能稀缺：一张位移牌只够拆一段打击", () => {
@@ -245,8 +246,8 @@ describe("§4.3 D4 · 预览与结算", () => {
     b.enemy.pos = 3;
     b.v2Turn = flags(b, { moveCardPlayed: true, moveCharges: 1 });
     b.player.pos = 0; // 出红圈
-    commitV2EndTurn(b);
-    expect(previewBrokenSegments(b)).toEqual([0]); // 充能只够第一段
+    commitV2EndTurn(b, breakTestContext());
+    expect(previewBrokenSegments(b, breakTestContext())).toEqual([0]); // 充能只够第一段
     expect(b.v2GrazePreview).toEqual([1]); // 第二段挪开了但没牌兜底 = 让
   });
 
@@ -258,18 +259,18 @@ describe("§4.3 D4 · 预览与结算", () => {
     const intent: Intent = { kind: "charge", damage: 8, steps: 2 };
     const b1 = v2Battle();
     b1.stakes = [4];
-    expect(evalWeakness(intent, b1, flags(b1), "preview")).toBe(true);
+    expect(evalWeakness(intent, b1, flags(b1), "preview", breakTestContext())).toBe(true);
 
     const b2 = v2Battle();
     const f2 = flags(b2, { stoodStill: true, endTurnCommitted: true });
-    expect(evalWeakness(intent, b2, f2, "preview")).toBe(true);
+    expect(evalWeakness(intent, b2, f2, "preview", breakTestContext())).toBe(true);
 
     const b3 = v2Battle();
-    expect(evalWeakness(intent, b3, flags(b3), "preview")).toBe(false);
+    expect(evalWeakness(intent, b3, flags(b3), "preview", breakTestContext())).toBe(false);
 
     const b4 = v2Battle();
     const f4 = flags(b4, { stoodStill: false, endTurnCommitted: true, chaseCardPlayed: true });
-    expect(evalWeakness(intent, b4, f4, "preview")).toBe(true);
+    expect(evalWeakness(intent, b4, f4, "preview", breakTestContext())).toBe(true);
   });
 
   it("charge 横移不进步只让不硬拆", () => {
@@ -284,8 +285,8 @@ describe("§4.3 D4 · 预览与结算", () => {
       moveCardPlayed: true,
     });
     b.player.pos = Math.max(0, start - 1);
-    commitV2EndTurn(b);
-    expect(previewBrokenSegments(b)).toEqual([]);
+    commitV2EndTurn(b, breakTestContext());
+    expect(previewBrokenSegments(b, breakTestContext())).toEqual([]);
     expect(b.v2GrazePreview).toContain(0);
   });
 });

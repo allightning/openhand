@@ -21,6 +21,7 @@ import {
   rewardGate,
   rollCompanionChoices,
   banditCompanionChoices,
+  breakRewardCardPool,
   rollGauntletRewards,
   rollSuperRewards,
   saveGauntletBest,
@@ -28,8 +29,9 @@ import {
 } from "./gauntlet";
 import { eventAfterFought } from "./encounter";
 import { maxCompanions, pathLadder } from "./gauntletPaths";
-import { DEFAULT_LAB_TUNING, getLabTuning, setLabMode, setLabTuning } from "../game/labTuning";
+import { DEFAULT_LAB_TUNING, getLabTuning, setLabMode, setLabTuning } from "./labTuning";
 import { tryAppendStressIntent } from "../game/labEnemyStress";
+import { breakTestContext, climbTestContext } from "./testContext";
 import { setLabRuleset } from "./labRuleset";
 import { CARDS } from "../game/content";
 import { breakStarterDeck, rogueMate } from "./rogueRoster";
@@ -353,7 +355,7 @@ describe("§31 连胜踢馆", () => {
   it("§31.10 伙伴真的进战斗：后场有人、可叫助战、兵器品阶同步主角封顶玄", async () => {
     const { startLabBattle } = await import("./factory");
     const { canCallAssist } = await import("../game/labAssist");
-    const { setLabMode, setLabTuning } = await import("../game/labTuning");
+    const { setLabMode, setLabTuning } = await import("./labTuning");
     setLabMode(true);
     enterGauntletTuning();
     try {
@@ -364,7 +366,7 @@ describe("§31 连胜踢馆", () => {
       const b = startLabBattle(buildGauntletPreset(run), true, 1);
       expect(b.bench.map((m) => m.id)).toContain("sapper");
       expect(b.labMateWeapons?.sapper).toBe("staff-a-4");
-      expect(canCallAssist(b, "sapper").ok).toBe(true);
+      expect(canCallAssist(b, climbTestContext(), "sapper").ok).toBe(true);
       run = { ...run, weaponId: "sword-a-5" };
       const b2 = startLabBattle(buildGauntletPreset(run), true, 1);
       expect(b2.labMateWeapons?.sapper).toBe("staff-a-4");
@@ -459,12 +461,8 @@ describe("ROGUE_GRADIENT 淬刃/换页/绝招池", () => {
   it("7 馆后本系绝招进奖励池，更早没有", () => {
     const early = rollGauntletRewards({ ...createGauntletRun("bandit", "saber"), stage: 5 }, () => 0.55);
     expect(early.every((o) => o.id !== "ultSaber")).toBe(true);
-    let found = false;
-    for (let i = 0; i < 200; i++) {
-      const opts = rollGauntletRewards({ ...createGauntletRun("bandit", "saber"), stage: 8 }, () => Math.random());
-      if (opts.some((o) => o.kind === "card" && o.id === "ultSaber")) found = true;
-    }
-    expect(found).toBe(true);
+    const late = { ...createGauntletRun("bandit", "saber"), stage: 8 };
+    expect(breakRewardCardPool(late)).toContain("ultSaber");
   });
 });
 
@@ -486,7 +484,7 @@ describe("拆招 1–2 馆无应激", () => {
     applyStageTuning(pathLadder("bandit")[1]!);
     expect(getLabTuning().enemyStressCap).toBe(0);
     const b = startLabBattle(buildGauntletPreset(createGauntletRun("bandit", "palm")), true, 1);
-    expect(tryAppendStressIntent(b, "break")).toBe(false);
+    expect(tryAppendStressIntent(b, "break", breakTestContext({ enemyStressCap: 0 }))).toBe(false);
     expect(b.v2PendingStress ?? []).toEqual([]);
     applyStageTuning(pathLadder("bandit")[2]!);
     expect(getLabTuning().enemyStressCap).toBe(DEFAULT_LAB_TUNING.enemyStressCap);

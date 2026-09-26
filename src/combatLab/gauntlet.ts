@@ -1,3 +1,4 @@
+import { shellRunContext } from "./shellContext";
 import { CARDS, ENEMIES, TECHNIQUES } from "../game/content";
 import { cardDisplayText } from "../game/cardTextV2";
 import { applyAutoLoadout } from "./autoLoadouts";
@@ -8,7 +9,7 @@ import type { LabPreset } from "./types";
 import { cardSchool, MATES, WEAPON_NAME } from "../game/party";
 import { gearById, nextGrade } from "../game/weapons";
 import type { Battle, CardId, CompanionId, EnemyId, LabItemId, TechniqueId, WeaponId } from "../game/types";
-import { DEFAULT_LAB_TUNING, getLabTuning, setLabTuning, type LabTuning } from "../game/labTuning";
+import { DEFAULT_LAB_TUNING, getLabTuning, setLabTuning, type LabTuning } from "./labTuning";
 import type { MindArtId } from "../game/mindArts";
 import { ALL_MIND_ART_IDS, MIND_ARTS, mindArtFitsSchool, sumMindArtBonuses } from "../game/mindArts";
 import { LAB_ITEM_LABEL } from "../game/labV21Constants";
@@ -291,7 +292,7 @@ export function marketOffers(run: GauntletRun, rng: () => number = Math.random):
     const id = pickWeightedRewardCard(cards, [...ownedCardIds(run)], rng);
     if (id) {
       const def = CARDS[id];
-      const body = def ? cardDisplayText(def, { breakAlign: !climbCopy }) : "";
+      const body = def ? cardDisplayText(def, shellRunContext(), { breakAlign: !climbCopy }) : "";
       pushOffer(out, {
         id: `card:${id}`,
         kind: "card",
@@ -325,10 +326,10 @@ export function marketOffers(run: GauntletRun, rng: () => number = Math.random):
       stall: "black",
     });
   }
-  const nextId = nextGrade(run.weaponId);
-  const next = nextId ? gearById(nextId) : null;
+  const nextId = nextGrade(run.weaponId, shellRunContext());
+  const next = nextId ? gearById(nextId, shellRunContext()) : null;
   if (nextId && next && forgeGradeOk(run, next.grade)) {
-    const gain = (next.damage ?? 0) - (gearById(run.weaponId)?.damage ?? 0);
+    const gain = (next.damage ?? 0) - (gearById(run.weaponId, shellRunContext())?.damage ?? 0);
     pushOffer(out, {
       id: "forge",
       kind: "forge",
@@ -360,7 +361,7 @@ export function buyMarketOffer(run: GauntletRun, offer: GauntletMarketOffer): Ga
     const id = offer.id.slice(5) as TechniqueId;
     return grantTechToRun({ ...run, pot }, id, gauntletFieldMate(run.school));
   }
-  const nextId = nextGrade(run.weaponId);
+  const nextId = nextGrade(run.weaponId, shellRunContext());
   if (!nextId) return null;
   return {
     ...run,
@@ -1215,7 +1216,7 @@ export function buildGauntletPreset(run: GauntletRun): LabPreset {
   const mateWeapons: Record<string, string> = {
     [mate]: run.divineWeapons ? weapon : (run.weaponId ?? run.mateWeapons?.[mate] ?? weapon),
   };
-  const grade = run.divineWeapons ? 5 : Math.min(gearById(weapon)?.grade ?? 3, 4);
+  const grade = run.divineWeapons ? 5 : Math.min(gearById(weapon, shellRunContext())?.grade ?? 3, 4);
   for (const id of party) {
     if (id === mate) continue;
     mateWeapons[id] = run.divineWeapons
@@ -1468,9 +1469,9 @@ function pickWeightedKind(rng: () => number, _tier: Exclude<GauntletTier, "extre
 
 /** 淬刃：拆招必须 1→2→3；3–6 馆顶 2 档，7 馆后顶 3 档。经典封顶玄阶。 */
 function forgeOption(run: GauntletRun): GauntletRewardOption | null {
-  const cur = gearById(run.weaponId);
-  const nextId = nextGrade(run.weaponId);
-  const next = nextId ? gearById(nextId) : null;
+  const cur = gearById(run.weaponId, shellRunContext());
+  const nextId = nextGrade(run.weaponId, shellRunContext());
+  const next = nextId ? gearById(nextId, shellRunContext()) : null;
   if (!cur || !next || !nextId) return null;
   if (!forgeGradeOk(run, next.grade)) return null;
   const dmgGain = (next.damage ?? 0) - (cur.damage ?? 0);
@@ -1675,8 +1676,8 @@ export function applyCompanion(run: GauntletRun, mateId: CompanionId): GauntletR
 /** §31.9 第 7 馆后超级奖励三选一：神兵 / 死士符 / 仙药。 */
 export function rollSuperRewards(run: GauntletRun): GauntletRewardOption[] {
   const godId = `${run.school}-a-5`;
-  const god = gearById(godId);
-  const cur = gearById(run.weaponId);
+  const god = gearById(godId, shellRunContext());
+  const cur = gearById(run.weaponId, shellRunContext());
   const out: GauntletRewardOption[] = [];
   if (god && cur && cur.grade < 5) {
     out.push({
@@ -1710,7 +1711,7 @@ export function rollSuperRewards(run: GauntletRun): GauntletRewardOption[] {
 
 export function applySuperReward(run: GauntletRun, opt: GauntletRewardOption): GauntletRun {
   if (opt.kind === "forge") {
-    const god = gearById(`${run.school}-a-5`);
+    const god = gearById(`${run.school}-a-5`, shellRunContext());
     if (!god || god.grade < 5) return run;
     const mate = gauntletFieldMate(run.school);
     const nextWeapons = { ...(run.mateWeapons ?? {}), [mate]: god.id };
@@ -1750,7 +1751,7 @@ export function applySuperReward(run: GauntletRun, opt: GauntletRewardOption): G
 
 export function applyGauntletReward(run: GauntletRun, opt: GauntletRewardOption): GauntletRun {
   if (opt.kind === "forge") {
-    const nextId = nextGrade(run.weaponId);
+    const nextId = nextGrade(run.weaponId, shellRunContext());
     if (!nextId || opt.id !== nextId) return run;
     return {
       ...run,

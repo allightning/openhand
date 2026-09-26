@@ -1,5 +1,5 @@
 import type { Battle, CardId, Intent, V2TurnFlags, WeaknessDef, WeaknessKind } from "./types";
-import { isBreakAlign } from "../combatLab/labRuleset";
+import { type RunContext } from "./runContext";
 import { SIGNATURE_BREAK } from "./enemySignatures";
 import { ROGUE_SCHOOLS, stepCardId } from "./rogueCards";
 
@@ -116,26 +116,26 @@ export function weaknessTip(intent: Intent): string {
 export type BreakTier = "hard" | "graze";
 
 /** §31.9 红格提供者由 sim 注册（intentWeakness 不能反向依赖 sim）。 */
-type ThreatProvider = (b: Battle, intent: Intent) => number[];
+type ThreatProvider = (b: Battle, intent: Intent, rc: RunContext) => number[];
 let threatProvider: ThreatProvider | null = null;
 export function registerThreatProvider(fn: ThreatProvider): void {
   threatProvider = fn;
 }
-function threatCells(b: Battle, intent: Intent): number[] {
-  return threatProvider ? threatProvider(b, intent) : [];
+function threatCells(b: Battle, intent: Intent, rc: RunContext): number[] {
+  return threatProvider ? threatProvider(b, intent, rc) : [];
 }
 
 /** §31.15 队列级投影提供者：逐段推进敌位后的每段红格（与显示/结算同一投影链）。 */
-type QueueThreatProvider = (b: Battle, queue: Intent[]) => number[][];
+type QueueThreatProvider = (b: Battle, queue: Intent[], rc: RunContext) => number[][];
 let queueThreatProvider: QueueThreatProvider | null = null;
 export function registerQueueThreatProvider(fn: QueueThreatProvider): void {
   queueThreatProvider = fn;
 }
 
 /** 与显示/结算同一条投影链；无提供者时退回静态逐段。 */
-export function queuedThreatCells(b: Battle, queue: Intent[]): number[][] {
-  if (queueThreatProvider) return queueThreatProvider(b, queue);
-  return queue.map((intent) => threatCells(b, intent));
+export function queuedThreatCells(b: Battle, queue: Intent[], rc: RunContext): number[][] {
+  if (queueThreatProvider) return queueThreatProvider(b, queue, rc);
+  return queue.map((intent) => threatCells(b, intent, rc));
 }
 
 /** 哪些破法属于「耗充能的硬拆」。 */
@@ -160,7 +160,7 @@ function isGrazeKind(w: WeaknessDef): boolean {
  * §31.9 空间规则：打击/抢步类——收势位置必须离开该段红格；
  * 在红格外出位移牌 = 破（耗 1 充能），在红格外没出牌 = 让（半效），还在红圈里 = 照打。
  */
-export function planBreaks(b: Battle, queue: Intent[], phase: "preview" | "resolve"): Map<number, BreakTier> {
+export function planBreaks(b: Battle, queue: Intent[], phase: "preview" | "resolve", rc: RunContext): Map<number, BreakTier> {
   const flags = b.v2Turn;
   const out = new Map<number, BreakTier>();
   if (!flags) return out;
@@ -169,7 +169,7 @@ export function planBreaks(b: Battle, queue: Intent[], phase: "preview" | "resol
     antiGuard: flags.antiGuardCharges ?? 0,
   };
   // §31.15 逐段投影的红格（后手段按先手落位后的敌位算）；无提供者时退回静态逐段
-  const projected = queueThreatProvider ? queueThreatProvider(b, queue) : null;
+  const projected = queueThreatProvider ? queueThreatProvider(b, queue, rc) : null;
   queue.forEach((intent, i) => {
     const w = weaknessForIntent(intent);
     if (w.kind === "chaseClosed") {
@@ -188,7 +188,7 @@ export function planBreaks(b: Battle, queue: Intent[], phase: "preview" | "resol
       return;
     }
     if (isSpatialKind(w)) {
-      const cells = projected?.[i] ?? threatCells(b, intent);
+      const cells = projected?.[i] ?? threatCells(b, intent, rc);
       const pos = flags.endPos ?? b.player.pos;
       const startPos = flags.turnStartPos ?? pos;
       // §31.14 公平性：这一手本来就够不着你（开局你就不在红圈）→ 不算拆也不算让，段会自己打空。
@@ -211,15 +211,15 @@ export function planBreaks(b: Battle, queue: Intent[], phase: "preview" | "resol
       return;
     }
     if (isGrazeKind(w)) {
-      if (evalWeakness(intent, b, flags, phase)) out.set(i, "graze");
+      if (evalWeakness(intent, b, flags, phase, rc)) out.set(i, "graze");
       return;
     }
     if (intent.kind === "charge") {
-      if (evalWeakness(intent, b, flags, phase)) out.set(i, "hard");
+      if (evalWeakness(intent, b, flags, phase, rc)) out.set(i, "hard");
       else if (flags.endTurnCommitted && !flags.stoodStill) out.set(i, "graze");
       return;
     }
-    if (evalWeakness(intent, b, flags, phase)) out.set(i, "hard");
+    if (evalWeakness(intent, b, flags, phase, rc)) out.set(i, "hard");
   });
   return out;
 }
@@ -244,6 +244,7 @@ export function evalWeakness(
   b: Battle,
   flags: V2TurnFlags,
   phase: "preview" | "resolve",
+  ctx: RunContext,
   resolveCtx?: { bleedcutRaw?: number; bleedcutBlocked?: number },
 ): boolean {
   if (intent.kind === "charge") {
@@ -276,7 +277,9 @@ export function evalWeakness(
       return flags.endTurnCommitted && (flags.endBlock ?? b.playerBlock) > 0;
     case "endBlockGte8": {
       let need = w.param ?? 8;
-      if (isBreakAlign() && b.techniques.includes("softPalm")) need = Math.max(1, need - 2);
+      if (b.techniques.includes("softPalm")) {
+        need = Math.max(1, need - ctx.caps.intent.softPalmBlockRelax);
+      }
       return flags.endTurnCommitted && (flags.endBlock ?? b.playerBlock) >= need;
     }
     case "antiGuardPlayed":
