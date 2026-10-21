@@ -3,7 +3,7 @@ import type { MindArtId } from "../game/mindArts";
 import { TECHNIQUES } from "../game/content";
 import { MIND_ARTS } from "../game/mindArts";
 import { LAB_ITEM_LABEL, LAB_ITEM_TIP } from "../game/labV21Constants";
-import { isBreakAlign } from "./labRuleset";
+import { shellRunContext } from "./shellContext";
 
 /** 仅保留空间工具外功的短注；其余走 TECHNIQUES 数值原文。 */
 export const TECH_TEXT_BREAK: Partial<Record<TechniqueId, { name?: string; text: string }>> = {
@@ -37,7 +37,7 @@ export const ITEM_TIP_BREAK: Partial<Record<LabItemId, string>> = {};
 
 export function techniqueTip(id: TechniqueId): string {
   const def = TECHNIQUES[id];
-  if (isBreakAlign()) {
+  if (shellRunContext().ruleset.mode === "break") {
     const o = TECH_TEXT_BREAK[id];
     if (o) return `${o.name ?? def.name}：${o.text}`;
   }
@@ -46,7 +46,7 @@ export function techniqueTip(id: TechniqueId): string {
 
 export function mindTip(id: MindArtId): string {
   const def = MIND_ARTS[id];
-  if (isBreakAlign()) {
+  if (shellRunContext().ruleset.mode === "break") {
     const o = MIND_TEXT_BREAK[id];
     if (o) return `${o.name ?? def.name}：${o.text}`;
   }
@@ -54,7 +54,7 @@ export function mindTip(id: MindArtId): string {
 }
 
 export function itemTip(id: LabItemId): string {
-  if (isBreakAlign() && ITEM_TIP_BREAK[id]) return ITEM_TIP_BREAK[id]!;
+  if (shellRunContext().ruleset.mode === "break" && ITEM_TIP_BREAK[id]) return ITEM_TIP_BREAK[id]!;
   return LAB_ITEM_TIP[id] ?? LAB_ITEM_LABEL[id] ?? id;
 }
 

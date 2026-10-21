@@ -16,7 +16,6 @@ import { variantActiveLabel, variantBranch, labV21EffectiveCost } from "../game/
 import { ROLE_LABEL } from "../game/labV25Constants";
 import { isLabV2 } from "./labTuning";
 import { MOVE_CARD_IDS } from "../game/intentWeakness";
-import { isBreakAlign } from "./labRuleset";
 import { MATES, MATE_PASSIVE, WEAPON_NAME, schoolLabel } from "../game/party";
 import { dangerCells, livingFoes, statusChips, yourPace, isComboUnlockCard, climbCardLocked } from "../game/sim";
 import { shellRunContext } from "./shellContext";
@@ -98,7 +97,7 @@ function renderStatusCol(b: Battle, side: "you" | "foe"): string {
         `<div class="status-chip" data-tip="${escapeAttr(c.tip)}"><b>${c.name}</b><em>${c.value}</em><span class="status-tip">${escapeHtml(c.tip)}</span></div>`,
     )
     .join("");
-  return `<div class="status-col ${side}-status">${rows}</div>`;
+  return `<div class="status-col ${side}-status" style="gap:0.08rem;min-width:4.8rem">${rows}</div>`;
 }
 
 function typeLabel(type: string): string {
@@ -199,7 +198,7 @@ export function renderProdBoard(
 const MOVE_CHARGE_CARDS = new Set<string>(MOVE_CARD_IDS);
 
 function renderBreakChargeHud(b: Battle): string {
-  if (!isBreakAlign() || !isLabV2()) return "";
+  if (shellRunContext().ruleset.mode !== "break" || !isLabV2()) return "";
   const move = b.v2Turn?.moveCharges ?? 0;
   const anti = b.v2Turn?.antiGuardCharges ?? 0;
   const maxShow = 5;
@@ -339,7 +338,7 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
     label: "行路",
     tip: "行路：不破也能走。登门另有硬核短拍入口。",
   };
-  const breakAlign = isBreakAlign();
+  const breakAlign = shellRunContext().ruleset.mode === "break";
   const guideSet = new Set(demoGuide?.cardIds ?? []);
   const teachStage = demoGuide?.stage ?? gauntletStage;
   const mate = MATES[b.active];
@@ -537,7 +536,7 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
         </div>
 
         ${
-          isBreakAlign() && isLabV2()
+          shellRunContext().ruleset.mode === "break" && isLabV2()
             ? `<div class="lab-break-charge-rail">${renderBreakChargeHud(b)}</div>`
             : ""
         }

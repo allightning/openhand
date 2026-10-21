@@ -44,7 +44,7 @@ import {
   getGauntletFinalStage,
   type GauntletPath,
 } from "./gauntletPaths";
-import { BREAK_MODE_OPEN, isBreakAlign } from "./labRuleset";
+import { BREAK_MODE_OPEN } from "./labRuleset";
 import { isBreakDemoDone, isRookieDemoDone } from "./breakDemo";
 import { breakStarterDeck, rogueLeadId, rogueMate } from "./rogueRoster";
 import { weaponArt } from "../art/weaponArt";
@@ -200,13 +200,13 @@ export function renderGauntletWager(run: GauntletRun, offers: WagerOffer[], selK
   const tierLabel = GAUNTLET_TIER_LABEL[entry.tier];
   const intel = intelReport(run);
   const nextInfo =
-    isBreakAlign() && run.stage <= 2
+    shellRunContext().ruleset.mode === "break" && run.stage <= 2
       ? `下一馆：${foeNames} · ${foeCount}人 · 难度 ${tierLabel} · 血量 ×${entry.hpMul.toFixed(2)} · ${run.stage === 1 ? "入门：看红格、走开或卸力" : "入门：格挡能扛一段"}`
       : `下一馆：${foeNames} · ${foeCount}人 · 难度 ${tierLabel} · 血量 ×${entry.hpMul.toFixed(2)}`;
   const nextLine = intel ? `${nextInfo} · 暗桩：${intel}` : nextInfo;
   const fightLabel = canFight ? "下 注 开 打" : selKind == null ? "先 选 盘 口" : "再 落 注 额";
   const loc = climbPlace(run.path, run.stage);
-  const wagerTitle = isBreakAlign() ? "赌馆" : `${escapeHtml(entry.label)} · 开擂前`;
+  const wagerTitle = shellRunContext().ruleset.mode === "break" ? "赌馆" : `${escapeHtml(entry.label)} · 开擂前`;
   const wagerPager = `<p class="gauntlet-pager">${escapeHtml(loc.name)} · 赌馆</p>`;
   return `
     <div class="gauntlet-shell gauntlet-wager">
@@ -238,7 +238,7 @@ export function renderGauntletPathPick(endless = false, run?: GauntletRun): stri
   const blurbs = endless ? GAUNTLET_ENDLESS_BLURB : GAUNTLET_PATH_BLURB;
   const meta = endless
     ? "行路打榜 · 一层一程 · 不进城殿"
-      : isBreakAlign()
+      : shellRunContext().ruleset.mode === "break"
       ? `${final} 馆 · 前两关入门 · 同道 ${COMPANION_MILESTONES.join("/")} · 期末第 ${final} 馆`
       : `${final} 关 · 期中第 ${mid} 关 · 期末第 ${final} 关`;
   const cards = paths
@@ -308,9 +308,7 @@ export function renderGauntletBadge(run: GauntletRun): string {
   const wager = w
     ? ` · 注 ${wagerLabel(w.kind, run.school)} ${w.stake}（×${w.odds} 中则 +${Math.round(w.stake * w.odds)}）`
     : "";
-  const stageTag = isBreakAlign()
-    ? `第 ${run.stage}/${final} 馆`
-    : `第 ${run.stage}/${final} 馆`;
+  const stageTag = `第 ${run.stage}/${final} 馆`;
   const tip = `${stageTag} · ${entry.label} · 彩金 ${run.pot}${w ? `\n本馆注：${wagerLabel(w.kind, run.school)} 押 ${w.stake}（赔 ×${w.odds}）` : ""}`;
   const scar = (run.scars ?? 0) > 0 ? " · 带伤" : "";
   return `<span class="gauntlet-badge" data-tip="${escapeAttr(tip)}">${escapeHtml(stageTag)} · ${escapeHtml(entry.label)} · 彩金 <b class="gauntlet-pot">${run.pot}</b>${wager}${scar}</span>`;
@@ -386,7 +384,7 @@ export function renderGauntletRewardPick(
       </div>`
       : run.pendingSkipMarket
         ? `<p class="gauntlet-reward-sub">这一程没有黑市。当铺仍开着。</p>`
-        : run.path === "bandit" && !run.endless && !isBreakAlign()
+        : run.path === "bandit" && !run.endless && shellRunContext().ruleset.mode !== "break"
           ? `<p class="gauntlet-reward-sub">黑市今夜没开。当铺仍开着。</p>`
           : "";
   const marketRow = `${pawnRow}${blackRow}`;
@@ -405,7 +403,7 @@ export function renderGauntletRewardPick(
   const loc = climbPlace(run.path, Math.max(1, run.stage - 1));
   const campTitle = loc.rest;
   const pager = `<p class="gauntlet-pager">${escapeHtml(loc.name)} · 歇脚 · 选完免费奖励后再点继续</p>`;
-  const subHead = isBreakAlign()
+  const subHead = shellRunContext().ruleset.mode === "break"
     ? `${escapeHtml(cleared.label)} 告捷 · 连胜 ${run.streak} · 彩金 <b class="gauntlet-pot">${run.pot}</b>${escapeHtml(potLine)}${escapeHtml(pickLine)}`
     : `连胜 ${run.streak} · 彩金 <b class="gauntlet-pot">${run.pot}</b>${escapeHtml(potLine)}${escapeHtml(pickLine)} · 下一战 ${escapeHtml(next.label)}（${GAUNTLET_TIER_LABEL[next.tier]}）`;
   const packOk = canStartBattle(run);
@@ -670,7 +668,7 @@ export function renderGauntletLoadout(
     });
     return `<div class="gauntlet-stash-slot" data-drop="stash">${card}</div>`;
   });
-  const techCap = isBreakAlign() ? 3 : climbTechSlotMax(run.stage);
+  const techCap = shellRunContext().ruleset.mode === "break" ? 3 : climbTechSlotMax(run.stage);
   const learned = run.mateTechs[focus] ?? [];
   const techBoard = learned
     .map((id, i) => {
@@ -784,11 +782,13 @@ export function renderGauntletLoadout(
         : page === "mind"
           ? padStashSlots(stashMindHtml)
           : padStashSlots([]);
+  const emptyBoardSlots = (filled: number, cap: number) =>
+    Array.from({ length: Math.max(0, cap - filled) }, () => `<div class="gauntlet-stash-slot is-empty" data-drop="board"><span class="gauntlet-reward-sub">空</span></div>`).join("");
   const boardHtml =
     page === "deck"
-      ? deckHtml || `<p class="gauntlet-reward-sub">（空）</p>`
+      ? `${deckHtml || `<p class="gauntlet-reward-sub">（空）</p>`}${emptyBoardSlots(focusDeck.length, bounds.max)}`
       : page === "tech"
-        ? techBoard || `<p class="gauntlet-reward-sub">外功 ${learned.length}/${techCap}</p>`
+        ? `${techBoard || `<p class="gauntlet-reward-sub">外功 ${learned.length}/${techCap}</p>`}${emptyBoardSlots(learned.length, techCap)}`
         : page === "mind"
           ? mindBoard || `<p class="gauntlet-reward-sub">（无）</p>`
           : weaponHtml;
@@ -809,7 +809,7 @@ export function renderGauntletLoadout(
         <header class="gauntlet-loadout-head">
           <div class="gauntlet-loadout-tabs">
             ${tab("deck", "谱")}
-            ${tab("tech", "外功")}
+            ${tab("tech", "功法")}
             ${tab("mind", "心法")}
             ${tab("weapon", "武器")}
           </div>
@@ -853,7 +853,7 @@ export function renderGauntletOverlay(
 
 /** 拆招：3/7 馆四选一；经典：三选一。同系光环卡自带 / 异系组合卡自带。 */
 export function renderGauntletCompanionPick(run: GauntletRun, choices: CompanionId[]): string {
-  const breakMode = isBreakAlign();
+  const breakMode = shellRunContext().ruleset.mode === "break";
   const cards = choices
     .map((id, i) => {
       const m = MATES[id];

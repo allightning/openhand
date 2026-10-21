@@ -26,7 +26,6 @@ import {
 } from "./arsenal";
 import { peakPotAnchor, reviveCost } from "./gauntlet";
 import { getGauntletFinalStage } from "./gauntletPaths";
-import { isBreakAlign } from "./labRuleset";
 import { escapeHtml } from "./setupUi";
 
 export type DevTab = "combat" | "enemy" | "foeGear" | "weapon" | "card" | "tech" | "mate";
@@ -95,7 +94,7 @@ function renderCombatTab(): string {
   const t = getLabTuning();
   const peak = peakPotAnchor(devStage);
   const revive = reviveCost(devStage);
-  const breakMode = isBreakAlign();
+  const breakMode = shellRunContext().ruleset.mode === "break";
   const runRef = undefined; // dev panel 无 run 上下文，默认仍读 GAUNTLET_FINAL_STAGE=10
   const final = getGauntletFinalStage(runRef);
   const modeBanner = breakMode
@@ -236,7 +235,7 @@ function renderEnemyEditor(): string {
     })),
     ...otherIds.map((id) => ({ value: id, label: `${ENEMIES[id].name} · ${ENEMIES[id].title}` })),
   ];
-  const mode = isBreakAlign() ? "break" : "classic";
+  const mode = shellRunContext().ruleset.mode === "break" ? "break" : "classic";
   const kitId = GAUNTLET_FOE_IDENTITY[pickEnemy] ? pickEnemy : null;
   let kitHtml = "";
   if (kitId) {

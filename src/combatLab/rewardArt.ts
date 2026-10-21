@@ -6,7 +6,6 @@ import { CARDS } from "../game/content";
 import { MATE_PASSIVE, MATES, schoolLabel } from "../game/party";
 import type { CardId, CompanionId } from "../game/types";
 import { rogueMate } from "./rogueRoster";
-import { isBreakAlign } from "./labRuleset";
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
@@ -80,7 +79,7 @@ export function campBattleCardHtml(opts: CampCardOpts): string {
     ? `${typeLabel(def.type)} · ${schoolLabel(cardId!)}${def.tags?.includes("组合") ? " · 组合" : ""}`
     : (KIND_BANNER[opts.kind] ?? "营地");
   const name = def?.name ?? stripOfferPrefix(opts.title);
-  const text = def ? cardDisplayText(def, shellRunContext(), { breakAlign: isBreakAlign() }) : opts.text;
+  const text = def ? cardDisplayText(def, shellRunContext(), { breakAlign: shellRunContext().ruleset.mode === "break" }) : opts.text;
   const flavor = def?.flavor ?? "";
   const art = cardArt(def?.id ?? opts.artId ?? KIND_ART[opts.kind] ?? "strike");
   const cost = def ? `<span class="cost">${def.cost}</span>` : "";

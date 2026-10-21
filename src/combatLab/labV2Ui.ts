@@ -3,7 +3,7 @@ import { foeIntentAlias } from "../game/enemyKit";
 import { intentFirePlan, stressMetaAt } from "../game/labEnemyStress";
 import { previewIntentSegments, type IntentSegmentPreview } from "../game/intentPreview";
 import { isLabV2 } from "./labTuning";
-import { isBreakAlign, isBreakLesson } from "./labRuleset";
+import { isBreakLesson } from "./labRuleset";
 import { MATES } from "../game/party";
 import { dangerCellsForIntent, intentIncoming, livingFoes, projectedQueueThreat } from "../game/sim";
 import { shellRunContext } from "./shellContext";
@@ -456,7 +456,7 @@ export function formatIntentCue(b: Battle, intent: Intent | undefined, name: str
 }
 
 export function renderFxLayer(b: Battle): string {
-  const quiet = isBreakAlign() && !isBreakLesson(b);
+  const quiet = shellRunContext().ruleset.mode === "break" && !isBreakLesson(b);
   const fx = (b.v2FxQueue ?? []).filter((kind) => !quiet || !["break", "graze", "miss", "counter", "eye"].includes(kind));
   const map: Record<string, string> = {
     break: "拆！",
