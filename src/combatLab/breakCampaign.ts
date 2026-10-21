@@ -1,6 +1,7 @@
 /**
- * 读招战役 · 气力承诺制（顶替旧空间拆招谜题）
- * 规则核：`qiCommit.ts` / Notion 读招破招 · 胜负与资源页
+ * 登门自我修行课 · 气力承诺
+ * R1–R4、R6–R8 日常课。R5、RB 进修。结算数字在 qiCommit。
+ * 规则核：`qiCommit.ts`
  */
 import type { Battle, CompanionId, EnemyId, Intent } from "../game/types";
 import { emptyV2Turn } from "../game/labV2";
@@ -30,8 +31,12 @@ export type CampaignGoal =
 
 export type CampaignStageId = "R1" | "R2" | "R3" | "R4" | "R5" | "R6" | "R7" | "R8" | "RB";
 
+export type CourseTier = "drill" | "advanced";
+
 export interface CampaignStage {
   id: CampaignStageId;
+  /** drill = 自我修行；advanced = 进修（R5、RB） */
+  tier: CourseTier;
   title: string;
   blurb: string;
   teach: string;
@@ -77,13 +82,14 @@ function intentsFromQueue(queue: QiSegment[]): Intent[] {
   );
 }
 
-/** 气力承诺九关：克制 / 连拆 / 出红格 / 墨痕 / 气势 / 存气 / 闪 / 分格 / 座前试刃 */
+/** 自我修行课表。只教气力承诺动词。R5、RB 为进修。 */
 export const CAMPAIGN_STAGES: CampaignStage[] = [
   {
     id: "R1",
-    title: "拆·点",
-    blurb: "气力只有 3 点。拆·点费 2，硬拆立刻还 1。刺必须用拆·点。",
-    teach: "气力=本拍能花的点数。点「拆·点」再点刺，收势。目标：硬拆 ≥1 · 零「打」 · 1 拍内",
+    tier: "drill",
+    title: "拆",
+    blurb: "动词：拆。气力 3。拆·点费 2，硬拆还 1。",
+    teach: "动词：拆。气力是本拍能花的点数。拆·点打刺，收势。硬拆还 1 气。",
     enemyId: "mob_road_01",
     enemyHp: 99,
     playerHp: 12,
@@ -103,9 +109,10 @@ export const CAMPAIGN_STAGES: CampaignStage[] = [
   },
   {
     id: "R2",
-    title: "连拆返气",
-    blurb: "气力不够同时付两段拆。先硬拆还 1 气，才能拆下一段。",
-    teach: "拆费 2、还 1，等于净花 1 拆一段。目标：硬拆 ≥2 · 零「打」 · 1 拍内",
+    tier: "drill",
+    title: "连拆",
+    blurb: "动词：拆。拆费 2、还 1。先拆一段，再拆下一段。",
+    teach: "动词：拆。拆费 2、还 1。两段都要拆。",
     enemyId: "mob_road_01",
     enemyHp: 99,
     playerHp: 12,
@@ -128,9 +135,10 @@ export const CAMPAIGN_STAGES: CampaignStage[] = [
   },
   {
     id: "R3",
-    title: "出红格",
-    blurb: "不在红格，来招会打空。花 1 气撤步离开红格，再用攻打断蓄力（伤×2）。",
-    teach: "红格=他打得到你的格子。目标：断蓄 ≥1 · 零「打」 · 1 拍内",
+    tier: "drill",
+    title: "躲",
+    blurb: "动词：躲、断。离开红格，来招打空。攻牌断蓄。",
+    teach: "动词：躲、断。红格是他打得到的格子。离开红格，来招打空。",
     enemyId: "mob_road_02",
     enemyHp: 99,
     playerHp: 16,
@@ -153,9 +161,10 @@ export const CAMPAIGN_STAGES: CampaignStage[] = [
   },
   {
     id: "R4",
-    title: "墨痕",
-    blurb: "墨痕：硬拆留在那个红格。他下一拍再打这格，会自动破，并再留一轮墨。",
-    teach: "墨痕是格子上的印，不是你的气力。目标：硬拆 ≥2 · 零「打」 · 2 拍内",
+    tier: "drill",
+    title: "墨",
+    blurb: "动词：墨。硬拆留在红格。他再打这格会自动破。",
+    teach: "动词：墨。硬拆在红格留墨。他再打这格会自动破。",
     enemyId: "mob_road_01",
     enemyHp: 99,
     playerHp: 12,
@@ -176,10 +185,11 @@ export const CAMPAIGN_STAGES: CampaignStage[] = [
   },
   {
     id: "R5",
+    tier: "advanced",
     title: "气势",
-    blurb: "硬拆和墨痕削敌架势。▲3 后直取夺势 2。三拍内破尽架势 8。",
+    blurb: "进修。动词：拆、直取。硬拆和墨削架势。气势到 3，直取夺势 2。",
     hideFrom: 0,
-    teach: "刀平=刺。点拆·点到后段。目标：破尽架势 · 3 拍内",
+    teach: "进修。动词：拆、直取。刀平是刺。气势到 3，直取夺势才加到 2。架势是胜负条。",
     enemyId: "mob_road_01",
     enemyHp: 8,
     playerHp: 12,
@@ -199,9 +209,10 @@ export const CAMPAIGN_STAGES: CampaignStage[] = [
   },
   {
     id: "R6",
-    title: "过·存气",
-    blurb: "点「过」把 1 气存到下拍。下拍回 3 再加存的 1，才能拆+断蓄。",
-    teach: "气力每拍回 3。过=下拍多 1（上限 5）。本关第一拍来招打空，先过；第二拍拆刺并把攻点在蓄力上。",
+    tier: "drill",
+    title: "过",
+    blurb: "动词：过、拆、断。点「过」存 1 气。下拍回 3 再加这 1。",
+    teach: "动词：过、拆、断。气力每拍回 3。过把 1 气存到下拍。",
     enemyId: "mob_road_02",
     enemyHp: 12,
     playerHp: 16,
@@ -225,9 +236,10 @@ export const CAMPAIGN_STAGES: CampaignStage[] = [
   },
   {
     id: "R7",
+    tier: "drill",
     title: "闪",
-    blurb: "架只能减 3 伤，刺仍挨打。闪费 1，完全躲开这一段。",
-    teach: "闪须站红格。目标：闪 ≥1 · 零「打」 · 1 拍内。后面分格关要用。",
+    blurb: "动词：闪。闪要站在红格上。架只能减伤。",
+    teach: "动词：闪。闪要站在红格上。架会擦到，算打。",
     enemyId: "mob_road_01",
     enemyHp: 99,
     playerHp: 12,
@@ -247,9 +259,10 @@ export const CAMPAIGN_STAGES: CampaignStage[] = [
   },
   {
     id: "R8",
+    tier: "drill",
     title: "分格",
-    blurb: "两段不在同一格。先硬拆留墨，再走进另一格用闪。",
-    teach: "墨痕管旧格，新红格要自己走过去闪。目标：硬拆 ≥1 · 闪 ≥1 · 零「打」 · 2 拍内",
+    blurb: "动词：拆、闪。两段不在同一格。先拆，再走进另一格闪。",
+    teach: "动词：拆、闪。两段不在同一格。先拆，再走进另一格闪。",
     enemyId: "mob_road_02",
     enemyHp: 99,
     playerHp: 16,
@@ -271,10 +284,11 @@ export const CAMPAIGN_STAGES: CampaignStage[] = [
   },
   {
     id: "RB",
-    title: "座前试刃",
-    blurb: "气力不够全防。拆掉他的架势。",
+    tier: "advanced",
+    title: "座前",
+    blurb: "进修。动词：拆、盯梢。气力不够全防。亮的拆，扣的看起手。",
     hideFrom: 1,
-    teach: "亮的拆，扣的看起手。盯梢 1 气。目标：破尽架势 14 · 4 拍内",
+    teach: "进修。动词：拆、盯梢。亮的拆，扣的看起手。盯梢费 1 气。架势是胜负条。",
     enemyId: "mob_monk_01",
     enemyHp: 14,
     playerHp: 12,
@@ -352,7 +366,7 @@ function guideFor(stage: CampaignStage): Pick<BreakCampaignRun, "guideCardIds" |
   return {
     guideCardIds: [...stage.hand],
     guideCoach: `${stage.blurb} ${stage.teach}`,
-    teachBanner: `谜题 · ${stage.title}`,
+    teachBanner: `${stage.tier === "advanced" ? "进修" : "自我修行"} · ${stage.title}`,
   };
 }
 
@@ -378,7 +392,7 @@ export function createBreakCampaignRun(): BreakCampaignRun {
   };
 }
 
-/** 谜题无分步教案：手中牌都可打（仅本关 hand 内）。 */
+/** 课程不锁分步：手中牌都可打（仅本关 hand 内）。 */
 export function campaignLessonDone(_run: BreakCampaignRun): boolean {
   return true;
 }
@@ -533,29 +547,6 @@ function goalsMet(run: BreakCampaignRun, stage: CampaignStage, enemyDead = false
   return true;
 }
 
-/** @deprecated 击杀路径已不用；保留给旧测试迁移 */
-export function evaluateCampaignBattle(
-  run: BreakCampaignRun,
-  stats: { won: boolean; hardBreaks: number; hitsTaken: number; chases?: number; grazes?: number; turns?: number },
-): { ok: boolean; tip: string } {
-  if (!stats.won && stats.hitsTaken > 0) {
-    return { ok: false, tip: currentCampaignStage(run).failTip };
-  }
-  const stage = currentCampaignStage(run);
-  const probe: BreakCampaignRun = {
-    ...run,
-    sessionHardBreaks: stats.hardBreaks,
-    sessionChases: stats.chases ?? 0,
-    sessionGrazes: stats.grazes ?? 0,
-    puzzleTurn: stats.turns ?? stage.maxTurns,
-  };
-  if (stats.hitsTaken > 0 && stage.goals.some((g) => g.type === "noHit")) {
-    return { ok: false, tip: stage.failTip };
-  }
-  if (!goalsMet(probe, stage, stats.won && stage.goals.some((g) => g.type === "kill"))) return { ok: false, tip: stage.failTip };
-  return { ok: true, tip: "" };
-}
-
 export function advanceCampaignAfterClear(run: BreakCampaignRun): { run: BreakCampaignRun; done: boolean } {
   const nextIndex = run.stageIndex + 1;
   if (nextIndex >= CAMPAIGN_STAGES.length) {
@@ -653,7 +644,7 @@ export function buildCampaignPreset(run: BreakCampaignRun): LabPreset {
     id: `break-campaign-${stage.id}`,
     name: `登门 · ${stage.title}`,
     blurb: stage.blurb,
-    tags: ["登门", "谜题", "saber"],
+    tags: ["登门", "自我修行", "saber"],
     enemyId: stage.enemyId,
     party: [mate],
     fieldMate: mate,
@@ -670,7 +661,8 @@ export function buildCampaignPreset(run: BreakCampaignRun): LabPreset {
 
 export function campaignBadge(run: BreakCampaignRun): string {
   const stage = currentCampaignStage(run);
-  return `谜题 ${run.stageIndex + 1}/${CAMPAIGN_STAGES.length} · ${stage.title}`;
+  const head = stage.tier === "advanced" ? "进修" : "自我修行";
+  return `${head} · ${stage.title}`;
 }
 
 export function campaignGoalLine(run: BreakCampaignRun): string {

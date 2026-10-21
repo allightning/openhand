@@ -5,7 +5,6 @@ import {
   clearBreakCampaignProgress,
   createBreakCampaignRun,
   createQiFightFromStage,
-  evaluateCampaignBattle,
   advanceCampaignAfterClear,
   recordCampaignClear,
   campaignAllowsCard,
@@ -21,6 +20,7 @@ import { renderGauntletHome } from "./gauntletUi";
 import { setLabRuleset } from "./labRuleset";
 import { clearBreakDemoDone } from "./breakDemo";
 import { assignToSegment, playAttackFree, playPass, playStep, resolveTurn, selectCard, type QiFight } from "./qiCommit";
+import { renderCampaignCleared, renderCampaignRetry } from "./breakCampaignUi";
 
 function playOn(f: QiFight, defId: string, seg: number): QiFight {
   const card = f.hand.find((c) => c.defId === defId);
@@ -97,6 +97,34 @@ describe("break campaign · 气力承诺", () => {
     }
     expect(campaignStage("R1")?.goals.some((g) => g.type === "noHit")).toBe(true);
     expect(campaignStage("R4")?.qiQueue.some((i) => i.move === "pierce")).toBe(true);
+  });
+
+  it("课表只教气力承诺动词，R5 与座前是进修", () => {
+    for (const s of CAMPAIGN_STAGES) {
+      expect(s.teach).toMatch(/动词：/);
+      expect(s.teach).not.toMatch(/目标：/);
+      expect(s.blurb).toMatch(/动词：/);
+    }
+    expect(CAMPAIGN_STAGES.filter((s) => s.tier === "advanced").map((s) => s.id)).toEqual(["R5", "RB"]);
+    expect(campaignStage("R5")?.teach).toMatch(/架势/);
+    expect(campaignStage("R6")?.teach).toMatch(/气力/);
+    const run = createBreakCampaignRun();
+    expect(run.teachBanner).toBe("自我修行 · 拆");
+    const cleared = renderCampaignCleared(run, false);
+    expect(cleared).toContain("下一课 · 连拆");
+    expect(cleared).not.toContain("九关");
+    expect(cleared).not.toContain("通关");
+    const done = renderCampaignCleared(
+      { ...run, stageIndex: CAMPAIGN_STAGES.length - 1, stageId: "RB" },
+      true,
+    );
+    expect(done).toContain("自我修行 · 练完");
+    expect(done).toContain("再练一遍");
+    const retry = renderCampaignRetry(run);
+    expect(retry).toContain("这一课");
+    expect(retry).toContain("再练这一课");
+    const beforeR5 = { ...run, stageIndex: 3, stageId: "R4" as const };
+    expect(renderCampaignCleared(beforeR5, false)).toContain("进修 · 气势");
   });
 
   it("R5 气势：拆刺后墨痕+夺势，三拍破尽架势", () => {
@@ -181,10 +209,19 @@ describe("break campaign · 气力承诺", () => {
     expect(next.run.stageId).toBe("R2");
   });
 
-  it("evaluate helper still rejects skip-break fantasy", () => {
-    const run = createBreakCampaignRun();
-    expect(evaluateCampaignBattle(run, { won: true, hardBreaks: 0, hitsTaken: 0, turns: 1 }).ok).toBe(false);
-    expect(evaluateCampaignBattle(run, { won: true, hardBreaks: 1, hitsTaken: 0, turns: 1 }).ok).toBe(true);
+  it("第一课没拆到就输，拆到 1 段就过", () => {
+    const blank = {
+      hardBreaksDelta: 0,
+      chaseDelta: 0,
+      grazeDelta: 0,
+      interruptDelta: 0,
+      dodgeDelta: 0,
+      hitCount: 0,
+      enemyDead: false,
+      outcomes: [] as string[],
+    };
+    expect(tickCampaignAfterResolve(createBreakCampaignRun(), blank).kind).toBe("lose");
+    expect(tickCampaignAfterResolve(createBreakCampaignRun(), { ...blank, hardBreaksDelta: 1 }).kind).toBe("win");
   });
 
   it("finishing Boss marks cleared", () => {
