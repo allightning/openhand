@@ -62,7 +62,7 @@ describe("肉鸽拆招降权", () => {
       expect(kinds).not.toContain("chain");
       expect(kinds).not.toContain("eye");
     }
-    const clean = wagerOffers(early, () => 0).find((o) => o.kind === "clean") ?? wagerOffers(early).find((o) => o.kind === "clean");
+    const clean = wagerOffers(early, () => 0).find((o) => o.kind === "clean") ?? wagerOffers(early, () => 0.37).find((o) => o.kind === "clean");
     // 馆 1 池里必能摇到完璧或堆挡这类低倍
     let easyOdds = 0;
     for (let i = 0; i < 40; i++) {

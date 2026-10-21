@@ -28,7 +28,7 @@ describe("试玩反馈修复 2026-09-17", () => {
     setLabRuleset("climb");
     let run = createGauntletRun("bandit", "saber");
     expect(run.hpMax).toBe(50);
-    run = applyLifeline(run, "stat50");
+    run = applyLifeline(run, "stat50", () => 0);
     const revived = reviveGauntletRun({ ...run, pot: 99, bankruptUsed: false })!;
     expect(revived.hpMax).toBe(75);
     setLabMode(true);

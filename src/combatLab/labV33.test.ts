@@ -14,7 +14,6 @@ import {
   createGauntletRun,
   isBetterBest,
   marketOffers,
-  redeemGauntletRun,
   reviveGauntletRun,
   reviveCost,
   applyBankerBoost,
@@ -418,7 +417,7 @@ describe("§31.13/§31.14 赌馆 · 彩金与下注", () => {
     const withItems = { ...runWithPot(50), items: ["jinchuang"] as GauntletRun["items"] };
     const seen = new Set<string>();
     for (let i = 0; i < 48; i++) {
-      const offers = wagerOffers(withItems);
+      const offers = wagerOffers(withItems, () => (i * 0.017) % 1);
       expect(offers.length).toBe(3);
       expect(new Set(offers.map((o) => o.kind)).size).toBe(3);
       expect(offers.some((o) => o.kind === "chain" || o.kind === "eye")).toBe(false);
@@ -431,13 +430,13 @@ describe("§31.13/§31.14 赌馆 · 彩金与下注", () => {
 
   it("§31.15 赤手注按持有开门：手无寸铁不开（必赢不赌），有道具才进池", () => {
     for (let i = 0; i < 40; i++) {
-      const offers = wagerOffers(runWithPot(50)); // 起手 items: []
+      const offers = wagerOffers(runWithPot(50), () => (i * 0.013) % 1); // 起手 items: []
       expect(offers.length).toBe(3);
       expect(offers.some((o) => o.kind === "fist")).toBe(false);
     }
     const armed = { ...runWithPot(50), items: ["aidStaff"] as GauntletRun["items"] };
     let fistSeen = false;
-    for (let i = 0; i < 64 && !fistSeen; i++) fistSeen = wagerOffers(armed).some((o) => o.kind === "fist");
+    for (let i = 0; i < 64 && !fistSeen; i++) fistSeen = wagerOffers(armed, () => (i * 0.017) % 1).some((o) => o.kind === "fist");
     expect(fistSeen).toBe(true);
   });
 
@@ -503,31 +502,31 @@ describe("§31.13/§31.14 赌馆 · 彩金与下注", () => {
 
   it("§31.16 黑市摆摊：满血不卖金创；馆 1 不卖淬刃（闸未开）", () => {
     const fresh = runWithPot(60);
-    const stall = marketOffers(fresh);
+    const stall = marketOffers(fresh, () => 0);
     expect(stall.some((o) => o.kind === "heal")).toBe(false);
     expect(stall.some((o) => o.kind === "forge")).toBe(false);
     expect(stall.length).toBe(3); // 谱/货/外功
     stall.forEach((o) => expect(o.price).toBeGreaterThan(0));
     const hurt = { ...fresh, hp: fresh.hpMax - 10 };
-    const stall2 = marketOffers(hurt);
+    const stall2 = marketOffers(hurt, () => 0);
     expect(stall2.length).toBe(4);
     expect(stall2[0]!.kind).toBe("heal");
     const gated = { ...fresh, stage: 4, streak: 3, weaponId: "palm-a-1" };
-    expect(marketOffers(gated).some((o) => o.kind === "forge")).toBe(true);
+    expect(marketOffers(gated, () => 0).some((o) => o.kind === "forge")).toBe(true);
     const maxed = { ...gated, weaponId: "palm-a-4" };
-    expect(marketOffers(maxed).some((o) => o.kind === "forge")).toBe(false);
+    expect(marketOffers(maxed, () => 0).some((o) => o.kind === "forge")).toBe(false);
   });
 
   it("§31.16 黑市落锤：扣彩金、货到手上；不够钱不卖", () => {
     const run = { ...runWithPot(200), weaponId: "palm-a-1", stage: 4, streak: 3 };
     // 金创：先砍到残血再买回
     const hurt = { ...run, hp: 30 };
-    const heal = marketOffers(hurt).find((o) => o.kind === "heal")!;
+    const heal = marketOffers(hurt, () => 0).find((o) => o.kind === "heal")!;
     const healed = buyMarketOffer(hurt, heal)!;
     expect(healed.pot).toBe(200 - heal.price);
     expect(healed.hp).toBe(Math.min(hurt.hpMax, 30 + Math.ceil(hurt.hpMax * GAUNTLET_HEAL_RATIO)));
     // 谱：进牌组的就是摊上那张
-    const stall = marketOffers(run);
+    const stall = marketOffers(run, () => 0);
     const card = stall.find((o) => o.kind === "card")!;
     const bought = buyMarketOffer(run, card)!;
     expect(bought.pot).toBe(200 - card.price);
@@ -561,9 +560,9 @@ describe("§31.13/§31.14 赌馆 · 彩金与下注", () => {
     expect(reviveCost(7)).toBeGreaterThan(reviveCost(1));
     const run = createGauntletRun("bandit", "palm");
     expect(applyBankerBoost(run, 3).pot).toBe(60);
-    const lifed = applyLifeline(run, "stat50");
+    const lifed = applyLifeline(run, "stat50", () => 0);
     expect(lifed.statBoostMul).toBe(1.5);
-    const divine = applyLifeline(run, "divineWeapons");
+    const divine = applyLifeline(run, "divineWeapons", () => 0);
     expect(divine.divineWeapons).toBe(true);
     const preset = buildGauntletPreset({ ...divine, weaponId: "palm-a-3" });
     expect(preset.mateWeapons?.[gauntletFieldMate("palm")]).toBe("palm-a-5");
