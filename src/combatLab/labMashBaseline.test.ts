@@ -1,3 +1,8 @@
+/**
+ * 不进 `npm run test:combat`。
+ * 三则都是 100 局胜率上限，统计会晃，单则超时 120 秒。
+ * 红了先看是不是样本量，不要当成结算回归。
+ */
 import { describe, expect, it } from "vitest";
 import { mashWinRate, gauntletMashWinRate } from "./labMashBaseline";
 

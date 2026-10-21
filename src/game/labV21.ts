@@ -96,12 +96,6 @@ export function initLabV21Battle(b: Battle, rc: RunContext): void {
   initSignatureBattle(b, rc);
 }
 
-/** @deprecated v2.5 用 resonanceStrikeBonus */
-export function auraDamageBonus(b: Battle, cardId: CardId, rc: RunContext): number {
-  const adj = dist(b) === 1;
-  return resonanceStrikeBonus(b, cardId, 0, adj, dist(b), rc);
-}
-
 export function auraExtraQiOnGain(b: Battle, rc: RunContext, cardId?: CardId): number {
   if (!cardId) return 0;
   return resonanceExtraQiOnGain(b, cardId, rc);

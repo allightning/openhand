@@ -101,6 +101,7 @@ describe("§28.4 组合技开闸 canPlay", () => {
 });
 
 describe("§28 + 阶段0 发牌", () => {
+  // 走 battleRng 默认。三条同名连张不是硬保证，偶发会红，重跑可绿。不改洗牌。
   it("ordered=false avoids 3+ consecutive same id in first 12 draws", () => {
     setLabMode(true);
     setLabTuning({ deckMultiplier: 5 });

@@ -1,6 +1,6 @@
 /** Weapon 立绘 — AI ink plates per school (like character stands), named in UI. */
 
-import { gearById, type GearWeapon } from "../game/weapons";
+import { gearById } from "../game/weapons";
 import type { RunContext } from "../game/runContext";
 import { WEAPON_NAME } from "../game/party";
 import type { WeaponId } from "../game/types";
@@ -58,9 +58,4 @@ export function weaponDetail(id: string, rc: RunContext): { name: string; school
     tip: g.tip,
     text: `${WEAPON_NAME[g.school]} · ${g.grade} 成。${bits.join(" · ")}。${g.skill ? `埋招「${g.skill}」。` : "尚无埋招。"}`,
   };
-}
-
-/** @deprecated kept for tests that once asserted SVG; school plate path. */
-export function weaponSchoolFile(g: GearWeapon): string {
-  return SCHOOL_FILE[g.school];
 }

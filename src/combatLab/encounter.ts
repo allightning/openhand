@@ -164,30 +164,7 @@ const HALL_LAW_FX: Record<HallLaw, string> = {
   earlyEye: "下场提前招眼",
 };
 
-/** @deprecated 仅测试/调试；玩家卡面不再挂账本。 */
-export function encounterOutcomeTag(c: EncounterChoice): string {
-  if (c.id === "hint-finale") return "口风";
-  if (c.skipCompanion) return "绕过";
-  if (c.sideSkirmish) return "支线";
-  if (c.skirmish === "save") return "救人";
-  if (c.skirmish === "duel") return "点到";
-  if (c.companionId) return "买命";
-  if (c.stall === "small") return "小注";
-  if (c.stall === "double") return "加倍";
-  if (c.guestEnemy) return "借道";
-  if (c.intel) return "暗桩";
-  if (c.extraWaves) return "添人";
-  if (c.rewardBonus) return "多抽";
-  if ((c.potDelta ?? 0) > 0) return "进账";
-  if ((c.potDelta ?? 0) < 0) return "花钱";
-  if (c.skipMarket) return "避摊";
-  if (c.hallLaw) return "馆法";
-  if (c.dmgCoefMul && c.dmgCoefMul !== 1) return "加伤";
-  return "绕道";
-}
-
-/** @deprecated 仅测试/调试 */
-export function encounterEffectParts(c: EncounterChoice): string[] {
+function encounterEffectParts(c: EncounterChoice): string[] {
   const parts: string[] = [];
   if (c.id === "hint-finale") return ["记下口风", "开打前再选终馆"];
   if (c.sideSkirmish) parts.push("馆间支线短战", "不占脊骨馆号");
@@ -542,7 +519,7 @@ function resolveStall(choice: EncounterChoice, rng: () => number): Partial<Encou
 export function rollEventChoices(
   run: Pick<GauntletRun, "path" | "scars" | "forceDangerNext" | "seenEvents" | "storyFlags" | "stage" | "school" | "companions" | "companion" | "pendingIntel">,
   kind: EncounterKind,
-  rng: () => number = Math.random,
+  rng: () => number,
 ): EncounterChoice[] {
   const seen = run.seenEvents ?? [];
   const scarred = (run.scars ?? 0) > 0 || Boolean(run.forceDangerNext);
@@ -606,7 +583,7 @@ export function encounterConsequenceLine(choice: EncounterChoice): string {
   return bits.join(" · ");
 }
 
-export function applyEncounterChoice<T extends GauntletRun>(run: T, choice: EncounterChoice, rng: () => number = Math.random): T {
+export function applyEncounterChoice<T extends GauntletRun>(run: T, choice: EncounterChoice, rng: () => number): T {
   const resolved = { ...choice, ...resolveStall(choice, rng) };
   const seen = [...(run.seenEvents ?? [])];
   if (!seen.includes(choice.id)) seen.push(choice.id);

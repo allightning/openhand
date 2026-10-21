@@ -650,7 +650,7 @@ function nextPendingAfterChoice(_run: GauntletRun, choice: EncounterChoice): Sto
   return "rest";
 }
 
-export function applyStoryChoice(run: GauntletRun, choice: EncounterChoice, rng: () => number = Math.random): GauntletRun {
+export function applyStoryChoice(run: GauntletRun, choice: EncounterChoice, rng: () => number): GauntletRun {
   let next = applyEncounterChoice(run, choice, rng);
   const extra = extraFlagsFor(choice);
   const flags = [...(next.storyFlags ?? [])];
@@ -701,7 +701,7 @@ export function continueStoryTravel(run: GauntletRun): GauntletRun {
 export function pickPostCampBeat(
   run: Pick<GauntletRun, "storyPending" | "storySchedule" | "gambleCount" | "castDraw" | "seenStoryIds" | "storyFlags" | "openingId" | "storyPlace">,
   _fought: number,
-  rng: () => number = Math.random,
+  rng: () => number,
 ): PostCampBeat {
   if (run.storyPending === "followup" || run.storyPending === "choice") return "story";
   if (nextUnseenAt(run)) return "story";
@@ -733,7 +733,7 @@ export function applyPostCampBeat(run: GauntletRun, beat: PostCampBeat, fought: 
   return { ...run, storyPending: "rest", storyPlace: here };
 }
 
-export function queuePostCampBeat(run: GauntletRun, fought: number, rng: () => number = Math.random): GauntletRun {
+export function queuePostCampBeat(run: GauntletRun, fought: number, rng: () => number): GauntletRun {
   const pending = run.storyPending;
   if (
     pending === "choice" ||

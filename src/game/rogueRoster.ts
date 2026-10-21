@@ -317,7 +317,7 @@ export function rogueCompanionTierForStage(stageCompleted: number): RogueRosterT
 export function rollRogueCompanionChoices(
   tier: RogueRosterTier,
   taken: ReadonlySet<CompanionId>,
-  rng: () => number = Math.random,
+  rng: () => number,
   picks = 4,
 ): CompanionId[] {
   const pool = rogueRosterByTier(tier)

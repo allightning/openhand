@@ -42,7 +42,7 @@ export interface LabPreset {
   /** v2.1 携带道具，最多 2。 */
   labItems?: LabItemId[];
   labItemCharges?: Partial<Record<LabItemId, number>>;
-  /** @deprecated 迁移用 */
+  /** 开局主角。缺省再看 active。 */
   hero?: HeroId;
   active?: CompanionId;
   deck?: CardId[];

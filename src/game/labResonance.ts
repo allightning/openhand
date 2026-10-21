@@ -32,10 +32,6 @@ export interface ResonanceStatus {
   duoHeroes: boolean;
   composition: PartyComposition;
   labels: string[];
-  /** @deprecated v2.5 兼容 */
-  school: WeaponId;
-  basic: boolean;
-  advanced: boolean;
 }
 
 export function teamSchoolCounts(b: Battle, rc: RunContext): Record<WeaponId, number> {
@@ -109,17 +105,12 @@ export function computeResonance(b: Battle, rc: RunContext): ResonanceStatus {
   if (hundredFlowers) labels.push("百花齐放");
   if (duoHeroes) labels.push("三主角同框");
 
-  const fieldSchool = battleEquippedSchool(b, b.active, rc);
-  const maxTier = Math.max(0, ...schools.map((s) => s.tier));
   return {
     schools,
     hundredFlowers,
     duoHeroes,
     composition,
     labels,
-    school: fieldSchool,
-    basic: maxTier >= 1,
-    advanced: maxTier >= 2,
   };
 }
 

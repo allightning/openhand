@@ -16,7 +16,6 @@ import {
   applyEncounterChoice,
   applyFinale,
   encounterEffectLine,
-  encounterOutcomeTag,
   eventAfterFought,
   eventLead,
   formatEncounterRichText,
@@ -88,7 +87,7 @@ describe("馆间遭遇 / 终局 / 带伤过馆", () => {
     let run = { ...createGauntletRun("bandit", "saber"), stage: 3 };
     const danger = findChoice(run, "fork", (c) => c.risk === "danger" && Boolean(c.extraWaves));
     expect(danger).toBeTruthy();
-    run = applyEncounterChoice(run, danger!);
+    run = applyEncounterChoice(run, danger!, () => 0);
     expect(run.pendingExtraWaves).toBeGreaterThanOrEqual(1);
     const preset = buildGauntletPreset(run);
     const waves = [preset.waveEnemyId, ...(preset.waveQueue ?? [])].filter(Boolean);
@@ -103,7 +102,7 @@ describe("馆间遭遇 / 终局 / 带伤过馆", () => {
     expect(rich).toBeTruthy();
     expect(rich.blurb).toMatch(/营地免费奖励多抽 1/);
     expect(rich.blurb).not.toMatch(/开战手牌/);
-    run = applyEncounterChoice(run, rich);
+    run = applyEncounterChoice(run, rich, () => 0);
     expect(run.pendingRewardBonus).toBeGreaterThanOrEqual(1);
     const base = gauntletRewardTakeCount({ ...createGauntletRun("bandit", "saber"), stage: 3 });
     expect(gauntletRewardTakeCount(run)).toBe(base + (run.pendingRewardBonus ?? 0));
@@ -212,7 +211,7 @@ describe("馆间遭遇 / 终局 / 带伤过馆", () => {
     const mates = rollEventChoices(run, "companion", () => 0);
     expect(mates.filter((c) => c.companionId).length).toBe(4);
     const intel = rollEventChoices(run, "inn", () => 0).find((c) => c.intel)!;
-    const peeked = applyEncounterChoice(run, intel);
+    const peeked = applyEncounterChoice(run, intel, () => 0);
     expect(peeked.pendingIntel).toBe(true);
     const names = upcomingFoeNames(peeked, 2);
     expect(names).toHaveLength(2);
@@ -221,7 +220,7 @@ describe("馆间遭遇 / 终局 / 带伤过馆", () => {
     const late = { ...createGauntletRun("bandit", "saber"), stage: 9, facedEnemies: ["mob_road_01"] };
     const cross = rollEventChoices(late, "fork", () => 0).find((c) => c.guestEnemy);
     expect(cross).toBeTruthy();
-    const guested = applyEncounterChoice(late, cross!);
+    const guested = applyEncounterChoice(late, cross!, () => 0);
     expect(guested.pendingGuestEnemyId).toBeTruthy();
     expect(String(guested.pendingGuestEnemyId)).not.toMatch(/^mob_road_|^mob_escort|^mob_canal_/);
     const waves = [buildGauntletPreset(guested).waveEnemyId, ...(buildGauntletPreset(guested).waveQueue ?? [])];
@@ -244,45 +243,39 @@ describe("馆间遭遇 / 终局 / 带伤过馆", () => {
   it("效果字段能分清绕道、进账、入伙、添人、开盅", () => {
     const run = createGauntletRun("bandit", "saber");
     const rest = findChoice(run, "inn", (c) => c.id.endsWith("-rest"))!;
-    expect(encounterOutcomeTag(rest)).toBe("进账");
     expect(encounterEffectLine(rest)).toMatch(/彩金 \+8/);
 
     const forkSafe = findChoice({ ...run, stage: 3 }, "fork", (c) => c.risk === "safe" && !c.skipMarket)!;
-    expect(encounterOutcomeTag(forkSafe)).toBe("绕道");
     expect(encounterEffectLine(forkSafe)).toMatch(/下场照旧/);
 
     const danger = findChoice({ ...run, stage: 3 }, "fork", (c) => Boolean(c.extraWaves))!;
-    expect(encounterOutcomeTag(danger)).toBe("添人");
     expect(encounterEffectLine(danger)).toMatch(/下场多 1 人/);
 
     const rich = findChoice({ ...run, stage: 3 }, "fork", (c) => Boolean(c.rewardBonus) && !c.guestEnemy)!;
-    expect(encounterOutcomeTag(rich)).toBe("多抽");
     expect(encounterEffectLine(rich)).toMatch(/营地多抽 1/);
     expect(encounterEffectLine(rich)).toMatch(/彩金 /);
 
     const save = rollEventChoices({ ...createGauntletRun("shaolin", "saber"), stage: 5 }, "companion", () => 0).find(
       (c) => c.skirmish === "save",
     )!;
-    expect(encounterOutcomeTag(save)).toBe("救人");
+    expect(encounterEffectLine(save)).toMatch(/短战救人/);
     expect(encounterEffectLine(save)).toMatch(/赢了入伙/);
 
     const buy = rollEventChoices({ ...createGauntletRun("shaolin", "saber"), stage: 5 }, "companion", () => 0).find(
       (c) => c.companionId && !c.skirmish,
     )!;
-    expect(encounterOutcomeTag(buy)).toBe("买命");
     expect(encounterEffectLine(buy)).toMatch(/当场入伙/);
 
     const side = findChoice({ ...run, stage: 3 }, "fork", (c) => Boolean(c.sideSkirmish));
     expect(side).toBeTruthy();
     expect(side!.blurb).toMatch(/\+22/);
     expect(side!.blurb).toMatch(/−10/);
-    expect(encounterOutcomeTag(side!)).toBe("支线");
-    const after = applyEncounterChoice({ ...run, stage: 3 }, side!);
+    expect(encounterEffectLine(side!)).toMatch(/馆间支线短战/);
+    const after = applyEncounterChoice({ ...run, stage: 3 }, side!, () => 0);
     expect(after.pendingSkirmish).toBe("side");
     expect(after.pendingSideLabel).toMatch(/^\d+-\d+$/);
 
     const small = rollEventChoices(run, "stall", () => 0).find((c) => c.stall === "small")!;
-    expect(encounterOutcomeTag(small)).toBe("小注");
     expect(encounterEffectLine(small)).toMatch(/点下去开盅/);
     expect(encounterEffectLine(small)).not.toMatch(/一半停在/);
   });

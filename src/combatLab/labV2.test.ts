@@ -167,7 +167,6 @@ describe("Combat v2 换人", () => {
       true,
     );
     const auras = computeAuras(b, breakTestContext());
-    expect(auras.basic).toBe(true);
     expect(auras.schools.find((s) => s.school === "palm")?.tier).toBe(1);
   });
 });

@@ -19,17 +19,12 @@ function walkTs(dir: string): string[] {
   return out;
 }
 
-/** 主线遗留，随地图解冻再治理。 */
-const FROZEN_DOM = new Set([
-  "economy.ts",
-  "bag.ts",
-  "progress.ts",
-  "quest.ts",
-  "rewards.ts",
-  "hooks.ts",
-  "run.ts",
-  "settings.ts",
-]);
+/**
+ * 仍直接碰 DOM 的主线文件。
+ * 单例债（旧 PERSIST_DEBT）已不在 src/game。
+ * economy / bag / progress / quest / rewards / hooks 现已不碰 document、window、localStorage，不再豁免。
+ */
+const FROZEN_DOM = new Set(["run.ts", "settings.ts"]);
 
 const DOM_API = /\blocalStorage\b|\bdocument\b|\bwindow\b/;
 

@@ -128,7 +128,7 @@ describe("江湖三整段 / 旗标换页", () => {
       storyPending: "choice" as const,
     };
     const medicine = rollStoryChoices(run).find((c) => c.id === "story-lv-medicine")!;
-    run = applyStoryChoice(run, medicine);
+    run = applyStoryChoice(run, medicine, () => 0);
     expect(run.storyFlags).toContain("lv-left");
     expect(run.storyPending).toBe("followup");
     expect(run.pendingExtraWaves).toBe(1);
@@ -145,7 +145,7 @@ describe("江湖三整段 / 旗标换页", () => {
       storyPending: "choice" as const,
     };
     const sell = rollStoryChoices(sold).find((c) => c.id === "story-lv-sell")!;
-    sold = applyStoryChoice(sold, sell);
+    sold = applyStoryChoice(sold, sell, () => 0);
     expect(sold.storyFlags).toContain("story-solo");
     expect(sold.storyPending).toBe("rest");
     expect(rollStoryChoices({ ...sold, storyPending: "followup" }).some((c) => c.companionId === "lvchifeng")).toBe(
@@ -195,7 +195,7 @@ describe("江湖三整段 / 旗标换页", () => {
     };
     const cut = rollStoryChoices(run).find((c) => c.id === "story-chen-cut")!;
     expect(cut.skipMarket).toBe(true);
-    run = applyStoryChoice(run, cut);
+    run = applyStoryChoice(run, cut, () => 0);
     expect(run.storyFlags).toContain("story-solo");
     expect(run.pendingRewardBonus).toBeGreaterThanOrEqual(1);
     expect(runCompanions(run)).toHaveLength(0);
@@ -208,7 +208,7 @@ describe("江湖三整段 / 旗标换页", () => {
       storyPending: "choice" as const,
     };
     const rope = rollStoryChoices(ropeRun).find((c) => c.id === "story-chen-rope")!;
-    ropeRun = applyStoryChoice(ropeRun, rope);
+    ropeRun = applyStoryChoice(ropeRun, rope, () => 0);
     expect(ropeRun.storyPending).toBe("followup");
     const join = rollStoryChoices(ropeRun).find((c) => c.companionId === "chenchenlan");
     expect(join).toBeTruthy();
@@ -260,13 +260,13 @@ describe("江湖三整段 / 旗标换页", () => {
       title: "赶路",
       blurb: "路还在。**下场照旧。**",
       risk: "safe",
-    });
+    }, () => 0);
     expect(next.skipCompanionPick).toBe(true);
   });
 
   it("少林仍走固定客栈槽", () => {
     expect(eventAfterFought(1)).toBe("inn");
     const run = createGauntletRun("shaolin", "palm");
-    expect(rollEventChoices(run, "inn").length).toBeGreaterThan(0);
+    expect(rollEventChoices(run, "inn", () => 0).length).toBeGreaterThan(0);
   });
 });

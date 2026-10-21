@@ -9,7 +9,9 @@ import { createGauntletRun, resolveWager, reviveGauntletRun } from "../combatLab
 import { assignToSegment, createQiFight, playUlt, resolveTurn, selectCard, type QiFight } from "../combatLab/qiCommit";
 import { setLabMode } from "../combatLab/labTuning";
 import { setLabRuleset } from "../combatLab/labRuleset";
-import { canPlay, endTurn, livingFoes, playCard, setBattleRng, setSegmentProbe } from "./sim";
+import { recapDisplayAfter, recapDisplayStart } from "../combatLab/foePlayback";
+import type { Intent } from "./types";
+import { canPlay, endTurn, labComboReplay, livingFoes, playCard, setBattleRng, setSegmentProbe } from "./sim";
 import { addStake } from "./stake";
 import { climbTestContext, makeTestContext } from "../combatLab/testContext";
 import type { Battle, CardId } from "./types";
@@ -17,6 +19,7 @@ import type { Battle, CardId } from "./types";
 const DIR = dirname(fileURLToPath(import.meta.url));
 const MECHANISM_BASELINE = join(DIR, "goldenReplay.baseline.json");
 const PRESENT_BASELINE = join(DIR, "goldenReplay.present.json");
+const DOM_BASELINE = join(DIR, "goldenReplay.dom.json");
 
 type Frame = {
   tag: string;
@@ -29,6 +32,19 @@ type Frame = {
   energy: number;
   foeEnergy: number;
   youBleed: number;
+  foeBleed: number;
+  youExpose: number;
+  foeExpose: number;
+  /** 连击。场上只有玩家层数字段 `combo`。 */
+  combo: number;
+  /** 剑势。场上只有 `v2SwordChain`。 */
+  sword: number;
+  /** 霸体。场上只有敌方 `foeEndure`，没有玩家霸体字段。 */
+  endure: number;
+  /** 缴械。场上只有敌方 `foeDisarm`。 */
+  disarm: number;
+  /** 桩的落点，升序。 */
+  stakes: string;
   foeStun: number;
   youStun: number;
   wageDebt: number;
@@ -38,6 +54,18 @@ type Frame = {
   discardN: number;
   /** 这一拍新出现的播报，渲染层要按这个顺序改画面。 */
   present: string;
+};
+
+type DomPaint = {
+  scene: string;
+  i: number;
+  tag: string;
+  youHp: number;
+  foeHp: number;
+  youBlock: number;
+  foeBlock: number;
+  youPos: number;
+  foePos: number;
 };
 
 type Corpus = {
@@ -103,6 +131,14 @@ function frameOf(b: Battle, tag: string, present: string): Frame {
     energy: b.energy,
     foeEnergy: b.enemyEnergy,
     youBleed: b.youBleed ?? 0,
+    foeBleed: b.bleed,
+    youExpose: b.youExpose ?? 0,
+    foeExpose: b.expose,
+    combo: b.combo,
+    sword: b.v2SwordChain ?? 0,
+    endure: b.foeEndure ?? 0,
+    disarm: b.foeDisarm ?? 0,
+    stakes: [...b.stakes].sort((a, c) => a - c).join(","),
     foeStun: b.foeStun ?? 0,
     youStun: b.youStun ?? 0,
     wageDebt: b.climbWageDebt ?? 0,
@@ -172,8 +208,10 @@ function buildCorpus(): Corpus {
     random[`climb-${school}-1`] = mash(41000 + school.length * 17, loadout, "climb");
     random[`climb-${school}-2`] = mash(82000 + school.length * 29, loadout, "climb");
   }
-  for (const [school, loadout] of SCHOOLS.slice(0, 4)) {
+  for (const [school, loadout] of SCHOOLS) {
     random[`break-${school}-1`] = mash(12000 + school.length * 13, loadout, "break");
+  }
+  for (const [school, loadout] of [SCHOOLS[0]!, SCHOOLS[2]!] as const) {
     random[`break-${school}-2`] = mash(24000 + school.length * 19, loadout, "break");
   }
 
@@ -224,9 +262,81 @@ function buildCorpus(): Corpus {
     let b = startLabBattle(preset, true, 1);
     b.youStun = b.hand.length;
     b.energy = 0;
+    take(b, "stun-locked", b.log.length);
     const before = b.log.length;
     b = endTurn(b, climbTestContext());
     take(b, "stun-end", before);
+  });
+
+  const comboReplay = withProbe((take) => {
+    setLabRuleset("climb");
+    setLabMode(true);
+    const preset = applyAutoLoadout("t1-four-palm", 1, 1);
+    let b = startLabBattle(preset, true, 1);
+    const rc = climbTestContext();
+    const uid = b.hand.find((c) => c.defId === "strike2")?.uid;
+    if (!uid) throw new Error("palm hand missing strike2");
+    b.energy = 20;
+    b.player.pos = 0;
+    b.enemy.pos = 1;
+    const a = b.log.length;
+    b = playCard(b, uid, rc);
+    b.combo = 2;
+    take(b, "armed", a);
+    const c = b.log.length;
+    b = labComboReplay(b, rc);
+    take(b, "replay", c);
+  });
+
+  const lifesteal = withProbe((take) => {
+    setLabRuleset("climb");
+    setLabMode(true);
+    const preset = applyAutoLoadout("t5-hook-saber-spear", 1, 1);
+    let b = startLabBattle(preset, true, 1);
+    const rc = climbTestContext();
+    const uid = b.hand.find((c) => c.defId === "hookDisarm")?.uid;
+    if (!uid) throw new Error("hook hand missing hookDisarm");
+    b.energy = 20;
+    b.player.hp = Math.max(1, b.player.maxHp - 15);
+    b.foeDisarm = 1;
+    b.player.pos = 0;
+    b.enemy.pos = 2;
+    take(b, "hurt", b.log.length);
+    const before = b.log.length;
+    b = playCard(b, uid, rc);
+    take(b, "leech", before);
+  });
+
+  const endureCc = withProbe((take) => {
+    setLabRuleset("climb");
+    setLabMode(true);
+    const rc = climbTestContext();
+    const palm = applyAutoLoadout("t1-four-palm", 1, 1);
+    let b = startLabBattle(palm, true, 1);
+    const pushUid = b.hand.find((c) => c.defId === "strike2")?.uid;
+    if (!pushUid) throw new Error("palm hand missing strike2");
+    b.energy = 20;
+    b.player.pos = 5;
+    b.enemy.pos = 6;
+    b.foeEndure = 1;
+    b.foeStun = 0;
+    const posBefore = b.enemy.pos;
+    const a = b.log.length;
+    b = playCard(b, pushUid, rc);
+    take(b, posBefore === b.enemy.pos && (b.foeStun ?? 0) === 0 ? "push-stun-held" : "push-stun-moved", a);
+
+    const hook = applyAutoLoadout("t5-hook-saber-spear", 1, 1);
+    b = startLabBattle(hook, true, 1);
+    const pullUid = b.hand.find((c) => c.defId === "hookDisarm")?.uid;
+    if (!pullUid) throw new Error("hook hand missing hookDisarm");
+    b.energy = 20;
+    b.player.pos = 1;
+    b.enemy.pos = 3;
+    b.foeEndure = 1;
+    const pullFrom = b.enemy.pos;
+    const c = b.log.length;
+    b = playCard(b, pullUid, rc);
+    take(b, pullFrom === b.enemy.pos ? "pull-held" : "pull-moved", c);
   });
 
   const run = createGauntletRun("bandit", "palm", "usurper", { rng: mulberry32(7) });
@@ -243,6 +353,21 @@ function buildCorpus(): Corpus {
       eyes: 0,
       itemsUsed: false,
       endBlock: 12,
+    },
+  );
+  const wagerMiss = resolveWager(
+    {
+      ...run,
+      wager: { kind: "guard", stake: 10, target: 10, odds: 1.5 },
+    },
+    {
+      breaks: 0,
+      turns: 4,
+      hpEndRatio: 0.8,
+      won: true,
+      eyes: 0,
+      itemsUsed: false,
+      endBlock: 9,
     },
   );
   const finale = (["mob", "seat", "private"] as const).map((kind) => {
@@ -264,7 +389,11 @@ function buildCorpus(): Corpus {
       spearDebt,
       stakeBlast,
       stunLock,
+      comboReplay,
+      lifesteal,
+      endureCc,
       guardWager: { won: wager.won, payout: wager.payout, text: wager.text },
+      guardWagerMiss: { won: wagerMiss.won, payout: wagerMiss.payout, text: wagerMiss.text },
       finale,
       revive: revived
         ? { pot: revived.pot, hp: revived.hp, bankruptUsed: revived.bankruptUsed }
@@ -333,6 +462,67 @@ function scriptQiCommit() {
   return [hard, qiBeat(released, "放生"), inked, qiBeat(ult, "绝式")];
 }
 
+const FRAME_SCENES = ["spearDebt", "stakeBlast", "stunLock", "comboReplay", "lifesteal", "endureCc"] as const;
+
+function paintsFromFrames(scene: string, frames: Frame[]): DomPaint[] {
+  return frames.map((f, i) => ({
+    scene,
+    i,
+    tag: f.tag,
+    youHp: f.youHp,
+    foeHp: f.foeHp,
+    youBlock: f.youBlock,
+    foeBlock: f.foeBlock,
+    youPos: f.youPos,
+    foePos: f.foePos,
+  }));
+}
+
+/** 敌招回放：结算已一次性兑完，画面从开打血位一段段扣，不在第一段跳到终态。 */
+function foeRecapPaints(): DomPaint[] {
+  const recap = [
+    { ord: 1, name: "劈", outcome: "打", hpLost: 4, blockLost: 2 },
+    { ord: 2, name: "逼近", outcome: "打", hpLost: 3, blockLost: 0 },
+  ];
+  const intents: Array<Intent | undefined> = [
+    { kind: "strike", damage: 8 },
+    { kind: "advance", steps: 1 },
+  ];
+  let show = recapDisplayStart(10, 1, recap, 2, 5);
+  const paints: DomPaint[] = [];
+  const push = (tag: string) => {
+    paints.push({
+      scene: "foe-recap",
+      i: paints.length,
+      tag,
+      youHp: show.hp,
+      foeHp: 0,
+      youBlock: show.block,
+      foeBlock: 0,
+      youPos: show.playerPos,
+      foePos: show.enemyPos,
+    });
+  };
+  push("before");
+  show = recapDisplayAfter(show, recap[0]!, intents[0]);
+  push("seg-1");
+  show = recapDisplayAfter(show, recap[1]!, intents[1]);
+  push("seg-2");
+  return paints;
+}
+
+function buildDom(corpus: Corpus): Record<string, DomPaint[]> {
+  const out: Record<string, DomPaint[]> = {};
+  for (const [key, frames] of Object.entries(corpus.random)) out[key] = paintsFromFrames(key, frames);
+  for (const key of FRAME_SCENES) {
+    const frames = corpus.directed[key];
+    if (!Array.isArray(frames)) throw new Error(`directed ${key} is not frames`);
+    out[key] = paintsFromFrames(key, frames as Frame[]);
+  }
+  out["foe-recap"] = foeRecapPaints();
+  return out;
+}
+
 describe("黄金对局", () => {
   it("同一注入种子跑两次，逐拍相同", () => {
     const a = buildCorpus();
@@ -342,6 +532,13 @@ describe("黄金对局", () => {
 
   it("对照已录基线，逐拍 diff 为空", () => {
     const next = splitCorpus(buildCorpus());
+    const replayNow = next.mechanism.directed.comboReplay as Frame[];
+    expect(replayNow.find((f) => f.tag === "replay")!.combo).toBe(1);
+    const leechNow = next.mechanism.directed.lifesteal as Frame[];
+    expect(leechNow.find((f) => f.tag === "leech")!.youHp).toBeGreaterThan(leechNow.find((f) => f.tag === "hurt")!.youHp);
+    const heldNow = next.mechanism.directed.endureCc as Frame[];
+    expect(heldNow.find((f) => f.tag === "push-stun-held")?.endure).toBe(0);
+    expect(heldNow.find((f) => f.tag === "pull-held")?.endure).toBe(0);
     if (process.env.UPDATE_GOLDEN === "1") {
       writeFileSync(MECHANISM_BASELINE, `${JSON.stringify(next.mechanism, null, 2)}\n`);
       writeFileSync(PRESENT_BASELINE, `${JSON.stringify(next.present, null, 2)}\n`);
@@ -354,8 +551,74 @@ describe("黄金对局", () => {
     expect(keys).toHaveLength(20);
     expect(keys.filter((k) => k.startsWith("climb-")).length).toBe(12);
     expect(keys.filter((k) => k.startsWith("break-")).length).toBe(8);
+    for (const school of ["palm", "saber", "spear", "sword", "staff", "hook"]) {
+      expect(keys.some((k) => k.startsWith(`climb-${school}-`))).toBe(true);
+      expect(keys.some((k) => k.startsWith(`break-${school}-`))).toBe(true);
+    }
+    const debt = next.mechanism.directed.spearDebt as Frame[];
+    expect(debt[debt.length - 1]?.wageDebt).toBe(3);
+    const locked = next.mechanism.directed.stunLock as Frame[];
+    expect(locked[0]?.youStun).toBeGreaterThan(0);
+    const hit = next.mechanism.directed.guardWager as { won: boolean; payout: number };
+    const miss = next.mechanism.directed.guardWagerMiss as { won: boolean; payout: number };
+    expect(hit.won).toBe(true);
+    expect(hit.payout).toBeGreaterThan(0);
+    expect(miss.won).toBe(false);
+    expect(miss.payout).toBe(0);
+    expect(Object.keys(next.mechanism.directed).length).toBeGreaterThanOrEqual(11);
+    const replay = next.mechanism.directed.comboReplay as Frame[];
+    expect(replay.some((f) => f.tag === "replay")).toBe(true);
+    expect(replay.find((f) => f.tag === "replay")!.combo).toBe(1);
+    const leech = next.mechanism.directed.lifesteal as Frame[];
+    const hurt = leech.find((f) => f.tag === "hurt")!;
+    const drank = leech.find((f) => f.tag === "leech")!;
+    expect(drank.youHp).toBeGreaterThan(hurt.youHp);
+    expect(drank.disarm).toBeGreaterThan(0);
+    const held = next.mechanism.directed.endureCc as Frame[];
+    expect(held.some((f) => f.tag === "push-stun-held")).toBe(true);
+    expect(held.some((f) => f.tag === "pull-held")).toBe(true);
+    const sample = next.mechanism.random[keys[0]!]![0]!;
+    expect(sample).toEqual(expect.objectContaining({
+      foeBleed: expect.any(Number),
+      youExpose: expect.any(Number),
+      foeExpose: expect.any(Number),
+      combo: expect.any(Number),
+      sword: expect.any(Number),
+      endure: expect.any(Number),
+      disarm: expect.any(Number),
+      stakes: expect.any(String),
+    }));
     const qi = next.mechanism.directed.qiCommit as Array<{ tag: string; recap: string }>;
     expect(qi.map((row) => row.tag)).toEqual(["拆中", "放生", "墨痕", "绝式"]);
     expect(qi.map((row) => row.recap)).toEqual(["刺破", "刺闪", "刺墨", "撞绝"]);
+
+    const dom = buildDom(next.mechanism);
+    if (process.env.UPDATE_GOLDEN === "1") {
+      writeFileSync(DOM_BASELINE, `${JSON.stringify(dom, null, 2)}\n`);
+    }
+    const savedDom = JSON.parse(readFileSync(DOM_BASELINE, "utf8")) as Record<string, DomPaint[]>;
+    expect(dom).toEqual(savedDom);
+    const recap = dom["foe-recap"]!;
+    expect(recap.map((p) => p.tag)).toEqual(["before", "seg-1", "seg-2"]);
+    expect(recap[0]!.youHp).toBe(17);
+    expect(recap[0]!.youBlock).toBe(3);
+    expect(recap[1]!.youHp).toBe(13);
+    expect(recap[1]!.youBlock).toBe(1);
+    expect(recap[1]!.foePos).toBe(recap[0]!.foePos);
+    expect(recap[2]!.youHp).toBe(10);
+    expect(recap[2]!.foePos).not.toBe(recap[1]!.foePos);
+    const leechPaint = dom.lifesteal!;
+    expect(leechPaint.find((p) => p.tag === "hurt")!.youHp).toBeGreaterThan(0);
+    expect(leechPaint.find((p) => p.tag === "leech")!.youHp).toBeGreaterThan(leechPaint.find((p) => p.tag === "hurt")!.youHp);
+    const palm = dom["climb-palm-1"]!;
+    expect(palm.length).toBe(next.mechanism.random["climb-palm-1"]!.length);
+    for (let i = 0; i < palm.length; i++) {
+      const frame = next.mechanism.random["climb-palm-1"]![i]!;
+      expect(palm[i]!.youHp).toBe(frame.youHp);
+      expect(palm[i]!.foeHp).toBe(frame.foeHp);
+      expect(palm[i]!.youBlock).toBe(frame.youBlock);
+      expect(palm[i]!.youPos).toBe(frame.youPos);
+      expect(palm[i]!.foePos).toBe(frame.foePos);
+    }
   }, 60_000);
 });

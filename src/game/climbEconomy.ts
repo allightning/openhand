@@ -14,9 +14,10 @@ export function labPlayCost(base: number): number {
 
 export function scaleClimbResource(
   n: number,
-  _kind: "pool" | "regen",
+  kind: "pool" | "regen",
   ctx: RunContext,
 ): number {
   if (!ctx.caps.economy.applyScale) return n;
-  return n;
+  const mul = kind === "pool" ? CLIMB_ENERGY_POOL_MUL : CLIMB_ENERGY_REGEN_MUL;
+  return n * mul;
 }

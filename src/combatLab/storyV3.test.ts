@@ -192,6 +192,7 @@ describe("江湖 v3：选择开下一拍，不预排赌馆", () => {
         castDraw: ["lvchifeng", "zhounuanxiang", "fubishan", "ananhuo", "boqing"],
       },
       goJinan,
+      () => 0,
     );
     expect(withFu.storyPlace).toBe("jinan");
     const restFu = { ...withFu, storyPending: "rest" as const };
@@ -204,6 +205,7 @@ describe("江湖 v3：选择开下一拍，不预排赌馆", () => {
         castDraw: ["lvchifeng", "zhounuanxiang", "chenchenlan", "ananhuo", "boqing"],
       },
       goJinan,
+      () => 0,
     );
     expect(noFu.storyPlace).toBe("jinan");
     const restNo = { ...noFu, storyPending: "rest" as const };
@@ -223,10 +225,10 @@ describe("江湖 v3：选择开下一拍，不预排赌馆", () => {
       seenStoryIds: [] as string[],
     };
     const medicine = rollStoryChoices(run).find((c) => c.id === "story-lv-medicine")!;
-    const afterHelp = applyStoryChoice(run, medicine);
+    const afterHelp = applyStoryChoice(run, medicine, () => 0);
     expect(afterHelp.storyPending).toBe("followup");
     const enough = rollStoryChoices(afterHelp).find((c) => c.id === "story-lvchifeng-enough")!;
-    const stayed = applyStoryChoice(afterHelp, enough);
+    const stayed = applyStoryChoice(afterHelp, enough, () => 0);
     expect(stayed.storyPlace).toBe("liangshan");
     const rest = { ...stayed, storyPending: "rest" as const };
     expect(pickPostCampBeat(rest, 2, () => 0)).toBe("story");
@@ -242,7 +244,7 @@ describe("江湖 v3：选择开下一拍，不预排赌馆", () => {
       storyPending: "choice" as const,
     };
     const mkt = rollStoryChoices(run).find((c) => c.openMarket)!;
-    const next = applyEncounterChoice(run, mkt);
+    const next = applyEncounterChoice(run, mkt, () => 0);
     expect(next.pendingOpenMarket).toBe(true);
   });
 });

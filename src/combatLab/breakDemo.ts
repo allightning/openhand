@@ -405,12 +405,6 @@ export function dismissDemoFoeDebrief(run: BreakDemoRun): BreakDemoRun {
   return { ...run, foeDebrief: null };
 }
 
-/** @deprecated 兼容旧测试：汇总本馆允许牌 */
-export function demoGuideForStage(stage: DemoStage, hasFistCompanion: boolean): Pick<BreakDemoRun, "guideCardIds" | "guideCoach"> {
-  const first = demoLessons(stage, hasFistCompanion ? DEMO_FIST_MATE : null)[0]!;
-  return { guideCardIds: first.allowCardIds.length ? first.allowCardIds : ["advance"], guideCoach: first.coach };
-}
-
 /** 新手关手牌全脚本：当前步只发允许打的牌，不随机补牌。 */
 export function demoScriptedHandIds(run: BreakDemoRun): CardId[] {
   const step = currentDemoLesson(run);

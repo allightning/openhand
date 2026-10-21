@@ -3,7 +3,7 @@ import { CARDS } from "../game/content";
 import { labV21EffectiveCost } from "../game/labV21";
 import { setLabMode } from "./labTuning";
 import { climbTestContext, breakTestContext } from "./testContext";
-import { climbCardCost, labPlayCost, scaleClimbResource } from "./climbEconomy";
+import { CLIMB_ENERGY_POOL_MUL, CLIMB_ENERGY_REGEN_MUL, climbCardCost, labPlayCost, scaleClimbResource } from "./climbEconomy";
 import { startLabBattle } from "./factory";
 import { buildGauntletPreset, createGauntletRun } from "./gauntlet";
 import { setLabRuleset } from "./labRuleset";
@@ -19,11 +19,13 @@ describe("climbEconomy", () => {
     setLabRuleset("break");
     expect(labPlayCost(1)).toBe(1);
     expect(scaleClimbResource(5, "pool", breakTestContext())).toBe(5);
+    expect(scaleClimbResource(8, "regen", breakTestContext())).toBe(8);
     setLabRuleset("climb");
     expect(climbCardCost(1)).toBe(1);
     expect(climbCardCost(2)).toBe(2);
     expect(labPlayCost(1)).toBe(1);
-    expect(scaleClimbResource(5, "pool", climbTestContext())).toBe(5);
+    expect(scaleClimbResource(5, "pool", climbTestContext())).toBe(5 * CLIMB_ENERGY_POOL_MUL);
+    expect(scaleClimbResource(8, "regen", climbTestContext())).toBe(8 * CLIMB_ENERGY_REGEN_MUL);
   });
 
   it("爬塔开战按角色档位给劲，一档刀客上限 10", () => {
