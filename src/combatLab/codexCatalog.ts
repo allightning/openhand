@@ -1,6 +1,12 @@
 import { shellRunContext } from "./shellContext";
 import { CARDS, TECHNIQUES } from "../game/content";
-import { cardWikiBody, godSkillText, pathSkillText } from "../game/cardTextV2";
+import { CARD_REGISTRY, type CardDef as ContentCardDef } from "../game/content/cards";
+import { CHARM_REGISTRY } from "../game/content/charms";
+import { ITEM_REGISTRY } from "../game/content/items";
+import { MIND_REGISTRY } from "../game/content/mindArts";
+import { TECHNIQUE_REGISTRY } from "../game/content/techniques";
+import { cardDisplayText, godSkillText, pathSkillText } from "../game/cardTextV2";
+import { LAB_ITEM_LABEL } from "../game/labV21Constants";
 import { MIND_ARTS } from "../game/mindArts";
 import { WEAPON_NAME, schoolLabel } from "../game/party";
 import { SCHOOL_ULTIMATE } from "../game/rogueCards";
@@ -58,15 +64,52 @@ function weaponRelated(weaponId: string): CodexRelated[] {
     .map((id) => ({ id, name: CARDS[id]!.name }));
 }
 
+function registryStatLine(row: ContentCardDef): string {
+  const bits = [`劲 ${row.cost}`];
+  const v = row.values;
+  if (row.kind === "attack") bits.push("攻击");
+  if (row.kind === "skill") bits.push("技能");
+  if (row.kind === "stance") bits.push("架势");
+  if (v.damage) bits.push(`牌面伤 ${v.damage}`);
+  if (v.block) bits.push(`格挡 ${v.block}`);
+  if (v.heal) bits.push(`回血 ${v.heal}`);
+  if (v.knock) bits.push(`击退 ${v.knock}`);
+  if (v.wall) bits.push(`撞壁 ${v.wall}`);
+  if (v.steps) bits.push(`位移 ${v.steps}`);
+  if (v.pullEnemy) bits.push(`拉近 ${v.pullEnemy}`);
+  if (v.bleed) bits.push(`裂创 ${v.bleed}`);
+  if (v.expose) bits.push(`破绽 ${v.expose}`);
+  if (v.thorns) bits.push(`反震 ${v.thorns}`);
+  if (v.pace) bits.push(`先机 ${v.pace > 0 ? "+" : ""}${v.pace}`);
+  if (v.energyNext) bits.push(`下回劲 ${v.energyNext}`);
+  if (v.chargeBonus) bits.push(`蓄劲 ${v.chargeBonus}`);
+  if (v.nearBonus) bits.push(`贴身+${v.nearBonus}`);
+  if (v.farBonus) bits.push(`隔步+${v.farBonus}`);
+  if (v.foeStun) bits.push(`眩晕 ${v.foeStun}`);
+  if (v.foeDisarm) bits.push(`缴械 ${v.foeDisarm}`);
+  if (v.mute) bits.push(`禁技 ${v.mute}`);
+  return bits.join(" · ");
+}
+
+function cardFace(id: CardId): string {
+  const card = CARDS[id]!;
+  const row = CARD_REGISTRY[id]!;
+  const body = cardDisplayText(card, shellRunContext());
+  const stats = registryStatLine(row);
+  if (!stats || body.includes(stats)) return body;
+  return `${body}\n数值：${stats}`;
+}
+
 export function catalogUlt(): CodexEntry[] {
   return ALL_CARD_IDS.filter((id) => isUltCard(id)).map((id) => {
     const c = CARDS[id]!;
+    const row = CARD_REGISTRY[id]!;
     return {
       kind: "ult" as const,
       id,
       name: c.name,
-      kicker: `绝 · ${schoolLabel(id)} · ${c.cost}劲`,
-      text: cardWikiBody(c, shellRunContext()),
+      kicker: `绝 · ${schoolLabel(id)} · ${row.cost}劲`,
+      text: cardFace(id),
       flavor: c.flavor,
       related: cardRelated(id),
     };
@@ -76,49 +119,70 @@ export function catalogUlt(): CodexEntry[] {
 export function catalogSkill(): CodexEntry[] {
   const cards: CodexEntry[] = ALL_CARD_IDS.filter((id) => !isUltCard(id)).map((id) => {
     const c = CARDS[id]!;
+    const row = CARD_REGISTRY[id]!;
+    const kindLabel = row.kind === "attack" ? "攻" : row.kind === "stance" ? "架势" : "技";
     return {
       kind: "skill" as const,
       id,
       name: c.name,
-      kicker: `${c.type === "attack" ? "攻" : "技"} · ${schoolLabel(id)} · ${c.cost}劲`,
-      text: cardWikiBody(c, shellRunContext()),
+      kicker: `${kindLabel} · ${schoolLabel(id)} · ${row.cost}劲`,
+      text: cardFace(id),
       flavor: c.flavor,
       related: cardRelated(id),
     };
   });
   const techs: CodexEntry[] = ALL_TECHNIQUE_IDS.map((id) => {
     const t = TECHNIQUES[id];
+    const row = TECHNIQUE_REGISTRY[id]!;
     const feed =
       id === "leftover"
         ? "投喂：携带量=档位（1/2/3 点过回合）。"
         : "投喂升档：1 档原值，2 档约 ×1.15，3 档约 ×1.30。";
+    const nums = Object.entries(row.values).map(([key, n]) => `${key} ${n}`);
     return {
       kind: "skill" as const,
       id,
       name: t.name,
       kicker: t.school ? `外功 · ${WEAPON_NAME[t.school]}` : "外功 · 通用",
-      text: `${t.text}\n${feed}`,
+      text: [row.text, feed, nums.length ? `数值：${nums.join(" · ")}` : ""].filter(Boolean).join("\n"),
       flavor: t.flavor,
       related: [],
     };
   });
   const minds: CodexEntry[] = Object.values(MIND_ARTS).map((m) => {
+    const row = MIND_REGISTRY[m.id]!;
     const nums = [
-      m.hpMax ? `气血上限 +${m.hpMax}` : "",
-      m.energyMax ? `劲力上限 +${m.energyMax}` : "",
-      m.turnHeal ? `收势回血 +${m.turnHeal}` : "",
-      m.turnEnergy ? `每回多回劲 +${m.turnEnergy}` : "",
+      row.values.hpMax ? `气血上限 +${row.values.hpMax}` : "",
+      row.values.energyMax ? `劲力上限 +${row.values.energyMax}` : "",
+      row.values.turnHeal ? `收势回血 +${row.values.turnHeal}` : "",
+      row.values.turnEnergy ? `每回多回劲 +${row.values.turnEnergy}` : "",
     ].filter(Boolean);
     return {
       kind: "skill" as const,
       id: m.id,
       name: m.name,
       kicker: m.school ? `心法 · ${WEAPON_NAME[m.school]}` : "心法 · 通用",
-      text: nums.length ? `${m.text}\n数值：${nums.join(" · ")}` : m.text,
+      text: nums.length ? `${row.text}\n数值：${nums.join(" · ")}` : row.text,
       related: [],
     };
   });
-  return [...cards, ...techs, ...minds];
+  const charms: CodexEntry[] = Object.values(CHARM_REGISTRY).map((row) => ({
+    kind: "skill" as const,
+    id: row.id,
+    name: LAB_ITEM_LABEL[row.id] ?? row.id,
+    kicker: `助战符 · ${WEAPON_NAME[row.school as keyof typeof WEAPON_NAME] ?? "通用"}`,
+    text: `数值：${Object.entries(row.values).map(([key, n]) => `${key} ${n}`).join(" · ")}\n${row.text}`,
+    related: [],
+  }));
+  const items: CodexEntry[] = Object.values(ITEM_REGISTRY).map((row) => ({
+    kind: "skill" as const,
+    id: row.id,
+    name: LAB_ITEM_LABEL[row.id] ?? row.id,
+    kicker: "道具",
+    text: `数值：${Object.entries(row.values).map(([key, n]) => `${key} ${n}`).join(" · ")}\n${row.text}`,
+    related: [],
+  }));
+  return [...cards, ...techs, ...minds, ...charms, ...items];
 }
 
 export function catalogGear(): CodexEntry[] {
