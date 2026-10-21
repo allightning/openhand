@@ -1,4 +1,7 @@
 import { artUrl } from "../art/artUrl";
+import type { WeaponId } from "../game/types";
+import { FOE_WINDUP_MS } from "./foePlayback";
+import { FX_KEY, hitKeyForSchool, sfxSlot, type SfxKey } from "./sfxMap";
 
 /**
  * 战斗音效 / BGM 管理。
@@ -6,7 +9,7 @@ import { artUrl } from "../art/artUrl";
  * 版权来源只写本注释 / handoff，局内不堆说明。曲库为仓库内委托/自制文件，非抓取流媒体。
  *
  * 铁律：同一时间只播一首「音乐」（BGM 或胜负短句）。切曲先停再播，不做双文件交叉叠播。
- * SFX 是短一次性，可与音乐并行，也可彼此叠（拟声点，不是第二首 BGM）。
+ * SFX 可与音乐并行。段与段的打击会掐掉上一声还在响的；同一段的挥空和结算留着。翻页不进这路。
  *
  * 音量 0-100 持久化到 localStorage；Audio 在 node 测试环境不存在时全部降级为 no-op。
  *
@@ -145,8 +148,6 @@ export const BGM_COMBAT_SEEK_SEC: Partial<Record<BgmId, number>> = {
 
 /** 营地/遭遇相对用户 BGM 音量的倍率（略降，让操作更清）。 */
 export const BGM_CAMP_VOL_SCALE = 0.72;
-/** @deprecated 用进战/回营分档；保留兼容旧调用。 */
-export const BGM_FADE_MS = 1000;
 /** 进入战斗：短促压上 */
 export const BGM_FADE_IN_COMBAT_MS = 1000;
 /** 出战斗回门厅/营地：轻声拉长 */
@@ -156,9 +157,6 @@ export const BGM_FADE_BETWEEN_HALL_MS = 2000;
 /** 同档再进战斗：从离开进度再跳过这么多秒，避免复读同一段 */
 export const BGM_RESUME_SKIP_SEC = 10;
 
-/** @deprecated 兼容旧测试；默认门厅 */
-export const BGM_PATH = BGM_PATHS.hall;
-
 const SFX_KEY = "openhand-lab-sfx-vol";
 const BGM_KEY = "openhand-lab-bgm-vol";
 const HALL_PICK_KEY = "openhand-lab-hall-pick";
@@ -166,18 +164,18 @@ const BGM_MODE_KEY = "openhand-lab-bgm-mode";
 const DEFAULT_SFX = 80;
 const DEFAULT_BGM = 55;
 
-/** v2 演出事件 → 音效。 */
+/** v2 演出事件 → 现行占位。键在 sfxMap.FX_KEY，这里只展开占位，听感与改表前一致。 */
 export const FX_SFX: Record<string, SfxId> = {
-  break: "clash",
-  counter: "clash",
-  wall: "clash",
-  graze: "clash",
-  hit: "clash",
-  miss: "drop",
-  skip: "drop",
-  kill: "swing",
-  burst: "swing",
-  resonance: "drop",
+  break: sfxSlot(FX_KEY.break!),
+  counter: sfxSlot(FX_KEY.counter!),
+  wall: sfxSlot(FX_KEY.wall!),
+  graze: sfxSlot(FX_KEY.graze!),
+  hit: sfxSlot(FX_KEY.hit!),
+  miss: sfxSlot(FX_KEY.miss!),
+  skip: sfxSlot(FX_KEY.skip!),
+  kill: sfxSlot(FX_KEY.kill!),
+  burst: sfxSlot(FX_KEY.burst!),
+  resonance: sfxSlot(FX_KEY.resonance!),
 };
 
 export type BgmPlayMode = "single" | "random" | "sequence";
@@ -592,48 +590,106 @@ export function setBgmVolume(v: number): void {
   if (bgm) bgm.volume = targetGain(bgmVolScale);
 }
 
+/**
+ * 拆招回声在结算后 85ms。挥空只掐掉比这更老的打击，回声不把刚响的 clash 掐掉。
+ * 下一段挥空最早在结算后 200ms，必须掐掉。
+ */
+const STRIKE_ECHO_MS = 85;
+const SWING_CUT_OLDER_THAN_MS = STRIKE_ECHO_MS + 40;
+/**
+ * 结算声掐掉更老的打击。本段挥空在前摇（420ms）时响起，要留下。
+ * 两段空结算相隔 620ms，必须掐掉。drop 有 1.62s，不掐就会盖住下一段。
+ */
+const RESOLVE_CUT_OLDER_THAN_MS = FOE_WINDUP_MS + 80;
+
+type StrikeVoice = { el: HTMLAudioElement; at: number };
+let strikeVoices: StrikeVoice[] = [];
+
+function releaseStrikeVoices(): void {
+  while (strikeVoices.length) killAudioEl(strikeVoices.pop()?.el ?? null);
+}
+
+function cutStrikesOlderThan(ms: number, now: number): void {
+  const keep: StrikeVoice[] = [];
+  for (const v of strikeVoices) {
+    const stale = now - v.at >= ms;
+    if (stale || !audioElAlive(v.el)) {
+      if (stale && audioElAlive(v.el)) killAudioEl(v.el);
+    } else {
+      keep.push(v);
+    }
+  }
+  strikeVoices = keep;
+}
+
+function trackStrike(id: SfxId, el: HTMLAudioElement, now: number): void {
+  if (id === "page") return;
+  strikeVoices.push({ el, at: now });
+}
+
+/** 还在响的打击路数。翻页不计入。 */
+export function debugStrikeVoices(): { alive: number } {
+  strikeVoices = strikeVoices.filter((v) => audioElAlive(v.el));
+  return { alive: strikeVoices.length };
+}
+
 /** 播一次音效；音量 0 或环境不支持时静默跳过。 */
 export function playSfx(id: SfxId, volScale = 1): void {
   if (!hasAudio() || getSfxVolume() <= 0) return;
+  const now = Date.now();
+  if (id === "swing") cutStrikesOlderThan(SWING_CUT_OLDER_THAN_MS, now);
+  else if (id === "clash" || id === "drop") cutStrikesOlderThan(RESOLVE_CUT_OLDER_THAN_MS, now);
   const node = new Audio(artUrl(SFX_PATH[id]));
   node.volume = Math.min(1, Math.max(0, (getSfxVolume() / 100) * volScale));
+  trackStrike(id, node, now);
   void node.play().catch(() => {
     /* 自动播放限制 */
   });
 }
 
-export function playFxSfx(fx: string | undefined): void {
+function fxKeyFor(fx: string, school?: WeaponId | null): SfxKey | undefined {
+  if (fx === "hit") return hitKeyForSchool(school);
+  return FX_KEY[fx];
+}
+
+export function playFxSfx(fx: string | undefined, school?: WeaponId | null): void {
   if (!fx) return;
-  const id = FX_SFX[fx];
-  if (id) playSfx(id);
+  const key = fxKeyFor(fx, school);
+  if (!key) return;
+  playSfx(sfxSlot(key));
 }
 
 /**
- * 敌招结算声：破/打/让/空分层。
- * weight=light：爬塔破招分量压低。
+ * 敌招结算声：破/打/让/空分层。同一段里挥空和结算可以叠；拆招满音量另有 85ms 挥空回声。
+ * 下一段的挥空或下一次空结算会掐掉还在响的上一段。
+ * weight=light：爬塔破招分量压低。school 只选命中键，六系今天都是 clash。
  */
-export function playFoeResolveSfx(kind: string, weight: "full" | "light" = "full"): void {
+export function playFoeResolveSfx(
+  kind: string,
+  weight: "full" | "light" = "full",
+  school?: WeaponId | null,
+): void {
   const soft = weight === "light" ? 0.55 : 1;
   if (kind === "break") {
-    playSfx("clash", 1 * soft);
+    playSfx(sfxSlot("clash_blade"), 1 * soft);
     if (weight === "full" && typeof window !== "undefined") {
-      window.setTimeout(() => playSfx("swing", 0.45), 85);
+      window.setTimeout(() => playSfx(sfxSlot("windup"), 0.45), 85);
     }
     return;
   }
   if (kind === "hit") {
-    playSfx("clash", 1 * soft);
+    playSfx(sfxSlot(hitKeyForSchool(school)), 1 * soft);
     return;
   }
   if (kind === "graze") {
-    playSfx("clash", 0.62 * soft);
+    playSfx(sfxSlot("graze"), 0.62 * soft);
     return;
   }
   if (kind === "miss" || kind === "skip") {
-    playSfx("drop", 0.75 * soft);
+    playSfx(sfxSlot("whiff"), 0.75 * soft);
     return;
   }
-  playFxSfx(kind);
+  playFxSfx(kind, school);
 }
 
 /** 踢馆馆序 → 曲库档：普 / 精 / Boss。 */
@@ -924,6 +980,7 @@ export function unlockAudio(): void {
 
 export function resetLabAudioForTest(): void {
   stopBgm();
+  releaseStrikeVoices();
   bgmTrack = "hall";
   bgmVolScale = 1;
   combatResume = null;

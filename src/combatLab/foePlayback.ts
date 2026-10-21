@@ -19,7 +19,7 @@ export type RecapDisplay = {
 
 export type IntentBarFate = "gone" | "grey";
 
-/** 敌招逐段播报间隔（ms） */
+/** 敌招逐段播报间隔（ms）。空段到下一段挥空最短 200ms，labAudio 按这个掐上一段打击。 */
 export const FOE_SEG_GAP_MS = 1500;
 export const FOE_SEG_GAP_EMPTY_MS = 450;
 export const FOE_WINDUP_MS = 420;
