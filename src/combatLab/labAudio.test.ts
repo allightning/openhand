@@ -38,13 +38,20 @@ import {
   debugMusicLane,
 } from "./labAudio";
 import {
+  BOARD_SFX_KEYS,
   cardPlaySfxKey,
+  climbBeatSfxKey,
+  DART_SFX_KEYS,
+  FX_KEY,
   hitKeyForSchool,
   P0_SFX_KEYS,
   P1_SFX_KEYS,
   RESERVED_SFX_KEYS,
+  riderSfxKeys,
   SFX_MAP,
+  SHELL_SFX_KEYS,
   sfxSlot,
+  STAFF_CHARGE_SFX_KEYS,
 } from "./sfxMap";
 import { FOE_WINDUP_MS } from "./foePlayback";
 
@@ -281,6 +288,49 @@ describe("labAudio", () => {
     expect(sfxSlot("qi_sever")).toBe("drop");
     expect(sfxSlot("blood_drink")).toBe("drop");
     expect(sfxSlot("disarm")).toBe("drop");
+  });
+
+  it("2026-10-23 新键都落四占位，印记与阶段拍对得上", () => {
+    const slots = ["swing", "clash", "page", "drop"];
+    const fresh = [
+      ...DART_SFX_KEYS,
+      ...STAFF_CHARGE_SFX_KEYS,
+      ...BOARD_SFX_KEYS,
+      ...SHELL_SFX_KEYS,
+    ];
+    expect(fresh).toHaveLength(17);
+    for (const key of fresh) expect(slots).toContain(SFX_MAP[key]);
+    expect(sfxSlot("dart_throw")).toBe("swing");
+    expect(sfxSlot("dart_hit")).toBe("clash");
+    expect(sfxSlot("dart_pin")).toBe("drop");
+    expect(sfxSlot("dart_switch")).toBe("page");
+    expect(sfxSlot("staff_burst")).toBe("swing");
+    expect(sfxSlot("staff_push_wall")).toBe("clash");
+    expect(sfxSlot("wall_slam")).toBe("clash");
+    expect(sfxSlot("stake_shatter")).toBe("clash");
+    expect(sfxSlot("stake_plant")).toBe("drop");
+    expect(sfxSlot("intent_gone")).toBe("page");
+    expect(FX_KEY.wall).toBe("wall_slam");
+    expect(FX_KEY.swap).toBe("swap");
+    expect(cardPlaySfxKey({ type: "skill", plant: true })).toBe("stake_plant");
+    expect(cardPlaySfxKey({ type: "skill", expose: 2 })).toBe("expose");
+    expect(cardPlaySfxKey({ type: "attack", expose: 1, plant: true })).toBe("windup");
+    expect(cardPlaySfxKey({ type: "skill", block: 2, plant: true })).toBe("ward_gain");
+    expect(riderSfxKeys({ log: ["旧"] }, { log: ["旧", "噬血 +2"] })).toEqual(["blood_drink"]);
+    expect(riderSfxKeys({ log: [] }, { log: ["裂桩爆炸"] })).toEqual(["stake_blast"]);
+    expect(riderSfxKeys({ log: [] }, { log: ["断劲 −3"] })).toEqual(["qi_sever"]);
+    expect(riderSfxKeys({ log: [], foeDisarm: 0 }, { log: ["缴手：短缴械"], foeDisarm: 1 })).toEqual([
+      "disarm",
+    ]);
+    expect(riderSfxKeys({ log: ["破绽 2"] }, { log: ["破绽 2", "命中"] })).toEqual([]);
+    expect(climbBeatSfxKey("bleed", "裂创")).toBe("bleed_tick");
+    expect(climbBeatSfxKey("draw", "摸 3 张")).toBe("draw_card");
+    expect(climbBeatSfxKey("drawBench", "后场摸 2")).toBe("draw_card");
+    expect(climbBeatSfxKey("wage", "断劲挂账")).toBe("qi_sever");
+    expect(climbBeatSfxKey("wage", "敌回劲")).toBeNull();
+    expect(climbBeatSfxKey("endure", "霸体 −1")).toBeNull();
+    expect(climbBeatSfxKey("regen", "回劲")).toBeNull();
+    expect(climbBeatSfxKey("intents", "亮招")).toBeNull();
   });
 
   it("门厅曲单：默认首曲 hall，上下曲循环并持久化", () => {

@@ -124,7 +124,7 @@ export const STATUS_ENTRIES: StatusEntry[] = [
     id: "spearcut",
     name: "断劲",
     side: "you",
-    text: "枪副。同手两枪都在 3–4 格，立刻扣敌劲 3。扣不动的挂下次回劲。不转血。与「扣劲」（回劲变慢）不是同一件事。",
+    text: "枪副。同手两枪都在 3–4 格，立刻扣敌劲 3。扣不动的挂下次回劲。不转血。扣劲是回劲变慢，另计。",
   },
   {
     id: "stake",
@@ -132,7 +132,7 @@ export const STATUS_ENTRIES: StatusEntry[] = [
     side: "both",
     text: "棍核。爬塔场上最多 2 根。不能放敌人身后那一格。敌撞裂你的桩→你格挡 +4；你打出裂桩拆掉桩→爆炸双方各 4 伤并晕敌 1 段。",
   },
-  { id: "mark", name: "点穴", side: "foe", text: "印记。开缝等招吃印；与破绽不是同一件事。" },
+  { id: "mark", name: "点穴", side: "foe", text: "印记。开缝等招吃印。破绽另计。" },
   { id: "frail", name: "滞手", side: "foe", text: "他打你时少 3 点。每回减 1 层。" },
   {
     id: "stun",
@@ -172,7 +172,7 @@ export const STATUS_ENTRIES: StatusEntry[] = [
     id: "qiburn",
     name: "扣劲",
     side: "both",
-    text: "回劲被克扣。与枪副「断劲」（立刻扣当前劲 / 挂下次回劲）不是同一件事。",
+    text: "回劲被克扣。断劲是立刻扣当前劲，或挂下次回劲。",
   },
   {
     id: "hand",

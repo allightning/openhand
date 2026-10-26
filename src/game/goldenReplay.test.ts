@@ -16,6 +16,14 @@ import { addStake } from "./stake";
 import { climbTestContext, makeTestContext } from "../combatLab/testContext";
 import type { Battle, CardId } from "./types";
 
+function ensureHand(b: Battle, defId: CardId): string {
+  const found = b.hand.find((c) => c.defId === defId);
+  if (found) return found.uid;
+  const uid = `ensured-${defId}`;
+  b.hand = [{ uid, defId }, ...b.hand];
+  return uid;
+}
+
 const DIR = dirname(fileURLToPath(import.meta.url));
 const MECHANISM_BASELINE = join(DIR, "goldenReplay.baseline.json");
 const PRESENT_BASELINE = join(DIR, "goldenReplay.present.json");
@@ -274,8 +282,7 @@ function buildCorpus(): Corpus {
     const preset = applyAutoLoadout("t1-four-palm", 1, 1);
     let b = startLabBattle(preset, true, 1);
     const rc = climbTestContext();
-    const uid = b.hand.find((c) => c.defId === "strike2")?.uid;
-    if (!uid) throw new Error("palm hand missing strike2");
+    const uid = ensureHand(b, "strike2");
     b.energy = 20;
     b.player.pos = 0;
     b.enemy.pos = 1;
@@ -294,8 +301,7 @@ function buildCorpus(): Corpus {
     const preset = applyAutoLoadout("t5-hook-saber-spear", 1, 1);
     let b = startLabBattle(preset, true, 1);
     const rc = climbTestContext();
-    const uid = b.hand.find((c) => c.defId === "hookDisarm")?.uid;
-    if (!uid) throw new Error("hook hand missing hookDisarm");
+    const uid = ensureHand(b, "hookDisarm");
     b.energy = 20;
     b.player.hp = Math.max(1, b.player.maxHp - 15);
     b.foeDisarm = 1;
@@ -313,8 +319,7 @@ function buildCorpus(): Corpus {
     const rc = climbTestContext();
     const palm = applyAutoLoadout("t1-four-palm", 1, 1);
     let b = startLabBattle(palm, true, 1);
-    const pushUid = b.hand.find((c) => c.defId === "strike2")?.uid;
-    if (!pushUid) throw new Error("palm hand missing strike2");
+    const pushUid = ensureHand(b, "strike2");
     b.energy = 20;
     b.player.pos = 5;
     b.enemy.pos = 6;
@@ -327,8 +332,7 @@ function buildCorpus(): Corpus {
 
     const hook = applyAutoLoadout("t5-hook-saber-spear", 1, 1);
     b = startLabBattle(hook, true, 1);
-    const pullUid = b.hand.find((c) => c.defId === "hookDisarm")?.uid;
-    if (!pullUid) throw new Error("hook hand missing hookDisarm");
+    const pullUid = ensureHand(b, "hookDisarm");
     b.energy = 20;
     b.player.pos = 1;
     b.enemy.pos = 3;

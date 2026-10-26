@@ -11,6 +11,7 @@ import {
 } from "./labV25Constants";
 import type { Battle, CardId, WeaponId } from "./types";
 import { cardSchool } from "./party";
+import { boardLen } from "./board";
 import { addStake } from "./stake";
 import { addQi } from "./labV2";
 
@@ -147,15 +148,14 @@ export function initResonanceBattle(b: Battle, rc: RunContext): void {
   const staffFx = tierFx("staff", schoolTier(b, "staff", rc));
   if (staffFx?.startBlock) b.playerBlock += staffFx.startBlock;
   if (staffFx?.startStake) {
-    const spot = Math.min(BOARD_SIZE - 2, Math.max(0, b.player.pos + 1));
-    if (!b.stakes.includes(spot) && spot < BOARD_SIZE - 1) addStake(b, spot, 2, rc);
+    const n = boardLen(b);
+    const spot = Math.min(n - 2, Math.max(0, b.player.pos + 1));
+    if (!b.stakes.includes(spot) && spot < n - 1) addStake(b, spot, 2, rc);
   }
   b.v2PartyComposition = res.composition;
   b.v2ResonanceTierMax = Math.max(0, ...res.schools.map((s) => s.tier));
   if (res.hundredFlowers) b.v2HundredFlowers = true;
 }
-
-const BOARD_SIZE = 7;
 
 export function resonanceStrikeBonus(
   b: Battle,

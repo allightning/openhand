@@ -75,6 +75,8 @@ describe("江湖三整段 / 旗标换页", () => {
         .map((s) => s.trim())
         .filter(Boolean);
       expect(parts.filter((s) => s.length < 16), id).toEqual([]);
+      expect(parts.length).toBeGreaterThanOrEqual(6);
+      expect(parts.length).toBeLessThanOrEqual(10);
     }
   });
 

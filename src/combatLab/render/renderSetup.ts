@@ -7,7 +7,11 @@ import { renderBreakIntro } from "../breakOnboard";
 import { renderDemoShell } from "../breakDemoUi";
 import { renderHallCleared, renderHallRetry, renderTrainingHallCatalog } from "../trainingHallUi";
 import { renderCampaignCleared, renderCampaignRetry } from "../breakCampaignUi";
-import { renderGauntletCompanionPick, renderGauntletBanker, renderGauntletLifeline, renderGauntletLoadout, renderGauntletHome, renderGauntletOverlay, renderGauntletResult, renderGauntletRewardPick, renderGauntletRewardTarget, renderGauntletPathPick, renderGauntletSchoolPick, renderGauntletWager, renderGauntletEvent, renderGauntletOpening, renderGauntletFinale, renderGauntletScar, renderGauntletSettle } from "../gauntletUi";
+import { renderGauntletCompanionPick, renderGauntletBanker, renderGauntletLifeline, renderGauntletOverlay, renderGauntletResult, renderGauntletRewardPick, renderGauntletRewardTarget, renderGauntletPathPick, renderGauntletSchoolPick, renderGauntletWager, renderGauntletEvent, renderGauntletOpening, renderGauntletFinale, renderGauntletScar, renderGauntletSettle } from "../gauntletUi";
+import { renderShellDeath } from "./shellDeath";
+import { renderShellEvent } from "./shellEvent";
+import { paintShellHall, renderShellPath } from "./shellHall";
+import { paintShellLoadout } from "./shellLoadout";
 
 function renderSetup(): string {
   api.syncDraft();
@@ -44,7 +48,7 @@ function renderSetup(): string {
     return `${api.renderHeader()}${renderGauntletOverlay(S.demoScreen, renderDemoShell(S.demoScreen, S.breakDemoRun, S.demoMarketBought))}`;
   }
   if (S.gauntletScreen === "path") {
-    return `${api.renderHeader()}${api.paintGauntletOverlay("path", renderGauntletPathPick(S.gauntletWantEndless, S.gauntletRun ?? undefined))}`;
+    return `${api.renderHeader()}${api.paintGauntletOverlay("path", renderShellPath(renderGauntletPathPick(S.gauntletWantEndless, S.gauntletRun ?? undefined)))}`;
   }
   if (S.gauntletScreen === "pick") {
     return `${api.renderHeader()}${api.paintGauntletOverlay("pick", renderGauntletSchoolPick(S.gauntletPath ?? "bandit", S.gauntletError))}`;
@@ -56,7 +60,7 @@ function renderSetup(): string {
     return `${api.renderHeader()}${api.paintGauntletOverlay("opening", renderGauntletOpening(S.gauntletRun))}`;
   }
   if (S.gauntletScreen === "event" && S.gauntletRun && S.gauntletEventKind) {
-    return `${api.renderHeader()}${api.paintGauntletOverlay("event", renderGauntletEvent(S.gauntletRun, S.gauntletEventKind, S.gauntletEventChoices))}`;
+    return `${api.renderHeader()}${api.paintGauntletOverlay("event", renderShellEvent(renderGauntletEvent(S.gauntletRun, S.gauntletEventKind, S.gauntletEventChoices)))}`;
   }
   if (S.gauntletScreen === "finale" && S.gauntletRun) {
     return `${api.renderHeader()}${api.paintGauntletOverlay("finale", renderGauntletFinale(S.gauntletRun))}`;
@@ -71,13 +75,13 @@ function renderSetup(): string {
     return `${api.renderHeader()}${api.paintGauntletOverlay("reward", renderGauntletRewardPick(S.gauntletRun, S.gauntletRewards, S.gauntletMarket, S.gauntletMarketBought, S.gauntletRewardTakes, S.gauntletMarketRefreshN, S.gauntletRewardsAreSuper))}`;
   }
   if (S.gauntletScreen === "loadout" && S.gauntletRun) {
-    return `${api.renderHeader()}${api.paintGauntletOverlay("loadout", renderGauntletLoadout(S.gauntletRun, S.loadoutFocusMate ?? undefined, S.loadoutPage, S.loadoutPick))}`;
+    return `${api.renderHeader()}${api.paintGauntletOverlay("loadout", paintShellLoadout(S.gauntletRun, S.loadoutFocusMate ?? undefined, S.loadoutPage, S.loadoutPick))}`;
   }
   if (S.gauntletScreen === "banker" && S.gauntletRun) {
     return `${api.renderHeader()}${api.paintGauntletOverlay("banker", renderGauntletBanker())}`;
   }
   if (S.gauntletScreen === "lifeline" && S.gauntletRun) {
-    return `${api.renderHeader()}${api.paintGauntletOverlay("lifeline", renderGauntletLifeline(S.gauntletRun))}`;
+    return `${api.renderHeader()}${api.paintGauntletOverlay("lifeline", renderShellDeath(renderGauntletLifeline(S.gauntletRun), "lifeline", true))}`;
   }
   if (S.gauntletScreen === "wager" && S.gauntletRun) {
     return `${api.renderHeader()}${api.paintGauntletOverlay("wager", renderGauntletWager(S.gauntletRun, S.wagerOffersCache, S.wagerKind, S.wagerStake))}`;
@@ -92,8 +96,8 @@ function renderSetup(): string {
       ? S.gauntletResultNote ||
         (S.gauntletRun.bankruptUsed ? "本局已用过赊账" : S.gauntletRun.pot < reviveCost(S.gauntletRun.stage) ? "彩金不足破产线" : "")
       : S.gauntletResultNote;
-    return `${api.renderHeader()}${api.paintGauntletOverlay("result", renderGauntletResult(S.gauntletRun, elapsed, note))}`;
+    return `${api.renderHeader()}${api.paintGauntletOverlay("result", renderShellDeath(renderGauntletResult(S.gauntletRun, elapsed, note), "result", S.gauntletEndedByLoss))}`;
   }
-  return `${api.renderHeader()}${renderGauntletOverlay("intro", renderGauntletHome("", peekClimbContinue()), `/${HOME_BG}`)}`;
+  return `${api.renderHeader()}${renderGauntletOverlay("intro", paintShellHall(peekClimbContinue()), `/${HOME_BG}`)}`;
 }
 api.renderSetup = renderSetup;

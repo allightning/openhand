@@ -1,6 +1,14 @@
 import type { MindArtId } from "./mindArts";
 
+/** 缺省板长：登门，以及没写 boardSize 的旧对局。 */
 export const BOARD_SIZE = 7;
+/** 行路板长。恒为奇数，有中格。 */
+export const CLIMB_BOARD_SIZE = 9;
+
+/** 行路墙在哪一侧。none = 两端出界都停边格、不扣血。 */
+export type WallSide = "high" | "low" | "none";
+/** 结算读的墙。both = 登门两端；high / low = 格后单墙；none = 无墙场。 */
+export type WallEnds = "high" | "low" | "both" | "none";
 export const WALL_DAMAGE = 8;
 export const HAND_SIZE = 5;
 export const BASE_HP = 28;
@@ -505,6 +513,12 @@ export interface Battle {
   enemy: Unit;
   foes: Unit[];
   enemyId: EnemyId;
+  /** 本局格数。缺省 BOARD_SIZE。结算只读这个，不读 mode。 */
+  boardSize?: number;
+  /** 哪一侧出界算撞墙。缺省 both。 */
+  wallEnds?: WallEnds;
+  /** 行路开局间距（玩家在 0，敌在这一格）。缺省不盖章，盖章后上限 5。 */
+  openingDist?: number;
   playerBlock: number;
   energy: number;
   energyMax: number;
@@ -914,6 +928,13 @@ export interface Run {
   weapons: string[];
   /** Tea-house stake on next duel ending within maxTurn player turns. */
   teaBet?: { stake: number; maxTurn: number } | null;
+  /**
+   * 行路开局间距。缺省 5，上限 5。玩家留在低侧，不掷左右。
+   * 关卡表不在这里接。
+   */
+  openingDist?: number;
+  /** 行路墙侧。缺省 high。none 是无墙场的结算底座。 */
+  wallSide?: WallSide;
   /** Boss-count watermark when last bounty was armed. */
   bountyAt?: number;
   /** Must finish bounty target before beaten.length exceeds this. */

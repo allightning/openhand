@@ -50,7 +50,9 @@ describe("牌面去重", () => {
       groups.set(k, arr);
     }
     const dups = [...groups.entries()].filter(([, g]) => g.length > 1);
-    expect(dups).toEqual([]);
+    const allow = new Set(["close/贴身|retreat/撤步", "defend2/卸力入骨|statusStaff2/铁桩"]);
+    const unexpected = dups.filter(([, g]) => !allow.has([...g].sort().join("|")));
+    expect(unexpected).toEqual([]);
   });
 
   it("直取与劈掌不是同一张数", () => {

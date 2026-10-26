@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { isBossEnemy, isEliteEnemy } from "./labEnemyStress";
 import { ALL_MIND_ART_IDS } from "./mindArts";
-import { auraCardId, ROGUE_SCHOOLS, wardCardId } from "./rogueCards";
+import { auraCardId, breakStarterDeck, ROGUE_SCHOOLS, wardCardId } from "./rogueCards";
 import { CARDS, ENEMIES, HEARTS, TECHNIQUES } from "./content";
 import { CARDS as LEGACY_CARDS } from "./content/legacy";
 import { CARD_HOLDS, CARD_REGISTRY, cardProblems, type CardDef } from "./content/cards";
@@ -11,8 +11,20 @@ import { ITEM_HOLDS, ITEM_REGISTRY } from "./content/items";
 import { HEART_HOLDS, HEART_REGISTRY, MIND_HOLDS, MIND_REGISTRY } from "./content/mindArts";
 import { TECHNIQUE_HOLDS, TECHNIQUE_REGISTRY } from "./content/techniques";
 import { CARD_KINDS } from "./content/hooks";
+import { bondSchoolOf } from "./content/cards/rarity";
+import { CROSS_HOLD, CROSS_MOVE, DELETED_IDS, RECOST, RETAG, TARGET_SCHOOL } from "./content/cards/rectify";
 
-const NAMED_HOLDS = ["backpalm", "weave", "retreat", "cauterize", "peonyBrew", "lateWard", "close", "plant"];
+const FORMER_HOLDS = [
+  ...ROGUE_SCHOOLS.flatMap((school) => [wardCardId(school), auraCardId(school)]),
+  "backpalm",
+  "weave",
+  "retreat",
+  "cauterize",
+  "peonyBrew",
+  "lateWard",
+  "close",
+  "plant",
+];
 
 function hold(id: string) {
   const found = CARD_HOLDS.find((item) => item.row.id === id);
@@ -37,21 +49,25 @@ describe("内容注册表", () => {
     for (const item of CARD_HOLDS) expect(item.problems).toEqual(cardProblems(item.row));
   });
 
-  it("0 费、格挡越帽、牌面无数字不准入", () => {
+  it("开工 20 张合同红的去向", () => {
+    expect(FORMER_HOLDS).toHaveLength(20);
     const held = new Set(CARD_HOLDS.map((item) => item.row.id));
+    const deleted = ["weave", "cauterize", "peonyBrew"];
+    for (const id of deleted) expect(CARD_REGISTRY[id]).toBeUndefined();
     for (const school of ROGUE_SCHOOLS) {
-      expect(held.has(wardCardId(school))).toBe(true);
-      expect(held.has(auraCardId(school))).toBe(true);
-      expect(hold(wardCardId(school)).problems).toContain("cost");
-      expect(hold(auraCardId(school)).row.effectHooks).toContain("aura");
-      expect(hold(wardCardId(school)).row.effectHooks).toContain("ward");
+      expect(held.has(wardCardId(school))).toBe(false);
+      expect(CARD_REGISTRY[wardCardId(school)]?.cost).toBe(1);
+      expect(CARD_REGISTRY[wardCardId(school)]?.effectHooks).toContain("ward");
+      expect(held.has(auraCardId(school))).toBe(false);
+      expect(CARD_REGISTRY[auraCardId(school)]?.cost).toBe(2);
+      expect(CARD_REGISTRY[auraCardId(school)]?.effectHooks).toContain("aura");
     }
-    for (const id of NAMED_HOLDS) expect(held.has(id)).toBe(true);
+    expect(held.has("backpalm")).toBe(false);
+    expect(held.has("retreat")).toBe(false);
+    expect(held.has("close")).toBe(false);
+    expect(held.has("plant")).toBe(false);
     expect(hold("lateWard").problems).toContain("value:block");
-    expect(hold("close").problems).toEqual(["text"]);
-    expect(hold("plant").problems).toEqual(["text"]);
-    expect(hold("retreat").problems).toContain("cost");
-    expect(CARD_HOLDS).toHaveLength(ROGUE_SCHOOLS.length * 2 + NAMED_HOLDS.length);
+    expect(CARD_HOLDS.map((item) => item.row.id).sort()).toEqual(["lateWard", "ultSaber", "ultSword"]);
   });
 
   it("现行牌的 kind 只有攻和技，七类落在钩子上", () => {
@@ -67,6 +83,7 @@ describe("内容注册表", () => {
       effectHooks: ["damage"],
       values: { damage: 5 },
       text: "造成 5 点伤害。",
+      rarity: "common",
     });
     expect(CARD_REGISTRY.sidestep?.effectHooks).toContain("swap");
     expect(CARD_REGISTRY.ultPalm?.effectHooks).toContain("ultimate");
@@ -183,5 +200,69 @@ describe("内容注册表", () => {
       new Set(Object.keys(CARDS)),
       ["nope"],
     )).toEqual(["remnant:nope", "sig:nope", "card:nope"]);
+  });
+});
+
+describe("卡池 2.0", () => {
+  const rows = Object.values(CARD_REGISTRY);
+
+  it("131 张，各系对上整改表", () => {
+    expect(rows).toHaveLength(131);
+    expect(Object.keys(CARDS)).toHaveLength(131);
+    const tally: Record<string, number> = {};
+    for (const row of rows) tally[row.school] = (tally[row.school] ?? 0) + 1;
+    expect(tally).toEqual(TARGET_SCHOOL);
+  });
+
+  it("凡 44 / 精 58 / 绝 14，连携 15 不进分布", () => {
+    const dist = { common: 0, adept: 0, supreme: 0, fuse: 0 };
+    for (const row of rows) {
+      if (row.id.startsWith("fuse")) {
+        expect(row.rarity).toBeUndefined();
+        dist.fuse++;
+        continue;
+      }
+      expect(row.rarity, row.id).toBeTruthy();
+      dist[row.rarity!]++;
+    }
+    expect(dist).toEqual({ common: 44, adept: 58, supreme: 14, fuse: 15 });
+  });
+
+  it("删牌不在表里，改挂和调价落在牌上", () => {
+    for (const id of DELETED_IDS) {
+      expect(CARDS[id]).toBeUndefined();
+      expect(CARD_REGISTRY[id]).toBeUndefined();
+    }
+    for (const [id, school] of Object.entries(RETAG)) expect(CARD_REGISTRY[id]?.school).toBe(school);
+    for (const [id, school] of Object.entries(CROSS_MOVE)) expect(CARD_REGISTRY[id]?.school).toBe(school);
+    expect(CARD_REGISTRY.ultSaber?.school).toBe("saber");
+    expect(CARD_REGISTRY.ultSword?.school).toBe("sword");
+    for (const [id, cost] of Object.entries(RECOST)) expect(CARD_REGISTRY[id]?.cost).toBe(cost);
+    expect(rows.every((row) => row.cost >= 1)).toBe(true);
+    for (const row of rows) expect(row.text, row.id).toMatch(/[0-9]/);
+  });
+
+  it("连携 bondSchool 全覆盖，换人结算不读这个字段", () => {
+    const fused = rows.filter((row) => row.id.startsWith("fuse"));
+    expect(fused).toHaveLength(15);
+    for (const row of fused) expect(row.bondSchool).toBe(bondSchoolOf(row.id));
+    expect(rows.filter((row) => row.bondSchool && !row.id.startsWith("fuse"))).toEqual([]);
+    for (const [id, note] of Object.entries(CROSS_HOLD)) {
+      expect(hold(id).problems).toContain(note);
+    }
+  });
+
+  it("起手五系劈掌，钩用换位", () => {
+    for (const school of ROGUE_SCHOOLS) {
+      const deck = breakStarterDeck(school);
+      expect(deck).toContain("strike");
+      expect(deck).not.toContain("direct");
+      if (school === "hook") {
+        expect(deck).toContain("sidestep");
+        expect(deck).not.toContain("push");
+      } else {
+        expect(deck).toContain("advance");
+      }
+    }
   });
 });

@@ -78,9 +78,9 @@ export const DEMO_STARTER_DECK: CardId[] = [
   "defend",
   "defend",
   "brace",
-  "rift",
+  "drawcut",
   "charge",
-  "sweep",
+  "haste",
   "saberBleed",
 ];
 
@@ -173,10 +173,10 @@ export function demoLessons(stage: DemoStage, companion: CompanionId | null, tra
   }
   if (stage === 4) {
     return [
-      play(["rift"], "破架", "他亮了架势。架势走不开也挡不住。打「开缝」（1 劲）攒破架。"),
-      end("拆架", "点「收势」。破架拆他的格挡，你得拆势。角标「将破」才是硬拆。", {
-        title: "招不同，拆法不同",
-        body: "打击靠走出红格拆。架势靠破架牌拆。看角标：「将破」才是硬拆。",
+      play(["drawcut"], "补刀", "他亮了架势。打「抽刀」（1 劲）。相邻打 8，叠 1 裂创。"),
+      end("收势", "点「收势」。这一刀的伤和裂创已经落在他身上。", {
+        title: "架势还在",
+        body: "开缝已归剑。这一关用抽刀补伤。架势要破绽牌才拆得动。",
       }),
     play(["cut"], "收官", "人没动。打「斩」（2 劲）。"),
     end("收势结束", "点「收势」。"),
@@ -560,7 +560,7 @@ export function demoRewardOptions(stage: DemoStage): { id: CardId; title: string
   }
   if (stage === 4) {
     return [
-      { id: "rift", title: "开缝", tip: "破架" },
+      { id: "drawcut", title: "抽刀", tip: "贴身刀攻" },
       { id: "advance", title: "进步", tip: "位移充能" },
       { id: "cut", title: "斩", tip: "刀攻" },
     ];
@@ -575,7 +575,7 @@ export function demoRewardOptions(stage: DemoStage): { id: CardId; title: string
   return [
     { id: "cut", title: "斩", tip: "刀攻" },
     { id: "retreat", title: "撤步", tip: "离开红格" },
-    { id: "rift", title: "开缝", tip: "破架" },
+    { id: "drawcut", title: "抽刀", tip: "贴身刀攻" },
   ];
 }
 

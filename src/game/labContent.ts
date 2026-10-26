@@ -8,11 +8,9 @@ import { GEAR_WEAPONS, type GearWeapon } from "./weapons";
 /** 爬塔牌面：经典资源改写成势/格挡，读招仍用 content.ts 原文。 */
 const CLIMB_CARD_FACE: Partial<Record<CardId, Partial<CardDef>>> = {
   gather: { name: "聚势", text: "势 +1。抽 1。" },
-  gather2: { name: "聚势入骨", text: "势 +2。抽 1。" },
   setup: { name: "铺势", text: "下回势 +1。抽 1。" },
   finisher: { name: "收势掌", text: "打 4，耗尽当前势爆发。" },
   finisher2: { name: "收势开山", text: "打 6，耗尽当前势爆发。" },
-  weave: { name: "搓手", text: "格挡 6。本回合下一张牌耗劲 -1。" },
 };
 
 function merge<T extends object>(base: T, patch: Partial<T> | undefined): T {

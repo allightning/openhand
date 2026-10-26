@@ -1,5 +1,5 @@
 import { escapeHtml } from "./setupUi";
-import type { GauntletPath } from "./gauntletPaths";
+import { ENV_TAG_LABEL, type EnvTag, type GauntletPath } from "./gauntletPaths";
 
 export interface ClimbPlace {
   id: string;
@@ -9,6 +9,8 @@ export interface ClimbPlace {
   rest: string;
   blurb: string;
   restBg: string;
+  /** 这一落脚自带的词条。缺省表示不挂。出现概率见 gauntletPaths.ENV_TAG_APPEAR。 */
+  envTag?: EnvTag;
 }
 
 const BANDIT_PLACES: ClimbPlace[] = [
@@ -80,14 +82,24 @@ export interface RouteLogEntry {
   placeName: string;
   rest: string;
   note?: string;
+  /** 这一程选项带进下一场的词条。结算不在这里。 */
+  envTag?: EnvTag;
 }
 
 export function upsertRouteLog(log: RouteLogEntry[] | undefined, entry: RouteLogEntry): RouteLogEntry[] {
   const next = [...(log ?? [])];
   const i = next.findIndex((e) => e.stage === entry.stage && e.placeId === entry.placeId);
-  if (i >= 0) next[i] = { ...next[i]!, ...entry, note: entry.note ?? next[i]!.note };
+  if (i >= 0) next[i] = { ...next[i]!, ...entry, note: entry.note ?? next[i]!.note, envTag: entry.envTag ?? next[i]!.envTag };
   else next.push(entry);
   return next.sort((a, b) => a.stage - b.stage);
+}
+
+/** 把词条名写进路程条目。不改伤、不改概率。 */
+export function routeEntryWithEnv(entry: RouteLogEntry, tag?: EnvTag): RouteLogEntry {
+  if (!tag) return entry;
+  const label = ENV_TAG_LABEL[tag];
+  const note = entry.note?.includes(label) ? entry.note : [entry.note, label].filter(Boolean).join(" · ");
+  return { ...entry, envTag: tag, note };
 }
 
 export function renderRouteBook(log: RouteLogEntry[], pathLabel: string): string {
@@ -95,10 +107,12 @@ export function renderRouteBook(log: RouteLogEntry[], pathLabel: string): string
     log.length === 0
       ? `<li>尚无落脚。开程之后才有路。</li>`
       : log
-          .map(
-            (e) =>
-              `<li><b>${escapeHtml(e.placeName)}</b><span>${escapeHtml(e.rest)}${e.note ? ` · ${escapeHtml(e.note)}` : ""}</span></li>`,
-          )
+          .map((e) => {
+            const tagLabel = e.envTag ? ENV_TAG_LABEL[e.envTag] : "";
+            const note =
+              e.note && tagLabel && e.note.includes(tagLabel) ? e.note : [tagLabel, e.note].filter(Boolean).join(" · ");
+            return `<li><b>${escapeHtml(e.placeName)}</b><span>${escapeHtml(e.rest)}${note ? ` · ${escapeHtml(note)}` : ""}</span></li>`;
+          })
           .join("");
   return `
     <div class="lab-overlay lab-pile-mask" id="route-book-mask">

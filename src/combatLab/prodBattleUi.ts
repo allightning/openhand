@@ -20,12 +20,13 @@ import { MATES, MATE_PASSIVE, WEAPON_NAME, schoolLabel } from "../game/party";
 import { dangerCells, livingFoes, statusChips, yourPace, isComboUnlockCard, climbCardLocked } from "../game/sim";
 import { shellRunContext } from "./shellContext";
 import { battleTechRank } from "../game/techRank";
-import { BOARD_SIZE, type Battle, type EnemyId, type Preview } from "../game/types";
+import { type Battle, type EnemyId, type Preview } from "../game/types";
 import { gearById, starterGear } from "../game/weapons";
 import { escapeHtml } from "./setupUi";
 import { techniqueTip } from "./breakAlign";
 import { isHighStake, stakeHitsAt } from "../game/stake";
 import { renderFxLayer, renderGrudgeBadge, renderFoeIntentStrip, threatCellsForHover } from "./labV2Ui";
+import { boardLayout, cellIsWall, outsideWallSide, type BoardLayout } from "./render/boardLayout";
 
 function escapeAttr(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
@@ -88,16 +89,28 @@ function qiBar(current: number, max: number, regen?: number): string {
   return `<div class="bar qi"><i style="width:${pct}%"></i><span class="bar-read">${current}/${max}${extra}</span></div>`;
 }
 
+/** 一列放得下的 chip。多出来的收成「还有」，名字留在隐藏串里。 */
+export const STATUS_CHIP_VISIBLE = 6;
+
+export function foldStatusChips<T>(chips: T[], visible = STATUS_CHIP_VISIBLE): { shown: T[]; rest: T[] } {
+  if (chips.length <= visible) return { shown: chips, rest: [] };
+  return { shown: chips.slice(0, visible), rest: chips.slice(visible) };
+}
+
 function renderStatusCol(b: Battle, side: "you" | "foe"): string {
   const chips = statusChips(b, side, shellRunContext()).filter((c) => !c.key.startsWith("mind-") && !c.name.includes("心法"));
-  if (!chips.length) return `<div class="status-col ${side}-status empty" aria-hidden="true"></div>`;
-  const rows = chips
+  if (!chips.length) return `<div class="status-col ${side}-status empty" data-overlap-group="chips" aria-hidden="true"></div>`;
+  const { shown, rest } = foldStatusChips(chips);
+  const rows = shown
     .map(
       (c) =>
         `<div class="status-chip" data-tip="${escapeAttr(c.tip)}"><b>${c.name}</b><em>${c.value}</em><span class="status-tip">${escapeHtml(c.tip)}</span></div>`,
     )
     .join("");
-  return `<div class="status-col ${side}-status" style="gap:0.08rem;min-width:4.8rem">${rows}</div>`;
+  const more = rest.length
+    ? `<div class="status-chip status-chip-more" data-tip="${escapeAttr(rest.map((c) => `${c.name} ${c.value}`).join(" · "))}"><b>还有</b><em>${rest.length}</em></div><span class="status-chip-rest" hidden>${escapeHtml(rest.map((c) => `${c.name} ${c.value}`).join(" · "))}</span>`
+    : "";
+  return `<div class="status-col ${side}-status" data-overlap-group="chips">${rows}${more}</div>`;
 }
 
 function typeLabel(type: string): string {
@@ -116,6 +129,15 @@ function foeSideTip(b: Battle, foeHp: number, foeMax: number): string {
   return `${def.name} · ${def.title} · 气血 ${foeHp}/${foeMax} · 敌劲 ${b.enemyEnergy}/${b.enemyEnergyMax} · ${WEAPON_NAME[ENEMY_WEAPON[b.enemyId]]}`;
 }
 
+function boardMode(): "climb" | "break" {
+  return shellRunContext().ruleset.mode === "break" ? "break" : "climb";
+}
+
+function wallMark(layout: BoardLayout): string {
+  const broken = layout.env === "nowall" ? " is-broken" : "";
+  return `<div class="board-wall${broken}" data-wall-side="${outsideWallSide(layout) ?? "high"}" aria-hidden="true"><span class="wall-label">壁</span></div>`;
+}
+
 export function renderProdBoard(
   b: Battle,
   prev: Preview | null,
@@ -127,41 +149,46 @@ export function renderProdBoard(
     slashTick?: number;
   },
 ): string {
+  const layout = boardLayout(b, boardMode());
   const danger = dangerCells(b, shellRunContext());
-  // §31.10 兵刃威胁圈：敌当前位置 ±reach 的格常亮淡红——「退一步是否还挨刀」一眼可查。
   const reach = ENEMIES[b.enemyId]?.reach ?? 1;
   const reachCells: number[] = [];
   for (const f of livingFoes(b)) {
     for (let d = 1; d <= reach; d++) {
       if (f.pos - d >= 0) reachCells.push(f.pos - d);
-      if (f.pos + d < BOARD_SIZE) reachCells.push(f.pos + d);
+      if (f.pos + d < layout.size) reachCells.push(f.pos + d);
     }
   }
   const summon = isLabV2() ? b.labSummon : null;
-  return Array.from({ length: BOARD_SIZE }, (_, i) => {
+  const gaps = new Set(layout.gapCells);
+  const cells = Array.from({ length: layout.size }, (_, i) => {
+    const gap = gaps.has(i);
     const isPlayer = b.player.hp > 0 && b.player.pos === i;
     const isEnemy = livingFoes(b).some((f) => f.pos === i);
     const isSummon = Boolean(summon && summon.hp > 0 && summon.pos === i);
-    const ghostEnemy = Boolean(prev && prev.enemyPos === i && prev.enemyPos !== b.enemy.pos);
-    const ghostYou = Boolean(prev && prev.playerPos === i && prev.playerPos !== b.player.pos);
-    const pickable = summonPickCells.includes(i);
+    const ghostEnemy = !gap && Boolean(prev && prev.enemyPos === i && prev.enemyPos !== b.enemy.pos);
+    const ghostYou = !gap && Boolean(prev && prev.playerPos === i && prev.playerPos !== b.player.pos);
+    const pickable = !gap && summonPickCells.includes(i);
+    const onWall = cellIsWall(layout, i);
     const classes = [
       "cell",
-      danger.includes(i) ? "red" : "",
-      !danger.includes(i) && reachCells.includes(i) && !isEnemy ? "reach" : "",
-      threatHighlight.includes(i) ? "threat-hot" : "",
-      i === BOARD_SIZE - 1 ? "wall" : "",
+      !gap && danger.includes(i) ? "red" : "",
+      !gap && !danger.includes(i) && reachCells.includes(i) && !isEnemy ? "reach" : "",
+      !gap && threatHighlight.includes(i) ? "threat-hot" : "",
+      onWall ? "wall" : "",
+      onWall && layout.env === "nowall" ? "is-broken" : "",
       ghostEnemy || ghostYou ? "ghost" : "",
-      b.stakes.includes(i) ? "staked" : "",
-      b.traps.includes(i) ? "trapped" : "",
+      !gap && b.stakes.includes(i) ? "staked" : "",
+      !gap && b.traps.includes(i) ? "trapped" : "",
       pickable ? "summon-pick" : "",
+      gap ? "env-gap" : "",
     ]
       .filter(Boolean)
       .join(" ");
 
     let body = `<em>${i + 1}</em>`;
-    if (b.traps.includes(i) && !isEnemy && !isPlayer) body += `<div class="fig trap"><span>机</span></div>`;
-    if (b.stakes.includes(i) && !isEnemy && !isPlayer) {
+    if (!gap && b.traps.includes(i) && !isEnemy && !isPlayer) body += `<div class="fig trap"><span>机</span></div>`;
+    if (!gap && b.stakes.includes(i) && !isEnemy && !isPlayer) {
       const high = isHighStake(b, i);
       const hits = stakeHitsAt(b, i);
       const src = artUrl(high ? "art/vfx/stake-high.png" : "art/vfx/stake-low.png");
@@ -173,10 +200,9 @@ export function renderProdBoard(
       const anim = boardFx?.youAnim ? ` ${boardFx.youAnim}` : "";
       body += `<div class="fig you${anim}" data-tip="${escapeAttr(youFigTip)}">${mateArt(b.active, "board")}${slashOverlay(b, "you", boardFx?.slashTick ?? 0)}<span>${b.player.name}</span></div>`;
     } else if (isSummon && summon) {
-      // §31.12 助战符召唤体：客座好手，一回合即走
       const smTip = `${summon.name} · 助战 ${summon.hp}/${summon.maxHp}${summon.taunt ? " · 吸仇中（敌下段攻击打他，算你拆）" : ""} · 你下回合开始时离场`;
       body += `<div class="fig summon" data-tip="${escapeAttr(smTip)}">${summonCharArt(summon.school, "board")}<span>${escapeHtml(summon.name)}<em>助</em></span><span class="status-tip">${escapeHtml(smTip)}</span></div>`;
-    } else if (b.labAssistActive && b.labAssistPos === i) {
+    } else if (!gap && b.labAssistActive && b.labAssistPos === i) {
       const asTip = `助战·${MATES[b.labAssistActive].name} · 客座上场，段尽离场`;
       body += `<div class="fig assist" data-tip="${escapeAttr(asTip)}">${mateArt(b.labAssistActive, "board")}<span>${MATES[b.labAssistActive].name}<em>助</em></span><span class="status-tip">${escapeHtml(asTip)}</span></div>`;
     } else if (isEnemy) {
@@ -188,11 +214,14 @@ export function renderProdBoard(
       body += `<div class="fig ghost">${ghostInk()}<span>将被推到这</span></div>`;
     } else if (ghostYou) {
       body += `<div class="fig ghost">${ghostInk()}<span>落脚</span></div>`;
-    } else if (i === BOARD_SIZE - 1) {
+    } else if (onWall) {
       body += `<span class="wall-label">壁</span>`;
     }
-    return `<div class="${classes}" data-pos="${i}">${body}</div>`;
+    return `<div class="${classes}" data-pos="${i}" data-land="${gap ? "0" : "1"}">${body}</div>`;
   }).join("");
+  const side = outsideWallSide(layout);
+  const mark = side ? wallMark(layout) : "";
+  return `${side === "low" ? mark : ""}${cells}${side === "high" ? mark : ""}`;
 }
 
 const MOVE_CHARGE_CARDS = new Set<string>(MOVE_CARD_IDS);
@@ -237,15 +266,34 @@ export function previewBreakdownMismatch(b: Battle, prev: Preview): boolean {
   return claimed !== dealt;
 }
 
-/** 悬停预演条：括号内伤害构成，效果在括号后。 */
+function splitPreviewLine(line: string): { lead: string; paren: string; tail: string } {
+  const m = line.match(/^(.*?)(（构成[^）]*）)(.*)$/);
+  if (!m) return { lead: line, paren: "", tail: "" };
+  return { lead: m[1] ?? "", paren: m[2] ?? "", tail: m[3] ?? "" };
+}
+
+function envKeyHtml(b: Battle): string {
+  const key = boardLayout(b, boardMode()).envKey;
+  if (!key) return "";
+  return `<span class="lab-env-key" data-env-key="${escapeAttr(key)}" hidden></span>`;
+}
+
+/** 悬停预演条：括号内伤害构成，效果在括号后。公式不改，只分列。 */
 export function renderHoverPreview(b: Battle, prev: Preview | null): string {
-  if (!prev) return `<div class="preview idle" id="preview-slot"></div>`;
+  const env = envKeyHtml(b);
+  if (!prev) return `<div class="preview idle" id="preview-slot">${env}</div>`;
   if (!prev.legal) {
-    return `<div class="preview bad" id="preview-slot">${escapeHtml(prev.reason ?? "现在不能打出")}</div>`;
+    return `<div class="preview bad" id="preview-slot">${escapeHtml(prev.reason ?? "现在不能打出")}${env}</div>`;
   }
   const line = previewShortLine(prev.notes, true, undefined, prev.breakdown, prev.breakdownRiders?.join(" · "));
-  const flag = previewBreakdownMismatch(b, prev) ? " 待 · 核玩" : "";
-  return `<div class="preview live" id="preview-slot">${escapeHtml(line + flag)}</div>`;
+  const flag = previewBreakdownMismatch(b, prev) ? "待 · 核玩" : "";
+  const parts = splitPreviewLine(line);
+  const math = `${parts.paren}${parts.tail}`;
+  const body = parts.paren
+    ? `<span class="preview-lead">${escapeHtml(parts.lead)}</span><span class="preview-paren">${escapeHtml(math)}</span>`
+    : `<span class="preview-lead">${escapeHtml(line)}</span>`;
+  const audit = flag ? `<span class="preview-audit">${escapeHtml(flag)}</span>` : "";
+  return `<div class="preview live preview-bar" id="preview-slot">${body}${audit}${env}</div>`;
 }
 
 function weaponPlate(id: string, _side: "you" | "foe"): string {
@@ -415,7 +463,7 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
       const qiCost = labV21EffectiveCost(b, def, shellRunContext());
       return `
         <button class="card ${def.type} ${active ? "hot" : ""} ${playGate.ok ? "" : "dead"} ${stunLock ? "stun-lock" : ""} ${comboUnlock ? "combo-unlock" : ""} ${vClass} ${chargeCard} ${momClass} ${guided ? "demo-guide-card" : ""}"
-          data-uid="${c.uid}" data-sfx="play-card" data-tip="${escapeAttr(cardTip)}" style="--i:${idx}" ${playGate.ok ? "" : "disabled"}>
+          data-uid="${c.uid}" data-overlap-group="hand" data-sfx="play-card" data-tip="${escapeAttr(cardTip)}" style="--i:${idx}" ${playGate.ok ? "" : "disabled"}>
           <span class="cost">${qiCost}</span>
           ${teachBadge}${comboBadge}${vBadge}${momBadge}
           <div class="art">${cardArt(def.id)}</div>
@@ -446,6 +494,7 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
       : foeSegAnim === "break"
         ? "board-anim-break"
         : "";
+  const layout = boardLayout(b, boardMode());
   const boardHtml = renderProdBoard(b, prev, threatHighlight, summonPickCells ?? [], {
     youAnim: youBoardAnim,
     foeAnim: foeBoardAnim,
@@ -470,7 +519,7 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
           <div class="fy-place" data-tip="${escapeAttr(mode.tip)}">
             <b>${escapeHtml(mode.label)}</b>
           </div>
-          <h1 class="fy-ink">七步石台</h1>
+          <h1 class="fy-ink">${breakAlign ? "七步石台" : "九步石台"}</h1>
           <div class="fy-stats lab-combat-tools">
             ${toolbarExtra}
             <span class="fy-btn hp" data-tip="当前回合">回合 ${b.turn}</span>
@@ -500,14 +549,14 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
             </aside>
 
             <div class="stage-core">
-              <div class="lab-phase-slot">${
+              <div class="lab-phase-slot" data-phase="${phaseBanner.trim() ? "live" : "idle"}" data-overlap-group="phase">${
                 phaseBanner.trim()
                   ? phaseBanner
                   : `<p class="lab-phase-banner is-idle" aria-hidden="true"></p>`
               }</div>
-              <div class="lab-intent-band">${renderFoeIntentStrip(b, intentHover, foeResolving && foePlaybackSegIdx != null && foePlaybackSegIdx >= 0 ? foePlaybackSegIdx : 0, foeSegFate)}</div>
+              <div class="lab-intent-band" data-overlap-group="intents">${renderFoeIntentStrip(b, intentHover, foeResolving && foePlaybackSegIdx != null && foePlaybackSegIdx >= 0 ? foePlaybackSegIdx : 0, foeSegFate)}</div>
               ${teachHtml}
-              <div class="strip" id="strip">${boardHtml}</div>
+              <div class="strip${layout.env ? ` env-${layout.env}` : ""}" id="strip" data-board="${layout.size}" data-env="${layout.env}" data-wall="${layout.wallEnds}" data-env-key="${layout.envKey}">${boardHtml}</div>
               ${coachText ? `<div class="coach" id="coach">${escapeHtml(coachText)}</div>` : `<div class="coach coach-empty" id="coach" hidden></div>`}
             </div>
 
@@ -541,9 +590,9 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
             : ""
         }
 
-        <footer class="lab-action-band bottombar">
-          <div class="lab-action-row">${actionRowHtml}</div>
-          <div class="lab-hand-row">
+        <footer class="lab-action-band bottombar" data-overlap-group="footer">
+          <div class="lab-action-row" data-overlap-group="actions">${actionRowHtml}</div>
+          <div class="lab-hand-row" data-overlap-group="hand-row">
             <div class="draw-col lab-pile-col">
               ${weaponPlate(gearId, "you")}
               ${renderStatusCol(b, "you")}

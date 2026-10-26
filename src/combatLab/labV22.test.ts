@@ -103,8 +103,9 @@ describe("v2.2 第二武器 · 谱系过滤", () => {
     const saber = starterGear("saber");
     const palm = starterGear("palm");
     expect(isCardAllowedForWeapon("cut", saber)).toBe(true);
-    expect(isCardAllowedForWeapon("strike", saber)).toBe(false);
-    expect(isCardAllowedForWeapon("strike", palm)).toBe(true);
+    expect(isCardAllowedForWeapon("push", saber)).toBe(false);
+    expect(isCardAllowedForWeapon("strike", saber)).toBe(true);
+    expect(isCardAllowedForWeapon("push", palm)).toBe(true);
   });
 
   it("swap filters hand by swapped-in mate equipped school", () => {

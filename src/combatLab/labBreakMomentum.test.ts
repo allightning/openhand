@@ -145,7 +145,7 @@ describe("拆势六系", () => {
   it("剑：拆势打出破绽", () => {
     let b = hardBreakByMove("sword");
     const ex = b.expose;
-    b = playAttack(b, "pierce", 3, 5);
+    b = playAttack(b, "direct", 3, 5);
     expect(b.expose).toBeGreaterThan(ex);
   });
 
@@ -159,7 +159,7 @@ describe("拆势六系", () => {
 
   it("棍：拆势打出眩晕", () => {
     let b = hardBreakByMove("staff");
-    b = playAttack(b, "bleedcut", 3, 5);
+    b = playAttack(b, "split", 3, 5);
     expect(b.foeStun ?? 0).toBeGreaterThanOrEqual(1);
   });
 

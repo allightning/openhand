@@ -124,6 +124,35 @@ export function pathLadder(path: GauntletPath): GauntletLadderEntry[] {
   return GAUNTLET_PATH_LADDERS[path];
 }
 
+export type EnvTag = "burn" | "nowall" | "gap_end" | "gap_mid";
+
+export const ENV_TAG_LABEL: Record<EnvTag, string> = {
+  burn: "灼烧格",
+  nowall: "无墙场",
+  gap_end: "缺格·末端",
+  gap_mid: "缺格·中间",
+};
+
+/** 词条出不出、出在第几程：等数值框架。这里不掷概率，也不改梯上的伤和人数。 */
+export const ENV_TAG_APPEAR = "?" as const;
+
+/** 梯上不预挂词条。下一场带哪条，看 run.storyFlags 里最后一条 envtag:。 */
+export function ladderEnvTag(_path: GauntletPath, _stage: number): EnvTag | undefined {
+  return undefined;
+}
+
+export function readEnvTag(flags: readonly string[] | undefined): EnvTag | undefined {
+  let tag: EnvTag | undefined;
+  for (const f of flags ?? []) {
+    if (f === "envtag-off") tag = undefined;
+    else if (f.startsWith("envtag:")) {
+      const v = f.slice("envtag:".length);
+      if (v === "burn" || v === "nowall" || v === "gap_end" || v === "gap_mid") tag = v;
+    }
+  }
+  return tag;
+}
+
 export function isCompanionMilestone(stageCompleted: number): boolean {
   return companionMilestones().includes(stageCompleted);
 }

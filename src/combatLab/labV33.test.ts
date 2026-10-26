@@ -111,7 +111,7 @@ describe("§31.13 拆招 v4 · 以拆为杀", () => {
     b = endTurn(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } }));
     expect(b.phase).not.toBe("won");
     expect(b.v2BreakMomentum ?? 0).toBe(1);
-    b.hand = [{ uid: "a1", defId: "pierce" }];
+    b.hand = [{ uid: "a1", defId: "hitSword" }];
     b.energy = 8;
     b.player.pos = 3;
     b.enemy.pos = 5;
@@ -300,7 +300,7 @@ describe("§31.14 空间诚实 · 红格=结算，够不着的招不算拆", () 
       { kind: "lunge", damage: 12 },
     ];
     b.hand = [{ uid: "r1", defId: "retreat" }];
-    b.energy = 0; // 0 费：空劲也能撤
+    b.energy = 5; // 撤步 1 费
     const hp = b.player.hp;
     b = playCard(b, "r1", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, enemySegBonus: 0, v2VariantAi: false, enemyStressCap: 0 } })); // 1 → 0（身后只剩 1 格）
     expect(b.player.pos).toBe(0);

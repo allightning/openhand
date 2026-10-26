@@ -4,21 +4,11 @@ import { GOD_SKILL, PATH_SKILL } from "./weapons";
 
 /** Batch v2 card copy — semantics only; mechanics stay in sim hooks. */
 const CARD_TEXT_V2: Partial<Record<CardId, string>> = {
-  combo: "势 +1（积）。下一张攻击按势各加 2 伤。",
-  chain: "打 5。若有势则打 9 并抽 1。",
-  chain2: "打 7。若有势则打 11 并抽 1。",
   gather: "聚势 +1（最多 5）。抽 1。",
-  gather2: "聚势 +2（最多 5）。抽 1。",
   setup: "铺势：下回势 +1。抽 1。",
   finisher: "需势≥1。打 4，每点势再 +3，然后清空势。",
   finisher2: "打 6。每点势再 +3，并清空势。",
-  weave: "上一招是攻则挡 8 并势 +1；否则蓄劲 +3。",
-  comboTax: "付 2 血积势 +1。抽 1。",
-  comboPay: "消耗 1 势：伤 10。",
-  tide: "下回劲力 +1。有势则抽 1。",
-  bindwound: "有势可爆：回 7 清裂创；否则回 2。",
   lateTide: "势拉满。抽 2。",
-  lateChain: "耗 2 势：伤 16 并抽 1。",
   // §31.8 v3：拆招答案不再倒贴抽牌（文案与机制同步，D4）
   advance: "身前一格为空则前进。位移 +1。",
   advance2: "身前最多前进 2 格。位移 +1。",

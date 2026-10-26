@@ -1,6 +1,8 @@
 import type { Battle, Intent } from "../game/types";
 import { BOARD_SIZE } from "../game/types";
 import { isBattleWon } from "../game/sim";
+import { boardLayout } from "./render/boardLayout";
+import { shellRunContext } from "./shellContext";
 
 export type RecapSeg = {
   ord: number;
@@ -15,6 +17,8 @@ export type RecapDisplay = {
   block: number;
   playerPos: number;
   enemyPos: number;
+  /** 局上写了 boardSize 才放宽夹位。缺省仍是 7，跟当前结算一致。 */
+  boardSize?: number;
 };
 
 export type IntentBarFate = "gone" | "grey";
@@ -57,8 +61,16 @@ export function intentBarFate(outcome: string): IntentBarFate {
   return "gone";
 }
 
-function clampCell(pos: number): number {
-  return Math.max(0, Math.min(BOARD_SIZE - 1, pos));
+function spanOf(boardSize?: number): number {
+  return boardSize ?? BOARD_SIZE;
+}
+
+function clampCell(pos: number, boardSize?: number): number {
+  return Math.max(0, Math.min(spanOf(boardSize) - 1, pos));
+}
+
+function inside(next: number, playerPos: number, boardSize?: number): boolean {
+  return next >= 0 && next < spanOf(boardSize) && next !== playerPos;
 }
 
 /** 表现层按段挪位：跟结算同方向，不改 sim。跳过的段不动。 */
@@ -67,6 +79,7 @@ export function applyIntentMove(
   enemyPos: number,
   intent: Intent | undefined,
   outcome: string,
+  boardSize?: number,
 ): { playerPos: number; enemyPos: number } {
   if (!intent) return { playerPos, enemyPos };
   if (outcome === "劲尽" || outcome === "晕" || outcome === "散" || outcome === "跳过") {
@@ -78,7 +91,7 @@ export function applyIntentMove(
     let pos = enemyPos;
     for (let i = 0; i < intent.steps; i++) {
       const next = pos + toward;
-      if (next < 0 || next >= BOARD_SIZE || next === playerPos) break;
+      if (!inside(next, playerPos, boardSize)) break;
       pos = next;
     }
     return { playerPos, enemyPos: pos };
@@ -87,14 +100,14 @@ export function applyIntentMove(
     let pos = enemyPos;
     for (let i = 0; i < intent.steps; i++) {
       const next = pos + away;
-      if (next < 0 || next >= BOARD_SIZE || next === playerPos) break;
+      if (!inside(next, playerPos, boardSize)) break;
       pos = next;
     }
     return { playerPos, enemyPos: pos };
   }
   if (intent.kind === "lunge") {
     if (Math.abs(enemyPos - playerPos) > 1 && toward !== 0) {
-      const next = clampCell(enemyPos + toward);
+      const next = clampCell(enemyPos + toward, boardSize);
       if (next !== playerPos) return { playerPos, enemyPos: next };
     }
     return { playerPos, enemyPos };
@@ -103,7 +116,7 @@ export function applyIntentMove(
     let pos = enemyPos;
     for (let i = 0; i < intent.steps; i++) {
       const next = pos + toward;
-      if (next < 0 || next >= BOARD_SIZE || next === playerPos) break;
+      if (!inside(next, playerPos, boardSize)) break;
       pos = next;
     }
     return { playerPos, enemyPos: pos };
@@ -122,7 +135,7 @@ export function applyIntentMove(
   if (intent.kind === "swap") {
     if (Math.abs(enemyPos - playerPos) <= 1) return { playerPos: enemyPos, enemyPos: playerPos };
     if (toward !== 0) {
-      const next = clampCell(enemyPos + toward);
+      const next = clampCell(enemyPos + toward, boardSize);
       if (next !== playerPos) return { playerPos, enemyPos: next };
     }
   }
@@ -147,17 +160,21 @@ export function recapDisplayStart(
 }
 
 export function recapDisplayAfter(cur: RecapDisplay, seg: RecapSeg, intent?: Intent): RecapDisplay {
-  const moved = applyIntentMove(cur.playerPos, cur.enemyPos, intent, seg.outcome);
+  const moved = applyIntentMove(cur.playerPos, cur.enemyPos, intent, seg.outcome, cur.boardSize);
   return {
     hp: Math.max(0, cur.hp - (seg.hpLost ?? 0)),
     block: Math.max(0, cur.block - (seg.blockLost ?? 0)),
     playerPos: moved.playerPos,
     enemyPos: moved.enemyPos,
+    boardSize: cur.boardSize,
   };
 }
 
 /** 回放中画面用人/血/挡的段快照，不提前跳终态。 */
 export function overlayRecapBattle(b: Battle, show: RecapDisplay): Battle {
+  const mode = shellRunContext().ruleset.mode === "break" ? "break" : "climb";
+  const laid = boardLayout(b, mode);
+  if (!laid.fieldsMissing) show.boardSize = laid.size;
   const enemy = { ...b.enemy, pos: show.enemyPos };
   const foes = (b.foes ?? []).map((f) => (f.id === b.enemy.id ? { ...f, pos: show.enemyPos } : f));
   return {

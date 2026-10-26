@@ -1408,9 +1408,12 @@ body:has(#app.lab-root) {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 1.55rem;
+  height: 1.7rem;
+  min-height: 1.7rem;
+  max-height: 1.7rem;
   margin: 0 0 0.15rem;
-  flex-shrink: 0;
+  flex: 0 0 1.7rem;
+  overflow: hidden;
 }
 
 .lab-phase-banner {
@@ -3003,9 +3006,12 @@ body:has(#app.lab-root) {
   width: 100%;
   max-width: none;
   min-width: 0;
-  gap: 6px;
+  gap: 4px;
   overflow: visible;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
 }
 
 .lab-prod-combat .cell {
@@ -4282,7 +4288,7 @@ html.lab-fullscreen #app.lab-root,
 .lab-prod-combat .lab-hand-row .hand-scroll .hand .card {
   height: 220px;
   width: 152px;
-  margin-left: -36px;
+  margin-left: 0;
 }
 
 .lab-prod-combat .lab-hand-row .hand-scroll .hand .card:first-child {
@@ -4997,9 +5003,481 @@ html.lab-fullscreen #app.lab-root,
 
 @media (max-width: 1100px) {
   .lab-prod-combat .lab-hand-row .hand-scroll .hand .card {
-    margin-left: -36px;
+    margin-left: 0;
   }
   .lab-prod-combat .lab-hand-row .hand-scroll .hand .card:first-child {
     margin-left: 0;
   }
+}
+
+/* 战斗板 2.0：9 格横排、格后墙、环境空样式、HUD 不叠。 */
+.lab-prod-combat {
+  --hud-action-gap: 8px;
+  --hud-action-btn-w: 72px;
+  --hud-card-w: 152px;
+  --hud-card-overlap: 0px;
+  --hud-intent-w: 70px;
+  --hud-board-wall: 1.5rem;
+}
+
+.lab-prod-combat .strip .cell {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.lab-prod-combat .strip[data-board="9"] .fig,
+.lab-prod-combat .strip[data-board="9"] .stand.board {
+  width: 100%;
+  max-width: 88px;
+  height: auto;
+  max-height: 118px;
+}
+
+.lab-prod-combat .board-wall {
+  flex: 0 0 var(--hud-board-wall);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  background: #1a1410;
+  color: #f4ead6;
+  border: 2px solid #1a1410;
+  writing-mode: vertical-rl;
+  letter-spacing: 0.2em;
+}
+
+.lab-prod-combat .board-wall .wall-label {
+  color: #f4ead6;
+}
+
+.lab-prod-combat .board-wall.is-broken,
+.lab-prod-combat .cell.wall.is-broken {
+  background: transparent;
+  color: transparent;
+  border-style: dashed;
+  border-color: #c45a28;
+}
+
+.lab-prod-combat .board-wall.is-broken .wall-label,
+.lab-prod-combat .cell.wall.is-broken .wall-label {
+  opacity: 0.35;
+}
+
+.lab-prod-combat .strip.env-burn .cell {
+  background: #f4ead6;
+  box-shadow: inset 0 0 0 1px rgba(196, 90, 40, 0.35);
+}
+
+.lab-prod-combat .strip.env-burn .cell::after {
+  content: "";
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #c45a28;
+  top: 8px;
+  right: 8px;
+}
+
+.lab-prod-combat .cell.env-gap {
+  background: linear-gradient(#e8dcc4, #e8dcc4) top / 100% 28% no-repeat, transparent;
+  border-style: dashed;
+  border-color: #5a4030;
+}
+
+.lab-prod-combat .cell.env-gap em {
+  opacity: 0.35;
+}
+
+.lab-prod-combat .stage-core .lab-intent-band {
+  flex: 0 0 auto;
+  max-height: 7.4rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.lab-prod-combat .lab-action-band {
+  flex: 0 0 auto;
+}
+
+.lab-prod-combat .lab-action-row {
+  gap: var(--hud-action-gap);
+}
+
+.lab-prod-combat .lab-action-row .fy-btn,
+.lab-prod-combat .lab-action-row .swap-btn,
+.lab-prod-combat .lab-action-row .assist-btn,
+.lab-prod-combat .lab-action-row button {
+  position: static;
+  flex: 0 0 auto;
+  min-width: var(--hud-action-btn-w);
+}
+
+.lab-prod-combat .lab-hand-row {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  align-items: end;
+  width: 100%;
+  gap: 8px;
+}
+
+.lab-prod-combat .lab-hand-row .status-col {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 0.2rem;
+  max-height: 8.5rem;
+  min-width: 4.8rem;
+}
+
+.lab-prod-combat .preview.preview-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  column-gap: 0.6rem;
+  min-height: 2.4rem;
+}
+
+.lab-prod-combat .preview-paren,
+.lab-prod-combat .preview-audit {
+  font-variant-numeric: tabular-nums;
+  color: #1a1410;
+  justify-self: end;
+}
+
+/* shell2 — 门厅 / 配装 / 图鉴 / 事页 / 死亡 / 设置。不进战斗板。 */
+.lab-root {
+  --shell-gap: 8px;
+  --shell-btn-w: 148px;
+  --shell-btn-h: 44px;
+  --shell-ink: #1a1410;
+  --shell-paper: #f4ead6;
+  --shell-cinnabar: #9c2f1b;
+}
+
+.lab-root .shell-hall button,
+.lab-root .shell-path button,
+.lab-root .shell-loadout button,
+.lab-root .shell-codex button,
+.lab-root .shell-event button,
+.lab-root .shell-death button,
+.lab-root .shell-settings button {
+  position: static;
+  margin-left: 0;
+  margin-right: 0;
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.lab-root .shell-hall [data-overlap-group],
+.lab-root .shell-loadout [data-overlap-group],
+.lab-root .shell-event [data-overlap-group],
+.lab-root .shell-death [data-overlap-group],
+.lab-root .shell-settings [data-overlap-group],
+.lab-root .shell-codex [data-overlap-group],
+.lab-root .shell-path .gauntlet-school-row,
+.lab-root .shell-pool-row,
+.lab-root .shell-team-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--shell-gap);
+  align-items: stretch;
+}
+
+.lab-root .shell-kicker {
+  margin: 0 0 0.2rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.16em;
+  color: var(--shell-cinnabar);
+  font-weight: 700;
+}
+
+.lab-root .shell-empty {
+  margin: 0;
+  padding: 0.6rem 0.7rem;
+  border: 1px dashed var(--shell-ink);
+  color: var(--shell-ink);
+  background: var(--shell-paper);
+  overflow-wrap: anywhere;
+}
+
+.lab-root .shell-hall,
+.lab-root .shell-path,
+.lab-root .shell-event,
+.lab-root .shell-death {
+  background: var(--shell-paper);
+  color: var(--shell-ink);
+  width: min(52rem, 94vw);
+  padding: 0.9rem 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.lab-root .shell-hall h2,
+.lab-root .shell-hall h3,
+.lab-root .shell-pool h3,
+.lab-root .shell-pool h4,
+.lab-root .shell-settings h3,
+.lab-root .shell-settings h4 {
+  margin: 0;
+  color: var(--shell-ink);
+}
+
+.lab-root .shell-hall .shell-btn,
+.lab-root .shell-hall .hall-gate {
+  width: auto;
+  flex: 1 1 var(--shell-btn-w);
+  min-height: var(--shell-btn-h);
+  background: var(--shell-paper);
+  color: var(--shell-ink);
+  border: 1px solid var(--shell-ink);
+}
+
+.lab-root .shell-hall [data-overlap-group="hall-primary"] > button {
+  flex: 1 1 100%;
+  min-height: 3.2rem;
+  background: var(--shell-cinnabar);
+  color: var(--shell-paper);
+  border-color: var(--shell-ink);
+  font-size: 1.25rem;
+}
+
+.lab-root .shell-hall button:disabled {
+  opacity: 0.55;
+}
+
+.lab-root .shell-route-names {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--shell-gap);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lab-root .shell-route-names li,
+.lab-root .shell-team-card,
+.lab-root .shell-pool-card {
+  flex: 1 1 var(--shell-btn-w);
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--shell-ink);
+  background: var(--shell-paper);
+  color: var(--shell-ink);
+  padding: 0.4rem 0.5rem;
+}
+
+.lab-root .shell-hall-board,
+.lab-root .shell-hall-lead,
+.lab-root .shell-hall-route-note {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.lab-root .shell-loadout {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.lab-root .shell-loadout > .shell-kicker,
+.lab-root .shell-loadout > .shell-loadout-summary {
+  margin: 0;
+  color: var(--shell-paper);
+  text-shadow: 0 1px 2px var(--shell-ink);
+}
+
+.lab-root .shell-loadout .gauntlet-loadout {
+  height: auto;
+  max-height: min(70dvh, 40rem);
+  overflow: auto;
+}
+
+.lab-root .shell-loadout #gauntlet-loadout-back {
+  position: static;
+}
+
+.lab-root .shell-loadout .gauntlet-loadout-stash-list {
+  flex-wrap: wrap;
+  overflow: auto;
+}
+
+.lab-root .shell-loadout .gauntlet-stash-slot {
+  flex: 1 1 8.5rem;
+  min-width: 0;
+  max-width: none;
+}
+
+.lab-root .shell-pool {
+  background: var(--shell-paper);
+  color: var(--shell-ink);
+  max-height: 18rem;
+  overflow: auto;
+  padding: 0.6rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.lab-root .shell-pool ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.lab-root .shell-pool-card[data-rarity="common"] {
+  box-shadow: inset 3px 0 0 var(--shell-ink);
+}
+
+.lab-root .shell-pool-card[data-rarity="adept"] {
+  box-shadow: inset 3px 0 0 var(--shell-ink);
+  background: #e7d3b0;
+}
+
+.lab-root .shell-pool-card[data-rarity="supreme"] {
+  box-shadow: inset 3px 0 0 var(--shell-cinnabar);
+}
+
+.lab-root .shell-rarity {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--shell-cinnabar);
+  margin-left: 0.35rem;
+}
+
+.lab-root .shell-cost {
+  display: block;
+  font-variant-numeric: tabular-nums;
+}
+
+.lab-root .shell-codex.lab-wiki-panel {
+  background: var(--shell-paper);
+  color: var(--shell-ink);
+  max-height: min(86dvh, 48rem);
+}
+
+.lab-root .shell-codex .lab-wiki-tab.active,
+.lab-root .shell-settings .lab-btn.primary,
+.lab-root .shell-settings .lab-music-pick.is-on {
+  background: var(--shell-cinnabar);
+  color: var(--shell-paper);
+  border-color: var(--shell-ink);
+}
+
+.lab-root .shell-codex .lab-wiki-grid,
+.lab-root .shell-codex .lab-wiki-grid.cards-6,
+.lab-root .shell-codex .lab-wiki-grid.duo,
+.lab-root .shell-codex .lab-wiki-grid.status {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: var(--shell-gap);
+}
+
+.lab-root .shell-codex .lab-wiki-entry {
+  min-width: 0;
+  overflow: auto;
+  max-height: 16rem;
+}
+
+.lab-root .shell-codex .lab-wiki-lead,
+.lab-root .shell-event .gauntlet-event-lead,
+.lab-root .shell-death .gauntlet-result-potline {
+  overflow-wrap: anywhere;
+  max-height: 10rem;
+  overflow: auto;
+}
+
+.lab-root .shell-codex .lab-wiki-head-tools {
+  flex-wrap: wrap;
+  margin-left: 0;
+  min-width: 0;
+}
+
+.lab-root .shell-codex .lab-wiki-search {
+  min-width: 0;
+  flex: 1 1 8rem;
+}
+
+.lab-root .shell-num {
+  color: var(--shell-cinnabar);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.lab-root .shell-event .shell-mech {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  justify-content: center;
+}
+
+.lab-root .shell-event .shell-mech .shell-num {
+  display: inline-block;
+  min-width: 1.4rem;
+  padding: 0.05rem 0.35rem;
+  background: var(--shell-cinnabar);
+  color: var(--shell-paper);
+}
+
+.lab-root .shell-event .gauntlet-reward-card,
+.lab-root .shell-death .gauntlet-reward-card,
+.lab-root .shell-path .gauntlet-path-card {
+  flex: 1 1 var(--shell-btn-w);
+  min-width: 0;
+  max-width: 100%;
+  position: static;
+}
+
+.lab-root .shell-death .gauntlet-result {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.lab-root .shell-death .shell-empty { order: 0; }
+.lab-root .shell-death .gauntlet-result-potline { order: 1; }
+.lab-root .shell-death .gauntlet-head { order: 2; }
+.lab-root .shell-death .gauntlet-result-hero { order: 3; }
+.lab-root .shell-death .gauntlet-result-meta { order: 4; }
+.lab-root .shell-death .gauntlet-result-actions { order: 5; }
+
+.lab-root .shell-settings {
+  background: var(--shell-paper);
+  color: var(--shell-ink);
+  max-width: min(28rem, 94vw);
+  max-height: min(86dvh, 40rem);
+  overflow: auto;
+}
+
+.lab-root .shell-settings .lab-music-transport,
+.lab-root .shell-settings .lab-music-modes,
+.lab-root .shell-settings .lab-music-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--shell-gap);
+  max-height: none;
+}
+
+.lab-root .shell-settings .lab-music-nav,
+.lab-root .shell-settings .lab-music-mode,
+.lab-root .shell-settings .lab-music-pick {
+  flex: 1 1 var(--shell-btn-w);
+  min-width: 0;
+  margin: 0;
+}
+
+.lab-root .shell-settings .lab-music-picks {
+  max-height: 12rem;
+  overflow: auto;
+}
+
+.lab-root .shell-settings .lab-slider-row input[type="range"] {
+  accent-color: var(--shell-cinnabar);
+  width: 100%;
 }

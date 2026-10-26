@@ -7,7 +7,7 @@ import { tryAppendStressIntent } from "./labEnemyStress";
 import { MATES } from "./party";
 import { livingFoes } from "./sim";
 import type { Battle, CardDef, CardId, CompanionId } from "./types";
-import { BOARD_SIZE } from "./types";
+import { boardLen } from "./board";
 
 export { LAB_ASSIST_COST };
 
@@ -24,7 +24,7 @@ export function assistEnergyCost(b: Battle, rc: RunContext): number {
 }
 
 function cellBlockedForAssist(b: Battle, pos: number, _rc: RunContext): boolean {
-  if (pos < 0 || pos >= BOARD_SIZE) return true;
+  if (pos < 0 || pos >= boardLen(b)) return true;
   if (b.stakes.includes(pos)) return true;
   if (livingFoes(b).some((f) => f.pos === pos)) return true;
   return false;
@@ -33,12 +33,13 @@ function cellBlockedForAssist(b: Battle, pos: number, _rc: RunContext): boolean 
 /** §16.2 相邻格；靠壁取唯一可行侧。 */
 export function pickAssistPos(b: Battle, rc: RunContext): number | null {
   const p = b.player.pos;
+  const last = boardLen(b) - 1;
   const candidates: number[] = [];
   if (p > 0 && !cellBlockedForAssist(b, p - 1, rc)) candidates.push(p - 1);
-  if (p < BOARD_SIZE - 1 && !cellBlockedForAssist(b, p + 1, rc)) candidates.push(p + 1);
+  if (p < last && !cellBlockedForAssist(b, p + 1, rc)) candidates.push(p + 1);
   if (!candidates.length) return null;
   if (p === 0) return candidates.includes(1) ? 1 : null;
-  if (p === BOARD_SIZE - 1) return candidates.includes(p - 1) ? p - 1 : null;
+  if (p === last) return candidates.includes(p - 1) ? p - 1 : null;
   return candidates[0] ?? null;
 }
 

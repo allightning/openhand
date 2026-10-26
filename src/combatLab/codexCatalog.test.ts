@@ -41,7 +41,7 @@ describe("卡牌图鉴目录", () => {
   it("按名称或 id 检索", () => {
     const byName = searchCatalog("ult", "掌");
     expect(byName.length).toBeGreaterThan(0);
-    expect(byName.every((e) => `${e.id} ${e.name} ${e.kicker} ${e.text}`.includes("掌"))).toBe(true);
+    expect(byName.every((e) => `${e.id} ${e.name} ${e.kicker} ${e.text} ${e.flavor ?? ""}`.includes("掌"))).toBe(true);
     const byId = searchCatalog("gear", "palm-a-5");
     expect(byId.some((e) => e.id === "palm-a-5")).toBe(true);
     expect(searchCatalog("skill", "zzzz-no-such")).toEqual([]);

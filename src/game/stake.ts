@@ -1,3 +1,4 @@
+import { boardLen } from "./board";
 import { BOARD_SIZE, type Battle, type WeaponId } from "./types";
 import type { EnemyGearGrade } from "./enemyGear";
 import type { RunContext } from "./runContext";
@@ -16,7 +17,7 @@ export function isHighStake(b: Battle, pos: number): boolean {
 }
 
 export function addStake(b: Battle, pos: number, hits: number, ctx: RunContext): boolean {
-  if (pos < 0 || pos >= BOARD_SIZE || b.stakes.includes(pos)) return false;
+  if (pos < 0 || pos >= boardLen(b) || b.stakes.includes(pos)) return false;
   const cap = ctx.caps.stake.cap;
   if (cap > 0 && b.stakes.length >= cap) return false;
   b.stakes.push(pos);
@@ -67,7 +68,12 @@ export function interceptStakePos(from: number, to: number, stakes: number[]): n
 }
 
 /** 挡路优先；贴身无中间格时砸身侧（敌身后，再自己背后）。 */
-export function adjacentStakePos(from: number, to: number, stakes: number[]): number | null {
+export function adjacentStakePos(
+  from: number,
+  to: number,
+  stakes: number[],
+  boardSize = BOARD_SIZE,
+): number | null {
   const intercept = interceptStakePos(from, to, stakes);
   if (intercept != null) return intercept;
   if (Math.abs(from - to) !== 1) return null;
@@ -75,7 +81,7 @@ export function adjacentStakePos(from: number, to: number, stakes: number[]): nu
   const pastFoe = to + dir;
   const behindYou = from - dir;
   for (const p of [pastFoe, behindYou]) {
-    if (p >= 0 && p < BOARD_SIZE && stakes.includes(p)) return p;
+    if (p >= 0 && p < boardSize && stakes.includes(p)) return p;
   }
   return null;
 }

@@ -27,7 +27,7 @@ describe("六系增补：状态 / 攻击 / 本系进退", () => {
       const buff = statusCardId(school);
       const step = stepCardId(school);
       expect(CARDS[hit]?.type).toBe("attack");
-      expect(CARDS[hit]?.school).toBe(school);
+      expect(CARDS[hit]?.school).toBe(hit === "hitSpear" ? "sword" : hit === "hitStaff" ? "palm" : school);
       const buff2 = statusCardId2(school);
       expect(CARDS[buff]?.type).toBe("skill");
       expect(CARDS[buff]?.school).toBe(school);
@@ -90,9 +90,9 @@ describe("六系增补：状态 / 攻击 / 本系进退", () => {
     expect(afterPalm.enemy.pos).not.toBe(pos);
     expect(afterPalm.journal.some((j) => j.side === "you" && /崩拳/.test(j.text))).toBe(true);
 
-    const spear = startLabBattle(buildGauntletPreset(createGauntletRun("shaolin", "spear")), true, 1);
+    const spear = startLabBattle(buildGauntletPreset(createGauntletRun("shaolin", "sword")), true, 1);
     spear.player.pos = 1;
-    spear.enemy.pos = 3;
+    spear.enemy.pos = 2;
     spear.energy = 6;
     spear.hand = [{ uid: "hs", defId: hitCardId("spear") }];
     const shp = spear.enemy.hp;

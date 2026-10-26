@@ -7,7 +7,7 @@ import { shellRunContext } from "../shellContext";
 import { recordFoeTurn, recordPlayerTurn } from "../telemetry";
 import { CLIMB_PHASE_BEAT_MS, filterEmptyRecap, recapDisplayStart, skipFoeRecap } from "../foePlayback";
 import { playSfx } from "../labAudio";
-import { sfxSlot } from "../sfxMap";
+import { climbBeatSfxKey, sfxSlot } from "../sfxMap";
 import { syncBreakDemoBattle, afterDemoEndTurn, demoAllowsEndTurn, demoLessonDone, lockDemoAfterFoeTurn } from "../breakDemo";
 import { afterHallEndTurn, hallAllowsEndTurn, hallIsGuided, lockHallAfterFoeTurn, syncHallBattle } from "../trainingHall";
 import { campaignAllowsEndTurn, readCampaignResolveStats, refreshCampaignIntents, syncCampaignBattle, tickCampaignAfterResolve } from "../breakCampaign";
@@ -37,8 +37,7 @@ S.root.querySelector("#btn-discard")?.addEventListener("click", () => {
     if (!S.battle || S.battle.phase !== "player" || S.paused || S.foePlaybackBusy) return;
     if (!labCanComboReplay(S.battle, shellRunContext()).ok) return;
     S.battle = labComboReplay(S.battle, shellRunContext());
-    // 连击重放现行 swing，与出招挥空同一占位。
-    playSfx(sfxSlot("windup"));
+    playSfx(sfxSlot("combo_replay"));
     api.render();
   });
 }
@@ -168,6 +167,9 @@ S.root.querySelector("#btn-end")?.addEventListener("click", () => {
         }
         const beat = applyClimbPhaseBeat(S.battle, shellRunContext());
         S.battle = beat.battle;
+        const beatKey =
+          beat.skip || beat.step == null ? null : climbBeatSfxKey(beat.step, beat.read ?? "");
+        if (beatKey) playSfx(sfxSlot(beatKey));
         if (S.battle.player.hp <= 0) {
           S.foePlaybackBusy = false;
           api.endBattle("loss");
@@ -193,7 +195,9 @@ S.root.querySelector("#btn-end")?.addEventListener("click", () => {
 
       // 非爬塔 / 无队列：沿用原裂创补丁 + 亮招
       if (S.battle.v2PendingStatusTicks) {
+        const hadBleed = (S.battle.bleed ?? 0) > 0 || (S.battle.youBleed ?? 0) > 0;
         S.battle = applyPendingStatusTicks(S.battle, shellRunContext());
+        if (hadBleed) playSfx(sfxSlot("bleed_tick"));
         api.render();
         window.setTimeout(() => {
           if (!S.battle) return;

@@ -59,12 +59,11 @@ describe("预演条与耗蓝角标", () => {
 
   it("悬停攻击牌：预演条只亮牌效短句，不写双方血量", () => {
     const b = climbBattle();
-    b.enemy.pos = 2; // 拉近到刀程内
-    const atk = b.hand.find((c) => {
-      const def = labCard(c.defId, climbTestContext());
-      return def.type === "attack" && (def.damage ?? 0) > 0 && previewCard(b, c.uid, climbTestContext()).legal;
-    });
-    expect(atk).toBeTruthy();
+    b.player.pos = 0;
+    b.enemy.pos = 1;
+    b.energy = 10;
+    b.hand = [{ uid: "atk", defId: "strike" }, ...b.hand];
+    const atk = b.hand[0]!;
     const prev = previewCard(b, atk!.uid, climbTestContext());
     expect(prev.legal).toBe(true);
     expect(prev.enemyHp).toBeLessThan(b.enemy.hp);
@@ -90,9 +89,12 @@ describe("预演条与耗蓝角标", () => {
   });
 
   it("够不着时悬停亮距离原因（bad 态）", () => {
-    const b = climbBattle(); // 敌在 4 格，刀程 2
-    const atk = b.hand.find((c) => labCard(c.defId, climbTestContext()).type === "attack");
-    expect(atk).toBeTruthy();
+    const b = climbBattle();
+    b.player.pos = 0;
+    b.enemy.pos = 4;
+    b.energy = 10;
+    b.hand = [{ uid: "atk", defId: "cut" }];
+    const atk = b.hand[0]!;
     const prev = previewCard(b, atk!.uid, climbTestContext());
     expect(prev.legal).toBe(false);
     const html = renderHoverPreview(b, prev);
@@ -164,14 +166,14 @@ describe("预演条与耗蓝角标", () => {
       weaponSheetHtml: "",
       gauntletStage: 1,
     });
-    expect(html.match(/data-pos="/g)?.length).toBe(7);
+    expect(html.match(/data-pos="/g)?.length).toBe(9);
     expect(html).toContain('id="btn-end"');
     expect(html).toContain('data-sfx="end-turn"');
     expect(html).toMatch(/data-pos="0"/);
     expect(html).toMatch(/data-pos="6"/);
     expect(html).toMatch(/class="cell[^"]*(?:red|reach)/);
     expect(html).toContain("lab-combat-top");
-    expect(html).toContain("七步石台");
+    expect(html).toContain("九步石台");
     expect(html).not.toContain("lab-mode-badge");
     expect(html).toMatch(/lab-action-row[\s\S]*lab-hand-row/);
     const previewAt = html.indexOf('id="preview-slot"');

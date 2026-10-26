@@ -4,7 +4,8 @@ import { shellRunContext } from "../shellContext";
 import { grantLabItem } from "../../game/labV21";
 import { type CompanionId, type LabItemId } from "../../game/types";
 import { endLabMode } from "../factory";
-import { stopSting } from "../labAudio";
+import { playSfx, stopSting } from "../labAudio";
+import { sfxSlot } from "../sfxMap";
 import { afterGauntletLoss, applyGauntletReward, applySuperReward, settleHallPot, wagerBattleStats, getGauntletFinalStage, nextBossId, saveGauntletBest, gauntletRewardTakeCount, buyMarketOffer, marketOffers, marketBuyCap, marketRefreshCost, wagerStakeMax, type WagerKind } from "../gauntlet";
 import { demoMarketOffers } from "../breakDemo";
 
@@ -157,6 +158,7 @@ S.root.querySelector("#wager-fight")?.addEventListener("click", () => {
       console.warn("[wager] blocked", { run: !!S.gauntletRun, kind: S.wagerKind, stake: S.wagerStake });
       return;
     }
+    playSfx(sfxSlot("ui_confirm"));
     S.gauntletScreen = null;
     api.beginGauntletBattle();
   });
@@ -186,6 +188,7 @@ S.root.querySelector("#wager-fight")?.addEventListener("click", () => {
       if (S.gauntletMarketBought.size >= marketBuyCap(S.gauntletRun.stage, getGauntletFinalStage(S.gauntletRun))) return;
       const next = buyMarketOffer(S.gauntletRun, offer);
       if (!next) return;
+      playSfx(sfxSlot("ui_confirm"));
       S.gauntletRun = next;
       S.gauntletMarketBought = new Set(S.gauntletMarketBought).add(id);
       api.persistCampContinue();

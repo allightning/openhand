@@ -46,7 +46,7 @@ describe("break demo", () => {
     expect(demoIntents(2).filter((i) => i.kind === "strike").length).toBe(2);
     expect(demoIntents(3)[0]?.kind).toBe("barrage");
     expect(demoLessons(3, null)[0]?.allowCardIds).toContain("defend");
-    expect(demoLessons(4, null)[0]?.allowCardIds).toContain("rift");
+    expect(demoLessons(4, null)[0]?.allowCardIds).toContain("drawcut");
     expect(demoIntents(4)[0]?.kind).toBe("guard");
     const swapDone = demoLessons(6, "rail").find((s) => s.foeDebrief)?.foeDebrief?.body ?? "";
     expect(swapDone).toMatch(/追|撤/);

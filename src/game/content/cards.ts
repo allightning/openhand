@@ -1,8 +1,12 @@
-import type { CardDef as LegacyCard, CardId } from "../types";
+import type { CardDef as LegacyCard, CardId, WeaponId } from "../types";
 import { CARDS } from "./legacy";
 import type { CardKind, HookId, SchoolId } from "./hooks";
 import { CARD_KINDS, uniqueHooks } from "./hooks";
 import { validateRow, type Hold } from "./validate";
+import { CROSS_HOLD } from "./cards/rectify";
+import { bondSchoolOf, rarityOf, type CardRarity } from "./cards/rarity";
+
+export type { CardRarity };
 
 /** 字段契约见 ARCHITECTURE 阶段 4。kind 已按 KIND.md 冻结。 */
 export interface CardDef {
@@ -13,6 +17,10 @@ export interface CardDef {
   effectHooks: HookId[];
   values: Record<string, number>;
   text: string;
+  /** 凡 common / 精 adept / 绝 supreme。连携不写。 */
+  rarity?: CardRarity;
+  /** 连携所跟的武器系。换人结算不读。 */
+  bondSchool?: WeaponId;
 }
 
 /** 旧牌没有 steps 字段、但结算里就是位移。 */
@@ -110,29 +118,40 @@ export function projectCard(card: LegacyCard): CardDef {
   if (card.id.startsWith("ward")) hooks.add("ward");
   if (card.id.startsWith("fuse")) hooks.add("fuse");
   if (card.tags?.includes("组合")) hooks.add("combo");
-  return {
+  const effectHooks = uniqueHooks([...hooks]);
+  const projected = {
     id: card.id,
     cost: card.cost,
     school: card.school ?? "any",
     kind: card.type,
-    effectHooks: uniqueHooks([...hooks]),
+    effectHooks,
     values,
     text: card.text,
+  };
+  const rarity = rarityOf(projected);
+  const bondSchool = bondSchoolOf(card.id);
+  return {
+    ...projected,
+    ...(rarity ? { rarity } : {}),
+    ...(bondSchool ? { bondSchool: bondSchool as WeaponId } : {}),
   };
 }
 
 export function cardProblems(row: CardDef): string[] {
-  return validateRow(row, { kinds: CARD_KINDS, requireDigit: true });
+  const problems = validateRow(row, { kinds: CARD_KINDS, requireDigit: true });
+  const note = CROSS_HOLD[row.id];
+  if (note) problems.push(note);
+  return problems;
 }
 
 const projected = Object.values(CARDS).map(projectCard);
 
-/** 现行牌全部入表。条数与旧表一致。费用、文案、数值仍是旧表原样。 */
+/** 现行牌全部入表。费用和系别按整改表烘焙在分系文件里。 */
 export const CARD_REGISTRY: Readonly<Record<string, CardDef>> = Object.fromEntries(
   projected.map((row) => [row.id, row]),
 );
 
-/** 同一套校验拦住的旧牌。不改费用、不改旧文案，也不从注册表里拿掉。 */
+/** 合同没过，或交叉系还没拍的牌。人还在注册表里。 */
 export const CARD_HOLDS: readonly Hold<CardDef>[] = projected
   .map((row) => ({ row, problems: cardProblems(row) }))
   .filter((item) => item.problems.length > 0);

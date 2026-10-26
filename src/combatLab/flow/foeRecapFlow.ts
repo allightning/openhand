@@ -88,7 +88,9 @@ function playFoeRecapThen(onDone: () => void, origin?: { playerPos: number; enem
     api.render();
     i += 1;
     const sealPrev = (): void => {
-      S.playbackSegFate = { ...S.playbackSegFate, [orig]: intentBarFate(r.outcome) };
+      const fate = intentBarFate(r.outcome);
+      S.playbackSegFate = { ...S.playbackSegFate, [orig]: fate };
+      if (fate === "gone") playSfx(sfxSlot("intent_gone"), 0.45);
     };
     if (i >= recap.length || (S.playbackShow && S.playbackShow.hp <= 0)) {
       sealPrev();

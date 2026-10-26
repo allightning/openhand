@@ -649,6 +649,8 @@ export function playSfx(id: SfxId, volScale = 1): void {
 
 function fxKeyFor(fx: string, school?: WeaponId | null): SfxKey | undefined {
   if (fx === "hit") return hitKeyForSchool(school);
+  // 蓄力爆发与普通爆发同一占位 swing。只在当前兵器是棍时换键。
+  if (fx === "burst" && school === "staff") return "staff_burst";
   return FX_KEY[fx];
 }
 

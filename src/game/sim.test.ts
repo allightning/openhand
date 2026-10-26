@@ -49,13 +49,16 @@ describe("tutorial battle", () => {
     expect(b.phase).toBe("player");
   });
 
-  it("push from the sixth step hits the wall for 8", () => {
-    const b = makeTutorialBattle(makeTestContext({ mode: "climb", lab: false }));
+  it("push two steps from cell 5 stays on the 9-cell board", () => {
+    const rc = makeTestContext({ mode: "climb", lab: false });
+    const b = makeTutorialBattle(rc);
+    expect(b.boardSize).toBe(9);
+    expect(b.wallEnds).toBe("high");
     expect(b.enemy.pos).toBe(5);
-    const prev = previewCard(b, b.hand.find((c) => c.defId === "push")!.uid, makeTestContext({ mode: "climb", lab: false }));
-    expect(prev.enemyPos).toBe(6);
-    expect(prev.enemyHp).toBe(48);
-    expect(prev.notes.some((n) => n.includes("撞壁"))).toBe(true);
+    const prev = previewCard(b, b.hand.find((c) => c.defId === "push")!.uid, rc);
+    expect(prev.enemyPos).toBe(7);
+    expect(prev.enemyHp).toBe(b.enemy.hp);
+    expect(prev.notes.some((n) => n.includes("撞壁"))).toBe(false);
   });
 
   it("push then two strikes does not kill before the catcher acts", () => {
@@ -63,7 +66,7 @@ describe("tutorial battle", () => {
     b = playNamed(b, "push");
     b = playNamed(b, "strike");
     b = playNamed(b, "strike");
-    expect(b.enemy.hp).toBe(38); // §31.11 劈掌 6→5
+    expect(b.enemy.hp).toBe(46); // 推宫 2 步落到第 8 格，够不着高侧墙；两记劈掌各 5
     expect(b.phase).toBe("player");
   });
 
@@ -210,20 +213,25 @@ describe("new verbs and techniques", () => {
     expect(b.intents.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("lets follow hit harder after an attack, and chain after combo", () => {
+  it("keeps flow across turns and retains ironform block", () => {
     const run = makeRun("empty");
-    run.deck = ["strike", "follow", "combo", "chain", "defend"];
-    let b = makeBattle("intruder", makeTestContext({ mode: "climb", lab: false }), run, true);
-    b = playNamed(b, "strike");
-    const afterStrike = b.enemy.hp;
-    b = playNamed(b, "follow");
-    expect(b.enemy.hp).toBe(afterStrike - 6);
-    b = playNamed(b, "combo");
-    expect(b.combo).toBe(1);
-    const before = b.enemy.hp;
-    b = playNamed(b, "chain");
-    expect(b.enemy.hp).toBe(before - 11);
-    expect(b.combo).toBe(0);
+    run.deck = ["mirror", "defend", "defend", "defend", "defend", "defend"];
+    let b = makeBattle("catcher", makeTestContext({ mode: "climb", lab: false }), run, true);
+    b = playNamed(b, "mirror");
+    expect(b.playerBlock).toBe(14);
+    b = endTurn(b, makeTestContext({ mode: "climb", lab: false }));
+    expect(b.player.hp).toBe(STARTER.playerHp - 4);
+    expect(b.playerBlock).toBe(0);
+
+    const run2 = makeRun("empty");
+    run2.deck = ["ironform", "defend", "defend", "defend", "defend"];
+    let iron = makeBattle("catcher", makeTestContext({ mode: "climb", lab: false }), run2, true);
+    iron = playNamed(iron, "ironform");
+    expect(iron.playerBlock).toBe(10);
+    expect(iron.retainTurns).toBe(2);
+    iron = endTurn(iron, makeTestContext({ mode: "climb", lab: false }));
+    expect(iron.playerBlock).toBe(6);
+    expect(iron.retainTurns).toBe(1);
   });
 
   it("pays off setup into finisher and keeps flow across turns", () => {
@@ -244,31 +252,6 @@ describe("new verbs and techniques", () => {
     const mid = b.enemy.hp;
     b = playNamed(b, "strike");
     expect(b.enemy.hp).toBe(mid - 6); // §31.11 劈掌5 + 气脉1
-  });
-
-  it("weaves after an attack, mirrors threat, and retains ironform block", () => {
-    const run = makeRun("empty");
-    run.deck = ["strike", "weave", "mirror", "ironform", "defend", "defend", "defend", "defend", "defend", "defend"];
-    let b = makeBattle("catcher", makeTestContext({ mode: "climb", lab: false }), run, true);
-    b = playNamed(b, "strike");
-    b = playNamed(b, "weave");
-    expect(b.playerBlock).toBe(8);
-    expect(b.combo).toBe(1);
-    b = playNamed(b, "mirror");
-    expect(b.playerBlock).toBe(8 + 14);
-    b = endTurn(b, makeTestContext({ mode: "climb", lab: false }));
-    expect(b.player.hp).toBe(STARTER.playerHp);
-    expect(b.playerBlock).toBe(0);
-
-    const run2 = makeRun("empty");
-    run2.deck = ["ironform", "defend", "defend", "defend", "defend"];
-    let iron = makeBattle("catcher", makeTestContext({ mode: "climb", lab: false }), run2, true);
-    iron = playNamed(iron, "ironform");
-    expect(iron.playerBlock).toBe(10);
-    expect(iron.retainTurns).toBe(2);
-    iron = endTurn(iron, makeTestContext({ mode: "climb", lab: false }));
-    expect(iron.playerBlock).toBe(6);
-    expect(iron.retainTurns).toBe(1);
   });
 
   it("marks then rifts for a consumed bonus", () => {
@@ -304,15 +287,16 @@ describe("new verbs and techniques", () => {
     expect(b.player.hp).toBe(STARTER.playerHp - 18);
   });
 
-  it("lets 金创 stop your 裂创", () => {
+  it("lets 深息 stop your 裂创", () => {
     const run = makeRun("empty");
-    run.deck = ["salve", "defend", "defend", "defend", "defend"];
+    run.deck = ["mend2", "defend", "defend", "defend", "defend"];
     let b = makeBattle("catcher", makeTestContext({ mode: "climb", lab: false }), run, true);
-    b.youBleed = 4;
+    b.bleed = 4;
     b.player.hp = 20;
-    b = playNamed(b, "salve");
-    expect(b.youBleed).toBe(0);
-    expect(b.player.hp).toBe(26);
+    b.energy = 8;
+    b = playNamed(b, "mend2");
+    expect(b.bleed).toBe(0);
+    expect(b.player.hp).toBe(28);
   });
 
   it("lets a foe interrupt stacked 铺势 after the first turn", () => {
@@ -407,12 +391,12 @@ describe("stance, swap, and mates", () => {
     let b = makeBattle("catcher", makeTestContext({ mode: "climb", lab: false }), run, true);
     const bag = b.bench.find((m) => m.id === "watch");
     if (!bag) throw new Error("watch missing");
-    bag.hand[0] = { uid: bag.hand[0].uid, defId: "strike" };
+    bag.hand[0] = { uid: bag.hand[0].uid, defId: "push" };
     const n = bag.hand.length;
     b = swapFighter(b, "watch", makeTestContext({ mode: "climb", lab: false }));
     expect(b.active).toBe("watch");
-    expect(b.hand.some((c) => c.defId === "strike")).toBe(false);
-    expect(b.discardPile.some((c) => c.defId === "strike")).toBe(true);
+    expect(b.hand.some((c) => c.defId === "push")).toBe(false);
+    expect(b.discardPile.some((c) => c.defId === "push")).toBe(true);
     expect(b.hand.every((c) => {
       const school = cardSchool(c.defId);
       return school === "any" || school === "saber";

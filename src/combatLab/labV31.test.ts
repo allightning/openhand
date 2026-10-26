@@ -238,26 +238,6 @@ describe("§31.11 六系绝招前置", () => {
 });
 
 describe("§31.11 减费与弃牌", () => {
-  it("搓手 0 费，下张牌耗劲 -1", () => {
-    expect(CARDS.weave.cost).toBe(0);
-    let b = schoolBattle("palm");
-    b.enemy.pos = b.player.pos + 1;
-    b = {
-      ...b,
-      energy: 3,
-      hand: [
-        { uid: "w", defId: "weave" },
-        { uid: "s", defId: "strike2" },
-      ],
-    };
-    b = playCard(b, "w", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false } }));
-    expect(b.costDiscountNext).toBe(1);
-    const e0 = b.energy;
-    b = playCard(b, "s", makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false } })); // 开山掌 2 费 → 实扣 1
-    expect(e0 - b.energy).toBe(1);
-    expect(b.costDiscountNext ?? 0).toBe(0);
-  });
-
   it("置换后本回不能再换（弃 1 摸 1）", () => {
     let b = schoolBattle("palm");
     b.enemy.pos = b.player.pos + 1;

@@ -1,7 +1,8 @@
 import { renderBattleSheet, type BattleSheetKind } from "../battleSheet";
 import { renderRouteBook, type RouteLogEntry } from "../climbPlaces";
 import { renderDevPanelModal } from "../devPanel";
-import { renderWikiSheet, type WikiBook } from "../encyclopedia";
+import { type WikiBook } from "../encyclopedia";
+import { renderShellCodex } from "./shellCodex";
 import { renderGuideSheet } from "../guide";
 import type { Battle } from "../../game/types";
 import { escapeHtml } from "../setupUi";
@@ -66,7 +67,7 @@ export function renderShellOverlays(o: {
 }): string {
   const parts: string[] = [];
   if (o.guideOpen) parts.push(renderGuideSheet());
-  if (o.wiki) parts.push(renderWikiSheet(o.wiki.book, o.wiki.page, o.wiki.query));
+  if (o.wiki) parts.push(renderShellCodex(o.wiki.book, o.wiki.page, o.wiki.query));
   if (o.devPanelOpen) parts.push(renderDevPanelModal());
   if (o.battleSheet) parts.push(renderBattleSheet(o.battleSheet.kind, o.battleSheet.battle));
   if (o.route) parts.push(renderRouteBook(o.route.log, o.route.pathLabel));

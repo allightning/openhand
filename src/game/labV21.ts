@@ -11,7 +11,8 @@ import {
 import { initSignatureBattle } from "./labSignature";
 import { comboEffectiveCost, isComboCard } from "./labCombo";
 import { ITEM_DART_DMG, ITEM_GRANT_QTY, ITEM_HEAL_PCT, ITEM_QI_GAIN } from "./labV21Constants";
-import { BOARD_SIZE, type Battle, type CardDef, type CardId, type LabItemId } from "./types";
+import { boardLen, nearestWallDist, unitAtWall, wallEndsOf } from "./board";
+import type { Battle, CardDef, CardId, LabItemId } from "./types";
 import { gearById } from "./weapons";
 import { labPlayCost } from "./climbEconomy";
 import { emptyV2Turn } from "./labV2";
@@ -122,7 +123,7 @@ function breakUltimateGate(
   }
   const reasons: string[] = [];
   const d = dist(b);
-  const wallDist = Math.min(b.enemy.pos, BOARD_SIZE - 1 - b.enemy.pos);
+  const wallDist = nearestWallDist(b.enemy.pos, boardLen(b), wallEndsOf(b));
   if (id === "ultSaber") {
     if ((b.bleed ?? 0) < 3) reasons.push("敌流血 ≥3");
   } else if (id === "ultPalm") {
@@ -166,7 +167,7 @@ export function ultimateGate(
   if ((u.bleedMin ?? 0) > (b.bleed ?? 0)) reasons.push(`敌裂创 ≥${u.bleedMin}`);
   if ((u.attacksMin ?? 0) > b.attacksThisTurn) reasons.push(`本回合已出攻击 ≥${u.attacksMin}`);
   if (u.foeDisarmed && (b.foeDisarm ?? 0) <= 0) reasons.push("敌缴械中");
-  if (u.foeAtWall && b.enemy.pos !== 0 && b.enemy.pos !== BOARD_SIZE - 1) reasons.push("敌贴墙");
+  if (u.foeAtWall && !unitAtWall(b.enemy.pos, boardLen(b), wallEndsOf(b))) reasons.push("敌贴墙");
   if (u.foeHitLastTurn && !b.foeHitLastTurn) reasons.push("上回合挨过敌招");
   if (reasons.length) return { ok: false, reason: `绝招：缺 ${reasons.join("、")}` };
   return { ok: true };

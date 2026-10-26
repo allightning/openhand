@@ -45,13 +45,13 @@ export const BUILTIN_PRESETS: LabPreset[] = [
   basePreset("tutorial", "新手首战", "教程捕快，学读意图与推撞。", ["新手", "教学"], "rail", "catcher"),
   basePreset("elite-read", "单精英读招", "护镖头多意图，练算招换步。", ["精英", "读招"], "rail", "escort", {
     mateTechs: { rail: ["leftover"] },
-    deckRecipe: uniqueRecipe([...STARTER_DECK, "expose", "sidestep", "brace", "follow"]),
+    deckRecipe: uniqueRecipe([...STARTER_DECK, "expose", "sidestep", "brace"]),
   }),
   basePreset("boss-lord", "Boss·门主", "门主多段意图，测长战闭环。", ["Boss", "多阶段"], "rail", "lord", {
     hp: 36,
     hpMax: 36,
     mateTechs: { rail: ["nightStep", "leftover"] },
-    deckRecipe: uniqueRecipe([...STARTER_DECK, "finisher", "setup", "combo", "ironform", "mend"]),
+    deckRecipe: uniqueRecipe([...STARTER_DECK, "finisher", "setup", "ironform", "mend"]),
     mateWeapons: { rail: "palm-a-4" },
   }),
   basePreset("boss-usurper", "Boss·夺玺", "终局夺玺者，高压拆招。", ["Boss"], "seer", "usurper", {
@@ -72,10 +72,10 @@ export const BUILTIN_PRESETS: LabPreset[] = [
     party: ["rail", "seer"],
     mateWeapons: { rail: "palm-b-3", seer: starterGear("sword") },
     mateTechs: { rail: ["leftover"], seer: ["brightBlade"] },
-    deckRecipe: uniqueRecipe([...STARTER_DECK, "twinpalm", "chain", "follow", "haste"]),
+    deckRecipe: uniqueRecipe([...STARTER_DECK, "haste"]),
   }),
   basePreset("pace-duel", "先机对弈", "快刀对快剑，抢先机。", ["先机"], "seer", "delay", {
-    deckRecipe: uniqueRecipe([...SEER_DECK, "haste", "haste2", "follow2"]),
+    deckRecipe: uniqueRecipe([...SEER_DECK, "haste"]),
     mateWeapons: { seer: "sword-b-4" },
     mateTechs: { seer: ["ghostStep"] },
   }),
@@ -92,7 +92,7 @@ export const BUILTIN_PRESETS: LabPreset[] = [
     party: ["rail", "hermit"],
     extraFoeIds: ["escort"],
     mateWeapons: { rail: "palm-a-3", hermit: "palm-b-2" },
-    deckRecipe: uniqueRecipe([...STARTER_DECK, "sidestep", "advance", "expose", "defend2", "combo", "finisher"]),
+    deckRecipe: uniqueRecipe([...STARTER_DECK, "sidestep", "advance", "expose", "defend2", "finisher"]),
     mateTechs: { rail: ["leftover"], hermit: ["keepGuard"] },
   }),
 ];

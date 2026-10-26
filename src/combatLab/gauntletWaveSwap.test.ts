@@ -81,10 +81,16 @@ describe("拆招轮番接力不软锁", () => {
   it("换人后敌招有计划，收势能过回合并不会卡死", () => {
     let b = v2Battle(6);
     b.enemy.hp = 1;
+    b.player.pos = 3;
+    b.enemy.pos = 4;
     b = killFrontFoe(b);
     expect(b.intents.length).toBeGreaterThan(0);
+    const ctx = makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, v2VariantAi: false, enemyStressCap: 0 } });
+    while (needsDiscardToHandCap(b, ctx) && b.hand.length) {
+      b = labDiscardCard(b, b.hand[0]!.uid, ctx);
+    }
     const beforeTurn = b.turn;
-    b = endTurn(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false, v2VariantAi: false, enemyStressCap: 0 } }));
+    b = endTurn(b, ctx);
     expect(b.phase).toBe("player");
     expect(b.turn).toBeGreaterThan(beforeTurn);
     expect(b.intents.length).toBeGreaterThan(0);

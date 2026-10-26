@@ -92,9 +92,9 @@ export function swapStep(banner: string, coach: string): DemoLessonStep {
 const SCHOOL_FINISHER: Record<WeaponId, { id: CardId; name: string }> = {
   saber: { id: "cut", name: "斩" },
   palm: { id: "strike", name: "劈掌" },
-  sword: { id: "pierce", name: "刺" },
+  sword: { id: "hitSword", name: "点刺" },
   spear: { id: "thrust", name: "突" },
-  staff: { id: "bleedcut", name: "刀创" },
+  staff: { id: "split", name: "裂桩" },
   hook: { id: "hookDisarm", name: "摘兵钩" },
 };
 

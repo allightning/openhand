@@ -96,17 +96,16 @@ const SPEAR_DECK: CardId[] = [
 ];
 
 const SWORD_DECK: CardId[] = [
-  "pierce",
-  "pierce",
-  "pierce",
+  "hitSword",
+  "hitSword",
+  "direct",
   "defend",
   "advance",
   "charge",
   "mend",
-  "pierce",
+  "expose",
   "defend",
   "advance",
-  "cauterize",
 ];
 
 const STAFF_DECK: CardId[] = [
@@ -613,8 +612,6 @@ export function cardSchool(id: CardId): WeaponId | "any" {
     key === "elbow" ||
     key === "finisher" ||
     key === "layer" ||
-    key === "weave" ||
-    key === "bindwound" ||
     key === "palmSeal"
   )
     return "palm";

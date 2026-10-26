@@ -223,7 +223,8 @@ describe("Combat Lab weapon hint", () => {
 describe("Combat Lab school filter", () => {
   it("allows any and matching school cards only", () => {
     expect(isCardAllowedForWeapon("defend", "sword-b-1")).toBe(true);
-    expect(isCardAllowedForWeapon("pierce", "sword-b-1")).toBe(true);
+    expect(isCardAllowedForWeapon("direct", "sword-b-1")).toBe(true);
+    expect(isCardAllowedForWeapon("pierce", "sword-b-1")).toBe(false);
     expect(isCardAllowedForWeapon("cut", "sword-b-1")).toBe(false);
     expect(isCardAllowedForWeapon("strike", "palm-a-1")).toBe(true);
     expect(isCardAllowedForWeapon("cut", "palm-a-1")).toBe(false);
@@ -231,12 +232,13 @@ describe("Combat Lab school filter", () => {
 
   it("prunes deck when weapon school changes", () => {
     const deck = pruneDeckForWeapon(["strike", "cut", "defend"], "sword-b-1");
-    expect(deck).toEqual(["defend"]);
+    expect(deck).toEqual(["strike", "defend"]);
   });
 
-  it("blocks drunkFist for non-palm weapons", () => {
+  it("blocks drunkFist for weapons that are not saber", () => {
     expect(isCardAllowedForWeapon("drunkFist", "spear-a-3")).toBe(false);
-    expect(isCardAllowedForWeapon("drunkFist", "palm-a-1")).toBe(true);
+    expect(isCardAllowedForWeapon("drunkFist", "saber-a-1")).toBe(true);
+    expect(isCardAllowedForWeapon("drunkFist", "palm-a-1")).toBe(false);
   });
 });
 

@@ -2,6 +2,7 @@
 
 > 2026-09-21 主窗定稿，同日两轮评审修订（v2：H1–H5 / M1–M6；v3：C1–C6 精修，复评通过、具备开工条件）。
 > 2026-09-24 收口对账回写（阶段 0/A/B 已闭环；按代码实测修正「黄金对局覆盖面 / main.ts 归属 / 旧核选路」三处口径，见 §4 标注）。
+> 2026-10-21 六刀落地回写（`f888bb8` 阶段 4 → `79b4d71` 音效 → `3042878` 阶段 3 壳拆 → `f655067` 阶段 2 → `8e2a841` 测试基建 → `9c40b24` 训练场；末刀 76 文件 / 795 绿）。阶段 2/3 落地口径与本文有出入，见 §4 各阶段「落地对账」。
 > 执行由专窗按阶段认领，每阶段验收标准见 §4。
 > 配套：铁律 `.cursor/rules/combat-ironclad.mdc`（玩法）、`.cursor/rules/combat-architecture.mdc`（架构，简版）、skill `combat-architecture`（加内容时查）。
 > 本文是架构唯一真源；改架构口径先改本文，再改 SYNC。
@@ -144,6 +145,10 @@ PR #1 的合并判定标准 = **`src/game` 零 import `src/combatLab` + layerBou
 - **验收**：gauntlet.ts ≤600 行；layerBoundary + DOM 护栏绿；黄金对局 diff 为空。
 - **中止 / 回滚**：同阶段 1。
 
+**落地对账（2026-10-21，`f655067`）**：gauntlet.ts 1844 → 323；规则 9 文件 1731 行（wagerRules 211 / marketRules 181 / lifelineRules 270 / rewardRules 161 / rewardRoll 296 / ladderRules 150 / gauntletKit 126 / gauntletModel 286 / gauntletPorts 50）；彩金读写 `persist.ts` 34 行。两处与原文有出入，记为债：
+1. **ctx 未落地，改用 `gauntletPorts` 壳层注入**（`installGauntletPorts`）。规则文件里无 `Math.random`、无 localStorage，但 `gauntletPorts()` 是模块级可变单例——规则函数读它不算纯（入 state+ctx）。ctx 落地后改回签名带 ctx。
+2. **`isBreakAlign` 随逻辑迁入 rules/ 16 处**（走 `gauntletPorts().isBreakAlign()`）+ gauntlet.ts 余 7 处，共 23 处。这是平移带走的旧分支，不是新分支；按「全局 if 换 ports if = 假重构」口径不算收口，归并进阶段 3 旧核账：拆双核时按模式各归各。
+
 ### 阶段 3 ∥ 阶段 4：可并行（M1）
 
 阶段 3 改壳、阶段 4 改核，文件集不重叠，**可分两窗并行**；若串行，**阶段 4 优先**——内容注册表直接解锁六系牌面 / 连携重写，避免牌面先在旧散表重写一遍再迁移做两次工。
@@ -162,6 +167,8 @@ PR #1 的合并判定标准 = **`src/game` 零 import `src/combatLab` + layerBou
 - **铁律 §4 适配**：保持「这一招打完才改这一招的血 / 挡 / 位移」时序。
 - **验收**：combatLab/main.ts ≤300 行；旧 src/main.ts 已删除 / 归档；`ruleset.mode`（引擎共享路径）与壳 `isBreakAlign` 计数归零；黄金 20 局 + 全套定向 + DOM 序列逐拍 diff 为空；测试绿。
 - **中止 / 回滚**：快照 diff 暴露时序漂移且 3 次修复不收敛 → 回滚该域拆分。
+
+**落地对账（2026-10-21，`3042878` + `8e2a841`）**：上半（壳拆 + 黄金补全）已落——`combatLab/main.ts` 4150 → 99，切出 dom/ 10 + flow/ 14 + render/ 等 30 文件；旧 `src/main.ts`（3657 行）已删；黄金固定种子 20 局 + 定向 11 类 + DOM 序列独立基线 `goldenReplay.dom.json`。下半未做：旧核沉 `engine/break/`、57 处 `ruleset.mode` 与壳层 `isBreakAlign` 归零。壳层 `isBreakAlign` 现读 `shellRunContext()`；rules/ 里 16 处见阶段 2 对账。**下半开工提示：读招窗已把这 57 处逐条归类（沉 engine/break 45、收 ctx.ruleset 10、死分支 2，清单在 `.cursor/lanes/5-读招.md`）——沉核时不要并进 qiCommit。**
 
 ### 阶段 4：内容注册表 + 校验测试
 
@@ -191,6 +198,8 @@ export const CARD_REGISTRY: Readonly<Record<CardId, CardDef>> = { /* ... */ };
 
 - **验收**：故意加一条坏数据（缺 hook / 0 费 / 越界数值），测试必红；删掉即绿。
 - **中止 / 回滚**：现有内容大面积过不了校验 → 先修数据再上线校验门，不许放宽校验迁就旧数据。
+
+**落地对账（2026-10-21，`f888bb8`）**：注册表已落——牌 155 / 敌 171 / 外功 32 / 心法 10 / 旧心法 3 / 符 6 / 道具 6，与盘点一致；`contentValidation.test.ts` 已并入 `test:combat`；坏数据探针删掉才绿。**决策点（留给用户）：20 张牌合同仍红**（0 费 17、`lateWard` 格挡 16、`close`/`plant` 牌面无数字）——人在 `CARD_REGISTRY`、原因在 `CARD_HOLDS`，费用与旧文案未改、结算行为不变。按「不许放宽校验迁就旧数据」口径，它们挂在 HOLDS 是合规的；要让它们过 cost≥1 得另开一包改结算，不是本阶段的事。
 
 ### 阶段 5：清剿 + sim 拆分
 

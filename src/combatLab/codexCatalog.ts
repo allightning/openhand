@@ -28,7 +28,17 @@ export interface CodexEntry {
   kicker: string;
   text: string;
   flavor?: string;
+  /** 凡 / 精 / 绝 / 连携。样式归 UI。 */
+  rarityLabel?: string;
   related: CodexRelated[];
+}
+
+const RARITY_LABEL = { common: "凡", adept: "精", supreme: "绝" } as const;
+
+function cardRarityLabel(id: string): string | undefined {
+  if (id.startsWith("fuse")) return "连携";
+  const rarity = CARD_REGISTRY[id]?.rarity;
+  return rarity ? RARITY_LABEL[rarity] : undefined;
 }
 
 const ULT_SET = new Set<string>([
@@ -96,8 +106,9 @@ function cardFace(id: CardId): string {
   const row = CARD_REGISTRY[id]!;
   const body = cardDisplayText(card, shellRunContext());
   const stats = registryStatLine(row);
-  if (!stats || body.includes(stats)) return body;
-  return `${body}\n数值：${stats}`;
+  const face = !stats || body.includes(stats) ? body : `${body}\n数值：${stats}`;
+  const rarity = cardRarityLabel(id);
+  return rarity ? `${face}\n品相：${rarity}` : face;
 }
 
 export function catalogUlt(): CodexEntry[] {
@@ -111,6 +122,7 @@ export function catalogUlt(): CodexEntry[] {
       kicker: `绝 · ${schoolLabel(id)} · ${row.cost}劲`,
       text: cardFace(id),
       flavor: c.flavor,
+      rarityLabel: cardRarityLabel(id),
       related: cardRelated(id),
     };
   });
@@ -128,6 +140,7 @@ export function catalogSkill(): CodexEntry[] {
       kicker: `${kindLabel} · ${schoolLabel(id)} · ${row.cost}劲`,
       text: cardFace(id),
       flavor: c.flavor,
+      rarityLabel: cardRarityLabel(id),
       related: cardRelated(id),
     };
   });

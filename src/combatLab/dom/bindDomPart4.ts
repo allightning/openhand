@@ -12,7 +12,7 @@ import { shellRunContext } from "../shellContext";
 import { labCanPlay, labSwapFighter } from "../labCombat";
 import { recordPlayerTurn } from "../telemetry";
 import { playSfx } from "../labAudio";
-import { cardPlaySfxKey, sfxSlot } from "../sfxMap";
+import { cardPlaySfxKey, riderSfxKeys, sfxSlot } from "../sfxMap";
 import { syncBreakDemoBattle, afterDemoPlayCard, afterDemoSwap, demoAllowsCard, demoAllowsSwap } from "../breakDemo";
 import { afterHallPlayCard, afterHallSwap, hallAllowsCard, hallAllowsSwap, hallIsGuided, syncHallBattle } from "../trainingHall";
 import { afterCampaignPlayCard, afterCampaignSwap, campaignAllowsCard, campaignAllowsSwap, syncCampaignBattle } from "../breakCampaign";
@@ -60,7 +60,9 @@ for (const el of S.root.querySelectorAll<HTMLButtonElement>(".card[data-uid]")) 
       const uid = el.dataset.uid!;
       // 弃牌/置换：须先点按钮，超上限不会自动改点牌为弃牌
       if ((S.discardMode || S.battle.climbDiscardPhase) && (isClimbQi(shellRunContext()) || needsDiscardToHandCap(S.battle, shellRunContext()))) {
+        const had = S.battle.hand.some((c) => c.uid === uid);
         S.battle = labDiscardCard(S.battle, uid, shellRunContext());
+        if (had && !S.battle.hand.some((c) => c.uid === uid)) playSfx(sfxSlot("discard"));
         if (!isClimbQi(shellRunContext()) && !needsDiscardToHandCap(S.battle, shellRunContext())) S.discardMode = false;
         api.render();
         return;
@@ -68,7 +70,9 @@ for (const el of S.root.querySelectorAll<HTMLButtonElement>(".card[data-uid]")) 
       if (S.cycleMode) {
         const dGate = labCanCycle(S.battle, shellRunContext());
         if (!dGate.ok) return;
+        const had = S.battle.hand.some((c) => c.uid === uid);
         S.battle = labCycleCard(S.battle, uid, shellRunContext());
+        if (had && !S.battle.hand.some((c) => c.uid === uid)) playSfx(sfxSlot("cycle_card"));
         S.cycleMode = false;
         api.render();
         return;
@@ -91,7 +95,13 @@ for (const el of S.root.querySelectorAll<HTMLButtonElement>(".card[data-uid]")) 
       const ms = Math.round(performance.now() - S.turnStartedAt);
       const before = S.battle;
       const after = playCard(S.battle, uid, shellRunContext());
-      if (card) playSfx(sfxSlot(cardPlaySfxKey(CARDS[card.defId])));
+      if (card) {
+        const cardKey = cardPlaySfxKey(CARDS[card.defId]);
+        playSfx(sfxSlot(cardKey));
+        for (const key of riderSfxKeys(before, after)) {
+          if (key !== cardKey) playSfx(sfxSlot(key));
+        }
+      }
       const matched = api.previewMatchesPlay(before, uid, after);
       S.battle = after;
       if (S.battle.v2FxQueue && S.battle.v2FxQueue.length > 1) {
@@ -160,6 +170,7 @@ S.root.querySelector(".hand-scroll")?.addEventListener("mouseleave", () => {
       if (S.breakDemoRun && !demoAllowsSwap(S.breakDemoRun, id)) return;
       if (S.hallRun && !hallAllowsSwap(S.hallRun, id)) return;
       if (S.campaignRun && !campaignAllowsSwap(S.campaignRun, id)) return;
+      const prevActive = S.battle.active;
       S.battle = labSwapFighter(S.battle, id);
       if (S.breakDemoRun) {
         S.breakDemoRun = afterDemoSwap(S.breakDemoRun, id);
@@ -173,6 +184,7 @@ S.root.querySelector(".hand-scroll")?.addEventListener("mouseleave", () => {
         S.campaignRun = afterCampaignSwap(S.campaignRun);
         S.battle = syncCampaignBattle(S.battle, S.campaignRun);
       }
+      if (S.battle.active !== prevActive) playSfx(sfxSlot("swap"));
       api.render();
     });
   }

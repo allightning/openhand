@@ -50,11 +50,12 @@ describe("§31 连胜踢馆", () => {
     exitGauntletTuning();
   });
 
-  it("开踢起手 10 张，含直取、本系主攻与增补攻、撤步", () => {
+  it("开踢起手 10 张，含劈掌、本系主攻与增补攻、撤步", () => {
     for (const school of ["palm", "saber", "sword", "spear", "staff", "hook"] as const) {
       const deck = breakStarterDeck(school);
       expect(deck).toHaveLength(10);
-      expect(deck).toContain("direct");
+      expect(deck).toContain("strike");
+      expect(deck).not.toContain("direct");
       expect(deck).toContain("retreat");
       expect(deck.filter((id) => CARDS[id]?.type === "attack").length).toBeGreaterThanOrEqual(4);
     }
@@ -189,7 +190,7 @@ describe("§31 连胜踢馆", () => {
     setLabRuleset("break");
     const run = createGauntletRun("bandit", "saber");
     expect(run.deckRecipe).toHaveLength(10);
-    expect(run.deckRecipe).toContain("direct");
+    expect(run.deckRecipe).toContain("strike");
     expect(run.deckRecipe).toContain("cut");
     expect(run.deckRecipe).toContain("retreat");
     expect(run.deckRecipe).not.toContain("advance2");

@@ -91,23 +91,20 @@ export function bossCount(hero: HeroId, beaten: EnemyId[]): number {
 }
 
 export const SEER_DECK: CardId[] = [
-  "pierce",
-  "pierce",
+  "hitSword",
+  "hitSword",
   "expose",
   "defend",
   "marking",
   "advance",
   "advance",
   "inbreath",
-  "pierce",
+  "direct",
   "mend",
   "setup",
-    "rift",
-    "echo",
-    "buryBleed",
-    "unbind",
-    "cauterize",
-  ];
+  "rift",
+  "unbind",
+];
 
 export const SAPPER_DECK: CardId[] = [
   "plant",
@@ -117,14 +114,12 @@ export const SAPPER_DECK: CardId[] = [
   "brace",
   "defend",
   "ironform",
-  "sweep",
+  "wardStaff",
   "split",
   "mend",
   "advance",
-  "bleedcut",
   "setup",
     "layer",
     "buryWard",
-    "salve",
     "suture",
   ];

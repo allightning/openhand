@@ -79,13 +79,14 @@ describe("ROGUE_GRADIENT 手牌 / 流血 / 枪距", () => {
 });
 
 describe("ROGUE_GRADIENT 起手/光环/轮番", () => {
-  it("每系起手 10 张：四攻 + 卸力本系架 + 进步撤步 + 吐纳纳息（钩用推代进步）", () => {
+  it("每系起手 10 张：劈掌 + 卸力本系架 + 进退 + 吐纳（钩用换位）", () => {
     for (const school of ["saber", "palm", "sword", "spear", "staff", "hook"] as const) {
       const deck = breakStarterDeck(school);
       expect(deck).toHaveLength(10);
-      expect(deck).toContain("direct");
+      expect(deck).toContain("strike");
+      expect(deck).not.toContain("direct");
       expect(deck).toContain("defend");
-      expect(deck).toContain(school === "hook" ? "push" : "advance");
+      expect(deck).toContain(school === "hook" ? "sidestep" : "advance");
       expect(deck).toContain("retreat");
       expect(deck).toContain("mend");
       expect(deck).toContain("inbreath");

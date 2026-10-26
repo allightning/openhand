@@ -1,4 +1,5 @@
-import type { EnemyDef, EnemyId, Intent, WeaponId } from "./types";
+import { catalogCell } from "./board";
+import { BOARD_SIZE, type EnemyDef, type EnemyId, type Intent, type WeaponId } from "./types";
 import { GAUNTLET_FOE_IDENTITY, kitCatalogPattern, schoolForGeneratedEnemy } from "./enemyKit";
 
 const FAMILIES: {
@@ -256,7 +257,7 @@ function build(): Record<string, EnemyDef> {
         name,
         title: fam.title,
         hp,
-        pos: 4 + (i % 2),
+        pos: catalogCell(4 + (i % 2), BOARD_SIZE),
         skill: fam.title,
         pitch: fam.pitch,
         remnant: remnantFor(id, fam.key, school),
@@ -294,7 +295,7 @@ function build(): Record<string, EnemyDef> {
       name: `罗汉${["一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二", "十三", "十四", "十五", "十六", "十七", "十八"][i - 1]}`,
       title: i <= 6 ? "外院罗汉" : i <= 12 ? "戒坛罗汉" : "大雄罗汉",
       hp: Math.round((36 + i * 4) * 1.18),
-      pos: 5,
+      pos: catalogCell(5, BOARD_SIZE),
       skill: "罗汉阵",
       remnant: i >= 15 ? "throne" : i >= 8 ? "hardWall" : "leftover",
       pattern: raw.map((p) => scaleIntent(p)),

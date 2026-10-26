@@ -201,7 +201,17 @@ import {
   ultimateGate,
 } from "./labV21";
 import {
-  BOARD_SIZE,
+  assembleBattleBoard,
+  atBoardEnd,
+  boardLen,
+  catalogCell,
+  offBoardSide,
+  openingPosts,
+  twinPosts,
+  wallOnSide,
+  wallEndsOf,
+} from "./board";
+import {
   HAND_SIZE,
   WALL_DAMAGE,
   type Battle,
@@ -310,7 +320,7 @@ function defaultRun(): Run {
   return makeRun("empty");
 }
 
-function foePack(id: EnemyId, rc: RunContext): Unit[] {
+function foePack(id: EnemyId, rc: RunContext, boardSize: number): Unit[] {
   const def = labEnemy(id, rc);
   let hpMul = rc.lab ? rc.tuning.enemyHpMul : 1;
   if (rc.lab && isBossEnemy(id) && id === "lord") {
@@ -323,13 +333,14 @@ function foePack(id: EnemyId, rc: RunContext): Unit[] {
     title: def.title,
     hp,
     maxHp: hp,
-    pos: def.pos,
+    pos: catalogCell(def.pos, boardSize),
   };
   if (id !== "twin") return [main];
+  const posts = twinPosts(boardSize);
   const twinHp = Math.max(8, Math.round(24 * fightScale.hp));
   return [
-    { ...main, id: "twin", hp: twinHp, maxHp: twinHp, pos: 3 },
-    { id: "shadow", name: "影", title: "镜中人", hp: twinHp, maxHp: twinHp, pos: 6 },
+    { ...main, id: "twin", hp: twinHp, maxHp: twinHp, pos: posts.lead },
+    { id: "shadow", name: "影", title: "镜中人", hp: twinHp, maxHp: twinHp, pos: posts.shadow },
   ];
 }
 
@@ -550,7 +561,6 @@ export function makeBattle(
   const def = labEnemy(enemyId, rc);
   const active = run.active ?? "rail";
   const deck = deal(deckFor(run, active, rc), ordered);
-  const foes = foePack(enemyId, rc);
   const mateHp = (id: CompanionId) => {
     // 旧训练馆核选路，阶段3拆 engine/break 时沉走，勿仿此新增
     if (rc.lab && rc.ruleset.mode !== "break" && id === active) return run.hp;
@@ -583,6 +593,8 @@ export function makeBattle(
   const energyMax = enemyEnergyMax(enemyId);
   const gearQi = pathSkillMods(battleGearId, rc).qiRegen ?? 0;
   const bonusQi = run.companionBonus?.[active]?.qiMax ?? 0;
+  const stone = assembleBattleBoard(rc.ruleset.mode, run);
+  const foes = foePack(enemyId, rc, stone.boardSize);
   const battle: Battle = {
     player: {
       id: "you",
@@ -595,6 +607,9 @@ export function makeBattle(
     enemy: foes[0],
     foes,
     enemyId,
+    boardSize: stone.boardSize,
+    wallEnds: stone.wallEnds,
+    ...(stone.openingDist != null ? { openingDist: stone.openingDist } : {}),
       playerBlock: run.techniques.includes("nightStep") && !(rc.lab && rc.ruleset.mode === "break") ? 1 : 0,
       // 读招：小池 6/5/3。爬塔：按角色气血档位，不再 ×8。
       ...(rc.lab && rc.ruleset.mode === "break"
@@ -874,7 +889,7 @@ function targetFoe(b: Battle): Unit | null {
 }
 
 export function occupied(b: Battle, pos: number, rc: RunContext, exceptId?: string, ignoreStakes = false): boolean {
-  if (pos < 0 || pos >= BOARD_SIZE) return true;
+  if (pos < 0 || pos >= boardLen(b)) return true;
   if (!ignoreStakes && b.stakes.includes(pos)) return true;
   if (assistOccupies(b, pos, rc) && exceptId !== b.labAssistActive) return true;
   // §31.12 助战符召唤体也是实体——占格、挡路、当墙。
@@ -1469,7 +1484,7 @@ function hitEnemy(b: Battle, raw: number, verb: string, rc: RunContext, spendCha
     b.lastHitRead = "闪避";
     return ["闪避"];
   }
-  const gate = adjacentStakePos(b.player.pos, foe.pos, b.stakes);
+  const gate = adjacentStakePos(b.player.pos, foe.pos, b.stakes, boardLen(b));
   if (gate != null && raw > 0) {
     const n = smashHitsForSchool(battleEquippedSchool(b, b.active, rc));
     const gone = smashStake(b, gate, n);
@@ -1629,7 +1644,9 @@ function knockAway(b: Battle, who: "player" | "enemy", dist: number, rc: RunCont
   const from = unit.pos;
   while (left > 0 && unit.hp > 0) {
     const next = unit.pos + dir;
-    if (next < 0 || next >= BOARD_SIZE) {
+    const off = offBoardSide(next, boardLen(b));
+    if (off) {
+      if (!wallOnSide(wallEndsOf(b), off)) break;
       let wh = wallHit(b, wall);
       if (who === "enemy" && (gearMods.wallBlock ?? 0) > 0) {
         wh += gearMods.wallBlock ?? 0;
@@ -1668,7 +1685,7 @@ function knockAway(b: Battle, who: "player" | "enemy", dist: number, rc: RunCont
       if (who === "enemy" && blocker) {
         const blockDir = awayDir(unit.pos, blocker.pos);
         const blockNext = blocker.pos + blockDir;
-        if (blockNext >= 0 && blockNext < BOARD_SIZE && !occupied(b, blockNext, rc, blocker.id)) {
+        if (blockNext >= 0 && blockNext < boardLen(b) && !occupied(b, blockNext, rc, blocker.id)) {
           blocker.pos = blockNext;
           notes.push(`连带 ${blocker.name} 退到第 ${blockNext + 1} 步`);
           unit.pos = next;
@@ -1773,7 +1790,7 @@ function movePlayer(b: Battle, dir: 1 | -1, steps: number, ignoreStakes: boolean
 }
 
 function pathClear(b: Battle, from: number, to: number, rc: RunContext): boolean {
-  if (to < 0 || to >= BOARD_SIZE) return false;
+  if (to < 0 || to >= boardLen(b)) return false;
   if (occupied(b, to, rc, b.player.id)) return false;
   const dir = to > from ? 1 : -1;
   for (let p = from + dir; p !== to; p += dir) {
@@ -1860,7 +1877,7 @@ function applyCard(b: Battle, defId: CardId, rc: RunContext): string[] {
 
   if (defId === "defend" || defId === "defend2") {
     let block = def.block ?? 0;
-    if (hasTech(b, "throne") && (b.player.pos === 0 || b.player.pos === BOARD_SIZE - 1)) block += techBonus(b, "throne", 4);
+    if (hasTech(b, "throne") && (b.player.pos === 0 || b.player.pos === boardLen(b) - 1)) block += techBonus(b, "throne", 4);
     block += techBlockBonus(b);
     b.playerBlock += block;
     notes.push(`格挡 ${block}`);
@@ -1873,7 +1890,7 @@ function applyCard(b: Battle, defId: CardId, rc: RunContext): string[] {
     notes.push(...movePlayer(b, awayDir(foe.pos, b.player.pos), 1, false, rc));
     if (notes.length === 0) notes.push("身后无路");
     let block = def.block ?? 0;
-    if (hasTech(b, "throne") && (b.player.pos === 0 || b.player.pos === BOARD_SIZE - 1)) block += techBonus(b, "throne", 4);
+    if (hasTech(b, "throne") && (b.player.pos === 0 || b.player.pos === boardLen(b) - 1)) block += techBonus(b, "throne", 4);
     block += techBlockBonus(b);
     b.playerBlock += block;
     notes.push(`格挡 ${block}`);
@@ -2032,7 +2049,7 @@ function applyCard(b: Battle, defId: CardId, rc: RunContext): string[] {
     const foe = targetFoe(b) ?? b.enemy;
     const at = b.player.pos + towardDir(b.player.pos, foe.pos);
     if (climbStakeBehindFoe(b, at, rc)) notes.push("敌身后落不下");
-    else if (at >= 0 && at < BOARD_SIZE && !occupied(b, at, rc)) {
+    else if (at >= 0 && at < boardLen(b) && !occupied(b, at, rc)) {
       addStake(b, at, playerPlantHits(battleEquippedSchool(b, b.active, rc)), rc);
       notes.push(`桩落在第 ${at + 1} 步`);
     } else notes.push("身前落不下");
@@ -2537,7 +2554,7 @@ function applyCard(b: Battle, defId: CardId, rc: RunContext): string[] {
     const foe = targetFoe(b) ?? b.enemy;
     const at = b.player.pos + towardDir(b.player.pos, foe.pos);
     if (climbStakeBehindFoe(b, at, rc)) notes.push("敌身后落不下");
-    else if (at >= 0 && at < BOARD_SIZE && !occupied(b, at, rc)) {
+    else if (at >= 0 && at < boardLen(b) && !occupied(b, at, rc)) {
       addStake(b, at, playerPlantHits(battleEquippedSchool(b, b.active, rc)), rc);
       notes.push(`桩落在第 ${at + 1} 步`);
     } else notes.push("身前落不下");
@@ -2606,7 +2623,7 @@ function tryGauntletWaveSpawn(b: Battle, rc: RunContext): boolean {
     title: def.title,
     hp,
     maxHp: hp,
-    pos: def.pos,
+    pos: catalogCell(def.pos, boardLen(b)),
   };
   b.foes = [unit];
   b.enemy = unit;
@@ -2927,7 +2944,7 @@ function collapseOrDeathSwap(b: Battle, rc: RunContext): void {
 /** 合法落点：全场任意空格（放敌身后当墙，是拳系连招的核心用法）。 */
 export function legalSummonCells(b: Battle, rc: RunContext): number[] {
   const out: number[] = [];
-  for (let i = 0; i < BOARD_SIZE; i++) if (!occupied(b, i, rc)) out.push(i);
+  for (let i = 0; i < boardLen(b); i++) if (!occupied(b, i, rc)) out.push(i);
   return out;
 }
 
@@ -2953,7 +2970,7 @@ export function summonAssist(b: Battle, school: WeaponId, pos: number, rc: RunCo
   } else if (school === "spear") {
     const dir = next.enemy.pos > next.player.pos ? 1 : -1;
     const to = next.enemy.pos + dir;
-    if (to >= 0 && to < BOARD_SIZE && !occupied(next, to, rc, next.enemy.id)) {
+    if (to >= 0 && to < boardLen(b) && !occupied(next, to, rc, next.enemy.id)) {
       next.enemy.pos = to;
       syncFront(next);
       next.log.push(`${def.name}一枪挑退，敌退到第 ${to + 1} 步。`);
@@ -3021,7 +3038,7 @@ export function chargePath(b: Battle, rc: RunContext): number[] {
   const dir = towardDir(pos, b.player.pos);
   for (let i = 0; i < steps; i++) {
     const next = pos + dir;
-    if (next < 0 || next >= BOARD_SIZE) break;
+    if (next < 0 || next >= boardLen(b)) break;
     if (next === b.player.pos) {
       path.push(next);
       break;
@@ -3038,7 +3055,7 @@ function dangerCellsForIntentOnly(b: Battle, intent: Intent, rc: RunContext): nu
   const lockPos = intentLockPos(b, rc);
   if (intent.kind === "strike") {
     // §31.14 打击红格 = 身前兵刃覆盖（身后打不到；显示与结算同一公式）
-    if (labV2(rc)) return facingReachCells(b.enemy.pos, lockPos, enemyReach(b, rc));
+    if (labV2(rc)) return facingReachCells(b.enemy.pos, lockPos, enemyReach(b, rc), boardLen(b));
     return [lockPos];
   }
   if (intent.kind === "charge") {
@@ -3051,7 +3068,7 @@ function dangerCellsForIntentOnly(b: Battle, intent: Intent, rc: RunContext): nu
     if (labV2(rc)) {
       const end = path.length ? path[path.length - 1]! : b.enemy.pos;
       const set = new Set(path);
-      for (const c of facingReachCells(end, lockPos, enemyReach(b, rc))) set.add(c);
+      for (const c of facingReachCells(end, lockPos, enemyReach(b, rc), boardLen(b))) set.add(c);
       return [...set];
     }
     return path;
@@ -3066,15 +3083,15 @@ function dangerCellsForIntentOnly(b: Battle, intent: Intent, rc: RunContext): nu
       const dir = towardDir(b.enemy.pos, lockPos);
       const step = b.enemy.pos + dir;
       if (Math.abs(b.enemy.pos - lockPos) === 1 || step === lockPos) return [lockPos];
-      return step >= 0 && step < BOARD_SIZE ? [step] : [];
+      return step >= 0 && step < boardLen(b) ? [step] : [];
     }
     // §31.12 抢步红格 = 落点身前兵刃覆盖（身后打不到）
     let land = b.enemy.pos;
     if (Math.abs(b.enemy.pos - lockPos) > 1) {
       const step = b.enemy.pos + towardDir(b.enemy.pos, lockPos);
-      if (step >= 0 && step < BOARD_SIZE && !occupied(b, step, rc, b.enemy.id)) land = step;
+      if (step >= 0 && step < boardLen(b) && !occupied(b, step, rc, b.enemy.id)) land = step;
     }
-    return facingReachCells(land, lockPos, enemyReach(b, rc));
+    return facingReachCells(land, lockPos, enemyReach(b, rc), boardLen(b));
   }
   if (intent.kind === "advance") return [];
   if (intent.kind === "pull") {
@@ -3092,17 +3109,17 @@ function dangerCellsForIntentOnly(b: Battle, intent: Intent, rc: RunContext): nu
   if (intent.kind === "swap" && adjacent(b)) return [b.player.pos, b.enemy.pos];
   if (intent.kind === "barrage") {
     // §31.14 连打：红格 = 身前兵刃覆盖（收势跑出圈 / 到身后 = 全落空）
-    if (labV2(rc)) return facingReachCells(b.enemy.pos, lockPos, enemyReach(b, rc));
+    if (labV2(rc)) return facingReachCells(b.enemy.pos, lockPos, enemyReach(b, rc), boardLen(b));
     return [b.player.pos];
   }
   if (intent.kind === "bleedcut" || intent.kind === "seal" || intent.kind === "shatter") return [b.player.pos];
   if (intent.kind === "pestle" || (intent.kind === "sig" && (intent.damage ?? 0) > 0)) {
-    if (labV2(rc)) return facingReachCells(b.enemy.pos, lockPos, enemyReach(b, rc));
+    if (labV2(rc)) return facingReachCells(b.enemy.pos, lockPos, enemyReach(b, rc), boardLen(b));
     return [lockPos];
   }
   if (intent.kind === "retreat") {
     const land = retreatLandPos(b, intent.steps, rc);
-    return chaseCellsFromLand(land);
+    return chaseCellsFromLand(land, boardLen(b));
   }
   return [];
 }
@@ -3147,14 +3164,14 @@ function advanceThreatProjection(b: Battle, intent: Intent, rc: RunContext): voi
     const lockPos = intentLockPos(b, rc);
     if ((b.foeRootTurns ?? 0) <= 0 && Math.abs(b.enemy.pos - lockPos) > 1) {
       const step = b.enemy.pos + towardDir(b.enemy.pos, lockPos);
-      if (step >= 0 && step < BOARD_SIZE && !occupied(b, step, rc, b.enemy.id)) b.enemy.pos = step;
+      if (step >= 0 && step < boardLen(b) && !occupied(b, step, rc, b.enemy.id)) b.enemy.pos = step;
     }
   } else if (intent.kind === "charge") {
     const steps = chargeSteps(b);
     const dir = towardDir(b.enemy.pos, b.player.pos);
     for (let i = 0; i < steps; i++) {
       const next = b.enemy.pos + dir;
-      if (next < 0 || next >= BOARD_SIZE) break;
+      if (next < 0 || next >= boardLen(b)) break;
       if (next === b.player.pos || occupied(b, next, rc, b.enemy.id)) break;
       b.enemy.pos = next;
     }
@@ -3162,14 +3179,14 @@ function advanceThreatProjection(b: Battle, intent: Intent, rc: RunContext): voi
     const dir = towardDir(b.enemy.pos, b.player.pos);
     for (let i = 0; i < intent.steps; i++) {
       const next = b.enemy.pos + dir;
-      if (next < 0 || next >= BOARD_SIZE) break;
+      if (next < 0 || next >= boardLen(b)) break;
       if (next === b.player.pos || occupied(b, next, rc, b.enemy.id)) break;
       b.enemy.pos = next;
     }
   } else if (intent.kind === "swap" && !adjacent(b)) {
     // 非贴脸的换位 = 近一步；贴脸互换取决于你收势位，不可预演（罕见，按不挪处理）
     const next = b.enemy.pos + towardDir(b.enemy.pos, b.player.pos);
-    if (next >= 0 && next < BOARD_SIZE && !occupied(b, next, rc, b.enemy.id)) b.enemy.pos = next;
+    if (next >= 0 && next < boardLen(b) && !occupied(b, next, rc, b.enemy.id)) b.enemy.pos = next;
   } else if (intent.kind === "retreat") {
     b.enemy.pos = retreatLandPos(b, intent.steps, rc);
   }
@@ -3180,16 +3197,16 @@ function retreatLandPos(b: Battle, steps: number, rc: RunContext): number {
   let pos = b.enemy.pos;
   for (let i = 0; i < steps; i++) {
     const next = pos + dir;
-    if (next < 0 || next >= BOARD_SIZE || occupied(b, next, rc, b.enemy.id)) break;
+    if (next < 0 || next >= boardLen(b) || occupied(b, next, rc, b.enemy.id)) break;
     pos = next;
   }
   return pos;
 }
 
-function chaseCellsFromLand(land: number): number[] {
+function chaseCellsFromLand(land: number, boardSize: number): number[] {
   const cells: number[] = [];
   for (const c of [land - 1, land + 1]) {
-    if (c >= 0 && c < BOARD_SIZE) cells.push(c);
+    if (c >= 0 && c < boardSize) cells.push(c);
   }
   return cells;
 }
@@ -3239,7 +3256,7 @@ function resolveCharge(b: Battle, damage: number, rc: RunContext): void {
   let hits = false;
   for (let i = 0; i < steps; i++) {
     const next = b.enemy.pos + dir;
-    if (next < 0 || next >= BOARD_SIZE) break;
+    if (next < 0 || next >= boardLen(b)) break;
     if (next === b.player.pos) {
       hits = true;
       break;
@@ -3272,7 +3289,7 @@ function resolveAdvance(b: Battle, steps: number, rc: RunContext): void {
   let moved = 0;
   for (let i = 0; i < steps; i++) {
     const next = b.enemy.pos + dir;
-    if (next < 0 || next >= BOARD_SIZE) break;
+    if (next < 0 || next >= boardLen(b)) break;
     if (next === b.player.pos || occupied(b, next, rc, b.enemy.id)) break;
     moveEnemyTo(b, next);
     moved += 1;
@@ -3284,7 +3301,7 @@ function resolveAdvance(b: Battle, steps: number, rc: RunContext): void {
 function resolveStake(b: Battle, rc: RunContext): void {
   const dir = awayDir(b.player.pos, b.enemy.pos);
   const at = b.enemy.pos + dir;
-  if (at >= 0 && at < BOARD_SIZE && !occupied(b, at, rc, b.enemy.id)) {
+  if (at >= 0 && at < boardLen(b) && !occupied(b, at, rc, b.enemy.id)) {
     const school = ENEMY_WEAPON[b.enemyId];
     addStake(b, at, enemyPlantHits(school, b.labEnemyGrade), rc);
     b.log.push(`${b.enemy.name}落了一根桩。`);
@@ -3306,7 +3323,7 @@ function resolveLunge(b: Battle, damage: number, rc: RunContext): void {
     const lockPos = intentLockPos(b, rc);
     if ((b.foeRootTurns ?? 0) <= 0 && Math.abs(b.enemy.pos - lockPos) > 1) {
       const step = b.enemy.pos + towardDir(b.enemy.pos, lockPos);
-      if (step >= 0 && step < BOARD_SIZE && !occupied(b, step, rc, b.enemy.id)) moveEnemyTo(b, step);
+      if (step >= 0 && step < boardLen(b) && !occupied(b, step, rc, b.enemy.id)) moveEnemyTo(b, step);
     }
     if (enemyCanHitPlayerPos(b, b.player.pos, rc)) hitPlayer(b, damage, "抢步 ", rc);
     else b.log.push(`${b.enemy.name}抢了个空。`);
@@ -3314,7 +3331,7 @@ function resolveLunge(b: Battle, damage: number, rc: RunContext): void {
   }
   if (!adjacent(b)) {
     const next = b.enemy.pos + towardDir(b.enemy.pos, b.player.pos);
-    if (next >= 0 && next < BOARD_SIZE && !occupied(b, next, rc, b.enemy.id)) moveEnemyTo(b, next);
+    if (next >= 0 && next < boardLen(b) && !occupied(b, next, rc, b.enemy.id)) moveEnemyTo(b, next);
   }
   if (Math.abs(b.enemy.pos - b.player.pos) <= 1) hitPlayer(b, damage, "抢步 ", rc);
   else b.log.push(`${b.enemy.name}抢空了。`);
@@ -3323,7 +3340,7 @@ function resolveLunge(b: Battle, damage: number, rc: RunContext): void {
 function resolveSwap(b: Battle, rc: RunContext): void {
   if (!adjacent(b)) {
     const next = b.enemy.pos + towardDir(b.enemy.pos, b.player.pos);
-    if (next >= 0 && next < BOARD_SIZE && !occupied(b, next, rc, b.enemy.id)) {
+    if (next >= 0 && next < boardLen(b) && !occupied(b, next, rc, b.enemy.id)) {
       moveEnemyTo(b, next);
       b.log.push(`${b.enemy.name}近了一步。`);
       return;
@@ -3534,7 +3551,7 @@ function resolveRetreat(b: Battle, steps: number, rc: RunContext): void {
   let moved = 0;
   for (let i = 0; i < steps; i++) {
     const next = b.enemy.pos + dir;
-    if (next < 0 || next >= BOARD_SIZE || occupied(b, next, rc, b.enemy.id)) break;
+    if (next < 0 || next >= boardLen(b) || occupied(b, next, rc, b.enemy.id)) break;
     moveEnemyTo(b, next);
     moved += 1;
   }
@@ -3549,7 +3566,7 @@ function resolveSignature(b: Battle, id: string, rc: RunContext): void {
     if (id === "luohan-array") resolveStake(b, rc);
     if (id === "staff-circle") {
       const extra = b.enemy.pos + towardDir(b.enemy.pos, b.player.pos);
-      if (extra >= 0 && extra < BOARD_SIZE && !b.stakes.includes(extra)) {
+      if (extra >= 0 && extra < boardLen(b) && !b.stakes.includes(extra)) {
         addStake(b, extra, enemyPlantHits(ENEMY_WEAPON[b.enemyId], b.labEnemyGrade), rc);
       }
     }
@@ -3631,7 +3648,7 @@ function usesGeneratedKit(id: string): boolean {
 function kitCtx(b: Battle, rc: RunContext): KitCtx {
   const stage = b.labGauntletStage ?? 1;
   const profile = profileFor(b.enemyId, stage, b.labEnemyKitRole ?? "main");
-  const edge = (pos: number) => pos === 0 || pos === BOARD_SIZE - 1;
+  const edge = (pos: number) => atBoardEnd(pos, boardLen(b));
   return {
     dist: distTo(b),
     reach: enemyReach(b, rc),
@@ -3718,8 +3735,8 @@ function reactToPlayer(b: Battle, rc: RunContext): Intent | null {
     if (d === 1) return { kind: "barrage", damage: 10, hits: 2 };
     return { kind: "lunge", damage: 16 };
   }
-  const edge = b.player.pos === 0 || b.player.pos === BOARD_SIZE - 1;
-  const foeEdge = b.enemy.pos === 0 || b.enemy.pos === BOARD_SIZE - 1;
+  const edge = atBoardEnd(b.player.pos, boardLen(b));
+  const foeEdge = atBoardEnd(b.enemy.pos, boardLen(b));
   if (d === 1 && edge && !foeEdge && b.turn % 2 === 0) return { kind: "swap" };
   if (b.retainTurns > 0 && d === 1) return { kind: "barrage", damage: 9, hits: 2 };
   // High flow used to force endless guard → infinite 架势, HP looked "stuck".
@@ -3923,13 +3940,13 @@ export function enemyReach(b: Battle, rc: RunContext): number {
  * 身前兵刃覆盖：只朝「面向」一侧，身后打不到。
  * faceToward = 面向的目标格（通常是玩家回合开始锁定位）。
  */
-export function facingReachCells(origin: number, faceToward: number, reach: number): number[] {
+export function facingReachCells(origin: number, faceToward: number, reach: number, boardSize = boardLen({})): number[] {
   const dir = faceToward > origin ? 1 : faceToward < origin ? -1 : 0;
   if (dir === 0 || reach <= 0) return [];
   const cells: number[] = [];
   for (let i = 1; i <= reach; i++) {
     const c = origin + dir * i;
-    if (c < 0 || c >= BOARD_SIZE) break;
+    if (c < 0 || c >= boardSize) break;
     cells.push(c);
   }
   return cells;
@@ -3946,7 +3963,7 @@ function intentLockPos(b: Battle, rc: RunContext): number {
 /** 敌当前能否打到某格：面向锁定线，身前 reach 内。 */
 function enemyThreatCellsFrom(b: Battle, fromPos: number, rc: RunContext): number[] {
   const lock = intentLockPos(b, rc);
-  return facingReachCells(fromPos, lock, enemyReach(b, rc));
+  return facingReachCells(fromPos, lock, enemyReach(b, rc), boardLen(b));
 }
 
 function enemyCanHitPlayerPos(b: Battle, atPos: number, rc: RunContext, fromPos = b.enemy.pos): boolean {
@@ -4024,14 +4041,12 @@ function coerceInReachStrike(b: Battle, rc: RunContext): Intent {
   return distTo(b) <= enemyReach(b, rc) ? scaleIntent({ kind: "strike", damage: 12 }) : { kind: "breathe", amount: 3 };
 }
 
-/** 爬塔开战站位：前段距 3，中后期拉满。 */
+/** 爬塔开战站位。盖了 openingDist 就用它（玩家在 0）；没盖章的旧调用仍走关卡表。 */
 export function applyClimbOpeningPositions(b: Battle, rc: RunContext): void {
   // 旧训练馆核选路，阶段3拆 engine/break 时沉走，勿仿此新增
   if (!isClimbQi(rc) || rc.ruleset.mode === "break") return;
-  const stage = b.labGauntletStage ?? 1;
-  const elite = isEliteEnemy(b.enemyId) || isBossEnemy(b.enemyId);
-  const dist = climbOpeningDistance(stage, elite);
-  const pos = climbOpeningPositions(dist);
+  const staged = climbOpeningDistance(b.labGauntletStage ?? 1, isEliteEnemy(b.enemyId) || isBossEnemy(b.enemyId));
+  const pos = b.openingDist != null ? openingPosts(b.openingDist, boardLen(b)) : climbOpeningPositions(staged);
   b.player.pos = pos.playerPos;
   b.enemy.pos = pos.enemyPos;
   for (const f of b.foes ?? []) {

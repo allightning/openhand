@@ -94,7 +94,7 @@ describe("weapon scrolls", () => {
     expect(schoolLabel("mend")).toBe("通用");
     expect(schoolLabel("sidestep")).toBe("通用");
     expect(schoolLabel("cut")).toBe("刀");
-    expect(schoolLabel("strike")).toBe("拳掌");
+    expect(schoolLabel("strike")).toBe("通用");
   });
 
   it("stashes off-family scroll until a matching hand joins", () => {
