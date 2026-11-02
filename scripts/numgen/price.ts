@@ -126,7 +126,8 @@ export function priceCard(card: CardDef): Priced {
   if (hooks.includes("layer") || hooks.includes("weave") || hooks.includes("tide")) add("势技", 4);
   if (hooks.includes("riposte")) for (const line of riposteLines(card.text)) add(line.label, line.dmg);
   if (/势\s*\+1/.test(card.text) && !n(v, "setupGain") && !n(v, "flow")) add("势+1", COIN.stackDmg);
-  add("抽", drawCount(card.text) * COIN.drawQi * QI_TO_DMG);
+  const drawQi = drawCount(card.text) * COIN.drawQi * QI_TO_DMG;
+  add(card.drawWhen ? "条件抽" : "抽", card.drawWhen ? drawQi * 0.65 : drawQi);
 
   const gross = lines.reduce((s, l) => s + l.dmg, 0);
   let discount = 0;

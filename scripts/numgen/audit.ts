@@ -25,7 +25,7 @@ export function renderAudit(rows: Priced[]): string {
   const under = rows.filter((r) => !r.skip && r.band === "under");
   const skip = rows.filter((r) => r.skip);
   const lines: string[] = [];
-  lines.push("# 数值生成器审计 · 2026-10-23");
+  lines.push(process.argv.includes("--now") ? "# 数值生成器审计 · 2026-11-02" : "# 数值生成器审计 · 2026-10-23");
   lines.push("");
   lines.push("P1。输入：`EXCHANGE_V2_20261023.md` 九币价 + 标尺牌 + 开工时 `CARD_REGISTRY` 131 张。机制核并行新牌不进本包。本文件不改一张牌。");
   lines.push("");
@@ -85,7 +85,7 @@ export function renderAudit(rows: Priced[]): string {
   return lines.join("\n");
 }
 
-export function writeAudit(path = "docs/combat/NUMGEN_AUDIT_20261023.md"): Priced[] {
+export function writeAudit(path = process.argv.includes("--now") ? "docs/combat/NUMGEN_AUDIT_20261102.md" : "docs/combat/NUMGEN_AUDIT_20261023.md"): Priced[] {
   const rows = loadBaseline();
   if (rows.length !== 131) throw new Error(`基线应 131，实得 ${rows.length}`);
   writeFileSync(path, renderAudit(rows));
