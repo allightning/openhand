@@ -11,6 +11,25 @@ export interface ClimbPlace {
   restBg: string;
   /** 这一落脚自带的词条。缺省表示不挂。出现概率见 gauntletPaths.ENV_TAG_APPEAR。 */
   envTag?: EnvTag;
+  /** 这一程可以碰上的事页。一局只亮其中一条。第一程不挂。 */
+  storyNodes?: readonly string[];
+}
+
+/** 事页挂在第几程。第一程空着，进第一场之前不因此开赌馆。 */
+const STORY_NODES_BY_STAGE: Record<number, readonly string[]> = {
+  2: ["s3-tea-bowl"],
+  3: ["s3-open-job"],
+  4: ["s3-tea-wall", "s3-bond-yeshuang", "s3-bond-wenbu"],
+  5: ["s3-slip-paper", "s3-bond-menzhuang", "s3-bond-siyin"],
+  6: ["s3-tea-night", "s3-bond-shuangchi", "s3-bond-suisheng"],
+  7: ["s3-slip-box", "s3-bond-lieren", "s3-bond-bian"],
+  8: ["s3-slip-blood", "s3-grudge-heal"],
+  9: ["s3-fatal-price", "s3-fatal-win", "s3-grudge-sword"],
+};
+
+export function storyNodesAt(stage: number): readonly string[] {
+  if (stage <= 1) return [];
+  return STORY_NODES_BY_STAGE[stage] ?? [];
 }
 
 const BANDIT_PLACES: ClimbPlace[] = [
@@ -52,10 +71,17 @@ const COURT_PLACES: ClimbPlace[] = [
   { id: "ct-danqi", name: "丹墀", rest: "殿阶终馆", blurb: "座前留一人，或留一群。殿阶空着，灯火从四面压过来。人海、座前、私了，馆号仍是 10。", restBg: "art/scenes/scene-teahouse.png" },
 ];
 
+function withStoryNodes(list: ClimbPlace[]): ClimbPlace[] {
+  return list.map((place, i) => {
+    const storyNodes = storyNodesAt(i + 1);
+    return storyNodes.length ? { ...place, storyNodes } : place;
+  });
+}
+
 export function climbPlaces(path: GauntletPath): ClimbPlace[] {
-  if (path === "shaolin") return SHAOLIN_PLACES;
-  if (path === "court") return COURT_PLACES;
-  return BANDIT_PLACES;
+  if (path === "shaolin") return withStoryNodes(SHAOLIN_PLACES);
+  if (path === "court") return withStoryNodes(COURT_PLACES);
+  return withStoryNodes(BANDIT_PLACES);
 }
 
 export function climbPlace(path: GauntletPath, stage: number): ClimbPlace {

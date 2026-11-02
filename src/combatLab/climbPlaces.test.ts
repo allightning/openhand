@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { climbPlace, climbPlaces, upsertRouteLog, wagerBgFor, loadoutBgFor, renderRouteBook } from "./climbPlaces";
+import { climbPlace, climbPlaces, storyNodesAt, upsertRouteLog, wagerBgFor, loadoutBgFor, renderRouteBook } from "./climbPlaces";
 
 const PUB = resolve(__dirname, "../../public");
 
@@ -19,6 +19,9 @@ describe("路程地名", () => {
       }
     }
     expect(climbPlace("bandit", 1).name).toContain("开封");
+    expect(climbPlace("bandit", 1).storyNodes).toBeUndefined();
+    expect(storyNodesAt(1)).toEqual([]);
+    expect(climbPlace("bandit", 3).storyNodes).toEqual(["s3-open-job"]);
     expect(climbPlace("shaolin", 1).name).toContain("山门");
     expect(climbPlace("court", 2).name).toContain("天街");
     const all = [...climbPlaces("bandit"), ...climbPlaces("shaolin"), ...climbPlaces("court")];

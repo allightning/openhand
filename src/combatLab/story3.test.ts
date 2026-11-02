@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { climbPlace, storyNodesAt } from "./climbPlaces";
 import { createGauntletRun } from "./gauntlet";
 import {
   BOND_STAGE_LINES,
@@ -7,6 +8,7 @@ import {
   STORY3_PAGES,
   applyStoryChoice,
   offerStory3Page,
+  queuePostCampBeat,
   rollStoryChoices,
   storyEventLead,
 } from "./storyBeats";
@@ -73,6 +75,48 @@ describe("叙事 3", () => {
       expect(page.choices.length, page.id).toBeLessThanOrEqual(max);
       expect(`${page.lead}${page.choices.map((c) => c.blurb).join("")}`, page.id).not.toMatch(/伙伴|路人/);
     }
+  });
+
+  it("风声底细命门、八对、两怨、第三程职业挂在落脚上，第一程不开赌馆", () => {
+    const wired = [2, 3, 4, 5, 6, 7, 8, 9].flatMap((stage) => [...storyNodesAt(stage)]);
+    expect(storyNodesAt(1)).toEqual([]);
+    expect(storyNodesAt(10)).toEqual([]);
+    expect(wired).toHaveLength(19);
+    expect(new Set(wired).size).toBe(19);
+    for (const id of wired) expect(STORY3_PAGES.some((p) => p.id === id), id).toBe(true);
+    for (const path of ["bandit", "shaolin", "court"] as const) {
+      expect(climbPlace(path, 1).storyNodes).toBeUndefined();
+      expect(climbPlace(path, 3).storyNodes).toEqual(["s3-open-job"]);
+    }
+
+    const fresh = { ...createGauntletRun("bandit", "saber"), storyPending: "rest" as const };
+    const stage1 = queuePostCampBeat({ ...fresh, stage: 1 }, 1, () => 0);
+    expect(stage1.storyFlags?.some((f) => f.startsWith("s3page:")) ?? false).toBe(false);
+    expect(stage1.pendingOpenWager).toBeFalsy();
+
+    const tea = queuePostCampBeat({ ...fresh, stage: 2 }, 1, () => 0);
+    expect(tea.storyFlags).toContain("s3page:s3-tea-bowl");
+    expect(tea.storyPending).toBe("choice");
+    expect(rollStoryChoices(tea).some((c) => c.openWager)).toBe(false);
+    const heard = applyStoryChoice(tea, rollStoryChoices(tea)[0]!, () => 0);
+    expect(heard.pendingOpenWager).toBeFalsy();
+    expect(heard.storyFlags?.some((f) => f.startsWith("s3page:"))).toBe(false);
+
+    const job = queuePostCampBeat({ ...fresh, stage: 3 }, 2, () => 0);
+    expect(job.storyFlags).toContain("s3page:s3-open-job");
+    expect(rollStoryChoices(job).some((c) => c.id === "s3-open-job-no")).toBe(true);
+    expect(job.pendingOpenWager).toBeFalsy();
+
+    const again = queuePostCampBeat({ ...tea, storyPending: "rest" }, 1, () => 0);
+    expect(again.storyFlags?.includes("s3page:s3-tea-bowl") ?? false).toBe(false);
+
+    const fatal = queuePostCampBeat({ ...fresh, stage: 9 }, 8, () => 0.5);
+    expect(fatal.storyFlags).toContain("s3page:s3-fatal-win");
+    expect(fatal.pendingOpenWager).toBeFalsy();
+    const push = rollStoryChoices(fatal).find((c) => c.id === "s3-fatal-again")!;
+    const wager = applyStoryChoice(fatal, push, () => 0);
+    expect(wager.stage).toBe(9);
+    expect(wager.pendingOpenWager).toBe(true);
   });
 
   it("旧怨两个选项都伤人，医杀可以两边都留", () => {

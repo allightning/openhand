@@ -3,6 +3,7 @@ import type { CompanionId } from "../game/types";
 import type { EncounterChoice } from "./encounter";
 import { applyEncounterChoice } from "./encounter";
 import type { GauntletRun } from "./gauntlet";
+import { climbPlace } from "./climbPlaces";
 import { ENV_TAG_LABEL, type EnvTag } from "./gauntletPaths";
 
 export const STORY_CAST_POOL: CompanionId[] = [
@@ -689,7 +690,7 @@ export function applyStoryChoice(run: GauntletRun, choice: EncounterChoice, rng:
   }
   const gambleCount = (run.gambleCount ?? 0) + (choice.stall || choice.openWager ? 1 : 0);
   const seen = [...(next.seenStoryIds ?? run.seenStoryIds ?? [])];
-  const who = currentEnvPage(run) ? undefined : activePerson(run);
+  const who = currentEnvPage(run) || currentStory2(run) || currentStory3(run) ? undefined : activePerson(run);
   if ((run.storyPending === "choice" || run.storyPending === "followup") && who && !seen.includes(who)) seen.push(who);
   const envApplied = applyEnvChoice(flags, choice, next);
   const s2Applied = applyStory2Choice(envApplied.flags, choice, envApplied.next);
@@ -777,7 +778,19 @@ export function queuePostCampBeat(run: GauntletRun, fought: number, rng: () => n
   ) {
     return { ...run, storyPlace: run.storyPlace ?? storyPlaceForFought(fought, run.openingId) };
   }
-  return applyPostCampBeat(run, pickPostCampBeat(run, fought, rng), fought);
+  const stage = run.stage ?? fought + 1;
+  const pageId = pickStory3Node(run, stage, rng);
+  if (pageId) {
+    const opened = offerStory3Page(run, pageId);
+    const flags = [...(opened.storyFlags ?? [])];
+    const mark = `s3seen:${pageId}`;
+    if (!flags.includes(mark)) flags.push(mark);
+    return { ...opened, storyFlags: flags };
+  }
+  const cleared = run.storyFlags?.some((f) => f.startsWith("s3page:"))
+    ? { ...run, storyFlags: run.storyFlags.filter((f) => !f.startsWith("s3page:")) }
+    : run;
+  return applyPostCampBeat(cleared, pickPostCampBeat(cleared, fought, rng), fought);
 }
 
 export function storyBeatTitle(run: GauntletRun): string {
@@ -2072,11 +2085,27 @@ function currentStory3(run: Pick<GauntletRun, "storyFlags">): Story3Page | undef
 }
 
 function applyStory3Choice(flags: string[], choice: EncounterChoice, next: GauntletRun): { flags: string[]; next: GauntletRun } {
+  if (!flags.some((f) => f.startsWith("s3page:"))) return { flags, next };
   const meta = STORY3_META[choice.id];
-  if (!meta) return { flags, next };
-  let f = flags.filter((x) => !x.startsWith("s3page:"));
-  if (meta.next) f.push(`s3page:${meta.next}`);
+  const f = flags.filter((x) => !x.startsWith("s3page:"));
+  if (meta?.next) f.push(`s3page:${meta.next}`);
   return { flags: f, next };
+}
+
+/** 这一程还没亮过的事页里抽一条。第一程返回空，避免进场前打开赌馆。 */
+export function pickStory3Node(
+  run: Pick<GauntletRun, "path" | "storyFlags">,
+  stage: number,
+  rng: () => number,
+): string | undefined {
+  if (stage <= 1) return undefined;
+  const seen = new Set(
+    (run.storyFlags ?? []).filter((f) => f.startsWith("s3seen:")).map((f) => f.slice("s3seen:".length)),
+  );
+  const open = (climbPlace(run.path, stage).storyNodes ?? []).filter((id) => !seen.has(id));
+  if (!open.length) return undefined;
+  const i = Math.min(open.length - 1, Math.floor(Math.max(0, rng()) * open.length));
+  return open[i];
 }
 
 /** 情报、缘分、职业、开局都从这里打开。不预排，不在第一程自动进赌馆。 */
