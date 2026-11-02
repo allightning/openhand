@@ -1,10 +1,11 @@
 import { boardLen } from "./board";
 import { unitBackToWall } from "./rules/wallLinks";
 import {
-  CLIMB_FOE_BIND_STREAK,
-  CLIMB_FOE_DISMANTLE_COST,
+  CLIMB_FOE_BIND_CUT,
   CLIMB_FOE_DISMANTLE_MUL,
+  CLIMB_FOE_READ_MUL,
   CLIMB_FOE_READ_STREAK,
+  CLIMB_FOE_RIPOSTE,
   CLIMB_FOE_WINDOW_CAP,
   CLIMB_PARRY_BLOCK_RATIO,
   CLIMB_PARRY_EVERY,
@@ -19,6 +20,7 @@ import {
   CLIMB_WINDOW_QI_BIG,
   CLIMB_WINDOW_QI_SMALL,
 } from "./climbCaps";
+import { foeWindowChance } from "./foeArchetype";
 import type { Battle, CardDef, Intent, ReactionKind, ReactionWindow, WeaponId } from "./types";
 
 export interface WindowTick {
@@ -253,43 +255,69 @@ export function takeWindow(b: Battle): string[] {
   return [];
 }
 
-/** 敌窗。没有 foeWindows 时原样返回。 */
-export function noteFoeWindow(b: Battle, def: CardDef): string[] {
+/** 剧情窗占位键。播报行以这三字开头，数字跟在后面。 */
+export const FOE_WINDOW_KEYS = {
+  dismantle: "敌拆招",
+  bind: "敌缠手",
+  read: "敌读破",
+} as const;
+
+function movingCard(def: CardDef): boolean {
+  return (def.steps ?? 0) !== 0 || (def.knock ?? 0) > 0 || (def.pullEnemy ?? 0) > 0 || def.swap === true;
+}
+
+function feintCard(def: CardDef): boolean {
+  return def.tags?.includes("虚招") === true;
+}
+
+function spendWindow(b: Battle): void {
+  b.foeWindowUsed = (b.foeWindowUsed ?? 0) + 1;
+}
+
+/** 敌窗。没有 foeWindows、帽满、或这一掷没接上时原样返回。rng 由结算传入。 */
+export function noteFoeWindow(b: Battle, def: CardDef, rng: () => number): string[] {
   const owned = b.foeWindows ?? [];
   if (owned.length === 0) return [];
-  if ((b.foeWindowUsed ?? 0) >= CLIMB_FOE_WINDOW_CAP) return [];
-  const notes: string[] = [];
-  const spend = () => {
-    b.foeWindowUsed = (b.foeWindowUsed ?? 0) + 1;
-  };
-  if (owned.includes("dismantle") && (def.cost ?? 0) >= CLIMB_FOE_DISMANTLE_COST && def.ultimate) {
+  const cap = b.foeWindowCap ?? CLIMB_FOE_WINDOW_CAP;
+  if ((b.foeWindowUsed ?? 0) >= cap) return [];
+  const feint = feintCard(def);
+  if (!feint) {
+    const counts = { ...(b.cardPlayCount ?? {}) };
+    counts[def.id] = (counts[def.id] ?? 0) + 1;
+    b.cardPlayCount = counts;
+  }
+  const played = b.cardPlayCount?.[def.id] ?? 0;
+  const accept = () => rng() < foeWindowChance(b.foeArchetype);
+  if (
+    owned.includes("read") &&
+    !feint &&
+    played >= CLIMB_FOE_READ_STREAK &&
+    !(b.foeReadCards ?? []).includes(def.id) &&
+    accept()
+  ) {
+    b.foeReadCards = [...(b.foeReadCards ?? []), def.id];
+    const pct = Math.round((1 - CLIMB_FOE_READ_MUL) * 100);
+    const note = `${FOE_WINDOW_KEYS.read} 这张伤 −${pct}%`;
+    b.foeReact = { kind: "read", note };
+    spendWindow(b);
+    return [note];
+  }
+  if (owned.includes("dismantle") && def.type === "attack" && accept()) {
     b.foeDismantleMul = CLIMB_FOE_DISMANTLE_MUL;
-    if (b.intents.length > 0) b.intents = b.intents.slice(0, -1);
-    spend();
-    notes.push("敌拆招");
-    return notes;
+    b.foeWindowHit = CLIMB_FOE_RIPOSTE;
+    const note = `${FOE_WINDOW_KEYS.dismantle} 伤害减半，回敬 ${CLIMB_FOE_RIPOSTE}`;
+    b.foeReact = { kind: "dismantle", note };
+    spendWindow(b);
+    return [note];
   }
-  const school = def.school ?? "any";
-  if (school !== "any" && school === b.foeSchoolId) b.foeSchoolStreak = (b.foeSchoolStreak ?? 0) + 1;
-  else if (school !== "any") {
-    b.foeSchoolId = school;
-    b.foeSchoolStreak = 1;
+  if (owned.includes("bind") && movingCard(def) && def.type !== "attack" && accept()) {
+    b.foeVoidMove = true;
+    const cut = Math.min(CLIMB_FOE_BIND_CUT, b.intents.length);
+    if (cut > 0) b.intents = b.intents.slice(0, -cut);
+    const note = `${FOE_WINDOW_KEYS.bind} 位移作废，剩招 −${CLIMB_FOE_BIND_CUT}`;
+    b.foeReact = { kind: "bind", note };
+    spendWindow(b);
+    return [note];
   }
-  if (owned.includes("bind") && (b.foeSchoolStreak ?? 0) >= CLIMB_FOE_BIND_STREAK) {
-    b.intents = [{ kind: "advance", steps: 1 }, ...b.intents];
-    spend();
-    notes.push("敌缠手");
-    return notes;
-  }
-  if (def.id === b.foeSameId) b.foeSameCount = (b.foeSameCount ?? 0) + 1;
-  else {
-    b.foeSameId = def.id;
-    b.foeSameCount = 1;
-  }
-  if (owned.includes("read") && (b.foeSameCount ?? 0) >= CLIMB_FOE_READ_STREAK) {
-    b.foeImmuneOnce = true;
-    spend();
-    notes.push("敌读破");
-  }
-  return notes;
+  return [];
 }

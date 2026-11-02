@@ -23,6 +23,8 @@ export interface CardDef {
   bondSchool?: WeaponId;
   /** 缘分生成物，不进配装池和奖励池。 */
   generated?: boolean;
+  /** 进手条件。结算读 legacy 牌上的同名字段。 */
+  drawWhen?: LegacyCard["drawWhen"];
 }
 
 /** 旧牌没有 steps 字段、但结算里就是位移。 */
@@ -137,6 +139,7 @@ export function projectCard(card: LegacyCard): CardDef {
     ...(rarity ? { rarity } : {}),
     ...(bondSchool ? { bondSchool: bondSchool as WeaponId } : {}),
     ...(card.id.startsWith("fuse") ? { generated: true } : {}),
+    ...(card.drawWhen ? { drawWhen: card.drawWhen } : {}),
   };
 }
 

@@ -18,6 +18,7 @@ import type { Battle, CardDef, CardId, LabItemId } from "./types";
 import { gearById } from "./weapons";
 import { labPlayCost } from "./climbEconomy";
 import { emptyV2Turn } from "./labV2";
+import { grantPoisonItem } from "./poison";
 
 export type { ResonanceStatus as AuraStatus };
 export {
@@ -305,6 +306,9 @@ export function useLabItem(
     const gain = rc.ruleset.mode === "break" ? ITEM_QI_GAIN : 4;
     next.energy = Math.min(next.energyMax, next.energy + gain);
     next.journal = [...next.journal, { side: "you", text: `回气散 +${gain} 劲` }];
+  } else if (item === "cuandu" || item === "dujing" || item === "dugong") {
+    const notes = grantPoisonItem(next, item);
+    if (notes[0]) next.journal = [...next.journal, { side: "you", text: notes[0] }];
   } else if (item === "lianhuan") {
     next.labComboPillActive = true;
     next.journal = [

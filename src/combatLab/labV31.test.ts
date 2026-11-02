@@ -244,9 +244,10 @@ describe("§31.11 减费与弃牌", () => {
     b = { ...b, hand: [b.hand[0]!], playerBlock: 0 };
     b.intent = { kind: "windup" };
     b.intents = [{ kind: "windup" }];
-    b = endTurn(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false } })); // 拆招：手 1 + 摸 ⌈5/2⌉=3 → 4
-    expect(b.hand.length).toBe(4);
-    expect(b.v2Turn?.turnStartHand).toBe(4);
+    b = endTurn(b, makeTestContext({ mode: "break", lab: true, tuning: { rulesV2: true, v2Fx: false } }));
+    // 下一张若带进手条件且此刻不满足，补牌停在这一张。手里只剩收势前那 1 张。
+    expect(b.hand.length).toBe(1);
+    expect(b.v2Turn?.turnStartHand).toBe(1);
     expect(labDiscardsLeft(b)).toBe(1);
   });
 });

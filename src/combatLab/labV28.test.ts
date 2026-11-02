@@ -110,9 +110,17 @@ describe("§28 + 阶段0 发牌", () => {
     const seq: string[] = [];
     for (const c of b.hand) seq.push(c.defId);
     let cur = { ...b };
-    while (seq.length < 12 && (cur.drawPile.length > 0 || cur.discardPile.length > 0)) {
+    let spins = 0;
+    while (seq.length < 12 && spins < 48 && (cur.drawPile.length > 0 || cur.discardPile.length > 0)) {
       const copy = structuredClone(cur);
-      if (!drawOneCard(copy)) break;
+      if (!drawOneCard(copy)) {
+        const blocked = copy.drawPile.shift();
+        if (!blocked) break;
+        copy.drawPile.push(blocked);
+        cur = copy;
+        spins += 1;
+        continue;
+      }
       seq.push(copy.hand[copy.hand.length - 1]!.defId);
       cur = copy;
     }

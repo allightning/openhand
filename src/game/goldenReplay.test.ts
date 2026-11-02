@@ -343,6 +343,26 @@ function buildCorpus(): Corpus {
     take(b, pullFrom === b.enemy.pos ? "pull-held" : "pull-moved", c);
   });
 
+  const foeWindow = withProbe((take) => {
+    setLabRuleset("climb");
+    setLabMode(true);
+    let b = startLabBattle(applyAutoLoadout("t1-four-palm", 1, 1), true, 1);
+    const rc = climbTestContext();
+    const uid = ensureHand(b, "strike");
+    b.foeWindows = ["dismantle", "bind", "read"];
+    b.foeArchetype = "assassin";
+    b.foeWindowCap = 1;
+    b.energy = 20;
+    b.player.pos = 0;
+    b.enemy.pos = 1;
+    b.playerBlock = 0;
+    setBattleRng(() => 0);
+    const before = b.log.length;
+    b = playCard(b, uid, rc);
+    setBattleRng(null);
+    take(b, "dismantle", before);
+  });
+
   const run = createGauntletRun("bandit", "palm", "usurper", { rng: mulberry32(7) });
   const wager = resolveWager(
     {
@@ -396,6 +416,7 @@ function buildCorpus(): Corpus {
       comboReplay,
       lifesteal,
       endureCc,
+      foeWindow,
       guardWager: { won: wager.won, payout: wager.payout, text: wager.text },
       guardWagerMiss: { won: wagerMiss.won, payout: wagerMiss.payout, text: wagerMiss.text },
       finale,
@@ -466,7 +487,7 @@ function scriptQiCommit() {
   return [hard, qiBeat(released, "放生"), inked, qiBeat(ult, "绝式")];
 }
 
-const FRAME_SCENES = ["spearDebt", "stakeBlast", "stunLock", "comboReplay", "lifesteal", "endureCc"] as const;
+const FRAME_SCENES = ["spearDebt", "stakeBlast", "stunLock", "comboReplay", "lifesteal", "endureCc", "foeWindow"] as const;
 
 function paintsFromFrames(scene: string, frames: Frame[]): DomPaint[] {
   return frames.map((f, i) => ({
@@ -537,7 +558,7 @@ describe("黄金对局", () => {
   it("对照已录基线，逐拍 diff 为空", () => {
     const next = splitCorpus(buildCorpus());
     const replayNow = next.mechanism.directed.comboReplay as Frame[];
-    expect(replayNow.find((f) => f.tag === "replay")!.combo).toBe(1);
+    expect(replayNow.find((f) => f.tag === "replay")!.combo).toBe(2);
     const leechNow = next.mechanism.directed.lifesteal as Frame[];
     expect(leechNow.find((f) => f.tag === "leech")!.youHp).toBeGreaterThan(leechNow.find((f) => f.tag === "hurt")!.youHp);
     const heldNow = next.mechanism.directed.endureCc as Frame[];
@@ -560,7 +581,7 @@ describe("黄金对局", () => {
       expect(keys.some((k) => k.startsWith(`break-${school}-`))).toBe(true);
     }
     const debt = next.mechanism.directed.spearDebt as Frame[];
-    expect(debt[debt.length - 1]?.wageDebt).toBe(3);
+    expect(debt[debt.length - 1]?.wageDebt).toBe(4);
     const locked = next.mechanism.directed.stunLock as Frame[];
     expect(locked[0]?.youStun).toBeGreaterThan(0);
     const hit = next.mechanism.directed.guardWager as { won: boolean; payout: number };
@@ -572,7 +593,7 @@ describe("黄金对局", () => {
     expect(Object.keys(next.mechanism.directed).length).toBeGreaterThanOrEqual(11);
     const replay = next.mechanism.directed.comboReplay as Frame[];
     expect(replay.some((f) => f.tag === "replay")).toBe(true);
-    expect(replay.find((f) => f.tag === "replay")!.combo).toBe(1);
+    expect(replay.find((f) => f.tag === "replay")!.combo).toBe(2);
     const leech = next.mechanism.directed.lifesteal as Frame[];
     const hurt = leech.find((f) => f.tag === "hurt")!;
     const drank = leech.find((f) => f.tag === "leech")!;

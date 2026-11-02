@@ -54,10 +54,11 @@ export const STAFF_CARDS: Record<string, CardDef> = {
     cost: 2,
     type: "skill",
     school: "staff",
-    text: "获得 7 点格挡。身前空则落桩。抽 1。",
+    text: "格挡 7。场上有桩才进手。抽 1。",
     flavor: "人桩先立住。",
     block: 7,
     plant: true,
+    drawWhen: "staked",
   },
   statusStaff2: {
     id: "statusStaff2",

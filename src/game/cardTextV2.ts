@@ -10,8 +10,8 @@ const CARD_TEXT_V2: Partial<Record<CardId, string>> = {
   finisher2: "打 6。每点势再 +3，并清空势。",
   lateTide: "势拉满。抽 2。",
   // §31.8 v3：拆招答案不再倒贴抽牌（文案与机制同步，D4）
-  advance: "身前一格为空则前进。位移 +1。",
-  advance2: "身前最多前进 2 格。位移 +1。",
+  advance: "前进 1 格。本手走过才进手。抽 1。",
+  advance2: "前进 2 格。本手走过才进手。抽 1。",
   sweep: "击退 1 格。位移 +1。",
   retreat: "身后最多退 2 格。位移 +1。",
   sidestep: "相邻对调位置。位移 +1。",
@@ -26,7 +26,8 @@ const CARD_TEXT_V2: Partial<Record<CardId, string>> = {
   palmSeal: "伤 5，禁技 1 息。封他招式，拉长拆窗。",
   charge: "下攻 +4，势 +1。拆后加伤。",
   defend: "获得 8 格挡。堆够可「让」半效。",
-  brace: "格挡 6，抽 1。堆挡「让」半效更稳。",
+  brace: "格挡 6。本手没打过才进手。抽 1。堆挡「让」半效更稳。",
+  statusSaber: "格挡 5。裂创 +1。距 2 格内才进手。抽 1。",
 };
 
 /** 行路牌面：只写气血格挡位移，不教硬拆/让。 */
@@ -41,7 +42,8 @@ const CARD_TEXT_CLIMB: Partial<Record<CardId, string>> = {
   palmSeal: "伤 5，禁技 1 息。",
   charge: "下攻 +4，势 +1。",
   defend: "获得 8 格挡。",
-  brace: "格挡 6，抽 1。",
+  brace: "格挡 6。本手没打过才进手。抽 1。",
+  statusSaber: "格挡 5。裂创 +1。距 2 格内才进手。抽 1。",
 };
 
 function stripBreakTeach(text: string): string {

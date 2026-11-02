@@ -59,6 +59,7 @@ describe("谱可重复至 3 + 换页机制仍在", () => {
       { uid: "m2", defId: "mend2" },
       { uid: "s2", defId: "strike2" },
     ];
+    b.drawPile = [{ uid: "plain", defId: "strike" }, ...b.drawPile];
     const handN = b.hand.length;
     const afterDef = playCard(b, "d2", breakTestContext());
     expect(afterDef.hand.length).toBeGreaterThanOrEqual(handN); // 打出一张再抽，至少不净减

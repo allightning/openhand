@@ -42,10 +42,11 @@ export const SWORD_CARDS: Record<string, CardDef> = {
     cost: 1,
     type: "skill",
     school: "sword",
-    text: "敌人下两下 +4。他出手 -3，两回。抽 1。",
+    text: "破绽 +2。滞手 +2。敌已有破绽才进手。抽 1。",
     flavor: "气先乱，招才乱。",
     expose: 2,
     frail: 2,
+    drawWhen: "exposed",
   },
   hitSpear: {
     id: "hitSpear",

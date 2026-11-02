@@ -79,6 +79,23 @@ export const CLIMB_FOE_DISMANTLE_MUL = 0.5;
 /** 敌方缠手 / 读破：同系或同招连出次数。 */
 export const CLIMB_FOE_BIND_STREAK = 3;
 export const CLIMB_FOE_READ_STREAK = 3;
+/** 座前敌窗每场帽。黄。精英沿用 CLIMB_FOE_WINDOW_CAP。 */
+export const CLIMB_FOE_WINDOW_CAP_SEAT = 2;
+/** 敌窗接招概率。黄。刺客 > 教头 > 游走 > 莽夫 / 乌龟。 */
+export const CLIMB_FOE_P_ASSASSIN = 0.8;
+export const CLIMB_FOE_P_COACH = 0.6;
+export const CLIMB_FOE_P_SKIRMISH = 0.4;
+export const CLIMB_FOE_P_BRUTE = 0.2;
+export const CLIMB_FOE_P_TURTLE = 0.2;
+/** 拆招回敬。黄。 */
+export const CLIMB_FOE_RIPOSTE = 3;
+/** 读破后该牌伤害系数。黄。 */
+export const CLIMB_FOE_READ_MUL = 0.7;
+/** 缠手削掉的剩招段。黄。 */
+export const CLIMB_FOE_BIND_CUT = 1;
+/** 牌意档张数。10 档沿用 CLIMB_TRIPLE_NEED。 */
+export const CLIMB_TIER_LOW = 4;
+export const CLIMB_TIER_MID = 7;
 
 /** 赌徒加注：正的回这么多劲；负的自伤这么多。 */
 export const CLIMB_GAMBLE_WIN = 4;
@@ -91,6 +108,67 @@ export const CLIMB_BOND_HEAL = 2;
 export const CLIMB_BOND_GRUDGE_QI = 1;
 /** 刀社初识：裂创帽加层。 */
 export const CLIMB_BOND_BLEED_CAP = 1;
+/** 门桩 / 桩门初识：桩挡次、蓄力叠层。 */
+export const CLIMB_BOND_STAKE = 1;
+export const CLIMB_BOND_CHARGE = 1;
+/** 丝饮初识：噬血额外回血。 */
+export const CLIMB_BOND_LEECH = 1;
+/** 双尺 / 枪行初识：远档加伤。 */
+export const CLIMB_BOND_FAR = 1;
+/** 岁笙初识：剑势开场。争锋扣的也是这一档。 */
+export const CLIMB_BOND_SWORD = 1;
+/** 裂刃初识：首手撕挡。 */
+export const CLIMB_BOND_TEAR = 2;
+/** 壁岸初识：撞壁回血。 */
+export const CLIMB_BOND_WALL = 1;
+/** 掌春初识：收势回血。 */
+export const CLIMB_BOND_HEAL_GROUP = 1;
+/** 剑阁初识：破绽穿挡加伤。 */
+export const CLIMB_BOND_EXPOSE = 1;
+/** 钩行初识：缴械多留。 */
+export const CLIMB_BOND_DISARM = 1;
+/** 牌意 4 / 7 档效果。黄。不进牌面汇率。 */
+export const CLIMB_BOND4_PALM_KNOCK = 1;
+export const CLIMB_BOND7_PALM_REPLAY = 1;
+export const CLIMB_BOND4_SABER_BLEED = 1;
+export const CLIMB_BOND7_SABER_MELEE = 1;
+export const CLIMB_BOND4_SWORD_OPEN = 1;
+export const CLIMB_BOND7_SWORD_EXPOSE = 1;
+export const CLIMB_BOND4_SPEAR_FAR = 1;
+export const CLIMB_BOND7_SPEAR_NEXT = 2;
+export const CLIMB_BOND4_STAFF_CHARGE = 1;
+export const CLIMB_BOND7_STAFF_WALL = 2;
+export const CLIMB_BOND4_HOOK_DISARM = 1;
+export const CLIMB_BOND7_HOOK_LEECH = 0.1;
+export const CLIMB_BOND7_HOOK_LEECH_CAP = 0.5;
+export const CLIMB_BOND4_DART_PIN = 2;
+export const CLIMB_BOND7_DART_PIN = 1;
+/** 结算文件里的旧名。值就是上面的 CLIMB_BOND4_* / CLIMB_BOND7_*。 */
+export const CLIMB_TIER_PALM_KNOCK = CLIMB_BOND4_PALM_KNOCK;
+export const CLIMB_TIER_PALM_REPLAY = CLIMB_BOND7_PALM_REPLAY;
+export const CLIMB_TIER_SABER_BLEED = CLIMB_BOND4_SABER_BLEED;
+export const CLIMB_TIER_SABER_HIT = CLIMB_BOND7_SABER_MELEE;
+export const CLIMB_TIER_SWORD_OPEN = CLIMB_BOND4_SWORD_OPEN;
+export const CLIMB_TIER_SWORD_EXPOSE = CLIMB_BOND7_SWORD_EXPOSE;
+export const CLIMB_TIER_SPEAR_FAR = CLIMB_BOND4_SPEAR_FAR;
+export const CLIMB_TIER_SPEAR_CUT_HURT = CLIMB_BOND7_SPEAR_NEXT;
+export const CLIMB_TIER_STAFF_OPEN = CLIMB_BOND4_STAFF_CHARGE;
+export const CLIMB_TIER_STAFF_WALL = CLIMB_BOND7_STAFF_WALL;
+export const CLIMB_TIER_HOOK_DISARM = CLIMB_BOND4_HOOK_DISARM;
+export const CLIMB_TIER_HOOK_LEECH = CLIMB_BOND7_HOOK_LEECH;
+export const CLIMB_TIER_HOOK_LEECH_CAP = CLIMB_BOND7_HOOK_LEECH_CAP;
+export const CLIMB_TIER_DART_PIN_CAP = CLIMB_BOND4_DART_PIN;
+export const CLIMB_TIER_DART_FAR_PIN = CLIMB_BOND7_DART_PIN;
+/** 敌意图伤馆段系数。黄。只乘敌方，不乘玩家牌面。馆 7–10 可吃满。 */
+export const CLIMB_ENEMY_HIT_EARLY = 0.4;
+export const CLIMB_ENEMY_HIT_MID = 0.9;
+export const CLIMB_ENEMY_HIT_LATE = 1;
+/** 毒层：淬毒 / 毒经 / 毒功。黄。 */
+export const CLIMB_POISON_COAT = 2;
+export const CLIMB_POISON_MIND_STACK = 1;
+export const CLIMB_POISON_TECH_STACK = 2;
+/** 牌意达档张数。 */
+export const CLIMB_TRIPLE_NEED = 10;
 /** 棍撞墙晕段。 */
 export const CLIMB_STAFF_WALL_STUN = 1;
 
@@ -111,12 +189,12 @@ export const CLIMB_INTEL_CORE = 0.3;
 export const CLIMB_POISON_ITEM = 6;
 export const CLIMB_POISON_MIND = 20;
 export const CLIMB_POISON_TECH = 36;
-/** 身板轴。职业窗接线，结算不读。 */
+/** 身板轴。爬塔花名册开战时读。 */
 export const CLIMB_BODY_QI_MAX = 2;
 export const CLIMB_BODY_QI_REGEN = 1;
 export const CLIMB_BODY_HP = 0.2;
 export const CLIMB_BODY_OPEN_QI = 2;
-/** 三重加成。基础帽不变。结算不读。 */
+/** 三重加成。基础帽不变。 */
 export const CLIMB_TRIPLE_BLEED_BONUS = 2;
 export const CLIMB_TRIPLE_EXPOSE_BONUS = 2;
 export const CLIMB_TRIPLE_CUT_QI = 1;

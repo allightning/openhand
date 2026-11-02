@@ -1,12 +1,39 @@
 import {
+  CLIMB_BODY_HP,
+  CLIMB_BODY_OPEN_QI,
+  CLIMB_BODY_QI_MAX,
+  CLIMB_BODY_QI_REGEN,
   CLIMB_GAMBLE_CHEAT,
   CLIMB_GAMBLE_LOSS,
   CLIMB_GAMBLE_WIN,
 } from "./climbCaps";
+import type { MateRole } from "./labV25Constants";
 import { STANCE_LABEL, publishStance, stanceOf } from "./intentStance";
 import type { Battle } from "./types";
 
 export type ProfessionId = "staker" | "diviner" | "gambler";
+/** 术士蓝厚 / 武夫血厚 / 行者快热。 */
+export type BodyBuild = "scholar" | "fighter" | "walker";
+
+export function bodyBuildForRole(role: MateRole): BodyBuild {
+  if (role === "control" || role === "support") return "scholar";
+  if (role === "skirmish") return "walker";
+  return "fighter";
+}
+
+export function applyBodyBuild(b: Battle, build: BodyBuild): void {
+  b.bodyBuild = build;
+  if (build === "scholar") {
+    b.energyMax += CLIMB_BODY_QI_MAX;
+    b.energyRegen += CLIMB_BODY_QI_REGEN;
+  } else if (build === "fighter") {
+    const extra = Math.round(b.player.maxHp * CLIMB_BODY_HP);
+    b.player.maxHp += extra;
+    b.player.hp += extra;
+  } else {
+    b.energy = Math.min(b.energyMax, b.energy + CLIMB_BODY_OPEN_QI);
+  }
+}
 
 export function fieldProfession(b: Battle): ProfessionId | undefined {
   return b.professions?.[b.active];

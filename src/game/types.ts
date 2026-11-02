@@ -482,7 +482,7 @@ export interface CardDef {
   foeQiBurn?: number;
   qiRegenSelf?: number;
   /** 有这个字段才按条件进手。没有则和现在一样能抽。 */
-  drawWhen?: "moved" | "stood" | "hit" | "blocked";
+  drawWhen?: "moved" | "stood" | "hit" | "blocked" | "notAttacked" | "staked" | "exposed" | "sealed" | "closeQuarters";
 }
 
 export interface CardInst {
@@ -643,6 +643,21 @@ export interface Battle {
   /** 敌方反应窗 id。空则不插入。 */
   foeWindows?: string[];
   foeWindowUsed?: number;
+  /** 精英 1 / 座前 2。没写时按 1。 */
+  foeWindowCap?: number;
+  foeArchetype?: "brute" | "turtle" | "skirmish" | "assassin" | "coach";
+  /** 剧情窗占位。kind 对拆招 / 缠手 / 读破。 */
+  foeReact?: { kind: "dismantle" | "bind" | "read"; note: string };
+  foeVoidMove?: boolean;
+  /** 拆招回敬的点数。和 foeRiposte 招式不是一回事。 */
+  foeWindowHit?: number;
+  foeReadCards?: string[];
+  cardPlayCount?: Record<string, number>;
+  resolvingCard?: string;
+  tierPalmKnocked?: boolean;
+  tierSaberBled?: boolean;
+  exposeGrace?: number;
+  foeNextHurtCut?: number;
   foeDismantleMul?: number;
   foeImmuneOnce?: boolean;
   foeSameId?: string;
@@ -660,6 +675,13 @@ export interface Battle {
   wagerCheat?: boolean;
   /** 缘分进阶。缺省初识。 */
   bondStages?: Record<string, "acquaint" | "road" | "life">;
+  bodyBuild?: "scholar" | "fighter" | "walker";
+  /** 毒层。不进裂创。回合结束按层扣，层不掉。 */
+  foePoison?: number;
+  poisonCoat?: number;
+  poisonMind?: number;
+  poisonTech?: number;
+  bondTearUsed?: boolean;
   envTag?: EnvTag;
   playerBlock: number;
   energy: number;
@@ -1052,6 +1074,8 @@ export interface Run {
   lives: number;
   livesMax: number;
   hero: HeroId;
+  /** 这一局主角名。缺省用场上角色的名。 */
+  heroName?: string;
   /** 银两 — meta currency for shops / clinics / bribes. Keep rewards modest. */
   silver: number;
   /** 行囊货色（药、材料、暗器）。武器/招式不进此栏。 */

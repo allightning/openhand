@@ -21,7 +21,8 @@ import { startLabBattle } from "./factory";
 import { applyAutoLoadout } from "./autoLoadouts";
 import { buildGauntletPreset, createGauntletRun } from "./gauntlet";
 import { setLabRuleset } from "./labRuleset";
-import { CLIMB_BLOCK_CAP, CLIMB_GUARD_WAGER, CLIMB_SPEAR_CUT_QI, climbCycleCost, climbEnemyPaceBonus } from "./climbCaps";
+import { CLIMB_BLOCK_CAP, CLIMB_GUARD_WAGER, CLIMB_SPEAR_CUT_QI, CLIMB_TRIPLE_CUT_QI, CLIMB_TRIPLE_NEED, climbCycleCost, climbEnemyPaceBonus } from "./climbCaps";
+import { cardSchool } from "../game/party";
 import { handRefillAmount } from "./rogueRoster";
 
 describe("爬塔试玩默认 2026-09-17", () => {
@@ -138,7 +139,9 @@ describe("爬塔试玩默认 2026-09-17", () => {
     const before = b.enemyEnergy;
     expect(canPlay(b, "spk2", climbTestContext()).ok).toBe(true);
     b = playCard(b, "spk2", climbTestContext());
-    expect(b.enemyEnergy).toBe(before - CLIMB_SPEAR_CUT_QI);
+    const spearN = [...b.hand, ...b.drawPile, ...b.discardPile].filter((c) => cardSchool(c.defId) === "spear").length;
+    const cut = CLIMB_SPEAR_CUT_QI + (spearN >= CLIMB_TRIPLE_NEED ? CLIMB_TRIPLE_CUT_QI : 0);
+    expect(b.enemyEnergy).toBe(before - cut);
   });
 
   it("连击重放花 2 层", () => {
@@ -153,8 +156,8 @@ describe("爬塔试玩默认 2026-09-17", () => {
     b.enemy.pos = 4;
     expect(labCanComboReplay(b, climbTestContext()).ok).toBe(true);
     b = labComboReplay(b, climbTestContext());
-    // 花 2 → 1，重放命中再叠 +1 → 2
-    expect(b.combo).toBe(2);
+    // 7 档重放花 1 层：3 → 2，命中再叠 +1 → 3
+    expect(b.combo).toBe(3);
   });
 
   it("桩帽 2", () => {

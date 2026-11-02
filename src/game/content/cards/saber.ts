@@ -108,10 +108,11 @@ export const SABER_CARDS: Record<string, CardDef> = {
     cost: 1,
     type: "skill",
     school: "saber",
-    text: "获得 5 点格挡。裂创 +1。抽 1。",
+    text: "格挡 5。裂创 +1。距 2 格内才进手。抽 1。",
     flavor: "刀背一横，先开口子再挡。",
     block: 5,
     bleed: 1,
+    drawWhen: "closeQuarters",
   },
   statusSaber2: {
     id: "statusSaber2",

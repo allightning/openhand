@@ -2,6 +2,7 @@ import type { Battle, CardDef, TechniqueId } from "./types";
 import { gearById, pathSkillMods } from "./weapons";
 import { battleEquippedSchool } from "./equippedWeapon";
 import { saberReachDamage } from "./rogueRoster";
+import { CLIMB_BOND7_SABER_MELEE, CLIMB_TIER_MID } from "./climbCaps";
 import { LAB_ENTRANCE_BONUS, OFFBALANCE_MULT } from "./labV2Constants";
 import { cardSchool, WEAPON_PACE } from "./party";
 import { schoolTier, tierFx, resonancePaceBonus } from "./labResonance";
@@ -85,6 +86,10 @@ export function damageBreakdown(
   if (labV2(ctx) && b.labSigPullBuff) add(parts, "拉近加伤", 2);
 
   const school = battleEquippedSchool(b, b.active, ctx);
+  if (ctx.lab && ctx.ruleset.mode !== "break" && school === "saber" && dist <= 1) {
+    const saberN = [...b.hand, ...b.drawPile, ...b.discardPile].filter((c) => cardSchool(c.defId) === "saber").length;
+    if (saberN >= CLIMB_TIER_MID) add(parts, "贴身档", CLIMB_BOND7_SABER_MELEE);
+  }
   if (school === "saber" && b.foeHitLastTurn && caps.saberOnHit) add(parts, "挨打加伤", caps.saberOnHit);
   if (hasTech(b, "saberGrudge") && b.foeHitLastTurn && caps.saberGrudge) {
     add(parts, "记仇", techBonus(b, "saberGrudge", 2));

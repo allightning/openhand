@@ -33,7 +33,7 @@ describe("mech P1 staff charge", () => {
     const b = makeBattle("catcher", rc, run, true);
     const hp = b.enemy.hp;
     const after = play(b, "staffSettle");
-    expect(after.chargeStacks).toBe(1);
+    expect(after.chargeStacks).toBe(2);
     expect(after.enemy.hp).toBe(hp);
     expect(after.playerBlock).toBeGreaterThanOrEqual(12);
   });
@@ -47,7 +47,7 @@ describe("mech P1 staff charge", () => {
     const hp = b.enemy.hp;
     b = play(b, "staffBurst");
     expect(b.chargeStacks ?? 0).toBe(0);
-    expect(hp - b.enemy.hp).toBe(44);
+    expect(hp - b.enemy.hp).toBe(88);
   });
 });
 

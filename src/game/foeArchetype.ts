@@ -4,6 +4,13 @@ import {
   CLIMB_FOE_GROW_EARLY,
   CLIMB_FOE_GROW_MID,
   CLIMB_FOE_GROW_SEAT,
+  CLIMB_FOE_P_ASSASSIN,
+  CLIMB_FOE_P_BRUTE,
+  CLIMB_FOE_P_COACH,
+  CLIMB_FOE_P_SKIRMISH,
+  CLIMB_FOE_P_TURTLE,
+  CLIMB_FOE_WINDOW_CAP,
+  CLIMB_FOE_WINDOW_CAP_SEAT,
   CLIMB_FOE_WINDOW_HALL,
 } from "./climbCaps";
 import type { Intent } from "./types";
@@ -38,6 +45,7 @@ export interface FoeKit {
   bond: FoeBondSlot | null;
   aura: FoeAuraSlot | null;
   foeWindows: string[];
+  windowCap: number;
 }
 
 /** 族 → 原型。不改目录血和招伤。 */
@@ -160,8 +168,16 @@ export function auraSlot(): FoeAuraSlot | null {
   return null;
 }
 
-function foeWindowsFor(archetype: ArchetypeId, stage: number, elite: boolean, seat: boolean): string[] {
-  if (archetype !== "coach") return [];
+export function foeWindowChance(id: ArchetypeId | undefined): number {
+  if (id === "assassin") return CLIMB_FOE_P_ASSASSIN;
+  if (id === "coach") return CLIMB_FOE_P_COACH;
+  if (id === "skirmish") return CLIMB_FOE_P_SKIRMISH;
+  if (id === "brute") return CLIMB_FOE_P_BRUTE;
+  if (id === "turtle") return CLIMB_FOE_P_TURTLE;
+  return 0;
+}
+
+function foeWindowsFor(stage: number, elite: boolean, seat: boolean): string[] {
   if (seat || (elite && stage >= CLIMB_FOE_WINDOW_HALL)) return ["dismantle", "bind", "read"];
   return [];
 }
@@ -184,6 +200,7 @@ export function buildFoeKit(input: KitInput, rng: () => number): FoeKit {
     tags: emptyTag(),
     bond: bondSlot(),
     aura: auraSlot(),
-    foeWindows: foeWindowsFor(archetype, input.stage, input.elite === true, seat),
+    foeWindows: foeWindowsFor(input.stage, input.elite === true, seat),
+    windowCap: seat ? CLIMB_FOE_WINDOW_CAP_SEAT : CLIMB_FOE_WINDOW_CAP,
   };
 }

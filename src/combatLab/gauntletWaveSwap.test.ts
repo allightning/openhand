@@ -81,6 +81,8 @@ describe("拆招轮番接力不软锁", () => {
   it("换人后敌招有计划，收势能过回合并不会卡死", () => {
     let b = v2Battle(6);
     b.enemy.hp = 1;
+    // 进手条件会让补牌停住，这一场把血抬高，只看换人后还能不能收势。
+    b.player.hp = 400;
     b.player.pos = 3;
     b.enemy.pos = 4;
     b = killFrontFoe(b);

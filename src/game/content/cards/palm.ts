@@ -108,9 +108,10 @@ export const PALM_CARDS: Record<string, CardDef> = {
     cost: 1,
     type: "skill",
     school: "palm",
-    text: "回复 4 点生命。抽 1。",
+    text: "回 4。本手没打过才进手。抽 1。",
     flavor: "掌心一捂，血气回笼。",
     heal: 4,
+    drawWhen: "notAttacked",
   },
   statusPalm2: {
     id: "statusPalm2",

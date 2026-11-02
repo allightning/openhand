@@ -30,7 +30,7 @@ export interface RouteLogEntry {
   note?: string;
 }
 
-export const ALL_ITEMS: LabItemId[] = ["jinchuang", "xiujian", "huiqi", "lianhuan", "pojin"];
+export const ALL_ITEMS: LabItemId[] = ["jinchuang", "xiujian", "huiqi", "lianhuan", "pojin", "cuandu", "dujing", "dugong"];
 
 export type GauntletTier = "easy" | "mid" | "hard" | "extreme";
 
@@ -280,6 +280,14 @@ export interface GauntletRun {
   seenStoryIds?: CompanionId[];
   /** 江湖本期：开局 roll 的赌馆/黑市程号 */
   storySchedule?: StorySchedule;
+  /** 开局七系牌序。种子随这一局。 */
+  openDeck?: WeaponId[];
+  /** 已经翻开的下标，最多 3 张。 */
+  openFlipped?: number[];
+  /** 选定的那一张，下标对 openDeck。 */
+  openPick?: number;
+  /** 这一局主角名。事页和开战播报读它。 */
+  heroName?: string;
   bgUses?: Record<string, number>;
   bgAssign?: Record<string, string>;
   /** 最近一次馆间选择的后果（营地/赌馆可见）。 */

@@ -34,8 +34,8 @@ describe("试玩反馈修复 2026-09-17", () => {
     setLabMode(true);
     setLabTuning({ playerDmgMul: revived.statBoostMul ?? 1 });
     const b = startLabBattle(buildGauntletPreset(revived), true, 1);
-    expect(b.player.maxHp).toBe(75);
-    expect(b.player.hp).toBe(75);
+    expect(b.player.maxHp).toBe(90);
+    expect(b.player.hp).toBe(90);
   });
 
   it("下注本系项不写死「本系刀」", () => {

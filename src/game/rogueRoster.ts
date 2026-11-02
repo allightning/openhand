@@ -24,6 +24,8 @@ export interface RogueMateDef {
   bio: string;
   /** 本命加亲和。馆间才能换到这些系。 */
   spectrum?: WeaponId[];
+  /** 术士 scholar / 武夫 fighter / 行者 walker。 */
+  body: "scholar" | "fighter" | "walker";
 }
 
 /** 一档开局主角：选系 = 选人。刀保留沈夜行。 */
@@ -45,6 +47,7 @@ export const ROGUE_ROSTER: RogueMateDef[] = [
     title: "夜巡刀",
     weapon: "saber",
     role: "dps",
+    body: "fighter",
     tier: 1,
     hp: 42,
     energyMax: 5,
@@ -59,6 +62,7 @@ export const ROGUE_ROSTER: RogueMateDef[] = [
     title: "掌门医",
     weapon: "palm",
     role: "support",
+    body: "scholar",
     tier: 1,
     hp: 42,
     energyMax: 5,
@@ -73,6 +77,7 @@ export const ROGUE_ROSTER: RogueMateDef[] = [
     title: "听锋客",
     weapon: "sword",
     role: "dps",
+    body: "fighter",
     tier: 1,
     hp: 42,
     energyMax: 5,
@@ -86,7 +91,8 @@ export const ROGUE_ROSTER: RogueMateDef[] = [
     name: "霍长川",
     title: "长枪客",
     weapon: "spear",
-    role: "dps",
+    role: "skirmish",
+    body: "walker",
     tier: 1,
     hp: 42,
     energyMax: 5,
@@ -101,6 +107,7 @@ export const ROGUE_ROSTER: RogueMateDef[] = [
     title: "定桩人",
     weapon: "staff",
     role: "tank",
+    body: "fighter",
     tier: 1,
     hp: 42,
     energyMax: 5,
@@ -115,6 +122,7 @@ export const ROGUE_ROSTER: RogueMateDef[] = [
     title: "钩夜",
     weapon: "hook",
     role: "control",
+    body: "scholar",
     tier: 1,
     hp: 42,
     energyMax: 5,
@@ -130,6 +138,7 @@ export const ROGUE_ROSTER: RogueMateDef[] = [
     title: "赤剪",
     weapon: "saber",
     role: "dps",
+    body: "fighter",
     tier: 2,
     hp: 52,
     energyMax: 6,
@@ -144,6 +153,7 @@ export const ROGUE_ROSTER: RogueMateDef[] = [
     title: "暖粥",
     weapon: "palm",
     role: "support",
+    body: "scholar",
     tier: 2,
     hp: 52,
     energyMax: 6,
@@ -158,6 +168,7 @@ export const ROGUE_ROSTER: RogueMateDef[] = [
     title: "半锋",
     weapon: "sword",
     role: "dps",
+    body: "fighter",
     tier: 2,
     hp: 52,
     energyMax: 6,
@@ -171,7 +182,8 @@ export const ROGUE_ROSTER: RogueMateDef[] = [
     name: "安岸火",
     title: "岸枪",
     weapon: "spear",
-    role: "dps",
+    role: "skirmish",
+    body: "walker",
     tier: 2,
     hp: 52,
     energyMax: 6,
@@ -186,6 +198,7 @@ export const ROGUE_ROSTER: RogueMateDef[] = [
     title: "闸门",
     weapon: "staff",
     role: "tank",
+    body: "fighter",
     tier: 2,
     hp: 52,
     energyMax: 6,
@@ -200,6 +213,7 @@ export const ROGUE_ROSTER: RogueMateDef[] = [
     title: "沉钩",
     weapon: "hook",
     role: "control",
+    body: "scholar",
     tier: 2,
     hp: 52,
     energyMax: 6,
@@ -214,7 +228,8 @@ export const ROGUE_ROSTER: RogueMateDef[] = [
     name: "厉霜行",
     title: "沥血",
     weapon: "saber",
-    role: "dps",
+    role: "skirmish",
+    body: "walker",
     tier: 3,
     hp: 64,
     energyMax: 7,
@@ -229,6 +244,7 @@ export const ROGUE_ROSTER: RogueMateDef[] = [
     title: "扶壁",
     weapon: "palm",
     role: "support",
+    body: "scholar",
     tier: 3,
     hp: 64,
     energyMax: 7,
@@ -243,6 +259,7 @@ export const ROGUE_ROSTER: RogueMateDef[] = [
     title: "独岁",
     weapon: "sword",
     role: "dps",
+    body: "fighter",
     tier: 3,
     hp: 64,
     energyMax: 7,
@@ -256,7 +273,8 @@ export const ROGUE_ROSTER: RogueMateDef[] = [
     name: "公孙四丈",
     title: "四丈",
     weapon: "spear",
-    role: "dps",
+    role: "skirmish",
+    body: "walker",
     tier: 3,
     hp: 64,
     energyMax: 7,
@@ -271,6 +289,7 @@ export const ROGUE_ROSTER: RogueMateDef[] = [
     title: "封棍",
     weapon: "staff",
     role: "control",
+    body: "scholar",
     tier: 3,
     hp: 64,
     energyMax: 7,
@@ -284,7 +303,8 @@ export const ROGUE_ROSTER: RogueMateDef[] = [
     name: "欧阳饮钩",
     title: "饮锋",
     weapon: "hook",
-    role: "control",
+    role: "skirmish",
+    body: "walker",
     tier: 3,
     hp: 64,
     energyMax: 7,
@@ -295,7 +315,9 @@ export const ROGUE_ROSTER: RogueMateDef[] = [
   },
 ];
 
-for (const mate of ROGUE_ROSTER) mate.spectrum = WEAPON_SPECTRUM[mate.id] ?? [mate.weapon];
+for (const mate of ROGUE_ROSTER) {
+  mate.spectrum = WEAPON_SPECTRUM[mate.id] ?? [mate.weapon];
+}
 
 export function rogueMate(id: CompanionId): RogueMateDef | undefined {
   return ROGUE_ROSTER.find((m) => m.id === id);

@@ -14,10 +14,10 @@ export function dartFormFailReason(form: DartForm | undefined, dist: number): st
   return `飞刀打 1–6 格，敌在 ${dist} 格`;
 }
 
-export function addPin(b: Battle, n: number): string[] {
+export function addPin(b: Battle, n: number, cap = CLIMB_PIN_CAP): string[] {
   const add = Math.max(0, Math.floor(n));
   if (add <= 0) return [];
-  const next = Math.min(CLIMB_PIN_CAP, (b.foePin ?? 0) + add);
+  const next = Math.min(cap, (b.foePin ?? 0) + add);
   b.foePin = next;
   return [`钉 ${next}`];
 }

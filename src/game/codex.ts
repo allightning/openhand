@@ -1,3 +1,12 @@
+import {
+  CLIMB_BLEED_CAP,
+  CLIMB_BLOCK_CAP,
+  CLIMB_COMBO_CAP,
+  CLIMB_ENDURE_CAP,
+  CLIMB_EXPOSE_CAP,
+  CLIMB_STAKE_CAP,
+  CLIMB_SWORD_CHAIN_CAP,
+} from "./climbCaps";
 import { CARDS, TECHNIQUES } from "./content";
 import { WEAPON_NAME } from "./party";
 import type { CardId, Run, TechniqueId } from "./types";
@@ -54,6 +63,8 @@ export interface StatusEntry {
   name: string;
   side: "you" | "foe" | "both" | "intent";
   text: string;
+  /** 层帽。排版仍读正文里的「帽」。 */
+  cap?: number;
 }
 
 /** 爬塔图鉴：状态与机制。意图只是预告，不进本表。硬拆套不进爬塔。 */
@@ -68,6 +79,7 @@ export const STATUS_ENTRIES: StatusEntry[] = [
     id: "block",
     name: "格挡",
     side: "both",
+    cap: CLIMB_BLOCK_CAP,
     text: "伤害先扣格挡再扣血。爬塔帽 12，局内留，受击减少。读招收势清（铁布除外）。裂创跳伤也可被格挡。",
   },
   { id: "thorns", name: "反震", side: "you", text: "他打你时，你按这个数回敬。外功「回桩」基础 3；喂养升档按 ×1.15 / ×1.30 取整。" },
@@ -79,6 +91,7 @@ export const STATUS_ENTRIES: StatusEntry[] = [
     id: "bleed",
     name: "裂创",
     side: "both",
+    cap: CLIMB_BLEED_CAP,
     text: "爬塔帽 6（读招可到 9）。回合结束按层扣血，可被格挡。刀贴身命中叠 1（牌面另叠另算）。预演只跟注。金创、烙口、缝创可治。",
   },
   { id: "seal", name: "封脉", side: "you", text: "下回少这么多劲力。通脉可解。" },
@@ -106,18 +119,21 @@ export const STATUS_ENTRIES: StatusEntry[] = [
     id: "expose",
     name: "破绽",
     side: "both",
+    cap: CLIMB_EXPOSE_CAP,
     text: "剑副。给他叠层（爬塔帽 4），克高格挡。打他时耗 1 层，穿挡直伤 4（先结算面伤吃挡，再掉这 4 点气血）。你身上的破绽：他打你每层 +4 并消耗。",
   },
   {
     id: "swordchain",
     name: "剑势",
     side: "you",
+    cap: CLIMB_SWORD_CHAIN_CAP,
     text: "剑核。爬塔：攻击加伤等于当前层数，命中后再 +1 层，帽 6。破招连势已回收，爬塔不要再用连势。",
   },
   {
     id: "combo",
     name: "连击",
     side: "you",
+    cap: CLIMB_COMBO_CAP,
     text: "拳核。爬塔：攻击命中叠层，帽 6，并击退 1。花 2 层点「连击重放」，再结算上一张攻击一次（不耗劲、不耗手牌）。",
   },
   {
@@ -130,6 +146,7 @@ export const STATUS_ENTRIES: StatusEntry[] = [
     id: "stake",
     name: "桩",
     side: "both",
+    cap: CLIMB_STAKE_CAP,
     text: "棍核。爬塔场上最多 2 根。不能放敌人身后那一格。敌撞裂你的桩→你格挡 +4；你打出裂桩拆掉桩→爆炸双方各 4 伤并晕敌 1 段。",
   },
   { id: "mark", name: "点穴", side: "foe", text: "印记。开缝等招吃印。破绽另计。" },
@@ -151,13 +168,14 @@ export const STATUS_ENTRIES: StatusEntry[] = [
     id: "endure",
     name: "霸体",
     side: "foe",
+    cap: CLIMB_ENDURE_CAP,
     text: "挨打但不吃击退/拉/眩晕。挡控耗 1 层。每个结束 −1（赋予当手也掉）。帽 3。杂兵意图不写霸体招。",
   },
   {
     id: "leech",
     name: "噬血",
     side: "you",
-    text: "钩副。爬塔：只对缴械目标，命中回血 30%（至少 1）。角色被动另有固定吸血。回血不超过气血上限。",
+    text: "钩副。爬塔：只对缴械目标，命中回血 40%（至少 1）。角色被动另有固定吸血。回血不超过气血上限。",
   },
   { id: "mute", name: "禁技", side: "both", text: "有层时打不出技能牌。爬塔不进敌招池。" },
   {
