@@ -7,7 +7,7 @@ import { startTelemetry } from "../telemetry";
 import { clearClimbContinue } from "../climbContinue";
 import { applyStageTuning, buildGauntletPreset, buildSkirmishPreset, createGauntletRun, enterGauntletTuning, getGauntletFinalStage, isGauntletEndless, ladderEntryForRun, rollGauntletRewards, saveGauntletBest, gauntletRewardTakeCount, consumeFightStartMods, consumeCampMods, runCompanions, gauntletFieldMate, wagerOffers, wagerStakeMax } from "../gauntlet";
 import { shouldShowFinale } from "../encounter";
-import { queuePostCampBeat, usesBanditStory } from "../storyBeats";
+import { armOpeningRitual, queuePostCampBeat, rollStoryChoices, usesBanditStory } from "../storyBeats";
 import { combatBgPool, takeSceneBg } from "../sceneBg";
 import { canStartBattle } from "../loadout";
 import { shouldSkipWager } from "../breakOnboard";
@@ -230,6 +230,15 @@ function startGauntletSchool(school: WeaponId): void {
   S.wagerKind = null;
   S.wagerStake = null;
   if (usesBanditStory(S.gauntletRun) && S.gauntletRun.storyPending === "opening") {
+    S.gauntletRun = armOpeningRitual(S.gauntletRun, Math.random);
+    const openingChoices = rollStoryChoices(S.gauntletRun);
+    if (openingChoices.length) {
+      S.gauntletEventKind = "story";
+      S.gauntletEventChoices = openingChoices;
+      S.gauntletScreen = "event";
+      api.render();
+      return;
+    }
     S.gauntletScreen = "opening";
     api.render();
     return;

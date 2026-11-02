@@ -4,7 +4,10 @@ import type { EncounterChoice } from "./encounter";
 import { applyEncounterChoice } from "./encounter";
 import type { GauntletRun } from "./gauntlet";
 import { climbPlace } from "./climbPlaces";
+import { gauntletFieldMate } from "../game/rules/gauntletPorts";
+import { runCompanions } from "../game/rules/ladderRules";
 import { ENV_TAG_LABEL, type EnvTag } from "./gauntletPaths";
+import { dealOpenDeck } from "../game/openRitual";
 
 export const STORY_CAST_POOL: CompanionId[] = [
   "lvchifeng",
@@ -609,6 +612,7 @@ export function rollStoryChoices(run: GauntletRun): EncounterChoice[] {
   if (pending === "choice") {
     const s3 = currentStory3(run);
     if (s3) return s3.choices;
+    if (run.storyFlags?.some((f) => f.startsWith("bondshow:"))) return bondCueChoices();
     const s2 = currentStory2(run);
     if (s2) return s2.choices;
     const env = currentEnvPage(run);
@@ -625,7 +629,9 @@ export function rollStoryChoices(run: GauntletRun): EncounterChoice[] {
 export function storyEventLead(run: GauntletRun): string {
   if (run.storyPending === "choice") {
     const s3 = currentStory3(run);
-    if (s3) return s3.lead;
+    if (s3) return withBondLine(run, s3.lead);
+    const cue = bondShowLine(run);
+    if (cue) return cue;
     const s2 = currentStory2(run);
     if (s2) return s2.lead;
     const env = currentEnvPage(run);
@@ -682,7 +688,7 @@ function nextPendingAfterChoice(_run: GauntletRun, choice: EncounterChoice): Sto
 export function applyStoryChoice(run: GauntletRun, choice: EncounterChoice, rng: () => number): GauntletRun {
   let next = applyEncounterChoice(run, choice, rng);
   const extra = extraFlagsFor(choice);
-  const flags = [...(next.storyFlags ?? [])];
+  const flags = [...(next.storyFlags ?? [])].filter((f) => !f.startsWith("bondshow:"));
   for (const f of extra) if (!flags.includes(f)) flags.push(f);
   if (flags.includes("story-solo") && partyCount(next) === 0 && !flags.includes("story-solo-bonus")) {
     flags.push("story-solo-bonus");
@@ -779,17 +785,26 @@ export function queuePostCampBeat(run: GauntletRun, fought: number, rng: () => n
     return { ...run, storyPlace: run.storyPlace ?? storyPlaceForFought(fought, run.openingId) };
   }
   const stage = run.stage ?? fought + 1;
-  const pageId = pickStory3Node(run, stage, rng);
+  const ticked = tickBondStages(run, stage);
+  const staged: GauntletRun = {
+    ...run,
+    storyFlags: ticked.flags,
+    lastEncounterNote: ticked.line ?? run.lastEncounterNote,
+  };
+  const pageId = pickStory3Node(staged, stage, rng);
   if (pageId) {
-    const opened = offerStory3Page(run, pageId);
+    const opened = offerStory3Page(staged, pageId);
     const flags = [...(opened.storyFlags ?? [])];
     const mark = `s3seen:${pageId}`;
     if (!flags.includes(mark)) flags.push(mark);
     return { ...opened, storyFlags: flags };
   }
-  const cleared = run.storyFlags?.some((f) => f.startsWith("s3page:"))
-    ? { ...run, storyFlags: run.storyFlags.filter((f) => !f.startsWith("s3page:")) }
-    : run;
+  if (ticked.line) {
+    return { ...staged, storyPending: "choice", storyGuest: undefined, storyFlags: staged.storyFlags?.filter((f) => !f.startsWith("s3page:")) };
+  }
+  const cleared = staged.storyFlags?.some((f) => f.startsWith("s3page:"))
+    ? { ...staged, storyFlags: staged.storyFlags.filter((f) => !f.startsWith("s3page:")) }
+    : staged;
   return applyPostCampBeat(cleared, pickPostCampBeat(cleared, fought, rng), fought);
 }
 
@@ -1656,6 +1671,10 @@ export const STORY3_META: Record<string, Story3Meta> = {
   "s3-read-stay": { next: "s3-read-advance" },
   "s3-dice-stay": { next: "s3-dice-advance" },
   "s3-shade-stay": { next: "s3-shade-advance" },
+  "s3-open-a-take": { next: "s3-open-name" },
+  "s3-open-a-back": { next: "s3-open-name" },
+  "s3-open-b-take": { next: "s3-open-name" },
+  "s3-open-b-back": { next: "s3-open-name" },
 };
 
 function s3choice(id: string, title: string, blurb: string, extra: Partial<EncounterChoice> = {}): EncounterChoice {
@@ -1949,7 +1968,7 @@ export const STORY3_PAGES: Story3Page[] = [
     id: "s3-stake-advance",
     pack: "job",
     title: "木裂开的那一下",
-    lead: "你跟着他把第三根楔进土里，楔到一半，木身发出一声裂响。裂开的木屑飞到你小腿上，也飞到对面那人的膝上。两个人同时退了半步，半步里木已经倒了。土坑还在，坑边有焦色，焦色是裂开时留下的。他看着自己的手，手心有一条新的木刺。你的小腿上有一块热，热过之后才疼。他没有解释这一声，把断木踢到路边。",
+    lead: "你跟着他把第三根楔进土里，楔到一半，木身发出一声裂响。裂开的木屑飞到你小腿上，也飞到对面那人的膝上。两个人同时退了半步，半步里木已经倒了。土坑还在，坑边有焦色，焦色是裂开时留下的。他看着自己的手，手心有一条新的木刺。你的小腿上有一块热，热过之后才疼。他没有解释这一声，把断木踢到路边。木裂开的那一下打在对面身上，伤是 X，晕住的段数是 ?。",
     choices: [
       s3choice("s3-stake-advance-keep", "把这一声记住", "断木留在路边，下一次你再点地，可以要它再裂一次。**裂开的伤是 X，晕的段数是 ?。**"),
       s3choice("s3-stake-advance-drop", "把断木扔掉", "你把断木丢进沟里，土坑还在，下一声不会再来。**不留这一下。下一程伤 ?。**"),
@@ -1979,7 +1998,7 @@ export const STORY3_PAGES: Story3Page[] = [
     id: "s3-read-advance",
     pack: "job",
     title: "他把下一记说出口",
-    lead: "这一次他不再等你把肩线送出来。对面的人还在握刀，他已经把下一记的字说出来，字落在进上。刀真的进了，进的幅度和他的字一样。茶摊上的人安静下来，安静是因为字在刀前面。他把一颗新的石子按在你手边，按着，等你收不收。你收下的话，下一次对面的人抬肩，你可以先听见字。石子是凉的，凉意停在掌心。他没有给这颗石子取过名字。",
+    lead: "这一次他不再等你把肩线送出来。对面的人还在握刀，他已经把下一记的字说出来，字落在进上。刀真的进了，进的幅度和他的字一样。茶摊上的人安静下来，安静是因为字在刀前面。他把一颗新的石子按在你手边，按着，等你收不收。你收下的话，下一次对面的人抬肩，你可以先听见字。石子是凉的，凉意停在掌心。他没有给这颗石子取过名字。他把下一记说在刀的前面，说中之后这一下的伤是 ?。",
     choices: [
       s3choice("s3-read-advance-take", "把石子收下", "石子进袖，下一次肩线抬起前，你能先听见那个字。**先听见的那一记，类型占位是 ?。**"),
       s3choice("s3-read-advance-back", "把石子推回去", "石子回到他掌心，下一记仍要等刀落下来才知道。**不收。下一程伤 ?。**"),
@@ -2009,7 +2028,7 @@ export const STORY3_PAGES: Story3Page[] = [
     id: "s3-dice-advance",
     pack: "job",
     title: "盅在你手里换了底",
-    lead: "他把旧盅放进你的手，你的手指找到那道裂纹，裂纹对着灯。你学他的样子，在灯跳的一瞬把盅转过去。转完，桌上的点数和你指节事先敲的印子对上了。围着的人这一次看着你，不看着他。他的手离开桌子，离开是把这一下交给你。你的掌心有汗，汗把裂纹浸得更深。下一次灯再跳，你可以自己转。",
+    lead: "他把旧盅放进你的手，你的手指找到那道裂纹，裂纹对着灯。你学他的样子，在灯跳的一瞬把盅转过去。转完，桌上的点数和你指节事先敲的印子对上了。围着的人这一次看着你，不看着他。他的手离开桌子，离开是把这一下交给你。你的掌心有汗，汗把裂纹浸得更深。下一次灯再跳，你可以自己转。灯再跳的时候盅底换过去，这一把的输赢是 ?。",
     choices: [
       s3choice("s3-dice-advance-keep", "把裂纹留在自己掌心", "旧盅进你袖里，下一次灯跳你可以转底。**转成之后的点数仍是 ?。单注最高当前彩金 80%。**"),
       s3choice("s3-dice-advance-back", "把旧盅还给他", "裂纹回到他袖中，你的注仍按明面算。**不留。下一程照旧，伤 ?。**"),
@@ -2088,24 +2107,168 @@ function applyStory3Choice(flags: string[], choice: EncounterChoice, next: Gaunt
   if (!flags.some((f) => f.startsWith("s3page:"))) return { flags, next };
   const meta = STORY3_META[choice.id];
   const f = flags.filter((x) => !x.startsWith("s3page:"));
-  if (meta?.next) f.push(`s3page:${meta.next}`);
+  if (meta?.next) {
+    f.push(`s3page:${meta.next}`);
+    const seen = `s3seen:${meta.next}`;
+    if (!f.includes(seen)) f.push(seen);
+  }
   return { flags: f, next };
 }
 
-/** 这一程还没亮过的事页里抽一条。第一程返回空，避免进场前打开赌馆。 */
+const GROUP_NODES: { page: string; ids: readonly CompanionId[] }[] = [
+  { page: "s3-group-dao", ids: ["watch", "lvchifeng", "lishuangxing"] },
+  { page: "s3-group-zhang", ids: ["baimenghe", "zhounuanxiang", "fubishan"] },
+  { page: "s3-group-jian", ids: ["wenrensheng", "boqing", "duguposui"] },
+  { page: "s3-group-qiang", ids: ["huochangchuan", "ananhuo", "gongsunsizhang"] },
+  { page: "s3-group-zhuang", ids: ["shiwanshan", "zhangshoushan", "fengtang"] },
+  { page: "s3-group-gou", ids: ["moqiwan", "chenchenlan", "ouyangyingou"] },
+];
+
+const BOND_PAIRS: { id: string; ids: readonly CompanionId[] }[] = [
+  { id: "yeshuang", ids: ["watch", "lishuangxing"] },
+  { id: "wenbu", ids: ["baimenghe", "zhounuanxiang"] },
+  { id: "menzhuang", ids: ["shiwanshan", "zhangshoushan"] },
+  { id: "siyin", ids: ["moqiwan", "ouyangyingou"] },
+  { id: "shuangchi", ids: ["huochangchuan", "gongsunsizhang"] },
+  { id: "suisheng", ids: ["wenrensheng", "duguposui"] },
+  { id: "lieren", ids: ["boqing", "lvchifeng"] },
+  { id: "bian", ids: ["fubishan", "ananhuo"] },
+];
+
+const JOB_POOL = [
+  "s3-stake-a",
+  "s3-stake-b",
+  "s3-stake-advance",
+  "s3-read-a",
+  "s3-read-b",
+  "s3-read-advance",
+  "s3-dice-a",
+  "s3-dice-b",
+  "s3-dice-advance",
+  "s3-shade-meet",
+  "s3-shade-advance",
+] as const;
+
+const JOB_AFTER: Record<string, readonly string[]> = {
+  "s3-stake-advance": ["s3-stake-a", "s3-stake-b"],
+  "s3-read-advance": ["s3-read-a", "s3-read-b"],
+  "s3-dice-advance": ["s3-dice-a", "s3-dice-b"],
+  "s3-shade-advance": ["s3-shade-meet"],
+};
+
+function seenStory3(run: Pick<GauntletRun, "storyFlags">): Set<string> {
+  return new Set((run.storyFlags ?? []).filter((f) => f.startsWith("s3seen:")).map((f) => f.slice("s3seen:".length)));
+}
+
+function partyIds(run: Pick<GauntletRun, "companions" | "companion" | "school">): CompanionId[] {
+  const ids = runCompanions(run as GauntletRun);
+  if (run.school) {
+    const mate = gauntletFieldMate(run.school);
+    if (!ids.includes(mate)) ids.unshift(mate);
+  }
+  return ids;
+}
+
+function groupPagesDue(run: Pick<GauntletRun, "companions" | "companion" | "school" | "storyFlags">): string[] {
+  const party = partyIds(run);
+  const seen = seenStory3(run);
+  return GROUP_NODES.filter((g) => !seen.has(g.page) && g.ids.every((id) => party.includes(id))).map((g) => g.page);
+}
+
+function jobPagesOpen(run: Pick<GauntletRun, "storyFlags">): string[] {
+  const seen = seenStory3(run);
+  return JOB_POOL.filter((id) => {
+    if (seen.has(id)) return false;
+    const need = JOB_AFTER[id];
+    return !need || need.some((prev) => seen.has(prev));
+  });
+}
+
+function bondShowLine(run: Pick<GauntletRun, "storyFlags">): string {
+  const flag = run.storyFlags?.find((f) => f.startsWith("bondshow:"));
+  if (!flag) return "";
+  return flag.endsWith(":life") ? BOND_STAGE_LINES.life : BOND_STAGE_LINES.road;
+}
+
+function withBondLine(run: Pick<GauntletRun, "storyFlags">, lead: string): string {
+  const line = bondShowLine(run);
+  if (!line || lead.startsWith(line)) return lead;
+  return `${line}${lead}`;
+}
+
+function bondCueChoices(): EncounterChoice[] {
+  return [s3choice("s3-bond-cue-ok", "把这一程记下", "两个人还站在同一侧。**同程数够了，幅度是 ?。**")];
+}
+
+function flagNum(flags: string[], prefix: string): number {
+  const hit = flags.find((f) => f.startsWith(prefix));
+  return hit ? Number(hit.slice(prefix.length)) || 0 : 0;
+}
+
+/** 同队的一对，每过一程加一。同程数到 3 挂同路，到 6 挂生死。同一程不重复加。 */
+export function tickBondStages(
+  run: Pick<GauntletRun, "companions" | "companion" | "school" | "storyFlags">,
+  stage: number,
+): { flags: string[]; line?: string } {
+  const flags = [...(run.storyFlags ?? [])];
+  if (stage <= 1) return { flags };
+  const party = partyIds(run);
+  let line: string | undefined;
+  for (const pair of BOND_PAIRS) {
+    if (!pair.ids.every((id) => party.includes(id))) continue;
+    const atPrefix = `bondat:${pair.id}:`;
+    const nPrefix = `bondn:${pair.id}:`;
+    if (flagNum(flags, atPrefix) === stage) continue;
+    const n = flagNum(flags, nPrefix) + 1;
+    const next = flags.filter((f) => !f.startsWith(atPrefix) && !f.startsWith(nPrefix));
+    next.push(`${atPrefix}${stage}`, `${nPrefix}${n}`);
+    flags.length = 0;
+    flags.push(...next);
+    const road = `bondcue:${pair.id}:road`;
+    const life = `bondcue:${pair.id}:life`;
+    if (n >= 6 && !flags.includes(life) && !line) {
+      flags.push(life, "bondshow:life");
+      line = BOND_STAGE_LINES.life;
+    } else if (n >= 3 && !flags.includes(road) && !line) {
+      flags.push(road, "bondshow:road");
+      line = BOND_STAGE_LINES.road;
+    }
+  }
+  return { flags, line };
+}
+
+/** 固定节点、群像、职业池里抽一条。第 3 程先给三选一。第一程返回空。 */
 export function pickStory3Node(
-  run: Pick<GauntletRun, "path" | "storyFlags">,
+  run: Pick<GauntletRun, "path" | "storyFlags" | "companions" | "companion" | "school">,
   stage: number,
   rng: () => number,
 ): string | undefined {
   if (stage <= 1) return undefined;
-  const seen = new Set(
-    (run.storyFlags ?? []).filter((f) => f.startsWith("s3seen:")).map((f) => f.slice("s3seen:".length)),
-  );
-  const open = (climbPlace(run.path, stage).storyNodes ?? []).filter((id) => !seen.has(id));
-  if (!open.length) return undefined;
-  const i = Math.min(open.length - 1, Math.floor(Math.max(0, rng()) * open.length));
-  return open[i];
+  const seen = seenStory3(run);
+  if (stage === 3 && !seen.has("s3-open-job")) return "s3-open-job";
+  const groups = groupPagesDue(run);
+  const roll = Math.max(0, rng());
+  if (stage !== 3 && groups.length) return groups[Math.min(groups.length - 1, Math.floor(roll * groups.length))]!;
+  const place = (climbPlace(run.path, stage).storyNodes ?? []).filter((id) => !seen.has(id));
+  const jobs = stage === 3 ? [] : jobPagesOpen(run);
+  if (jobs.length && (place.length === 0 || roll < 0.5)) {
+    const basis = place.length === 0 ? roll : roll / 0.5;
+    return jobs[Math.min(jobs.length - 1, Math.floor(basis * jobs.length))]!;
+  }
+  if (!place.length) return undefined;
+  return place[Math.min(place.length - 1, Math.floor(roll * place.length))]!;
+}
+
+/** 开局先翻三张里的一版，再接到自取名。不进赌馆。牌序随这一局的种子。 */
+export function armOpeningRitual(run: GauntletRun, rng: () => number): GauntletRun {
+  if (!usesBanditStory(run)) return run;
+  if (run.storyFlags?.some((f) => f.startsWith("s3seen:s3-open-"))) return run;
+  const id = rng() < 0.5 ? "s3-open-a" : "s3-open-b";
+  const opened = offerStory3Page(run, id);
+  const flags = [...(opened.storyFlags ?? [])];
+  const mark = `s3seen:${id}`;
+  if (!flags.includes(mark)) flags.push(mark);
+  return { ...opened, storyFlags: flags, pendingOpenWager: false, openDeck: opened.openDeck ?? dealOpenDeck(rng) };
 }
 
 /** 情报、缘分、职业、开局都从这里打开。不预排，不在第一程自动进赌馆。 */
@@ -2115,4 +2278,67 @@ export function offerStory3Page(run: GauntletRun, pageId: string): GauntletRun {
   const flags = (run.storyFlags ?? []).filter((f) => !f.startsWith("s3page:") && !f.startsWith("s2page:") && !f.startsWith("envpage:"));
   flags.push(`s3page:${page.id}`);
   return { ...run, storyFlags: flags, storyPending: "choice", storyGuest: undefined };
+}
+
+/** MECH3 敌窗占位键。结算仍推这三字，播报从这里取。 */
+export const FOE_WINDOW_LINES = {
+  敌拆招: "他看穿你这一记的来路，打出去的伤减半，回敬过来的伤是 X。",
+  敌缠手: "他缠住你迈出去的步子，这一步的位移作废，作废的段数是 ?。",
+  敌读破: "这招他已经见过第三次，往后这张牌对他的伤少三成，少掉的伤是 ?。",
+} as const;
+
+export function foeWindowLine(key: string): string | undefined {
+  if (key === "敌拆招" || key === "敌缠手" || key === "敌读破") return FOE_WINDOW_LINES[key];
+  return undefined;
+}
+
+/** 最近几条播报里的敌窗键，换成白描。没有键就空。 */
+export function latestFoeWindowLine(log: string[] | undefined): string {
+  const tail = (log ?? []).slice(-8);
+  for (let i = tail.length - 1; i >= 0; i--) {
+    const line = foeWindowLine(tail[i] ?? "");
+    if (line) return line;
+  }
+  return "";
+}
+
+/** 牌意 4 档 / 7 档达档一句。10 档不在这里。 */
+export const CARD_INTENT_LINES: Record<string, { four: string; seven: string }> = {
+  palm: {
+    four: "这一场你头一回把他击退，多出去的格数是 X。",
+    seven: "连击再放的时候少花一层，少掉的层数是 ?。",
+  },
+  saber: {
+    four: "裂创头一回挂上他身上，多出来的层数是 X。",
+    seven: "贴着身的那一刀更重，重出来的伤是 ?。",
+  },
+  sword: {
+    four: "开场的剑势多叠一层，多出来的层数是 X。",
+    seven: "破绽在他身上多留一息，多留的时间是 ?。",
+  },
+  spear: {
+    four: "远着的这一枪更疼，多出来的伤是 X。",
+    seven: "他这一手当场被断了劲，下一段少掉的伤是 ?。",
+  },
+  staff: {
+    four: "开场的蓄力多叠一层，多出来的层数是 X。",
+    seven: "这一记击退撞上墙，墙上多出来的伤是 ?。",
+  },
+  hook: {
+    four: "缴械在他身上多留一息，多留的时间是 X。",
+    seven: "噬血多回一截血，多回的数量是 ?。",
+  },
+  dart: {
+    four: "钉能叠的上限抬高，抬高的层数是 X。",
+    seven: "远着打出去的时候钉多一层，多出来的层数是 ?。",
+  },
+};
+
+export function cardIntentLine(school: string | undefined, count: number | undefined): string {
+  if (!school || count == null || !Number.isInteger(count)) return "";
+  const row = CARD_INTENT_LINES[school];
+  if (!row) return "";
+  if (count >= 7) return row.seven;
+  if (count >= 4) return row.four;
+  return "";
 }

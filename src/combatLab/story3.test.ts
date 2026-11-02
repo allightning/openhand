@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { shouldSkipWager } from "./breakOnboard";
 import { climbPlace, storyNodesAt } from "./climbPlaces";
 import { createGauntletRun } from "./gauntlet";
 import {
@@ -7,6 +8,7 @@ import {
   STORY2_PAGES,
   STORY3_PAGES,
   applyStoryChoice,
+  armOpeningRitual,
   offerStory3Page,
   queuePostCampBeat,
   rollStoryChoices,
@@ -94,7 +96,7 @@ describe("叙事 3", () => {
     expect(stage1.storyFlags?.some((f) => f.startsWith("s3page:")) ?? false).toBe(false);
     expect(stage1.pendingOpenWager).toBeFalsy();
 
-    const tea = queuePostCampBeat({ ...fresh, stage: 2 }, 1, () => 0);
+    const tea = queuePostCampBeat({ ...fresh, stage: 2 }, 1, () => 0.5);
     expect(tea.storyFlags).toContain("s3page:s3-tea-bowl");
     expect(tea.storyPending).toBe("choice");
     expect(rollStoryChoices(tea).some((c) => c.openWager)).toBe(false);
@@ -117,6 +119,70 @@ describe("叙事 3", () => {
     const wager = applyStoryChoice(fatal, push, () => 0);
     expect(wager.stage).toBe(9);
     expect(wager.pendingOpenWager).toBe(true);
+  });
+
+  it("群像在第三人进队的下一程，职业进随机池，开局先翻牌再取名", () => {
+    const fresh = { ...createGauntletRun("bandit", "saber"), storyPending: "rest" as const };
+    const dao = queuePostCampBeat(
+      { ...fresh, stage: 6, companions: ["lvchifeng", "lishuangxing"] },
+      5,
+      () => 0,
+    );
+    expect(dao.storyFlags).toContain("s3page:s3-group-dao");
+    expect(dao.pendingOpenWager).toBeFalsy();
+    const gate = queuePostCampBeat(
+      { ...fresh, stage: 3, companions: ["lvchifeng", "lishuangxing"] },
+      2,
+      () => 0,
+    );
+    expect(gate.storyFlags).toContain("s3page:s3-open-job");
+
+    const meet = queuePostCampBeat({ ...fresh, stage: 2 }, 1, () => 0);
+    expect(meet.storyFlags).toContain("s3page:s3-stake-a");
+    expect(meet.storyFlags?.includes("s3page:s3-stake-advance")).toBe(false);
+    const late = queuePostCampBeat(
+      {
+        ...fresh,
+        stage: 10,
+        storyFlags: [
+          "s3seen:s3-stake-a",
+          "s3seen:s3-stake-b",
+          "s3seen:s3-read-a",
+          "s3seen:s3-read-b",
+          "s3seen:s3-dice-a",
+          "s3seen:s3-dice-b",
+          "s3seen:s3-shade-meet",
+        ],
+      },
+      9,
+      () => 0,
+    );
+    expect(late.storyFlags).toContain("s3page:s3-stake-advance");
+
+    let bond = {
+      ...createGauntletRun("bandit", "palm"),
+      storyPending: "rest" as const,
+      companions: ["baimenghe", "zhounuanxiang"] as ("baimenghe" | "zhounuanxiang")[],
+    };
+    for (const stage of [2, 3, 4]) {
+      bond = { ...queuePostCampBeat({ ...bond, stage, storyPending: "rest" }, stage - 1, () => 0.5), storyPending: "rest" as const };
+    }
+    expect(bond.lastEncounterNote).toBe(BOND_STAGE_LINES.road);
+    for (const stage of [5, 6, 7]) {
+      bond = { ...queuePostCampBeat({ ...bond, stage, storyPending: "rest" }, stage - 1, () => 0.5), storyPending: "rest" as const };
+    }
+    expect(bond.lastEncounterNote).toBe(BOND_STAGE_LINES.life);
+
+    const flip = armOpeningRitual(createGauntletRun("bandit", "saber"), () => 0);
+    expect(flip.storyFlags).toContain("s3page:s3-open-a");
+    expect(flip.pendingOpenWager).toBeFalsy();
+    expect(rollStoryChoices(flip).some((c) => c.openWager)).toBe(false);
+    const named = applyStoryChoice(flip, rollStoryChoices(flip)[0]!, () => 0);
+    expect(named.storyFlags).toContain("s3page:s3-open-name");
+    const done = applyStoryChoice(named, rollStoryChoices(named)[0]!, () => 0);
+    expect(done.pendingOpenWager).toBeFalsy();
+    expect(shouldSkipWager(1, done)).toBe(true);
+    expect(armOpeningRitual(createGauntletRun("bandit", "saber"), () => 0.6).storyFlags).toContain("s3page:s3-open-b");
   });
 
   it("旧怨两个选项都伤人，医杀可以两边都留", () => {
