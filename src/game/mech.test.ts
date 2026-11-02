@@ -144,7 +144,7 @@ describe("mech P4 wall package", () => {
     expect(b.foeStun ?? 0).toBeGreaterThanOrEqual(1);
   });
 
-  it("spear reverse window: 后手+背墙, pause at dist 2, spend qi to dump leftover", () => {
+  it("spear reverse window: 血低于一半 + 背墙, 拒在 3 格并废位移", () => {
     const run = makeRun("empty");
     run.weapon = "spear-a-1";
     run.wallSide = "low";
@@ -152,20 +152,21 @@ describe("mech P4 wall package", () => {
     let b = makeBattle("catcher", rc, run, true);
     b.labMateWeapons = { ...(b.labMateWeapons ?? {}), [b.active]: "spear-a-1" };
     b.player.pos = 0;
+    b.player.hp = Math.floor(b.player.maxHp * 0.4);
     b.enemy.pos = 5;
     b.wallEnds = "low";
     b.holdReaction = true;
-    b.foePace = yourPace(b, rc) + 3;
     b.energy = 6;
     b.intent = { kind: "advance", steps: 4 };
     b.intents = [b.intent];
     b = endTurn(b, rc);
     expect(b.reactionWindow?.kind).toBe("spearReverse");
-    expect(Math.abs(b.enemy.pos - b.player.pos)).toBe(2);
+    expect(Math.abs(b.enemy.pos - b.player.pos)).toBe(3);
     const qi = b.energy;
     b = answerReaction(b, true, rc);
     expect(b.reactionWindow).toBeUndefined();
-    expect(Math.abs(b.enemy.pos - b.player.pos)).toBe(2);
+    expect(Math.abs(b.enemy.pos - b.player.pos)).toBe(3);
+    expect(b.displaceSealed).toBe(true);
     expect(qi - b.energy).toBe(CLIMB_SPEAR_REVERSE_QI);
   });
 

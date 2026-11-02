@@ -11867,7 +11867,7 @@
       },
       {
         "tag": "play:hookpull",
-        "youHp": 29,
+        "youHp": 30,
         "foeHp": 140,
         "youPos": 0,
         "foePos": 1,
@@ -11895,7 +11895,7 @@
       },
       {
         "tag": "play:sidestep",
-        "youHp": 29,
+        "youHp": 30,
         "foeHp": 140,
         "youPos": 1,
         "foePos": 0,
@@ -11923,7 +11923,7 @@
       },
       {
         "tag": "play:comboHook",
-        "youHp": 35,
+        "youHp": 38,
         "foeHp": 119,
         "youPos": 1,
         "foePos": 0,
@@ -11951,7 +11951,7 @@
       },
       {
         "tag": "play:inbreath",
-        "youHp": 35,
+        "youHp": 38,
         "foeHp": 119,
         "youPos": 1,
         "foePos": 0,
@@ -11979,7 +11979,7 @@
       },
       {
         "tag": "play:mend",
-        "youHp": 40,
+        "youHp": 43,
         "foeHp": 119,
         "youPos": 1,
         "foePos": 0,
@@ -12007,7 +12007,7 @@
       },
       {
         "tag": "intent:0",
-        "youHp": 40,
+        "youHp": 43,
         "foeHp": 119,
         "youPos": 1,
         "foePos": 0,
@@ -12035,7 +12035,7 @@
       },
       {
         "tag": "end",
-        "youHp": 40,
+        "youHp": 43,
         "foeHp": 119,
         "youPos": 1,
         "foePos": 0,
@@ -12063,7 +12063,7 @@
       },
       {
         "tag": "play:burySlash",
-        "youHp": 40,
+        "youHp": 43,
         "foeHp": 119,
         "youPos": 1,
         "foePos": 0,
@@ -12091,7 +12091,7 @@
       },
       {
         "tag": "play:burySlash",
-        "youHp": 40,
+        "youHp": 43,
         "foeHp": 119,
         "youPos": 1,
         "foePos": 0,
@@ -12119,7 +12119,7 @@
       },
       {
         "tag": "play:brace",
-        "youHp": 40,
+        "youHp": 43,
         "foeHp": 119,
         "youPos": 1,
         "foePos": 0,
@@ -12147,7 +12147,7 @@
       },
       {
         "tag": "play:defend",
-        "youHp": 40,
+        "youHp": 43,
         "foeHp": 119,
         "youPos": 1,
         "foePos": 0,
@@ -12175,7 +12175,7 @@
       },
       {
         "tag": "intent:0",
-        "youHp": 34,
+        "youHp": 37,
         "foeHp": 109,
         "youPos": 1,
         "foePos": 0,
@@ -12203,7 +12203,7 @@
       },
       {
         "tag": "end",
-        "youHp": 34,
+        "youHp": 37,
         "foeHp": 109,
         "youPos": 1,
         "foePos": 0,
@@ -12231,7 +12231,7 @@
       },
       {
         "tag": "play:sidestep",
-        "youHp": 34,
+        "youHp": 37,
         "foeHp": 109,
         "youPos": 0,
         "foePos": 1,
@@ -12259,7 +12259,7 @@
       },
       {
         "tag": "play:hookpull",
-        "youHp": 34,
+        "youHp": 37,
         "foeHp": 103,
         "youPos": 0,
         "foePos": 1,
@@ -12287,7 +12287,7 @@
       },
       {
         "tag": "play:mend",
-        "youHp": 39,
+        "youHp": 42,
         "foeHp": 103,
         "youPos": 0,
         "foePos": 1,
@@ -12315,7 +12315,7 @@
       },
       {
         "tag": "intent:0",
-        "youHp": 39,
+        "youHp": 42,
         "foeHp": 103,
         "youPos": 0,
         "foePos": 1,
@@ -12343,7 +12343,7 @@
       },
       {
         "tag": "end",
-        "youHp": 39,
+        "youHp": 42,
         "foeHp": 103,
         "youPos": 0,
         "foePos": 1,
@@ -12371,7 +12371,7 @@
       },
       {
         "tag": "play:qiFlood",
-        "youHp": 39,
+        "youHp": 42,
         "foeHp": 103,
         "youPos": 0,
         "foePos": 1,
@@ -12399,7 +12399,7 @@
       },
       {
         "tag": "play:burySlash",
-        "youHp": 39,
+        "youHp": 42,
         "foeHp": 103,
         "youPos": 0,
         "foePos": 1,
@@ -12427,7 +12427,7 @@
       },
       {
         "tag": "play:haste",
-        "youHp": 39,
+        "youHp": 42,
         "foeHp": 103,
         "youPos": 0,
         "foePos": 1,
@@ -12455,7 +12455,7 @@
       },
       {
         "tag": "play:hookpull",
-        "youHp": 39,
+        "youHp": 42,
         "foeHp": 100,
         "youPos": 0,
         "foePos": 1,
@@ -12483,7 +12483,7 @@
       },
       {
         "tag": "intent:0",
-        "youHp": 21,
+        "youHp": 24,
         "foeHp": 90,
         "youPos": 0,
         "foePos": 1,
@@ -12511,7 +12511,7 @@
       },
       {
         "tag": "end",
-        "youHp": 21,
+        "youHp": 24,
         "foeHp": 90,
         "youPos": 0,
         "foePos": 1,
@@ -12539,7 +12539,7 @@
       },
       {
         "tag": "play:sidestep",
-        "youHp": 21,
+        "youHp": 24,
         "foeHp": 90,
         "youPos": 1,
         "foePos": 0,
@@ -12567,7 +12567,7 @@
       },
       {
         "tag": "play:haste",
-        "youHp": 21,
+        "youHp": 24,
         "foeHp": 90,
         "youPos": 1,
         "foePos": 0,
@@ -12595,7 +12595,7 @@
       },
       {
         "tag": "play:drawcut",
-        "youHp": 21,
+        "youHp": 24,
         "foeHp": 79,
         "youPos": 1,
         "foePos": 0,
@@ -12623,7 +12623,7 @@
       },
       {
         "tag": "play:brace",
-        "youHp": 21,
+        "youHp": 24,
         "foeHp": 79,
         "youPos": 1,
         "foePos": 0,
@@ -12651,7 +12651,7 @@
       },
       {
         "tag": "play:backpalm",
-        "youHp": 21,
+        "youHp": 24,
         "foeHp": 79,
         "youPos": 2,
         "foePos": 0,
@@ -12679,7 +12679,7 @@
       },
       {
         "tag": "intent:0",
-        "youHp": 20,
+        "youHp": 23,
         "foeHp": 79,
         "youPos": 2,
         "foePos": 0,
@@ -12707,7 +12707,7 @@
       },
       {
         "tag": "end",
-        "youHp": 20,
+        "youHp": 23,
         "foeHp": 78,
         "youPos": 2,
         "foePos": 0,
@@ -12735,7 +12735,7 @@
       },
       {
         "tag": "play:drawcut",
-        "youHp": 20,
+        "youHp": 23,
         "foeHp": 74,
         "youPos": 2,
         "foePos": 0,
@@ -12763,7 +12763,7 @@
       },
       {
         "tag": "play:haste",
-        "youHp": 20,
+        "youHp": 23,
         "foeHp": 74,
         "youPos": 2,
         "foePos": 0,
@@ -12791,7 +12791,7 @@
       },
       {
         "tag": "play:mend",
-        "youHp": 25,
+        "youHp": 28,
         "foeHp": 74,
         "youPos": 2,
         "foePos": 0,
@@ -12819,7 +12819,7 @@
       },
       {
         "tag": "play:advance",
-        "youHp": 25,
+        "youHp": 28,
         "foeHp": 74,
         "youPos": 1,
         "foePos": 0,
@@ -12847,7 +12847,7 @@
       },
       {
         "tag": "intent:0",
-        "youHp": 7,
+        "youHp": 10,
         "foeHp": 74,
         "youPos": 1,
         "foePos": 0,
@@ -12875,7 +12875,7 @@
       },
       {
         "tag": "end",
-        "youHp": 7,
+        "youHp": 10,
         "foeHp": 73,
         "youPos": 1,
         "foePos": 0,
@@ -13969,7 +13969,7 @@
       },
       {
         "tag": "play:hookpull",
-        "youHp": 26,
+        "youHp": 27,
         "foeHp": 66,
         "youPos": 2,
         "foePos": 1,
@@ -13997,7 +13997,7 @@
       },
       {
         "tag": "play:close",
-        "youHp": 26,
+        "youHp": 27,
         "foeHp": 66,
         "youPos": 2,
         "foePos": 1,
@@ -14025,7 +14025,7 @@
       },
       {
         "tag": "intent:0",
-        "youHp": 26,
+        "youHp": 27,
         "foeHp": 66,
         "youPos": 2,
         "foePos": 1,
@@ -14053,7 +14053,7 @@
       },
       {
         "tag": "end",
-        "youHp": 26,
+        "youHp": 27,
         "foeHp": 63,
         "youPos": 2,
         "foePos": 1,
@@ -14081,7 +14081,7 @@
       },
       {
         "tag": "play:qiFlood",
-        "youHp": 26,
+        "youHp": 27,
         "foeHp": 63,
         "youPos": 2,
         "foePos": 1,
@@ -14109,7 +14109,7 @@
       },
       {
         "tag": "play:hookpull",
-        "youHp": 26,
+        "youHp": 27,
         "foeHp": 60,
         "youPos": 2,
         "foePos": 1,

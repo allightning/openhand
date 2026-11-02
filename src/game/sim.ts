@@ -94,14 +94,27 @@ import {
   climbEnemyPaceBonus,
   climbOpeningDistance,
   climbOpeningPositions,
+  CLIMB_BREAK_HURT,
   CLIMB_CHARGE_CAP,
+  CLIMB_LIMP_LEECH,
+  CLIMB_LIMP_LEECH_HITS,
+  CLIMB_PARRY_EVERY,
   CLIMB_PIN_CAP,
 } from "./climbCaps";
 import { consumeChargeBurst, gainCharge } from "./rules/staffCharge";
 import { addPin, applyPinBudget, dartFormAllows, dartFormFailReason } from "./rules/dartPin";
 import { burnCellsFor, gapFieldFor, tickBurnCells } from "./rules/envTags";
-import { hookSmashLine, hookSmashSwap, spearReverseReady, staffWallOnCrash } from "./rules/wallLinks";
-import { declineReaction, openSpearReverseWindow, takeSpearReverse } from "./rules/reactionWindow";
+import { hookSmashLine, hookSmashSwap, staffWallOnCrash } from "./rules/wallLinks";
+import { noteSegmentRead, publishStance, segmentFeint } from "./intentStance";
+import {
+  matchWindow,
+  noteFoeWindow,
+  openWindow,
+  takeWindow,
+  tickFromIntent,
+  type WindowTick,
+} from "./reactionWindows";
+import { buildFoeKit, foeKitSeed, kitRng } from "./foeArchetype";
 
 export { techBonus, battleTechRank, techRankMul } from "./techRank";
 
@@ -724,6 +737,24 @@ export function makeBattle(
     orderedDeal: ordered,
   };
   setupBattle(battle, rc);
+  if (run.foeRound != null) {
+    const kit = buildFoeKit(
+      {
+        stage: run.foeStage ?? 1,
+        enemyId,
+        round: run.foeRound,
+        salt: run.foeSalt ?? 0,
+        elite: Boolean(def.elite),
+        seat: (run.foeStage ?? 1) >= 10,
+      },
+      kitRng(foeKitSeed(run.foeRound, enemyId, run.foeSalt ?? 0)),
+    );
+    battle.intents = kit.cards.map((c) => c.intent);
+    battle.intent = battle.intents[0] ?? battle.intent;
+    battle.feintMask = kit.cards.map((c) => c.feint === true);
+    battle.foeWindows = kit.foeWindows;
+    publishStance(battle);
+  }
   battle.spar = spar;
   simV2Init(battle, rc);
   return battle;
@@ -1562,6 +1593,20 @@ function hitEnemy(b: Battle, raw: number, verb: string, rc: RunContext, spendCha
     b.enemyBlock -= pierce;
     if (pierce) notes.push(`裂甲破挡 ${pierce}`);
   }
+  if (b.foeImmuneOnce && raw > 0) {
+    b.foeImmuneOnce = false;
+    b.lastHitRead = "读破";
+    return ["读破免伤"];
+  }
+  if (b.foeDismantleMul != null && dmg > 0) {
+    dmg = Math.max(1, Math.round(dmg * b.foeDismantleMul));
+    b.foeDismantleMul = undefined;
+    notes.push("拆招降效");
+  }
+  if (b.foeBreakHurt && dmg > 0) {
+    dmg = Math.max(1, Math.round(dmg * (1 + CLIMB_BREAK_HURT)));
+    notes.push("破防");
+  }
   if (b.enemyBlock > 0) {
     const blocked = Math.min(b.enemyBlock, dmg);
     b.enemyBlock -= blocked;
@@ -1591,6 +1636,13 @@ function hitEnemy(b: Battle, raw: number, verb: string, rc: RunContext, spendCha
     if (isClimbQi(rc) && battleEquippedSchool(b, b.active, rc) === "hook" && (b.foeDisarm ?? 0) > 0) {
       leech += Math.max(1, Math.floor(dmg * CLIMB_LIFESTEAL_PCT));
     }
+    if (b.foeLimp && (b.foeDisarm ?? 0) > 0) {
+      if (b.limpLeechLeft == null) b.limpLeechLeft = CLIMB_LIMP_LEECH_HITS;
+      if ((b.limpLeechLeft ?? 0) > 0) {
+        leech += Math.floor(dmg * CLIMB_LIMP_LEECH);
+        b.limpLeechLeft = (b.limpLeechLeft ?? 1) - 1;
+      }
+    }
     if (leech > 0) {
       const before = b.player.hp;
       b.player.hp = Math.min(b.player.maxHp, b.player.hp + leech);
@@ -1606,6 +1658,7 @@ function hitEnemy(b: Battle, raw: number, verb: string, rc: RunContext, spendCha
     }
     if (school === "saber" && dist <= 1) {
       b.bleed = Math.min(CLIMB_BLEED_CAP, (b.bleed ?? 0) + 1);
+      b.stackedOnFoe = true;
       notes.push(`裂创 ${b.bleed}`);
     }
     if (school === "sword") {
@@ -2832,7 +2885,8 @@ export function playCard(b: Battle, uid: string, rc: RunContext): Battle {
     next.v2ComboUnlockPlays = (next.v2ComboUnlockPlays ?? 0) + 1;
   }
   if (rc.lab) next.v2PlayerActions = (next.v2PlayerActions ?? 0) + 1;
-  const notes = applyCard(next, inst.defId, rc);
+  const foeNotes = noteFoeWindow(next, def);
+  const notes = [...foeNotes, ...applyCard(next, inst.defId, rc)];
   pushCardPlayFx(next, def, rc);
   applyPlayedAttackMomentum(next, inst.defId, notes, rc);
   const spend = labV2(rc) ? labV21EffectiveCost(next, def, rc) : def.cost + (def.stackTaxQi ?? 0);
@@ -2940,6 +2994,10 @@ function hitPlayer(b: Battle, raw: number, verb: string, rc: RunContext): void {
   const taken = incoming - blocked;
   b.playerBlock -= blocked;
   b.player.hp -= taken;
+  if (raw > 0 && Math.abs(b.player.pos - b.enemy.pos) <= 1) {
+    b.meleeHits = (b.meleeHits ?? 0) + 1;
+    if (b.meleeHits >= CLIMB_PARRY_EVERY) b.meleeHits = 0;
+  }
   if (taken > 0) b.labFoeTurnPlayerHit = true;
   simV2OnHitPlayer(b, taken, rc);
   const line =
@@ -3306,20 +3364,58 @@ export function intentIncoming(b: Battle, intent: Intent, rc: RunContext): { tot
   return { total: Math.max(1, total), parts };
 }
 
-function offerSpearReverse(
+function offerMoveWindow(
   b: Battle,
   leftover: number,
   dir: number,
-  intentKind: "charge" | "advance" | "lunge",
+  intentKind: string,
   rc: RunContext,
   chargeDamage?: number,
 ): boolean {
-  if (leftover <= 0) return false;
-  if (!spearReverseReady(b, battleEquippedSchool(b, b.active, rc), yourPace(b, rc))) return false;
-  if (!b.holdReaction) return false;
-  openSpearReverseWindow(b, leftover, dir, intentKind, chargeDamage);
-  b.log.push("回马枪判定窗");
+  if (b.skipWindow || b.displaceSealed || leftover <= 0 || !b.holdReaction) return false;
+  const fromDist = Math.abs(b.player.pos - b.enemy.pos);
+  const next = b.enemy.pos + dir;
+  const toward = Math.abs(next - b.player.pos) < fromDist;
+  let pos = b.enemy.pos;
+  for (let i = 0; i < leftover; i++) {
+    const step = pos + dir;
+    if (step < 0 || step >= boardLen(b) || step === b.player.pos) break;
+    pos = step;
+  }
+  const tick: WindowTick = {
+    phase: "move",
+    toward,
+    fromDist,
+    destDist: Math.abs(pos - b.player.pos),
+    leftover,
+    dir,
+    fromPos: b.enemy.pos,
+    intentKind,
+    damage: chargeDamage,
+    feint: segmentFeint(b),
+  };
+  const row = matchWindow(b, battleEquippedSchool(b, b.active, rc), tick);
+  if (!row) return false;
+  openWindow(b, row, tick);
   return true;
+}
+
+function offerIntentWindow(b: Battle, rc: RunContext): boolean {
+  if (b.skipWindow || !b.holdReaction || b.reactionWindow) return false;
+  const dist = Math.abs(b.player.pos - b.enemy.pos);
+  const tick = tickFromIntent(b.intent, dist, ENEMY_WEAPON[b.enemyId]);
+  tick.feint = segmentFeint(b);
+  tick.fromPos = b.enemy.pos;
+  const row = matchWindow(b, battleEquippedSchool(b, b.active, rc), tick);
+  if (!row) return false;
+  openWindow(b, row, tick);
+  return true;
+}
+
+function finishSegment(b: Battle, rc: RunContext): void {
+  b.skipWindow = true;
+  resolveIntent(b, rc);
+  b.skipWindow = false;
 }
 
 function resumeEnemyWalk(b: Battle, leftover: number, dir: number, rc: RunContext): void {
@@ -3336,35 +3432,38 @@ export function answerReaction(b: Battle, take: boolean, rc: RunContext): Battle
   const next = cloneBattle(b);
   const w = next.reactionWindow;
   if (!w) return next;
+  const move = w.kind === "spearReverse" || w.kind === "hookLimp";
   if (take) {
-    const notes = takeSpearReverse(next);
+    const notes = takeWindow(next);
     for (const n of notes) next.log.push(n);
-    if (w.intentKind === "charge") {
-      const hits = Math.abs(next.enemy.pos - next.player.pos) <= 1;
-      if (hits && (w.chargeDamage ?? 0) > 0) hitPlayer(next, w.chargeDamage ?? 0, "冲锋 ", rc);
-      else next.log.push(`${next.enemy.name}冲过去了。`);
-    }
+    if (w.kind === "swordSteal") finishSegment(next, rc);
+    markFoeBreak(next);
   } else {
-    declineReaction(next);
-    resumeEnemyWalk(next, w.leftover, w.dir, rc);
-    if (w.intentKind === "charge") {
-      const hits = Math.abs(next.enemy.pos - next.player.pos) <= 1;
-      if (hits && (w.chargeDamage ?? 0) > 0) hitPlayer(next, w.chargeDamage ?? 0, "冲锋 ", rc);
-      else next.log.push(`${next.enemy.name}冲过去了。`);
-    } else if (w.intentKind === "advance") {
-      next.log.push(`${next.enemy.name}逼近。`);
-    }
+    next.reactionWindow = undefined;
+    if (move) {
+      resumeEnemyWalk(next, w.leftover, w.dir, rc);
+      if (w.intentKind === "charge") {
+        const hits = Math.abs(next.enemy.pos - next.player.pos) <= 1;
+        if (hits && (w.chargeDamage ?? 0) > 0) hitPlayer(next, w.chargeDamage ?? 0, "冲锋 ", rc);
+        else next.log.push(`${next.enemy.name}冲过去了。`);
+      } else if (w.intentKind === "advance") next.log.push(`${next.enemy.name}逼近。`);
+    } else finishSegment(next, rc);
+    markFoeBreak(next);
   }
   return next;
 }
 
 function resolveCharge(b: Battle, damage: number, rc: RunContext): void {
+  if (b.displaceSealed) {
+    b.log.push(`${b.enemy.name}位移被瓦解。`);
+    return;
+  }
   const dir = towardDir(b.enemy.pos, b.player.pos);
   let steps = applyPinBudget(b, chargeSteps(b));
-  if (offerSpearReverse(b, steps, dir, "charge", rc, damage)) return;
+  if (offerMoveWindow(b, steps, dir, "charge", rc, damage)) return;
   let hits = false;
   for (let i = 0; i < steps; i++) {
-    if (offerSpearReverse(b, steps - i, dir, "charge", rc, damage)) return;
+    if (offerMoveWindow(b, steps - i, dir, "charge", rc, damage)) return;
     const next = b.enemy.pos + dir;
     if (next < 0 || next >= boardLen(b)) break;
     if (next === b.player.pos) {
@@ -3395,12 +3494,16 @@ function resolveCharge(b: Battle, damage: number, rc: RunContext): void {
 }
 
 function resolveAdvance(b: Battle, steps: number, rc: RunContext): void {
+  if (b.displaceSealed) {
+    b.log.push(`${b.enemy.name}位移被瓦解。`);
+    return;
+  }
   const dir = towardDir(b.enemy.pos, b.player.pos);
   const budget = applyPinBudget(b, steps);
-  if (offerSpearReverse(b, budget, dir, "advance", rc)) return;
+  if (offerMoveWindow(b, budget, dir, "advance", rc)) return;
   let moved = 0;
   for (let i = 0; i < budget; i++) {
-    if (offerSpearReverse(b, budget - i, dir, "advance", rc)) return;
+    if (offerMoveWindow(b, budget - i, dir, "advance", rc)) return;
     const next = b.enemy.pos + dir;
     if (next < 0 || next >= boardLen(b)) break;
     if (next === b.player.pos || occupied(b, next, rc, b.enemy.id)) break;
@@ -3430,6 +3533,10 @@ function resolveTrap(b: Battle): void {
 }
 
 function resolveLunge(b: Battle, damage: number, rc: RunContext): void {
+  if (b.displaceSealed) {
+    b.log.push(`${b.enemy.name}位移被瓦解。`);
+    return;
+  }
   if (labV2(rc)) {
     // §31.14 抢步扑的是「回合开始你站的那条线」（锁定招），与红格同一公式：
     // 落点 = 朝锁定格进一步；命中 = 你的收势格在落点的兵刃圈内。你挪走了，他就扑空。
@@ -3445,7 +3552,7 @@ function resolveLunge(b: Battle, damage: number, rc: RunContext): void {
   if (!adjacent(b)) {
     const dir = towardDir(b.enemy.pos, b.player.pos);
     const budget = applyPinBudget(b, 1);
-    if (offerSpearReverse(b, budget, dir, "lunge", rc, damage)) return;
+    if (offerMoveWindow(b, budget, dir, "lunge", rc, damage)) return;
     if (budget > 0) {
       const next = b.enemy.pos + dir;
       if (next >= 0 && next < boardLen(b) && !occupied(b, next, rc, b.enemy.id)) moveEnemyTo(b, next);
@@ -3485,6 +3592,7 @@ function resolveSwap(b: Battle, rc: RunContext): void {
 }
 
 function resolveAllIntents(b: Battle, rc: RunContext): void {
+  if (!b.stanceBoard?.length) publishStance(b);
   if (labV2(rc)) {
     simV2ResolveIntentQueue(b, (intent, idx) => {
       // §31.12 拳助嘲讽：在场时敌第一段攻击只认铁牛——替你挡下且算你拆。
@@ -3504,9 +3612,11 @@ function resolveAllIntents(b: Battle, rc: RunContext): void {
         return;
       }
       b.v2ResolveIntentIdx = idx;
+      b.stanceCursor = idx;
       b.enemyEnergy = Math.max(0, b.enemyEnergy - intentCost(intent));
       if (idx > 0) note(b, "foe", `${b.enemy.name}接招：${labelIntent(intent)}`);
     resolveIntent(b, rc);
+    if (!b.reactionWindow) markFoeBreak(b);
     segmentProbe?.(b, `intent:${idx}`);
     if (b.reactionWindow) return;
     if (livingFoes(b).length === 0) checkWin(b, rc);
@@ -3525,15 +3635,36 @@ function resolveAllIntents(b: Battle, rc: RunContext): void {
   for (let i = 0; i < queue.length; i++) {
     if (b.phase !== "player") break;
     b.intent = queue[i];
+    b.stanceCursor = i;
     b.enemyEnergy = Math.max(0, b.enemyEnergy - intentCost(queue[i]));
     if (i > 0) note(b, "foe", `${b.enemy.name}接招：${labelIntent(queue[i])}`);
     resolveIntent(b, rc);
+    if (!b.reactionWindow) markFoeBreak(b);
     segmentProbe?.(b, `intent:${i}`);
     if (b.reactionWindow) break;
   }
 }
 
+function markFoeBreak(b: Battle): void {
+  if (b.enemyEnergy > 0) {
+    b.foeBreakLatch = false;
+    return;
+  }
+  if (b.foeBreakLatch) return;
+  b.foeBreakLatch = true;
+  b.foeBreakHurt = true;
+  b.foeGrayNext = true;
+}
+
 function resolveIntent(b: Battle, rc: RunContext): void {
+  if (b.foeGrayNext) {
+    b.foeGrayNext = false;
+    noteSegmentRead(b);
+    b.log.push(`${b.enemy.name}这一段灰留。`);
+    return;
+  }
+  noteSegmentRead(b);
+  if (offerIntentWindow(b, rc)) return;
   const intent = b.intent;
   if (intent.kind === "strike") {
     // §31.14 打击按身前兵刃结算：够不着或在身后 = 劈空（与红格同一公式）
@@ -3565,7 +3696,10 @@ function resolveIntent(b: Battle, rc: RunContext): void {
       note(b, "foe", `${b.enemy.name}绊钩卸了你的牌。`);
     }
   } else if (intent.kind === "trap") resolveTrap(b);
-  else if (intent.kind === "windup") note(b, "foe", `${b.enemy.name}在蓄。`);
+  else if (intent.kind === "windup") {
+    b.foeCharge = (b.foeCharge ?? 0) + 1;
+    note(b, "foe", `${b.enemy.name}在蓄。`);
+  }
   else if (intent.kind === "lunge") resolveLunge(b, intent.damage, rc);
   else if (intent.kind === "barrage") {
     // §31.14 连打守身前兵刃：跑出圈或到身后 = 全落空
@@ -3590,10 +3724,11 @@ function resolveIntent(b: Battle, rc: RunContext): void {
     } else {
       hitPlayer(b, intent.damage, "刀创 ", rc);
       applyEnemyOnHitRiders(b, rc);
-      if (b.phase === "player") {
+      if (b.phase === "player" && !b.skipFoeStack) {
         b.youBleed = Math.min(9, b.youBleed + intent.bleed);
         note(b, "foe", `你裂创 ${b.youBleed}`);
       }
+      b.skipFoeStack = false;
     }
   } else if (intent.kind === "counter") {
     armRiposte(b, "foe", intent.form, rc);
@@ -3667,10 +3802,16 @@ function resolveIntent(b: Battle, rc: RunContext): void {
 }
 
 function resolveRetreat(b: Battle, steps: number, rc: RunContext): void {
+  if (b.displaceSealed) {
+    b.log.push(`${b.enemy.name}位移被瓦解。`);
+    return;
+  }
   const dir = awayDir(b.player.pos, b.enemy.pos);
   const budget = applyPinBudget(b, steps);
+  if (offerMoveWindow(b, budget, dir, "retreat", rc)) return;
   let moved = 0;
   for (let i = 0; i < budget; i++) {
+    if (offerMoveWindow(b, budget - i, dir, "retreat", rc)) return;
     const next = b.enemy.pos + dir;
     if (next < 0 || next >= boardLen(b) || occupied(b, next, rc, b.enemy.id)) break;
     moveEnemyTo(b, next);
@@ -4358,6 +4499,8 @@ function planFromFirstAtPos(b: Battle, first: Intent, rc: RunContext): void {
   if (labV2(rc)) applyTurnDamageGovernor(b, honest, rc);
   b.intents = honest.length ? honest : [{ kind: "guard", block: 6 }];
   b.intent = b.intents[0]!;
+  b.stanceBoard = undefined;
+  b.stanceRevealN = undefined;
   if (rc.lab) {
     b.v2FoeSegments = (b.v2FoeSegments ?? 0) + planned.length;
     // §31.8 v3：每手套路定招眼（起手第一个可硬拆的攻击段）。
@@ -4543,6 +4686,17 @@ function climbAdvanceTurnClock(next: Battle, rc: RunContext): void {
   next.foeMovedBack = false;
   next.foeEnteredMelee = false;
   next.foeStrikesThisTurn = 0;
+  next.meleeHits = 0;
+  next.staffPierceUsed = false;
+  next.swordStealUsed = false;
+  next.displaceSealed = false;
+  if (next.foeBreakHurt) {
+    if (next.foeBreakSeen) {
+      next.foeBreakHurt = false;
+      next.foeBreakSeen = false;
+      next.foeBreakLatch = false;
+    } else next.foeBreakSeen = true;
+  }
   next.turn += 1;
   simV2AfterEndTurnSetup(next, rc);
   tickSignatureCooldown(next);

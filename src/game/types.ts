@@ -25,15 +25,36 @@ export type EnvTag = "burn" | "nowall" | "gap_end" | "gap_mid";
 
 export type DartForm = "melee" | "ranged" | "any";
 
-export type ReactionKind = "spearReverse";
+export type ReactionKind =
+  | "spearReverse"
+  | "palmCut"
+  | "dartBreath"
+  | "saberParry"
+  | "swordSteal"
+  | "hookLimp"
+  | "staffPierce";
+
+export type StanceId = "hurt" | "press" | "back" | "hold" | "wind" | "sly";
+
+export interface StanceSeg {
+  stance: StanceId;
+  /** 读懂用的招键。 */
+  key: string;
+  feint: boolean;
+}
+
 export interface ReactionWindow {
   kind: ReactionKind;
   cost: number;
   leftover: number;
   dir: number;
-  /** 暂停时所在意图。接上后只兑剩余位移或本段伤。 */
-  intentKind: "charge" | "advance" | "lunge";
+  /** 暂停时所在意图。 */
+  intentKind: string;
   chargeDamage?: number;
+  /** 回复量、加挡量或本段伤。 */
+  amount?: number;
+  /** 位移开始时的敌格。瘸跛拉回这里。 */
+  anchor?: number;
 }
 export type CompanionId =
   | "rail"
@@ -568,6 +589,55 @@ export interface Battle {
   reactionWindow?: ReactionWindow;
   /** 测试：有窗时暂停，不自动放弃。 */
   holdReaction?: boolean;
+  /** 本场已打出的反应窗次数。 */
+  windowsUsed?: number;
+  /** 回马之后，本回合剩余位移作废。 */
+  displaceSealed?: boolean;
+  /** 敌蓄力层（截拳清的是这个）。 */
+  foeCharge?: number;
+  /** 贴脸受击计数。弹反看第 3 段，回合清。 */
+  meleeHits?: number;
+  /** 透棍本回合已用。 */
+  staffPierceUsed?: boolean;
+  /** 偷势本回合已用。 */
+  swordStealUsed?: boolean;
+  /** 偷势之后，本段敌叠层不落地。 */
+  skipFoeStack?: boolean;
+  /** 我方已给敌叠过层。 */
+  stackedOnFoe?: boolean;
+  /** 钩瘸跛。 */
+  foeLimp?: boolean;
+  /** 瘸跛且缴械后剩余吸血次数。 */
+  limpLeechLeft?: number;
+  /** 敌蓝归零后的当手加伤。 */
+  foeBreakHurt?: boolean;
+  foeBreakSeen?: boolean;
+  /** 归零闩：蓝回到正数才再开。 */
+  foeBreakLatch?: boolean;
+  /** 下一段灰留。 */
+  foeGrayNext?: boolean;
+  /** 本手跳过一次反应窗（放弃后把原段兑完）。 */
+  skipWindow?: boolean;
+  /** 架势段。与 intents 对齐。 */
+  stanceBoard?: StanceSeg[];
+  stanceCursor?: number;
+  /** 亮招：已解锁的段数（顺序 + 类型）。 */
+  stanceRevealN?: number;
+  /** 虚招段。与 intents 对齐。 */
+  feintMask?: boolean[];
+  /** 亮虚招：虚招段已还原。 */
+  feintShown?: boolean;
+  /** 读懂：本场已亮过的招键。 */
+  readMoves?: string[];
+  /** 敌方反应窗 id。空则不插入。 */
+  foeWindows?: string[];
+  foeWindowUsed?: number;
+  foeDismantleMul?: number;
+  foeImmuneOnce?: boolean;
+  foeSameId?: string;
+  foeSameCount?: number;
+  foeSchoolId?: string;
+  foeSchoolStreak?: number;
   envTag?: EnvTag;
   playerBlock: number;
   energy: number;
@@ -987,6 +1057,12 @@ export interface Run {
   wallSide?: WallSide;
   /** 环境词条。nowall 盖 wallSide；burn 点中格；缺格只留字段。 */
   envTag?: EnvTag;
+  /** 大轮序号。写入后开战走敌配招。 */
+  foeRound?: number;
+  /** 配招馆段。缺省 1。 */
+  foeStage?: number;
+  /** 配招盐。同大轮同敌同盐不变。 */
+  foeSalt?: number;
   /** Boss-count watermark when last bounty was armed. */
   bountyAt?: number;
   /** Must finish bounty target before beaten.length exceeds this. */
