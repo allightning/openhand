@@ -55,6 +55,7 @@ export function normalizePreset(p: LabPreset): LabPreset {
     statBoostMul: p.statBoostMul,
     labItems: p.labItems ? [...p.labItems] : undefined,
     labItemCharges: p.labItemCharges ? { ...p.labItemCharges } : undefined,
+    heroName: p.heroName,
   };
 }
 

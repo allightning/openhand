@@ -53,6 +53,8 @@ export const DEFAULT_LAB_TUNING: LabTuning = {
   enemyTurnCapRatio: 0.6,
   playerEnergyBonus: 0,
   playerDmgMul: 1,
+  /** 馆段敌伤。踢馆进馆时改；默认 1。 */
+  enemyHitMul: 1,
 };
 
 const STORAGE_KEY = "openhand-combat-lab-tuning";
@@ -114,9 +116,10 @@ export function resolveFightScale(): { hp: number; dmg: number; youDmg: number }
   const base = difficultyScale(getDifficulty());
   if (!labActive) return base;
   const k = Math.max(0.25, Math.min(3, tuning.dmgCoef));
+  const hit = tuning.enemyHitMul ?? 1;
   return {
     hp: base.hp,
-    dmg: base.dmg * k,
+    dmg: base.dmg * k * hit,
     youDmg: base.youDmg * k,
   };
 }

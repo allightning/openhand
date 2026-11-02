@@ -15,7 +15,8 @@ function fightScaleFor(lab: boolean, tuning: LabTuning): FightScale {
   const base = difficultyScale(getDifficulty());
   if (!lab) return base;
   const k = Math.max(0.25, Math.min(3, tuning.dmgCoef));
-  return { hp: base.hp, dmg: base.dmg * k, youDmg: base.youDmg * k };
+  const hit = tuning.enemyHitMul ?? 1;
+  return { hp: base.hp, dmg: base.dmg * k * hit, youDmg: base.youDmg * k };
 }
 
 /** 固定 DEFAULT_LAB_TUNING，不读当前单例。B1 起测试再改调用点。 */

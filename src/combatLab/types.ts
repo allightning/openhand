@@ -17,6 +17,8 @@ export interface LabPreset {
   mateDeckRecipes?: Partial<Record<CompanionId, CardId[]>>;
   /** 每人兵器 id。 */
   mateWeapons: Partial<Record<CompanionId, string>>;
+  /** 这一局主角名。 */
+  heroName?: string;
   /** 外功绑定角色，每人最多 3 门。 */
   mateTechs: Partial<Record<CompanionId, TechniqueId[]>>;
   /** 外功投喂档 1–3。 */

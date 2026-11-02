@@ -43,6 +43,8 @@ export interface LabTuning {
   playerEnergyBonus: number;
   /** §31.17 救命奖励等：玩家伤害倍率。 */
   playerDmgMul: number;
+  /** 敌意图伤系数。黄。只乘敌方，不乘玩家牌面。 */
+  enemyHitMul: number;
 }
 
 export type CardOverride = Partial<

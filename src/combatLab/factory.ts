@@ -70,6 +70,7 @@ export function runFromPreset(preset: LabPreset): Run {
   run.party = [...p.party];
   run.active = p.fieldMate;
   run.hero = hero;
+  if (p.heroName?.trim()) run.heroName = p.heroName.trim();
   run.hp = p.hp ?? run.hp;
   run.hpMax = p.hpMax ?? run.hpMax;
   run.companionHp = {};

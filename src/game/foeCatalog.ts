@@ -356,6 +356,7 @@ const CURVE_EXTRA: Record<string, number> = {
   mob_yamenRunner_05: 8, mob_yamenRunner_07: 10,
 };
 const TARGET_HP = [0, 112, 112, 125, 195, 215, 235, 253, 279, 305, 460];
+/** 目录段伤锚。进对局后再乘 dmgCoef，爬塔另乘 CLIMB_ENEMY_HIT_*（只乘敌方）。 */
 const TARGET_HIT = [0, 9, 10, 12, 18, 21, 24, 27, 29, 32, 41];
 const LADDER_HP_MUL = [0, 1.7, 2, 2.4, 2.55, 2.9, 3.25, 3.65, 3.4, 3.7, 4.2];
 const LADDER_DMG = [0, 1.18, 1.32, 1.5, 1.7, 1.9, 2.1, 2.4, 2.2, 2.4, 2.6];
