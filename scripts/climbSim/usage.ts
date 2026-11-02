@@ -1,4 +1,5 @@
 import { CARDS } from "../../src/game/content";
+import { MECH_CARDS } from "../../src/game/content/cards/mechPool";
 import type { CardTally } from "./fight";
 
 export type UsageRow = {
@@ -15,7 +16,7 @@ export function usageRows(tally: CardTally, floor = 0.05): UsageRow[] {
   for (const [id, n] of Object.entries(tally)) {
     if (n.draws <= 0) continue;
     const rate = n.plays / n.draws;
-    const card = CARDS[id as keyof typeof CARDS];
+    const card = CARDS[id as keyof typeof CARDS] ?? MECH_CARDS[id as keyof typeof MECH_CARDS];
     rows.push({
       id,
       name: card?.name ?? id,

@@ -1,28 +1,20 @@
+import { CLIMB_CHARGE_CAP } from "../../src/game/climbCaps";
 import { labCard } from "../../src/game/labContent";
 import type { RunContext } from "../../src/game/runContext";
 import { canPlay } from "../../src/game/sim";
 import type { Battle, CardDef, CardId, WeaponId } from "../../src/game/types";
+import { envAdj } from "./envScore";
+import { FLAGS_OFF, type SimFlags } from "./flags";
+import { foeSchool, leftoverSteps } from "./foeRead";
 import { foeDist, isMoveCard } from "./hand";
+import { dartFormAllows } from "../../src/game/rules/dartPin";
+import { intentAdj } from "./intentScore";
 import type { Policy } from "./policy";
-
-function scored(b: Battle, rc: RunContext, score: (id: CardId, def: CardDef, dist: number) => number): string | null {
-  let best: string | null = null;
-  let n = 0;
-  const dist = foeDist(b) ?? 0;
-  for (const card of b.hand) {
-    if (!canPlay(b, card.uid, rc).ok) continue;
-    const s = score(card.defId, labCard(card.defId, rc), dist);
-    if (s > n) {
-      n = s;
-      best = card.uid;
-    }
-  }
-  return best;
-}
+import { shouldTakeReaction } from "./reactPolicy";
 
 function stepIn(id: CardId, dist: number, want: number): number {
   if (!isMoveCard(id)) return 0;
-  const back = id === "retreat" || id === "stepSword" || id === "stepSpear";
+  const back = id === "retreat" || id === "stepSword" || id === "stepSpear" || id === "dartStep";
   if (dist > want && !back) return 72;
   if (dist < want && back) return 72;
   return 0;
@@ -74,11 +66,21 @@ function spear(id: CardId, def: CardDef, dist: number): number {
   return 0;
 }
 
-function staff(id: CardId, def: CardDef, dist: number): number {
+function staffPunch(id: CardId, def: CardDef, dist: number): number {
   if ((def.block ?? 0) > 0) return 70 + def.block;
   if (dist > 3) return stepIn(id, dist, 3);
   if (def.type === "attack") return 12;
   return 0;
+}
+
+function staffBank(b: Battle, id: CardId, def: CardDef, dist: number): number {
+  const stacks = b.chargeStacks ?? 0;
+  if (id === "staffBurst" && stacks >= 4) return 120 + stacks * 10;
+  if (id === "staffBurst" && stacks >= 1 && b.enemy.hp <= 44 * stacks) return 110;
+  if ((id === "staffPrime" || id === "staffSettle") && stacks < CLIMB_CHARGE_CAP) {
+    return 88 + (CLIMB_CHARGE_CAP - stacks);
+  }
+  return staffPunch(id, def, dist);
 }
 
 function hook(id: CardId, def: CardDef, dist: number): number {
@@ -94,34 +96,74 @@ function hook(id: CardId, def: CardDef, dist: number): number {
   return 0;
 }
 
-const SCORE: Record<WeaponId, (id: CardId, def: CardDef, dist: number) => number> = {
-  palm,
-  saber,
-  sword,
-  spear,
-  staff,
-  hook,
-  dart: hook,
-};
+function dart(b: Battle, id: CardId, def: CardDef, dist: number): number {
+  if (id === "dartStep") return stepIn(id, dist, dist >= 3 ? 4 : 2);
+  if (def.dartForm && !dartFormAllows(def.dartForm, dist)) return 0;
+  const pin = def.pin ?? 0;
+  if (pin > 0) return 70 + pin * 18 + Math.min(24, leftoverSteps(b) * 6) + (def.damage ?? 0);
+  if (def.type === "attack") return 40 + (def.damage ?? 0);
+  return 0;
+}
 
 const LABEL: Record<WeaponId, string> = {
   palm: "拳·贴身连推",
   saber: "刀·贴身裂创",
   sword: "剑·剑势破绽",
   spear: "枪·守 2-4 格",
-  staff: "棍·先格挡少出手",
+  staff: "棍",
   hook: "钩·拉近缴械",
   dart: "飞刀·双形态钉步",
 };
 
-export function schoolPolicy(school: WeaponId): Policy {
-  const score = SCORE[school];
+function staffLabel(flags: SimFlags): string {
+  if (flags.charge === "punch") return "棍·每手正常打";
+  if (flags.charge === "bank") return "棍·憋层爆发";
+  return "棍·先格挡少出手";
+}
+
+function scoreOf(school: WeaponId, flags: SimFlags, b: Battle, id: CardId, def: CardDef, dist: number): number {
+  if (school === "palm") return palm(id, def, dist);
+  if (school === "saber") return saber(id, def, dist);
+  if (school === "sword") return sword(id, def, dist);
+  if (school === "spear") return spear(id, def, dist);
+  if (school === "hook") return hook(id, def, dist);
+  if (school === "dart") return dart(b, id, def, dist);
+  if (flags.charge === "bank") return staffBank(b, id, def, dist);
+  return staffPunch(id, def, dist);
+}
+
+function pick(school: WeaponId, flags: SimFlags, b: Battle, rc: RunContext): string | null {
+  let best: string | null = null;
+  let n = 0;
+  const dist = foeDist(b) ?? 0;
+  for (const card of b.hand) {
+    if (!canPlay(b, card.uid, rc).ok) continue;
+    const def = labCard(card.defId, rc);
+    let s = scoreOf(school, flags, b, card.defId, def, dist);
+    if (flags.env) s += envAdj(b, card.defId, def);
+    if (flags.intent) s += intentAdj(b, card.defId, def);
+    if (flags.archetype) {
+      const sch = foeSchool(b);
+      if ((sch === "spear" || sch === "staff" || sch === "hook") && (def.pin ?? 0) > 0) s += 12;
+    }
+    if (s > n) {
+      n = s;
+      best = card.uid;
+    }
+  }
+  return best;
+}
+
+export function schoolPolicy(school: WeaponId, flags: SimFlags = FLAGS_OFF): Policy {
+  const label = school === "staff" ? staffLabel(flags) : LABEL[school];
   return {
     id: school,
-    label: LABEL[school],
+    label,
     school,
-    pick: (b, rc) => scored(b, rc, score),
+    flags,
+    pick: (b, rc) => pick(school, flags, b, rc),
+    react: (b, rc) => shouldTakeReaction(b, rc, flags.react),
   };
 }
 
-export const SCHOOL_POLICIES = (Object.keys(SCORE) as WeaponId[]).map(schoolPolicy);
+export const SCHOOL_POLICIES = (["palm", "saber", "sword", "spear", "staff", "hook"] as WeaponId[]).map((id) => schoolPolicy(id));

@@ -17,6 +17,7 @@ export const SPOT_STAGES = [
 ] as const;
 
 export const SCHOOLS: WeaponId[] = ["palm", "saber", "sword", "spear", "staff", "hook"];
+export const NIGHT2_SCHOOLS: WeaponId[] = ["palm", "saber", "sword", "spear", "staff", "hook", "dart"];
 
 export function fightSeed(stage: number, index: number, salt = 0): number {
   return SIM_SEED + salt * 100000 + stage * 1000 + index;

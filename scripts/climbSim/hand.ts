@@ -2,12 +2,13 @@ import { battleEquippedSchool } from "../../src/game/equippedWeapon";
 import { MOVE_CARD_IDS } from "../../src/game/intentWeakness";
 import { labCard } from "../../src/game/labContent";
 import { SCHOOL_REACH, cardSchool } from "../../src/game/party";
+import { dartFormAllows } from "../../src/game/rules/dartPin";
 import type { RunContext } from "../../src/game/runContext";
 import { spearReachDamage } from "../../src/game/rogueRoster";
 import { canPlay, livingFoes } from "../../src/game/sim";
 import type { Battle, CardId, CardInst } from "../../src/game/types";
 
-const MOVE_IDS = new Set<string>(MOVE_CARD_IDS);
+const MOVE_IDS = new Set<string>([...MOVE_CARD_IDS, "dartStep"]);
 
 export function foeDist(b: Battle): number | null {
   const foe = livingFoes(b)[0];
@@ -27,6 +28,7 @@ export function attackCanHit(b: Battle, defId: CardId, rc: RunContext): boolean 
   const cardSch = cardSchool(defId);
   const school = cardSch === "any" ? battleEquippedSchool(b, b.active, rc) : cardSch;
   if (school === "spear") return spearReachDamage(dist) != null;
+  if (school === "dart") return dartFormAllows(def.dartForm, dist);
   return dist <= SCHOOL_REACH[school];
 }
 
