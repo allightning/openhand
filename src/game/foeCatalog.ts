@@ -317,7 +317,69 @@ function build(): Record<string, EnemyDef> {
       skill: stamp.title,
     };
   }
+  applyExchangeCurve(out);
   return out;
+}
+
+/** EXCHANGE_V2 §6。有效 HP = catalog × round(馆 hpMul×1.48)/100。双主 ID 跟座前。 */
+const CURVE_MAIN: Record<string, number> = {
+  mob_monk_01: 1, mob_monk_02: 2, mob_monk_03: 3, mob_monk_04: 4, mob_monk_05: 5,
+  mob_monk_06: 6, mob_monk_08: 7, mob_monk_10: 8, mob_monk_12: 9,
+  mob_road_01: 1, mob_road_02: 2, mob_road_05: 3, mob_road_06: 4,
+  mob_escortBand_01: 5, mob_escortBand_02: 6, mob_escortBand_03: 7,
+  mob_escortBand_04: 8, mob_escortBand_05: 9,
+  mob_yamenRunner_01: 1, mob_yamenRunner_02: 2, mob_yamenRunner_03: 3, mob_yamenRunner_04: 4,
+  mob_court_02: 5, mob_court_03: 6, mob_court_04: 7, mob_court_06: 8, mob_court_07: 9,
+};
+const CURVE_EXTRA: Record<string, number> = {
+  mob_monk_07: 8, mob_monk_09: 10, mob_monk_11: 8, mob_monk_13: 9, mob_monk_15: 9,
+  mob_road_08: 4, mob_road_09: 8, mob_road_10: 7,
+  mob_canal_01: 9, mob_canal_02: 10, mob_canal_03: 10, mob_canal_04: 10, mob_canal_05: 9,
+  mob_court_05: 4, mob_court_08: 10, mob_court_09: 8, mob_court_11: 10,
+  mob_yamenRunner_05: 8, mob_yamenRunner_07: 10,
+};
+const TARGET_HP = [0, 112, 112, 125, 195, 215, 235, 253, 279, 305, 460];
+const TARGET_HIT = [0, 9, 10, 12, 18, 21, 24, 27, 29, 32, 41];
+const LADDER_HP_MUL = [0, 1.7, 2, 2.4, 2.55, 2.9, 3.25, 3.65, 3.4, 3.7, 4.2];
+const LADDER_DMG = [0, 1.18, 1.32, 1.5, 1.7, 1.9, 2.1, 2.4, 2.2, 2.4, 2.6];
+
+function inferCurveStage(id: string): number {
+  const m = /_(\d+)$/.exec(id);
+  const n = m ? Number(m[1]) : 1;
+  if (id.startsWith("luohan_")) return n <= 6 ? 2 : n <= 12 ? 5 : n <= 15 ? 8 : 10;
+  if (n <= 3) return 2;
+  if (n <= 6) return 5;
+  if (n <= 9) return 8;
+  return 10;
+}
+
+function retargetIntent(intent: Intent, want: number, coef: number): Intent {
+  if (intent.kind === "guard" && typeof intent.block === "number") {
+    return { ...intent, block: Math.max(1, Math.round(want * 0.55)) };
+  }
+  if (!("damage" in intent) || typeof intent.damage !== "number") return intent;
+  const next = Math.max(1, Math.round(want / coef));
+  const ratio = next / Math.max(1, intent.damage);
+  const copy: Intent = { ...intent, damage: next };
+  if ("bleed" in copy && typeof copy.bleed === "number") {
+    copy.bleed = Math.max(1, Math.round(copy.bleed * ratio));
+  }
+  return copy;
+}
+
+function applyExchangeCurve(out: Record<string, EnemyDef>): void {
+  for (const [id, def] of Object.entries(out)) {
+    const main = CURVE_MAIN[id];
+    const extra = CURVE_EXTRA[id];
+    const stage = main ?? extra ?? inferCurveStage(id);
+    const extraAtSeat = main == null && extra === 10;
+    const hpTarget = extraAtSeat ? TARGET_HP[8]! : TARGET_HP[stage]!;
+    const hit = extraAtSeat ? TARGET_HIT[8]! : TARGET_HIT[stage]!;
+    const hpMul = Math.round(LADDER_HP_MUL[stage]! * 148) / 100;
+    const coef = LADDER_DMG[stage]!;
+    def.hp = Math.max(8, Math.round(hpTarget / hpMul));
+    def.pattern = def.pattern.map((p) => retargetIntent(p, hit, coef));
+  }
 }
 
 export const GENERATED_ENEMIES: Record<string, EnemyDef> = build();

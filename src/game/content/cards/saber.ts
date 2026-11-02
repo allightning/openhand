@@ -64,9 +64,9 @@ export const SABER_CARDS: Record<string, CardDef> = {
     cost: 2,
     type: "attack",
     school: "saber",
-    text: "造成 10 点伤害。贴身再 +3。",
+    text: "造成 9 点伤害。贴身再 +3。",
     flavor: "醉了打人。醒了挨打。",
-    damage: 10,
+    damage: 9,
     nearBonus: 3,
   },
   hitSaber: {
@@ -97,9 +97,9 @@ export const SABER_CARDS: Record<string, CardDef> = {
     cost: 2,
     type: "attack",
     school: "saber",
-    text: "贴身伤 7，距 2 伤 4。裂创 +2。",
+    text: "贴身伤 6，距 2 伤 4。裂创 +2。",
     flavor: "刀口不求一刀断，求他滴下去。",
-    damage: 7,
+    damage: 6,
     bleed: 2,
   },
   statusSaber: {

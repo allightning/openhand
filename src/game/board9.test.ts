@@ -56,8 +56,8 @@ describe("石台 2.0 · 墙", () => {
     stand(b, 5, 7);
     const high = cast(b, rc, "push");
     expect(high.enemy.pos).toBe(8);
-    expect(high.enemy.hp).toBe(hp - 8);
-    expect(high.log.some((line) => line.includes("撞壁 8"))).toBe(true);
+    expect(high.enemy.hp).toBe(hp - 9);
+    expect(high.log.some((line) => line.includes("撞壁 9"))).toBe(true);
 
     const { b: lowB, rc: lowRc } = open("high");
     const lowHp = lowB.enemy.hp;
@@ -74,8 +74,8 @@ describe("石台 2.0 · 墙", () => {
     stand(b, 4, 1);
     const hit = cast(b, rc, "push");
     expect(hit.enemy.pos).toBe(0);
-    expect(hit.enemy.hp).toBe(hp - 8);
-    expect(hit.log.some((line) => line.includes("撞壁 8"))).toBe(true);
+    expect(hit.enemy.hp).toBe(hp - 9);
+    expect(hit.log.some((line) => line.includes("撞壁 9"))).toBe(true);
 
     const { b: openB, rc: openRc } = open("low");
     const openHp = openB.enemy.hp;
@@ -114,7 +114,7 @@ describe("石台 2.0 · 位移", () => {
     stand(b, you, foe);
     const next = cast(b, rc, "push");
     expect(next.enemy.pos).toBe(land);
-    expect(next.enemy.hp).toBe(wall ? hp - 8 : hp);
+    expect(next.enemy.hp).toBe(wall ? hp - 9 : hp);
   });
 
   it("破门撞壁仍是 10", () => {
@@ -234,7 +234,7 @@ describe("石台 2.0 · 桩与召唤", () => {
     const hp = b.enemy.hp;
     const next = cast(b, rc, "push");
     expect(next.enemy.pos).toBe(7);
-    expect(next.enemy.hp).toBe(hp - 14);
+    expect(next.enemy.hp).toBe(hp - 15);
     expect(next.log.some((line) => line.includes("撞上客"))).toBe(true);
     expect(next.log.some((line) => line.includes("震壁"))).toBe(true);
     expect(next.foeStun).toBe(1);
@@ -281,15 +281,15 @@ describe("石台 2.0 · 站位与登门", () => {
     const hp = b.enemy.hp;
     const high = cast(b, rc, "push");
     expect(high.enemy.pos).toBe(6);
-    expect(high.enemy.hp).toBe(hp - 8);
-    expect(high.log.some((line) => line.includes("撞壁 8"))).toBe(true);
+    expect(high.enemy.hp).toBe(hp - 9);
+    expect(high.log.some((line) => line.includes("撞壁 9"))).toBe(true);
 
     const lowBoard = makeBattle("catcher", rc);
     const lowHp = lowBoard.enemy.hp;
     stand(lowBoard, 3, 1);
     const low = cast(lowBoard, rc, "push");
     expect(low.enemy.pos).toBe(0);
-    expect(low.enemy.hp).toBe(lowHp - 8);
-    expect(low.log.some((line) => line.includes("撞壁 8"))).toBe(true);
+    expect(low.enemy.hp).toBe(lowHp - 9);
+    expect(low.log.some((line) => line.includes("撞壁 9"))).toBe(true);
   });
 });

@@ -1000,7 +1000,7 @@
       "tag": "play:jinwuToken",
       "youHp": 37,
       "foeHp": 146,
-      "youBlock": 5,
+      "youBlock": 4,
       "foeBlock": 0,
       "youPos": 0,
       "foePos": 2
@@ -1011,7 +1011,7 @@
       "tag": "play:thorns",
       "youHp": 37,
       "foeHp": 146,
-      "youBlock": 10,
+      "youBlock": 9,
       "foeBlock": 0,
       "youPos": 0,
       "foePos": 2

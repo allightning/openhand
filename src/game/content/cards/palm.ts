@@ -86,10 +86,10 @@ export const PALM_CARDS: Record<string, CardDef> = {
     cost: 2,
     type: "attack",
     school: "palm",
-    text: "击退 2 格。撞壁再受 8 点伤害。",
+    text: "击退 2 格。撞壁再受 9 点伤害。",
     flavor: "门闩在门上，掌推过去。",
     knock: 2,
-    wall: 8,
+    wall: 9,
   },
   push2: {
     id: "push2",
