@@ -67,6 +67,7 @@ const PATH_NAME: Record<WeaponId, Record<WeaponPath, string>> = {
   sword: { a: "刺点", b: "格反" },
   staff: { a: "定桩", b: "扫位" },
   hook: { a: "拉近", b: "缴械" },
+  dart: { a: "飞刀", b: "钉步" },
 };
 
 const TIER_OF: WeaponTier[] = ["fan", "liang", "jing", "xuan", "shen"];
@@ -95,6 +96,10 @@ const NAMES: Record<WeaponId, Record<WeaponPath, string[]>> = {
   hook: {
     a: ["绳钩", "铁钩", "拖尸钩", "沉渊钩", "纤力神钩"],
     b: ["软索", "卸钩", "夺兵钩", "断兵钩", "纤缴神钩"],
+  },
+  dart: {
+    a: ["铁片", "飞刀", "穿衣刀", "钉步刀", "夜雨神刀"],
+    b: ["竹钉", "靴钉", "封步钉", "锁步钉", "钉魂神刃"],
   },
 };
 
@@ -203,6 +208,25 @@ export function gearById(id: string | null | undefined, ctx: RunContext): GearWe
     const raw = Number(m[3]);
     const grade = Math.min(5, Math.max(1, raw <= 5 ? raw : Math.ceil(raw / 2)));
     base = GEAR_WEAPONS.find((g) => g.school === school && g.path === path && g.grade === grade) ?? null;
+    if (!base && school === "dart") {
+      const name = NAMES.dart[path][grade - 1] ?? "飞刀";
+      base = {
+        id: `dart-${path}-${grade}`,
+        school: "dart",
+        path,
+        grade,
+        tier: TIER_OF[grade - 1]!,
+        name,
+        damage: 0,
+        knock: 0,
+        ward: 0,
+        secondary: {},
+        skill: null,
+        godSkill: null,
+        price: 6,
+        tip: `飞刀·${PATH_NAME.dart[path]}`,
+      };
+    }
   }
   if (!base) return null;
   if (!ctx.lab) return base;

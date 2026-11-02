@@ -1,4 +1,5 @@
 import { CARDS, ENEMIES, TECHNIQUES } from "./content";
+import { MECH_CARDS } from "./content/cards/mechPool";
 import { MATES } from "./party";
 import type { RunContext } from "./runContext";
 import type { CardDef, CardId, CompanionId, EnemyDef, EnemyId, TechniqueDef, TechniqueId } from "./types";
@@ -19,7 +20,8 @@ function merge<T extends object>(base: T, patch: Partial<T> | undefined): T {
 
 export function labCard(id: CardId, ctx: RunContext): CardDef {
   const nid = remapLegacyCardId(id);
-  const base = CARDS[nid];
+  const base = MECH_CARDS[nid] ?? CARDS[nid];
+  if (!base) return CARDS.strike;
   if (!ctx.lab) return base;
   const climb = ctx.caps.content.applyClimbCardFace ? CLIMB_CARD_FACE[nid] : undefined;
   return merge(merge(base, climb), ctx.contentOverrides.cards[nid] as Partial<CardDef> | undefined);

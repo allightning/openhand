@@ -13,6 +13,7 @@ const SCHOOL_FILE: Record<WeaponId, string> = {
   sword: "sword",
   staff: "staff",
   hook: "hook",
+  dart: "staff",
 };
 
 export function weaponSrc(school: WeaponId): string {

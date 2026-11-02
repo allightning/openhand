@@ -23,6 +23,31 @@ export const CLIMB_STAKE_BLAST_DMG = 4;
 /** 敌裂桩：你立刻拿到这么多格挡。 */
 export const CLIMB_STAKE_BREAK_BLOCK = 4;
 
+/** 棍蓄力层帽（占位）。 */
+export const CLIMB_CHARGE_CAP = 6;
+/** 一手伤当量锚。 */
+export const CLIMB_CHARGE_HAND_EQ = 25;
+/** 蓄力手 2 费挡 12 相对一手的净损失。 */
+export const CLIMB_CHARGE_NET_LOSS = 15;
+/** 蓄力利息。默认 25%/手，标黄。 */
+export const CLIMB_CHARGE_INTEREST = 0.25;
+/** 飞刀钉帽（占位）。 */
+export const CLIMB_PIN_CAP = 6;
+/** 灼烧格回合结束扣血（占位）。 */
+export const CLIMB_BURN_DMG = 4;
+/** 枪回马枪耗蓝（占位）。 */
+export const CLIMB_SPEAR_REVERSE_QI = 2;
+/** 棍撞墙晕段。 */
+export const CLIMB_STAFF_WALL_STUN = 1;
+
+/** EXCHANGE_V2 §4.3：爆发 = n × (25 + 15 × 0.25)。蓄 1 手 = 44。 */
+export function climbChargeBurstEq(n: number): number {
+  const stacks = Math.max(0, Math.min(CLIMB_CHARGE_CAP, Math.floor(n)));
+  return Math.round(
+    stacks * (CLIMB_CHARGE_HAND_EQ + CLIMB_CHARGE_NET_LOSS * (1 + CLIMB_CHARGE_INTEREST)),
+  );
+}
+
 export function climbCycleCost(faceCost: number): number {
   return Math.max(0, faceCost - 1);
 }

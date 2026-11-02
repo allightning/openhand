@@ -94,7 +94,14 @@ import {
   climbEnemyPaceBonus,
   climbOpeningDistance,
   climbOpeningPositions,
+  CLIMB_CHARGE_CAP,
+  CLIMB_PIN_CAP,
 } from "./climbCaps";
+import { consumeChargeBurst, gainCharge } from "./rules/staffCharge";
+import { addPin, applyPinBudget, dartFormAllows, dartFormFailReason } from "./rules/dartPin";
+import { burnCellsFor, gapFieldFor, tickBurnCells } from "./rules/envTags";
+import { hookSmashLine, hookSmashSwap, spearReverseReady, staffWallOnCrash } from "./rules/wallLinks";
+import { declineReaction, openSpearReverseWindow, takeSpearReverse } from "./rules/reactionWindow";
 
 export { techBonus, battleTechRank, techRankMul } from "./techRank";
 
@@ -610,6 +617,9 @@ export function makeBattle(
     boardSize: stone.boardSize,
     wallEnds: stone.wallEnds,
     ...(stone.openingDist != null ? { openingDist: stone.openingDist } : {}),
+    ...(run.envTag ? { envTag: run.envTag } : {}),
+    ...(burnCellsFor(run.envTag, stone.boardSize) ? { burnCells: burnCellsFor(run.envTag, stone.boardSize) } : {}),
+    ...(gapFieldFor(run.envTag) ? { gapCells: gapFieldFor(run.envTag) } : {}),
       playerBlock: run.techniques.includes("nightStep") && !(rc.lab && rc.ruleset.mode === "break") ? 1 : 0,
       // 读招：小池 6/5/3。爬塔：按角色气血档位，不再 ×8。
       ...(rc.lab && rc.ruleset.mode === "break"
@@ -1638,7 +1648,8 @@ function knockAway(b: Battle, who: "player" | "enemy", dist: number, rc: RunCont
   const other = who === "player" ? (targetFoe(b) ?? b.enemy) : b.player;
   if (!unit) return ["没有目标"];
   const gearMods = who === "enemy" ? pathSkillMods(battleGearId, rc) : {};
-  const need = who === "enemy" ? knockDist(b, dist) + (gearMods.knockExtra ?? 0) : dist;
+  const rawNeed = who === "enemy" ? knockDist(b, dist) + (gearMods.knockExtra ?? 0) : dist;
+  const need = who === "enemy" ? applyPinBudget(b, rawNeed) : rawNeed;
   const dir = awayDir(other.pos, unit.pos);
   let left = need;
   const from = unit.pos;
@@ -1658,6 +1669,14 @@ function knockAway(b: Battle, who: "player" | "enemy", dist: number, rc: RunCont
         b.foeStun = (b.foeStun ?? 0) + 1;
         notes.push("震壁·敌晕 1 段");
       }
+      const staffW = staffWallOnCrash(battleEquippedSchool(b, b.active, rc), who);
+      if (staffW) {
+        wh += staffW.extraDmg;
+        if (staffW.stun > 0) {
+          b.foeStun = (b.foeStun ?? 0) + staffW.stun;
+          notes.push(`棍撞墙·晕 ${staffW.stun} 段`);
+        }
+      }
       unit.hp -= wh;
       notes.push(`撞壁 ${wh}`);
       if (who === "enemy") pushFx(b, "wall", rc);
@@ -1672,6 +1691,14 @@ function knockAway(b: Battle, who: "player" | "enemy", dist: number, rc: RunCont
           wh += 6;
           b.foeStun = (b.foeStun ?? 0) + 1;
           notes.push("震壁·敌晕 1 段");
+        }
+        const staffW = staffWallOnCrash(battleEquippedSchool(b, b.active, rc), who);
+        if (staffW) {
+          wh += staffW.extraDmg;
+          if (staffW.stun > 0) {
+            b.foeStun = (b.foeStun ?? 0) + staffW.stun;
+            notes.push(`棍撞墙·晕 ${staffW.stun} 段`);
+          }
         }
         unit.hp -= wh;
         notes.push(`撞上${b.labSummon.name} ${wh}`);
@@ -1726,10 +1753,27 @@ function pushEnemy(b: Battle, dist: number, rc: RunContext, wall?: number): stri
 
 function pullUnit(b: Battle, who: "player" | "enemy", toward: "player" | "enemy", steps: number, rc: RunContext): string[] {
   if (who === "enemy" && b.foeSkipCc) return ["霸体：不受拉"];
+  if (
+    who === "enemy" &&
+    toward === "player" &&
+    battleEquippedSchool(b, b.active, rc) === "hook" &&
+    hookSmashLine(b)
+  ) {
+    const blocked = (pos: number) =>
+      pos < 0 ||
+      pos >= boardLen(b) ||
+      b.stakes.includes(pos) ||
+      (labV2(rc) && !!b.labSummon && b.labSummon.hp > 0 && b.labSummon.pos === pos);
+    const notes = hookSmashSwap(b, (pos) => !blocked(pos));
+    climbHookDisarmOnPull(b, 99, notes, rc);
+    syncFront(b);
+    return notes;
+  }
   const unit = who === "player" ? b.player : (targetFoe(b) ?? b.enemy);
   const other = toward === "player" ? b.player : (targetFoe(b) ?? b.enemy);
   const notes: string[] = [];
-  let left = steps;
+  let left = who === "enemy" ? applyPinBudget(b, steps) : steps;
+  const from = unit.pos;
   while (left > 0 && unit.hp > 0) {
     const dir = other.pos > unit.pos ? 1 : other.pos < unit.pos ? -1 : 0;
     if (dir === 0) break;
@@ -1749,8 +1793,8 @@ function pullUnit(b: Battle, who: "player" | "enemy", toward: "player" | "enemy"
     unit.pos = next;
     left -= 1;
   }
-  if (left < steps) notes.push(`${who === "player" ? "你" : unit.name}被拉至第 ${unit.pos + 1} 步`);
-  if (who === "enemy" && left < steps) {
+  if (unit.pos !== from) notes.push(`${who === "player" ? "你" : unit.name}被拉至第 ${unit.pos + 1} 步`);
+  if (who === "enemy" && unit.pos !== from) {
     const mods = pathSkillMods(battleGearId, rc);
     if (mods.pullDmg) {
       unit.hp -= mods.pullDmg;
@@ -2443,7 +2487,13 @@ function applyCard(b: Battle, defId: CardId, rc: RunContext): string[] {
   const spearBase = spearBreakAttackBase(b, def, rc);
   const saberBase = saberBreakAttackBase(b, def, rc);
   const tableBase = spearBase ?? saberBase;
-  if (def.damage || tableBase != null) {
+  if (def.chargeGain) notes.push(...gainCharge(b, def.chargeGain));
+  if (def.chargeBurst) {
+    const burst = consumeChargeBurst(b);
+    if (burst.stacks) notes.push(`蓄力爆发 ${burst.stacks}→${burst.damage}`);
+    else notes.push("蓄力空放");
+    notes.push(...hitEnemy(b, strikeDamage(b, burst.damage, rc, false, def), def.name + " ", rc));
+  } else if (def.damage || tableBase != null) {
     const foeBefore = targetFoe(b);
     const distBefore = foeBefore ? Math.abs(b.player.pos - foeBefore.pos) : 0;
     notes.push(...hitEnemy(b, strikeDamage(b, tableBase ?? def.damage ?? 0, rc, false, def), def.name + " ", rc));
@@ -2494,6 +2544,7 @@ function applyCard(b: Battle, defId: CardId, rc: RunContext): string[] {
     if (moved.length === 0) notes.push(def.steps > 0 ? "身前无路" : "身后无路");
     else notes.push(...moved);
   }
+  if (def.pin && !b.foeDodgedHit) notes.push(...addPin(b, def.pin));
   if (def.knock && !b.foeSkipCc) notes.push(...pushEnemy(b, def.knock, rc, def.wall));
   if (def.pullEnemy && !b.foeSkipCc) {
     const before = Math.abs(b.player.pos - b.enemy.pos);
@@ -2692,6 +2743,10 @@ export function canPlay(b: Battle, uid: string, rc: RunContext): { ok: boolean; 
         /* 贴身拨杆：允许出枪，结算走低伤+击退 */
       } else if (spearReachDamage(dist) == null) {
         return { ok: false, reason: `枪够不着（需${rc.ruleset.mode === "break" ? "贴身拨杆或 " : ""}2–4 格，敌在 ${dist} 格）` };
+      }
+    } else if (foe && school === "dart") {
+      if (!dartFormAllows(def.dartForm, dist)) {
+        return { ok: false, reason: dartFormFailReason(def.dartForm, dist) };
       }
     } else if (foe && dist > SCHOOL_REACH[school]) {
       const reach = SCHOOL_REACH[school];
@@ -2953,6 +3008,7 @@ export function summonAssist(b: Battle, school: WeaponId, pos: number, rc: RunCo
   if (!labV2(rc) || b.phase !== "player") return b;
   if (b.labSummon && b.labSummon.hp > 0) return b;
   if (!legalSummonCells(b, rc).includes(pos)) return b;
+  if (school === "dart") return b;
   const def = SUMMON_DEFS[school];
   const gear = gearById(battleMateGearId(b, b.active), rc);
   const grade = gear?.grade ?? 3;
@@ -3250,11 +3306,65 @@ export function intentIncoming(b: Battle, intent: Intent, rc: RunContext): { tot
   return { total: Math.max(1, total), parts };
 }
 
+function offerSpearReverse(
+  b: Battle,
+  leftover: number,
+  dir: number,
+  intentKind: "charge" | "advance" | "lunge",
+  rc: RunContext,
+  chargeDamage?: number,
+): boolean {
+  if (leftover <= 0) return false;
+  if (!spearReverseReady(b, battleEquippedSchool(b, b.active, rc), yourPace(b, rc))) return false;
+  if (!b.holdReaction) return false;
+  openSpearReverseWindow(b, leftover, dir, intentKind, chargeDamage);
+  b.log.push("回马枪判定窗");
+  return true;
+}
+
+function resumeEnemyWalk(b: Battle, leftover: number, dir: number, rc: RunContext): void {
+  for (let i = 0; i < leftover; i++) {
+    const next = b.enemy.pos + dir;
+    if (next < 0 || next >= boardLen(b)) break;
+    if (next === b.player.pos || occupied(b, next, rc, b.enemy.id)) break;
+    moveEnemyTo(b, next);
+  }
+}
+
+export function answerReaction(b: Battle, take: boolean, rc: RunContext): Battle {
+  if (!b.reactionWindow) return b;
+  const next = cloneBattle(b);
+  const w = next.reactionWindow;
+  if (!w) return next;
+  if (take) {
+    const notes = takeSpearReverse(next);
+    for (const n of notes) next.log.push(n);
+    if (w.intentKind === "charge") {
+      const hits = Math.abs(next.enemy.pos - next.player.pos) <= 1;
+      if (hits && (w.chargeDamage ?? 0) > 0) hitPlayer(next, w.chargeDamage ?? 0, "冲锋 ", rc);
+      else next.log.push(`${next.enemy.name}冲过去了。`);
+    }
+  } else {
+    declineReaction(next);
+    resumeEnemyWalk(next, w.leftover, w.dir, rc);
+    if (w.intentKind === "charge") {
+      const hits = Math.abs(next.enemy.pos - next.player.pos) <= 1;
+      if (hits && (w.chargeDamage ?? 0) > 0) hitPlayer(next, w.chargeDamage ?? 0, "冲锋 ", rc);
+      else next.log.push(`${next.enemy.name}冲过去了。`);
+    } else if (w.intentKind === "advance") {
+      next.log.push(`${next.enemy.name}逼近。`);
+    }
+  }
+  return next;
+}
+
 function resolveCharge(b: Battle, damage: number, rc: RunContext): void {
-  const steps = chargeSteps(b);
   const dir = towardDir(b.enemy.pos, b.player.pos);
+  let steps = applyPinBudget(b, chargeSteps(b));
+  if (offerSpearReverse(b, steps, dir, "charge", rc, damage)) return;
   let hits = false;
   for (let i = 0; i < steps; i++) {
+    if (offerSpearReverse(b, steps - i, dir, "charge", rc, damage)) return;
     const next = b.enemy.pos + dir;
     if (next < 0 || next >= boardLen(b)) break;
     if (next === b.player.pos) {
@@ -3286,8 +3396,11 @@ function resolveCharge(b: Battle, damage: number, rc: RunContext): void {
 
 function resolveAdvance(b: Battle, steps: number, rc: RunContext): void {
   const dir = towardDir(b.enemy.pos, b.player.pos);
+  const budget = applyPinBudget(b, steps);
+  if (offerSpearReverse(b, budget, dir, "advance", rc)) return;
   let moved = 0;
-  for (let i = 0; i < steps; i++) {
+  for (let i = 0; i < budget; i++) {
+    if (offerSpearReverse(b, budget - i, dir, "advance", rc)) return;
     const next = b.enemy.pos + dir;
     if (next < 0 || next >= boardLen(b)) break;
     if (next === b.player.pos || occupied(b, next, rc, b.enemy.id)) break;
@@ -3330,8 +3443,13 @@ function resolveLunge(b: Battle, damage: number, rc: RunContext): void {
     return;
   }
   if (!adjacent(b)) {
-    const next = b.enemy.pos + towardDir(b.enemy.pos, b.player.pos);
-    if (next >= 0 && next < boardLen(b) && !occupied(b, next, rc, b.enemy.id)) moveEnemyTo(b, next);
+    const dir = towardDir(b.enemy.pos, b.player.pos);
+    const budget = applyPinBudget(b, 1);
+    if (offerSpearReverse(b, budget, dir, "lunge", rc, damage)) return;
+    if (budget > 0) {
+      const next = b.enemy.pos + dir;
+      if (next >= 0 && next < boardLen(b) && !occupied(b, next, rc, b.enemy.id)) moveEnemyTo(b, next);
+    }
   }
   if (Math.abs(b.enemy.pos - b.player.pos) <= 1) hitPlayer(b, damage, "抢步 ", rc);
   else b.log.push(`${b.enemy.name}抢空了。`);
@@ -3388,9 +3506,10 @@ function resolveAllIntents(b: Battle, rc: RunContext): void {
       b.v2ResolveIntentIdx = idx;
       b.enemyEnergy = Math.max(0, b.enemyEnergy - intentCost(intent));
       if (idx > 0) note(b, "foe", `${b.enemy.name}接招：${labelIntent(intent)}`);
-      resolveIntent(b, rc);
-      segmentProbe?.(b, `intent:${idx}`);
-      if (livingFoes(b).length === 0) checkWin(b, rc);
+    resolveIntent(b, rc);
+    segmentProbe?.(b, `intent:${idx}`);
+    if (b.reactionWindow) return;
+    if (livingFoes(b).length === 0) checkWin(b, rc);
     }, rc);
     if (livingFoes(b).length === 0) checkWin(b, rc);
     // 死士在场但没挡到招：收势前主动出手一次。
@@ -3410,6 +3529,7 @@ function resolveAllIntents(b: Battle, rc: RunContext): void {
     if (i > 0) note(b, "foe", `${b.enemy.name}接招：${labelIntent(queue[i])}`);
     resolveIntent(b, rc);
     segmentProbe?.(b, `intent:${i}`);
+    if (b.reactionWindow) break;
   }
 }
 
@@ -3548,8 +3668,9 @@ function resolveIntent(b: Battle, rc: RunContext): void {
 
 function resolveRetreat(b: Battle, steps: number, rc: RunContext): void {
   const dir = awayDir(b.player.pos, b.enemy.pos);
+  const budget = applyPinBudget(b, steps);
   let moved = 0;
-  for (let i = 0; i < steps; i++) {
+  for (let i = 0; i < budget; i++) {
     const next = b.enemy.pos + dir;
     if (next < 0 || next >= boardLen(b) || occupied(b, next, rc, b.enemy.id)) break;
     moveEnemyTo(b, next);
@@ -4385,6 +4506,12 @@ function applyStatusTicksAtTurnEnd(next: Battle, rc: RunContext): void {
       if (foe.hp <= 0) checkWin(next, rc);
     }
   }
+  const burnNotes = tickBurnCells(next);
+  for (const n of burnNotes) {
+    note(next, n.startsWith("灼烧 你") ? "foe" : "you", n);
+    if (n.startsWith("灼烧 你") && next.player.hp <= 0) collapseOrDeathSwap(next, rc);
+  }
+  if (livingFoes(next).length === 0) checkWin(next, rc);
   if (next.youBleed > 0 && next.phase === "player") {
     const raw = next.youBleed;
     const blocked = Math.min(next.playerBlock, raw);
@@ -4748,6 +4875,7 @@ export function endTurn(b: Battle, rc: RunContext, opts: EndTurnOpts = {}): Batt
   if (!(isClimbQi(rc) && next.climbEnemyActedThisRound)) {
     resolveAllIntents(next, rc);
   }
+  if (next.reactionWindow) return next;
   next.climbEnemyActedThisRound = false;
   if (next.foeMovedFwd && next.foeMovedBack) {
     next.foeSway = Math.max(next.foeSway ?? 0, 2);
@@ -4833,6 +4961,9 @@ export function statusChips(b: Battle, side: "you" | "foe", rc: RunContext): Sta
     if (climb && (b.combo ?? 0) > 0) {
       push("combo", "连击", b.combo, `拳核。命中叠层，帽 ${CLIMB_COMBO_CAP}。花 ${CLIMB_COMBO_REPLAY_COST} 层重放上一张攻击。`);
     }
+    if ((b.chargeStacks ?? 0) > 0) {
+      push("charge", "蓄力", b.chargeStacks!, `棍核。帽 ${CLIMB_CHARGE_CAP}。爆发消费全部层。`);
+    }
     if (climb && (b.v2SwordChain ?? 0) > 0) {
       push("swordchain", "剑势", b.v2SwordChain!, `剑核。攻击加伤等于层数，命中再 +1，帽 ${CLIMB_SWORD_CHAIN_CAP}。`);
     }
@@ -4908,6 +5039,7 @@ export function statusChips(b: Battle, side: "you" | "foe", rc: RunContext): Sta
     if (b.foeMute > 0) push("mute", "禁技", b.foeMute, "他暂时打不出技能意图强化。");
     if (!isClimbQi(rc) && (b.v2OffBalance ?? 0) > 0) push("offbalance", "失衡", b.v2OffBalance!, "承伤加倍。破眼后失衡。");
     if ((b.foeStun ?? 0) > 0) push("stun", "眩晕", b.foeStun!, "他接下来 N 个攻击段出不来（棍连击/拳震壁）。");
+    if ((b.foePin ?? 0) > 0) push("pin", "钉", b.foePin!, `下次位移减 ${b.foePin} 步，兑完清。帽 ${CLIMB_PIN_CAP}。`);
     if ((b.foeDisarm ?? 0) > 0) push("disarm", "缴械", b.foeDisarm!, isClimbQi(rc) ? "跳过下一次有伤。" : "他被摘了兵刃：攻击伤害减半（钩系）。");
     if (b.foeNoBag > 0) push("nobag", "封囊", b.foeNoBag, "他袋里的药/暗器用不上（对你亦同规则）。");
     if (b.foeHandTax > 0) push("handtax", "削谱", b.foeHandTax, "压迫他的节奏。");

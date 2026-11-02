@@ -1,4 +1,6 @@
 import { CARDS } from "./content";
+import { MECH_CARDS } from "./content/cards/mechPool";
+import { labCard } from "./labContent";
 import { labV2, type RunContext } from "./runContext";
 import { isSummonItem, SUMMON_ITEM_TO_SCHOOL } from "./labSummon";
 import { legalSummonCells, summonAssist } from "./sim";
@@ -74,7 +76,7 @@ function spendItemCharge(b: Battle, id: LabItemId): void {
 }
 
 function isSpatialCard(id: CardId): boolean {
-  const c = CARDS[id];
+  const c = MECH_CARDS[id] ?? CARDS[id];
   if (!c) return false;
   if (c.knock || c.steps || c.pullEnemy || c.plant || c.swap) return true;
   const t = c.text;
@@ -249,7 +251,7 @@ export function labV21BlockAdjust(b: Battle, def: CardDef, block: number, rc: Ru
 export function labV21AfterCard(b: Battle, defId: CardId, rc: RunContext): void {
   if (!labV2(rc) || !b.v2Turn) return;
   if (isSpatialCard(defId)) b.v2Turn.spatialPlayed = true;
-  const def = CARDS[defId];
+  const def = labCard(defId, rc);
   if (def.variant) {
     const br = variantBranch(def, b, rc);
     if (br === "a") b.v2VariantBranchA = (b.v2VariantBranchA ?? 0) + 1;

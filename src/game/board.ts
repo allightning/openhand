@@ -30,12 +30,12 @@ export function wallEndsFromSide(side: WallSide | undefined): WallEnds {
  */
 export function assembleBattleBoard(
   mode: LabRuleset,
-  run: { wallSide?: WallSide; openingDist?: number },
+  run: { wallSide?: WallSide; openingDist?: number; envTag?: string },
 ): { boardSize: number; wallEnds: WallEnds; openingDist?: number } {
   if (mode === "break") return { boardSize: BOARD_SIZE, wallEnds: "both" };
   return {
     boardSize: CLIMB_BOARD_SIZE,
-    wallEnds: wallEndsFromSide(run.wallSide),
+    wallEnds: run.envTag === "nowall" ? "none" : wallEndsFromSide(run.wallSide),
     openingDist: clampOpeningDist(run.openingDist),
   };
 }

@@ -1,4 +1,5 @@
-import { CARDS, intentShortName } from "./content";
+import { intentShortName } from "./content";
+import { labCard } from "./labContent";
 import { VARIANT_BREAK_THRESHOLD } from "./labV2Constants";
 import { initLabV21Battle, refreshBreakPromised } from "./labV21";
 import { planBreaks, queuedThreatCells } from "./intentWeakness";
@@ -114,7 +115,7 @@ export function simV2OnCard(
   rc: RunContext,
 ): void {
   if (!labV2(rc)) return;
-  const def = CARDS[defId];
+  const def = labCard(defId, rc);
   const moved = notes.some((n) => n.includes("步") || n.includes("换位") || n.includes("推") || n.includes("拉"));
   const adj = Math.abs(b.player.pos - b.enemy.pos) === 1;
   onV2CardPlayed(b, defId, moved, hitEnemy, hitEnemy && adj, rc);

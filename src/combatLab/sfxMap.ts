@@ -171,6 +171,7 @@ const HIT_KEY: Record<WeaponId, SfxKey> = {
   spear: "spear_hit",
   staff: "staff_hit",
   hook: "hook_hit",
+  dart: "saber_hit",
 };
 
 export function sfxSlot(key: SfxKey): SfxSlot {

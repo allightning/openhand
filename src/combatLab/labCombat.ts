@@ -24,6 +24,7 @@ export const LAB_RESONANCE: Record<WeaponId, ResonanceDef> = {
   sword: { name: "双剑映月", text: "场+后场剑共鸣：伤 9，封脉滞步 1。", cost: LAB_RESONANCE_COST },
   staff: { name: "桩棍齐扫", text: "场+后场棍共鸣：伤 8，格挡 +6。", cost: LAB_RESONANCE_COST },
   hook: { name: "钩索齐发", text: "场+后场钩共鸣：拉近 1，伤 8。", cost: LAB_RESONANCE_COST },
+  dart: { name: "飞刀齐出", text: "场+后场飞刀共鸣：钉 1，伤 6。", cost: LAB_RESONANCE_COST },
 };
 
 function note(b: Battle, text: string): Battle {

@@ -15,7 +15,26 @@ export const BASE_HP = 28;
 
 export type ChapterId = "dock" | "alley" | "court" | "isle";
 
-export type WeaponId = "palm" | "saber" | "spear" | "sword" | "staff" | "hook";
+export const CORE_WEAPON_IDS = ["palm", "saber", "spear", "sword", "staff", "hook"] as const;
+export type CoreWeaponId = (typeof CORE_WEAPON_IDS)[number];
+/** 第七系飞刀。核副跟武器。旧六系表用 CoreWeaponId，避免 Rogue 组合爆炸。 */
+export type WeaponId = CoreWeaponId | "dart";
+
+/** 行路环境词条。出现概率不接，由 run.envTag 传入。 */
+export type EnvTag = "burn" | "nowall" | "gap_end" | "gap_mid";
+
+export type DartForm = "melee" | "ranged" | "any";
+
+export type ReactionKind = "spearReverse";
+export interface ReactionWindow {
+  kind: ReactionKind;
+  cost: number;
+  leftover: number;
+  dir: number;
+  /** 暂停时所在意图。接上后只兑剩余位移或本段伤。 */
+  intentKind: "charge" | "advance" | "lunge";
+  chargeDamage?: number;
+}
 export type CompanionId =
   | "rail"
   | "seer"
@@ -157,6 +176,16 @@ export type CardId =
   | "comboSword"
   | "comboStaff"
   | "comboHook"
+  | "staffSettle"
+  | "staffPrime"
+  | "staffBurst"
+  | "dartFlick"
+  | "dartCut"
+  | "dartThrow"
+  | "dartPin"
+  | "dartFan"
+  | "dartKeep"
+  | "dartStep"
   | RogueCardId;
 
 /** 拆招开踢：直取、本系架、光环卡、异系融合卡。 */
@@ -360,6 +389,14 @@ export interface CardDef {
   farBonus?: number;
   plant?: boolean;
   school?: WeaponId | "any";
+  /** 棍蓄力：打出叠层、不攻击。 */
+  chargeGain?: number;
+  /** 棍爆发：消费全部蓄力层按利息公式打伤。 */
+  chargeBurst?: boolean;
+  /** 飞刀钉：叠层，减敌下次位移。 */
+  pin?: number;
+  /** 飞刀双形态。缺省 any = 1–6 无死区。 */
+  dartForm?: DartForm;
   bleed?: number;
   thorns?: number;
   expose?: number;
@@ -519,6 +556,19 @@ export interface Battle {
   wallEnds?: WallEnds;
   /** 行路开局间距（玩家在 0，敌在这一格）。缺省不盖章，盖章后上限 5。 */
   openingDist?: number;
+  /** 棍蓄力层。帽见 climbCaps。 */
+  chargeStacks?: number;
+  /** 飞刀钉。下次敌位移减步，兑完清。 */
+  foePin?: number;
+  /** 灼烧格下标。回合结束站其上扣 caps。 */
+  burnCells?: number[];
+  /** 缺格下标。本包只留字段，位移不接。 */
+  gapCells?: number[];
+  /** 出招中途反应窗。无窗则敌段一次兑完。 */
+  reactionWindow?: ReactionWindow;
+  /** 测试：有窗时暂停，不自动放弃。 */
+  holdReaction?: boolean;
+  envTag?: EnvTag;
   playerBlock: number;
   energy: number;
   energyMax: number;
@@ -935,6 +985,8 @@ export interface Run {
   openingDist?: number;
   /** 行路墙侧。缺省 high。none 是无墙场的结算底座。 */
   wallSide?: WallSide;
+  /** 环境词条。nowall 盖 wallSide；burn 点中格；缺格只留字段。 */
+  envTag?: EnvTag;
   /** Boss-count watermark when last bounty was armed. */
   bountyAt?: number;
   /** Must finish bounty target before beaten.length exceeds this. */

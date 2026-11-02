@@ -74,6 +74,11 @@ export const LAB_RESONANCE_LADDER: Record<WeaponId, { t1: LadderTierFx; t2: Ladd
     t2: { label: "拉近后破绽 +1", pullExposeBonus: 1 },
     t3: { label: "首拉不耗劲", firstPullFree: true },
   },
+  dart: {
+    t1: { label: "钉 +1", startExpose: 0 },
+    t2: { label: "先机 +1", paceBonus: 1 },
+    t3: { label: "远距同伤", rangeAttackBonus: 0 },
+  },
 };
 
 /** §17.3 百花齐放 — 四系全异。 */

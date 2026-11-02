@@ -83,9 +83,9 @@ function stressIntentFor(b: Battle): Intent {
   const d = Math.abs(b.player.pos - b.enemy.pos);
   const reach = def?.reach ?? 1;
   const defensive = def?.elite === "windup" || def?.pattern.some((p) => p.kind === "guard");
-  if (defensive && d > reach) return { kind: "guard", block: 10 };
+  if (defensive && d > reach) return { kind: "guard", block: 12 };
   // §31.10 够得着才出打击，够不着就逼近（旧版写反：远距出打击=打不到还白送拆）
-  return d <= reach ? { kind: "strike", damage: 12 } : { kind: "lunge", damage: 12 };
+  return d <= reach ? { kind: "strike", damage: 15 } : { kind: "lunge", damage: 15 };
 }
 
 /**

@@ -22,6 +22,7 @@ const AID_ITEM_BY_SCHOOL: Record<WeaponId, LabItemId> = {
   palm: "aidPalm",
   staff: "aidStaff",
   hook: "aidHook",
+  dart: "aidHook",
 };
 
 export function canOfferLifeline(run: GauntletRun): boolean {
@@ -197,6 +198,7 @@ const RIVAL_WEAPON: Record<WeaponId, WeaponId> = {
   sword: "palm",
   spear: "hook",
   hook: "spear",
+  dart: "staff",
 };
 
 export function relatedCompanionIds(run: GauntletRun, pool: CompanionId[]): CompanionId[] {
@@ -246,6 +248,7 @@ function companionStartMinds(school: WeaponId, tier: number): MindArtId[] {
     spear: "spearStride",
     staff: "staffRoot",
     hook: "hookTide",
+    dart: "staffRoot",
   };
   if (tier <= 1) return [];
   if (tier === 2) return [schoolMind[school]];

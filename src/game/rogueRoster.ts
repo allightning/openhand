@@ -31,6 +31,7 @@ export const ROGUE_LEAD_BY_SCHOOL: Record<WeaponId, CompanionId> = {
   spear: "huochangchuan",
   staff: "shiwanshan",
   hook: "moqiwan",
+  dart: "watch",
 };
 
 export const ROGUE_ROSTER: RogueMateDef[] = [

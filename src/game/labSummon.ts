@@ -1,4 +1,4 @@
-import type { LabItemId, WeaponId } from "./types";
+import type { CoreWeaponId, LabItemId, WeaponId } from "./types";
 
 /**
  * §31.12 助战符 —— 与「同行」完全分家的客座好手。
@@ -17,7 +17,7 @@ export interface SummonDef {
   tip: string;
 }
 
-export const SUMMON_DEFS: Record<WeaponId, SummonDef> = {
+export const SUMMON_DEFS: Record<CoreWeaponId, SummonDef> = {
   palm: {
     item: "aidPalm",
     school: "palm",

@@ -27,6 +27,7 @@ const NAMES: Record<WeaponId, Record<EnemyGearGrade, string>> = {
   sword: { jing: "皂隶腰刀", xuan: "绣春剑", shen: "赐死剑" },
   spear: { jing: "点杆", xuan: "锁步枪", shen: "判官点杆" },
   hook: { jing: "绊钩", xuan: "拖尸钩", shen: "沉渊钩" },
+  dart: { jing: "铁片", xuan: "飞刀", shen: "夜雨刀" },
 };
 
 const PASSIVE: Record<WeaponId, Record<EnemyGearGrade, string>> = {
@@ -59,6 +60,11 @@ const PASSIVE: Record<WeaponId, Record<EnemyGearGrade, string>> = {
     jing: "绊钩：拉近后下一段必打；卸 1 张手牌",
     xuan: "拉距更稳",
     shen: "卸牌 2 张",
+  },
+  dart: {
+    jing: "飞刀：1–6 同伤；命中钉 1",
+    xuan: "钉 2",
+    shen: "钉步加强",
   },
 };
 

@@ -140,6 +140,7 @@ export const GAUNTLET_SCHOOL_LOADOUT: Record<
   sword: { loadoutId: "t4-two-sword-spear", fieldMate: "seer", label: "剑" },
   spear: { loadoutId: "t8-three-spear-palm", fieldMate: "guard", label: "枪" },
   hook: { loadoutId: "t5-hook-saber-spear", fieldMate: "hooker", label: "钩" },
+  dart: { loadoutId: "t7-four-saber", fieldMate: "watch", label: "飞刀" },
 };
 
 export const GAUNTLET_SCHOOLS: WeaponId[] = ["palm", "staff", "saber", "sword", "spear", "hook"];

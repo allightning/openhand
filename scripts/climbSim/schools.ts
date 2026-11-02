@@ -101,6 +101,7 @@ const SCORE: Record<WeaponId, (id: CardId, def: CardDef, dist: number) => number
   spear,
   staff,
   hook,
+  dart: hook,
 };
 
 const LABEL: Record<WeaponId, string> = {
@@ -110,6 +111,7 @@ const LABEL: Record<WeaponId, string> = {
   spear: "枪·守 2-4 格",
   staff: "棍·先格挡少出手",
   hook: "钩·拉近缴械",
+  dart: "飞刀·双形态钉步",
 };
 
 export function schoolPolicy(school: WeaponId): Policy {

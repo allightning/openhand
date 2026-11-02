@@ -6,9 +6,10 @@ import { makeBattle, swapFighter } from "./sim";
 
 describe("party and weapons", () => {
   it("keeps six weapons with distinct verbs", () => {
-    expect(Object.keys(WEAPON_NAME).sort()).toEqual(["hook", "palm", "saber", "spear", "staff", "sword"]);
+    expect(Object.keys(WEAPON_NAME).sort()).toEqual(["dart", "hook", "palm", "saber", "spear", "staff", "sword"]);
     expect(new Set(Object.values(MATES).map((m) => m.weapon)).size).toBe(6);
     expect(WEAPON_PACE.sword).toBeGreaterThan(WEAPON_PACE.spear);
+    expect(WEAPON_PACE.dart).toBeGreaterThan(WEAPON_PACE.palm);
     expect(WEAPON_PACE.palm).toBeGreaterThan(WEAPON_PACE.sword);
     expect(WEAPON_PACE.sword).toBeGreaterThan(WEAPON_PACE.spear);
     expect(WEAPON_PACE.saber).toBe(WEAPON_PACE.hook); // 2026-09-09 铁律：刀钩同档 6

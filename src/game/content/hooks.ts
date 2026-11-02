@@ -27,7 +27,7 @@ export type CharmKind = (typeof CHARM_KINDS)[number];
 export const ITEM_KINDS = ["item"] as const;
 export type ItemKind = (typeof ITEM_KINDS)[number];
 
-export const SCHOOLS = ["palm", "saber", "spear", "sword", "staff", "hook", "any"] as const;
+export const SCHOOLS = ["palm", "saber", "spear", "sword", "staff", "hook", "dart", "any"] as const;
 export type SchoolId = WeaponId | "any";
 
 /**
@@ -115,6 +115,9 @@ export const MECHANISM_HOOKS = [
   "endure",
   "sig",
   "summon",
+  "chargeStack",
+  "chargeBurst",
+  "pin",
 ] as const;
 
 export type HookId = (typeof MECHANISM_HOOKS)[number];

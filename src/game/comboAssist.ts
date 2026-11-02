@@ -17,6 +17,7 @@ const COMBO_ASSIST: Record<WeaponId, ComboAssistMods> = {
   sword: { exposeBonus: 1 },
   staff: { blockBonus: 4 },
   hook: { pullAfterHit: 1 },
+  dart: {},
 };
 
 /** 助战者系 ≠ 场上角色当前武器系才返回附加属性。 */

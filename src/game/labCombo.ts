@@ -16,6 +16,7 @@ export const COMBO_CARD_BY_SCHOOL: Record<WeaponId, CardId> = {
   sword: "comboSword",
   staff: "comboStaff",
   hook: "comboHook",
+  dart: "dartFlick",
 };
 
 export function isComboCard(id: CardId): boolean {

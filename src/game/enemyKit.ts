@@ -38,6 +38,7 @@ const REMNANT: Record<WeaponId, TechniqueId> = {
   saber: "rebound",
   spear: "leftover",
   palm: "leftover",
+  dart: "leftover",
 };
 
 /** 踢馆具名绑死：名字、兵刃、残谱、特色招。 */
@@ -381,6 +382,7 @@ const KIT_REACH: Record<WeaponId, number> = {
   hook: 2,
   spear: 3,
   staff: 3,
+  dart: 6,
 };
 
 export function kitReach(school: WeaponId): number {
@@ -404,6 +406,7 @@ const SCHOOL_STRIKE: Record<WeaponId, string> = {
   spear: "点枪",
   staff: "戳棍",
   hook: "刮钩",
+  dart: "飞刀",
 };
 
 /** 条上招式名：按路数/兵刃区分，避免所有人共用「打击」。 */

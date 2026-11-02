@@ -1,4 +1,5 @@
 import { CARDS, STARTER_DECK } from "./content";
+import { MECH_CARDS } from "./content/cards/mechPool";
 import { remapLegacyCardId } from "./rogueCards";
 import { SAPPER_DECK, SEER_DECK } from "./hero";
 import type { RunContext } from "./runContext";
@@ -16,11 +17,13 @@ export const WEAPON_NAME: Record<WeaponId, string> = {
   sword: "剑",
   staff: "棍",
   hook: "钩",
+  dart: "飞刀",
 };
 
 /** §31.11 甲方定速度链：拳最快 > 剑钩 > 枪棍 > 刀最慢（势大力沉）。 */
 /** 兵刃底速（2026-09-09 铁律）：拳 8 / 剑 7 / 刀钩 6 / 枪棍 5。 */
 export const WEAPON_PACE: Record<WeaponId, number> = {
+  dart: 9,
   palm: 8,
   sword: 7,
   hook: 6,
@@ -37,6 +40,7 @@ export const SCHOOL_REACH: Record<WeaponId, number> = {
   hook: 2,
   spear: 3,
   staff: 3,
+  dart: 6,
 };
 
 export const WEAPON_VERB: Record<WeaponId, string> = {
@@ -46,6 +50,7 @@ export const WEAPON_VERB: Record<WeaponId, string> = {
   sword: "一刺一带，不求砸死。先机最快。",
   staff: "先占步，再打人。先机稳。",
   hook: "不推，拉近了再算。先机活。",
+  dart: "1–6 格同伤。钉步。先机全场最快。",
 };
 
 export interface MateDef {
@@ -602,7 +607,8 @@ export function matePassive(id: CompanionId, ctx: RunContext): MatePassive | und
 }
 
 export function cardSchool(id: CardId): WeaponId | "any" {
-  const def = CARDS[remapLegacyCardId(id)];
+  const nid = remapLegacyCardId(id);
+  const def = MECH_CARDS[nid] ?? CARDS[nid];
   if (def?.school) return def.school;
   const key = id.replace(/2$/, "");
   if (

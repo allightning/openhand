@@ -22,6 +22,7 @@ export const SCHOOL_RECIPE_POOL: Record<WeaponId, number> = {
   sword: 5,
   spear: 3,
   hook: 3,
+  dart: 7,
 };
 
 export function fieldSchoolQuotaMin(school: WeaponId): number {

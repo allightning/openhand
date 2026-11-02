@@ -16,7 +16,7 @@ import { addStake } from "./stake";
 import { addQi } from "./labV2";
 
 const TRIO_HEROES = ["rail", "seer", "sapper"] as const;
-const ALL_SCHOOLS: WeaponId[] = ["palm", "saber", "sword", "spear", "staff", "hook"];
+const ALL_SCHOOLS: WeaponId[] = ["palm", "saber", "sword", "spear", "staff", "hook", "dart"];
 
 export interface SchoolResonanceChip {
   school: WeaponId;
@@ -123,6 +123,7 @@ function schoolLabel(s: WeaponId): string {
     spear: "枪",
     staff: "棍",
     hook: "钩",
+    dart: "飞刀",
   };
   return names[s];
 }

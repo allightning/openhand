@@ -14,6 +14,7 @@ const SCHOOL_CAP: Record<WeaponId, Capitalize<WeaponId>> = {
   spear: "Spear",
   staff: "Staff",
   hook: "Hook",
+  dart: "Dart",
 };
 
 export function wardCardId(school: WeaponId): RogueCardId {
@@ -107,6 +108,7 @@ export const SCHOOL_MAIN_ATTACK: Record<WeaponId, CardId> = {
   spear: "thrust",
   staff: "split",
   hook: "hookpull",
+  dart: "dartFlick",
 };
 
 export const SCHOOL_ULTIMATE: Record<WeaponId, CardId> = {
@@ -116,6 +118,7 @@ export const SCHOOL_ULTIMATE: Record<WeaponId, CardId> = {
   spear: "ultSpear",
   staff: "ultStaff",
   hook: "ultHook",
+  dart: "ultPalm",
 };
 
 /** 换页：替换牌面，永不把进步/撤步换成 ±2。 */
@@ -146,6 +149,7 @@ export const SCHOOL_SUB_ATTACK: Record<WeaponId, CardId[]> = {
   spear: ["spearLock"],
   staff: ["bleedcut", "plant", "staffBind"],
   hook: ["hookDisarm", "close"],
+  dart: ["dartCut", "dartThrow", "dartPin"],
 };
 
 /** 六系各一张新增攻击 / 状态 / 本系进退（进奖励池与实验台）。 */
@@ -156,6 +160,7 @@ export const SCHOOL_EXTRA_HIT: Record<WeaponId, CardId> = {
   spear: "hitSpear",
   staff: "hitStaff",
   hook: "hitHook",
+  dart: "dartFlick",
 };
 export const SCHOOL_EXTRA_STATUS: Record<WeaponId, CardId> = {
   palm: "statusPalm",
@@ -164,6 +169,7 @@ export const SCHOOL_EXTRA_STATUS: Record<WeaponId, CardId> = {
   spear: "statusSpear",
   staff: "statusStaff",
   hook: "statusHook",
+  dart: "dartKeep",
 };
 export const SCHOOL_EXTRA_STATUS2: Record<WeaponId, CardId> = {
   palm: "statusPalm2",
@@ -172,6 +178,7 @@ export const SCHOOL_EXTRA_STATUS2: Record<WeaponId, CardId> = {
   spear: "statusSpear2",
   staff: "statusStaff2",
   hook: "statusHook2",
+  dart: "dartPin",
 };
 export const SCHOOL_SCHOOL_STEP: Record<WeaponId, CardId> = {
   palm: "stepPalm",
@@ -180,6 +187,7 @@ export const SCHOOL_SCHOOL_STEP: Record<WeaponId, CardId> = {
   spear: "stepSpear",
   staff: "stepStaff",
   hook: "stepHook",
+  dart: "dartStep",
 };
 
 function cardOwned(school: WeaponId, id: CardId | undefined): id is CardId {

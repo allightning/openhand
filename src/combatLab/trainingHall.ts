@@ -96,9 +96,10 @@ const SCHOOL_FINISHER: Record<WeaponId, { id: CardId; name: string }> = {
   spear: { id: "thrust", name: "突" },
   staff: { id: "split", name: "裂桩" },
   hook: { id: "hookDisarm", name: "摘兵钩" },
+  dart: { id: "dartFlick", name: "点刃" },
 };
 
-const SCHOOL_RANGE: Record<WeaponId, number> = { saber: 2, palm: 1, sword: 2, spear: 3, staff: 3, hook: 2 };
+const SCHOOL_RANGE: Record<WeaponId, number> = { saber: 2, palm: 1, sword: 2, spear: 3, staff: 3, hook: 2, dart: 6 };
 
 function schoolGuide(school: WeaponId): DemoLessonStep[] {
   const fin = SCHOOL_FINISHER[school];
