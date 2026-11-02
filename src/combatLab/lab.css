@@ -5231,6 +5231,17 @@ html.lab-fullscreen #app.lab-root,
   box-shadow: 0 0 0 2px #1a1410;
 }
 
+.lab-prod-combat .lab-react-round.is-foe {
+  left: auto;
+  right: 0.4rem;
+  transform: translate(0, -50%);
+}
+
+.lab-prod-combat .lab-react-round.is-foe .lab-react-arc {
+  animation: none;
+  stroke-dashoffset: 0;
+}
+
 .lab-prod-combat .lab-react-ring {
   width: 7.5rem;
   height: 7.5rem;
@@ -5312,6 +5323,38 @@ html.lab-fullscreen #app.lab-root,
   z-index: 1;
 }
 
+.lab-prod-combat .lab-charge-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hud-action-gap);
+  position: static;
+  flex: 1 1 100%;
+}
+
+.lab-prod-combat .lab-charge-row .lab-charge-bar {
+  flex: 1 1 12rem;
+}
+
+.lab-prod-combat .lab-intent-marks {
+  position: static;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hud-action-gap);
+  margin: 0;
+}
+
+.lab-prod-combat .lab-intent-line {
+  position: static;
+  flex: 1 1 100%;
+  margin: 0;
+}
+
+.lab-prod-combat .lab-foe-react-note {
+  position: static;
+  margin: 0;
+}
+
 .lab-prod-combat .lab-pin-chip,
 .lab-prod-combat .lab-dart-form,
 .lab-prod-combat .lab-intent-marks span {
@@ -5343,6 +5386,42 @@ html.lab-fullscreen #app.lab-root,
 
 @keyframes lab-burn-tick {
   50% { transform: scale(1.8); background: #9c2f1b; }
+}
+
+.lab-prod-combat .lab-role-hud,
+.lab-prod-combat .lab-bond-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hud-action-gap);
+  position: static;
+}
+
+.lab-prod-combat .lab-bond-chip,
+.lab-prod-combat .lab-grudge-chip,
+.lab-prod-combat .lab-poison-chip {
+  position: static;
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.lab-prod-combat .lab-role-hud button {
+  position: static;
+  flex: 0 0 auto;
+  margin: 0;
+  min-width: var(--hud-action-btn-w);
+}
+
+.lab-prod-combat .lab-role-hud button.is-on {
+  background: #1a1410;
+  color: #f4ead6;
+}
+
+.lab-prod-combat .lab-role-hud button:disabled {
+  opacity: 0.45;
+}
+
+.lab-prod-combat .lab-grudge-chip {
+  color: #9c2f1b;
 }
 
 /* shell2 — 门厅 / 配装 / 图鉴 / 事页 / 死亡 / 设置。不进战斗板。 */
@@ -5696,4 +5775,69 @@ html.lab-fullscreen #app.lab-root,
   border: 1px dashed var(--shell-ink);
   color: var(--shell-ink);
   background: transparent;
+}
+
+.lab-root .shell-loadout .shell-weapon-swap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--shell-gap);
+  position: static;
+  margin: 0 0 var(--shell-gap);
+}
+
+.lab-root .shell-loadout .shell-weapon-pick {
+  flex: 1 1 var(--shell-btn-w);
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--shell-gap);
+  align-items: center;
+}
+
+.lab-root .shell-loadout .shell-weapon-icon {
+  display: inline-block;
+  width: 1.2rem;
+  height: 1.2rem;
+  line-height: 1.2rem;
+  text-align: center;
+  border: 1px solid var(--shell-ink);
+  position: static;
+}
+
+.lab-root .shell-loadout .shell-weapon-pick.is-on {
+  outline: 1px solid var(--shell-cinnabar);
+}
+
+.lab-root .shell-loadout .shell-weapon-note:empty {
+  display: none;
+}
+
+.lab-root .shell-open-flip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--shell-gap);
+  position: static;
+  margin: 0 0 var(--shell-gap);
+}
+
+.lab-root .shell-open-name {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--shell-gap);
+  position: static;
+  margin: 0 0 var(--shell-gap);
+}
+
+.lab-root .shell-open-card {
+  flex: 1 1 var(--shell-btn-w);
+  min-width: 0;
+  position: static;
+  margin: 0;
+}
+
+.lab-root .shell-open-name .lab-btn {
+  flex: 1 1 var(--shell-btn-w);
+  min-width: 0;
+  position: static;
+  margin: 0;
 }

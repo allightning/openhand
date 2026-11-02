@@ -27,7 +27,9 @@ import { techniqueTip } from "./breakAlign";
 import { isHighStake, stakeHitsAt } from "../game/stake";
 import { renderFxLayer, renderGrudgeBadge, threatCellsForHover } from "./labV2Ui";
 import { boardLayout, cellIsWall, outsideWallSide, type BoardLayout } from "./render/boardLayout";
+import { foeReactView } from "./render/foeReact";
 import { envBurnDue, reactView, renderMechHud, renderReadNames, renderRevealRow, renderStanceAgg } from "./render/guashowHud";
+import { renderRoleHud } from "./render/roleHud";
 
 function escapeAttr(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
@@ -511,6 +513,8 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
   const coachText = labCoachText(b, prev, teachStage, demoGuide?.coach);
   const readHtml = renderReadNames(b);
   const readLive = readHtml.includes('data-read-source="field"');
+  const foe = foeReactView(b);
+  const foeNote = foe.note ? `<b class="lab-foe-react-note" data-foe-note>${escapeHtml(foe.note)}</b>` : "";
   const hasTeach = Boolean(teachHtml);
 
   return `
@@ -564,8 +568,8 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
               }</div>
               <div class="lab-intent-band" data-overlap-group="intents">${renderStanceAgg(b, hideBefore, foeSegFate)}${renderRevealRow(b, hideBefore, foeSegFate)}</div>
               ${teachHtml}
-              <div class="strip${layout.env ? ` env-${layout.env}` : ""}${react.landed ? " lab-board-shake" : ""}${envBurnDue(b, Boolean(foeResolving)) && layout.env === "burn" ? " env-burn-due" : ""}" id="strip" data-board="${layout.size}" data-env="${layout.env}" data-env-source="${layout.envSource}" data-wall="${layout.wallEnds}" data-env-key="${layout.envKey}">${react.html}${boardHtml}</div>
-              ${coachText ? `<div class="coach" id="coach">${escapeHtml(coachText)}${readHtml}</div>` : `<div class="coach coach-empty" id="coach"${readLive ? "" : " hidden"}>${readHtml}</div>`}
+              <div class="strip${layout.env ? ` env-${layout.env}` : ""}${react.landed ? " lab-board-shake" : ""}${envBurnDue(b, Boolean(foeResolving)) && layout.env === "burn" ? " env-burn-due" : ""}" id="strip" data-board="${layout.size}" data-env="${layout.env}" data-env-source="${layout.envSource}" data-wall="${layout.wallEnds}" data-env-key="${layout.envKey}">${react.html}${foe.html}${boardHtml}</div>
+              ${coachText || foeNote ? `<div class="coach" id="coach">${escapeHtml(coachText)}${foeNote}${readHtml}</div>` : `<div class="coach coach-empty" id="coach"${readLive ? "" : " hidden"}>${readHtml}</div>`}
             </div>
 
             <aside class="fighter foe-side">
@@ -604,6 +608,7 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
             <div class="draw-col lab-pile-col">
               ${weaponPlate(gearId, "you")}
               ${renderMechHud(b)}
+              ${renderRoleHud(b)}
               ${renderStatusCol(b, "you")}
             </div>
             <div class="hand-scroll"><div class="hand" id="hand">${hand}</div></div>

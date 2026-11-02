@@ -8,6 +8,7 @@ import { renderDemoShell } from "../breakDemoUi";
 import { renderHallCleared, renderHallRetry, renderTrainingHallCatalog } from "../trainingHallUi";
 import { renderCampaignCleared, renderCampaignRetry } from "../breakCampaignUi";
 import { renderGauntletCompanionPick, renderGauntletBanker, renderGauntletLifeline, renderGauntletOverlay, renderGauntletResult, renderGauntletRewardPick, renderGauntletRewardTarget, renderGauntletPathPick, renderGauntletSchoolPick, renderGauntletWager, renderGauntletEvent, renderGauntletOpening, renderGauntletFinale, renderGauntletScar, renderGauntletSettle } from "../gauntletUi";
+import { renderOpenRitual } from "./openFlip";
 import { renderShellDeath } from "./shellDeath";
 import { renderShellEvent } from "./shellEvent";
 import { paintShellHall, renderShellPath } from "./shellHall";
@@ -60,7 +61,7 @@ function renderSetup(): string {
     return `${api.renderHeader()}${api.paintGauntletOverlay("opening", renderGauntletOpening(S.gauntletRun))}`;
   }
   if (S.gauntletScreen === "event" && S.gauntletRun && S.gauntletEventKind) {
-    return `${api.renderHeader()}${api.paintGauntletOverlay("event", renderShellEvent(renderGauntletEvent(S.gauntletRun, S.gauntletEventKind, S.gauntletEventChoices)))}`;
+    return `${api.renderHeader()}${api.paintGauntletOverlay("event", renderShellEvent(renderGauntletEvent(S.gauntletRun, S.gauntletEventKind, S.gauntletEventChoices)) + renderOpenRitual(S.gauntletRun))}`;
   }
   if (S.gauntletScreen === "finale" && S.gauntletRun) {
     return `${api.renderHeader()}${api.paintGauntletOverlay("finale", renderGauntletFinale(S.gauntletRun))}`;

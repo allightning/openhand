@@ -11,6 +11,7 @@ import { MIND_ARTS } from "../game/mindArts";
 import { WEAPON_NAME, schoolLabel } from "../game/party";
 import { SCHOOL_ULTIMATE } from "../game/rogueCards";
 import type { CardId } from "../game/types";
+import { CLIMB_BLEED_CAP, CLIMB_BLOCK_CAP, CLIMB_COMBO_CAP, CLIMB_EXPOSE_CAP } from "../game/climbCaps";
 import { GEAR_WEAPONS, GOD_SKILL, PATH_SKILL, TIER_NAME, gearById } from "../game/weapons";
 import { ALL_CARD_IDS, ALL_TECHNIQUE_IDS } from "./arsenal";
 
@@ -30,6 +31,11 @@ export interface CodexEntry {
   flavor?: string;
   /** 凡 / 精 / 绝 / 连携。样式归 UI。 */
   rarityLabel?: string;
+  /** 注册表直出。排版不读这四项。 */
+  cost?: number;
+  school?: string;
+  damage?: number;
+  cap?: number;
   related: CodexRelated[];
 }
 
@@ -101,6 +107,17 @@ function registryStatLine(row: ContentCardDef): string {
   return bits.join(" · ");
 }
 
+function cardNumbers(row: ContentCardDef): Pick<CodexEntry, "cost" | "school" | "damage" | "cap"> {
+  const v = row.values;
+  const cap = v.block ? CLIMB_BLOCK_CAP : v.bleed ? CLIMB_BLEED_CAP : v.expose ? CLIMB_EXPOSE_CAP : v.comboCost ? CLIMB_COMBO_CAP : undefined;
+  return {
+    cost: row.cost,
+    school: row.school,
+    ...(v.damage ? { damage: v.damage } : {}),
+    ...(cap ? { cap } : {}),
+  };
+}
+
 function cardFace(id: CardId): string {
   const card = CARDS[id]!;
   const row = CARD_REGISTRY[id]!;
@@ -123,6 +140,7 @@ export function catalogUlt(): CodexEntry[] {
       text: cardFace(id),
       flavor: c.flavor,
       rarityLabel: cardRarityLabel(id),
+      ...cardNumbers(row),
       related: cardRelated(id),
     };
   });
@@ -141,6 +159,7 @@ export function catalogSkill(): CodexEntry[] {
       text: cardFace(id),
       flavor: c.flavor,
       rarityLabel: cardRarityLabel(id),
+      ...cardNumbers(row),
       related: cardRelated(id),
     };
   });
@@ -159,6 +178,9 @@ export function catalogSkill(): CodexEntry[] {
       kicker: t.school ? `外功 · ${WEAPON_NAME[t.school]}` : "外功 · 通用",
       text: [row.text, feed, nums.length ? `数值：${nums.join(" · ")}` : ""].filter(Boolean).join("\n"),
       flavor: t.flavor,
+      cost: row.cost,
+      school: row.school,
+      ...(row.values.damage ? { damage: row.values.damage } : {}),
       related: [],
     };
   });
@@ -176,6 +198,9 @@ export function catalogSkill(): CodexEntry[] {
       name: m.name,
       kicker: m.school ? `心法 · ${WEAPON_NAME[m.school]}` : "心法 · 通用",
       text: nums.length ? `${row.text}\n数值：${nums.join(" · ")}` : row.text,
+      cost: row.cost,
+      school: row.school,
+      ...(row.values.damage ? { damage: row.values.damage } : {}),
       related: [],
     };
   });
@@ -185,6 +210,9 @@ export function catalogSkill(): CodexEntry[] {
     name: LAB_ITEM_LABEL[row.id] ?? row.id,
     kicker: `助战符 · ${WEAPON_NAME[row.school as keyof typeof WEAPON_NAME] ?? "通用"}`,
     text: `数值：${Object.entries(row.values).map(([key, n]) => `${key} ${n}`).join(" · ")}\n${row.text}`,
+    cost: row.cost,
+    school: row.school,
+    ...(row.values.damage ? { damage: row.values.damage } : {}),
     related: [],
   }));
   const items: CodexEntry[] = Object.values(ITEM_REGISTRY).map((row) => ({
@@ -193,6 +221,9 @@ export function catalogSkill(): CodexEntry[] {
     name: LAB_ITEM_LABEL[row.id] ?? row.id,
     kicker: "道具",
     text: `数值：${Object.entries(row.values).map(([key, n]) => `${key} ${n}`).join(" · ")}\n${row.text}`,
+    cost: row.cost,
+    school: row.school,
+    ...(row.values.damage ? { damage: row.values.damage } : {}),
     related: [],
   }));
   return [...cards, ...techs, ...minds, ...charms, ...items];
@@ -227,6 +258,8 @@ export function catalogGear(): CodexEntry[] {
       name: g.name,
       kicker: `${WEAPON_NAME[g.school]} · ${g.path === "a" ? "甲" : "乙"} · ${TIER_NAME[g.tier]}${g.grade}成`,
       text: [g.tip, `数值：${bits.join(" · ")}`, path && `兵路：${path}`, god && `神技：${god}`, hit].filter(Boolean).join("\n"),
+      school: g.school,
+      damage: g.damage,
       related: weaponRelated(g.id),
     };
   });

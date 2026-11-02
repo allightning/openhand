@@ -20,5 +20,7 @@ function bindEvents(): void {
   api.bindDomPart16();
   api.bindDomPart17();
   api.bindReact();
+  api.bindRoleHud();
+  api.bindOpenFlip();
 }
 api.bindEvents = bindEvents;

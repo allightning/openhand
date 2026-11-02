@@ -47,6 +47,7 @@ function bookItems(book: WikiBook, query: string): unknown[] {
       name: s.name,
       text: s.text,
       id: s.id,
+      cap: s.cap,
     }));
     if (!q) return all;
     return all.filter((s) => `${s.id} ${s.name} ${s.text} ${s.kicker}`.toLowerCase().includes(q));

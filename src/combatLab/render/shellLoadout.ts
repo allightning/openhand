@@ -6,6 +6,7 @@ import { gauntletFieldMate, type GauntletRun } from "../gauntlet";
 import { renderGauntletLoadout, type LoadoutPage, type LoadoutPick } from "../gauntletUi";
 import { mateDeck } from "../loadout";
 import { renderCardIntentMarks } from "./guashowHud";
+import { renderWeaponSwap } from "./weaponSwap";
 import { escapeHtml } from "../setupUi";
 
 export interface PoolCard {
@@ -115,7 +116,7 @@ export function loadoutSummary(run: GauntletRun, focus: CompanionId | undefined,
   return `${name} · ${PAGE_LABEL[page]} · ${n} 张`;
 }
 
-export function renderShellLoadout(inner: string, pool: string, summary: string): string {
+export function renderShellLoadout(inner: string, pool: string, summary: string, swap = ""): string {
   const marked = inner
     .replace('class="gauntlet-loadout-tabs"', 'class="gauntlet-loadout-tabs" data-overlap-group="loadout-tabs"')
     .replace('class="gauntlet-loadout-ops"', 'class="gauntlet-loadout-ops" data-overlap-group="loadout-ops"')
@@ -127,6 +128,7 @@ export function renderShellLoadout(inner: string, pool: string, summary: string)
     <p class="shell-kicker">配装</p>
     <p class="shell-loadout-summary">${escapeHtml(summary)}</p>
     ${renderCardIntentMarks(undefined)}
+    ${swap}
     ${marked}
     ${pool}
   </div>`;
@@ -137,10 +139,13 @@ export function paintShellLoadout(
   focus?: CompanionId,
   page: LoadoutPage = "deck",
   pick: LoadoutPick = null,
+  fighting = false,
 ): string {
+  const mate = focus ?? gauntletFieldMate(run.school);
   return renderShellLoadout(
     renderGauntletLoadout(run, focus, page, pick),
     renderShellPool(readPoolCards()),
     loadoutSummary(run, focus, page),
+    renderWeaponSwap(run, mate, fighting),
   );
 }

@@ -4,8 +4,6 @@ import { emphasizeNumbers } from "./shellText";
 
 const GAPS = [
   "图鉴册没有敌人。分册是绝、技、兵、状态、人物。",
-  "CodexEntry 没有 cost、school、damage 字段。劲力写在 kicker 字符串里。",
-  "状态没有 cap 字段。上限写在正文里。",
 ];
 
 export function codexFieldGaps(): string[] {

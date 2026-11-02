@@ -1,8 +1,10 @@
 import { CLIMB_CHARGE_CAP, CLIMB_PIN_CAP } from "../climbCaps";
 import { battleEquippedSchool } from "../../game/equippedWeapon";
 import { buildStanceBoard, STANCE_LABEL } from "../../game/intentStance";
+import { cardSchool, WEAPON_NAME } from "../../game/party";
 import type { Battle, Intent, ReactionWindow, StanceId, StanceSeg } from "../../game/types";
 import { shellRunContext } from "../shellContext";
+import { cardIntentLine, latestFoeWindowLine } from "../storyBeats";
 import { escapeHtml } from "../setupUi";
 
 const STANCE_ORDER: StanceId[] = ["hurt", "press", "back", "hold", "wind", "sly"];
@@ -190,13 +192,20 @@ export function envBurnDue(b: Battle, foeResolving: boolean): boolean {
   return (b.climbPhaseLabel ?? "").includes("结束");
 }
 
-export function renderCardIntentMarks(value: number | undefined): string {
+export function renderCardIntentMarks(value: number | undefined, label = ""): string {
   const known = Number.isInteger(value);
   const n = known ? Math.max(0, value ?? 0) : 0;
   const pips = INTENT_TIERS.map(
     (tier) => `<span data-tier="${tier}" class="${known && n >= tier ? "is-met" : ""}">${tier}</span>`,
   ).join("");
-  return `<div class="lab-intent-marks" data-card-intent="${known ? "field" : "placeholder"}" data-overlap-group="intent-marks">${pips}</div>`;
+  const count = known ? `<b data-school-count="${n}">${label ? `${escapeHtml(label)} ` : ""}${n}</b>` : `<b data-school-count="" hidden>—</b>`;
+  return `<div class="lab-intent-marks" data-card-intent="${known ? "field" : "placeholder"}" data-school-count="${known ? n : ""}" data-overlap-group="intent-marks">${count}${pips}</div>`;
+}
+
+function equippedIntent(b: Battle): { n: number; label: string; school: string } {
+  const school = battleEquippedSchool(b, b.active, shellRunContext());
+  const n = [...b.hand, ...b.drawPile, ...b.discardPile].filter((c) => cardSchool(c.defId) === school).length;
+  return { n, label: WEAPON_NAME[school], school };
 }
 
 export function renderMechHud(b: Battle): string {
@@ -213,5 +222,11 @@ export function renderMechHud(b: Battle): string {
   const dart = `<span class="lab-dart-form" data-dart-form="${formSource}"${showForm ? "" : " hidden"}><i class="lab-dart-melee${near}">近</i><i class="lab-dart-ranged${far}">远</i></span>`;
   const charge = `<div class="lab-charge-bar" data-charge-bar data-stacks="${stacks}" data-ready="${ready ? "1" : "0"}"><i style="width:${Math.round((stacks / CLIMB_CHARGE_CAP) * 100)}%"></i><b>蓄力 ${stacks}</b>${ready ? `<em>爆发就绪</em>` : ""}</div>`;
   const nail = `<span class="lab-pin-chip" data-pin-chip data-pin="${pin}"${pin > 0 ? "" : " hidden"}>钉 ×${pin}</span>`;
-  return `<div class="lab-mech-hud">${charge}${nail}${dart}${renderCardIntentMarks(fields(b).cardIntent)}</div>`;
+  const intentNow = equippedIntent(b);
+  const marks = renderCardIntentMarks(intentNow.n, intentNow.label);
+  const intentLine = cardIntentLine(intentNow.school, intentNow.n);
+  const intent = intentLine ? `<p class="lab-intent-line">${escapeHtml(intentLine)}</p>` : "";
+  const windowLine = latestFoeWindowLine(b.log);
+  const foeWin = windowLine ? `<p class="lab-foe-window-line">${escapeHtml(windowLine)}</p>` : "";
+  return `<div class="lab-mech-hud"><div class="lab-charge-row" data-overlap-group="charge-row">${charge}${marks}</div>${nail}${dart}${intent}${foeWin}</div>`;
 }

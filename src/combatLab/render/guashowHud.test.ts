@@ -246,7 +246,9 @@ describe("蓄力、钉、双形态、牌意", () => {
     b.chargeStacks = 6;
     b.foePin = 2;
     b.dartFormNow = "melee";
-    b.cardIntent = 7;
+    b.hand = Array.from({ length: 7 }, (_, i) => ({ uid: `cut-${i}`, defId: "cut" }));
+    b.drawPile = [];
+    b.discardPile = [];
     const html = page(b);
     expect(html).toContain('data-stacks="6"');
     expect(html).toContain('data-ready="1"');
@@ -255,6 +257,9 @@ describe("蓄力、钉、双形态、牌意", () => {
     expect(html).toContain("钉 ×2");
     expect(html).toContain('data-dart-form="field"');
     expect(html).toContain('class="lab-dart-melee is-on"');
+    expect(html).toContain('data-overlap-group="charge-row"');
+    expect(html).toContain('data-school-count="7"');
+    expect(html).toContain("刀 7");
     expect(html).toContain('data-card-intent="field"');
     expect(html).toMatch(/data-tier="4" class="is-met"/);
     expect(html).toMatch(/data-tier="7" class="is-met"/);
@@ -262,13 +267,18 @@ describe("蓄力、钉、双形态、牌意", () => {
   });
 
   it("这些字段没写时占位，不编一个层数", () => {
-    const html = page(battle());
+    const b = battle();
+    b.hand = [];
+    b.drawPile = [];
+    b.discardPile = [];
+    const html = page(b);
     expect(html).toContain('data-stacks="0"');
     expect(html).toContain('data-ready="0"');
     expect(html).not.toContain("爆发就绪");
     expect(html).toContain('data-pin-chip');
     expect(html).toContain('data-dart-form="placeholder"');
-    expect(html).toContain('data-card-intent="placeholder"');
+    expect(html).toContain('data-card-intent="field"');
+    expect(html).toContain('data-school-count="0"');
     expect(html).not.toContain("is-met");
   });
 

@@ -37,6 +37,8 @@ import "./dom/bindDomPart5";
 import "./dom/bindDomPart6";
 import "./dom/bindDom";
 import "./dom/bindReact";
+import "./dom/bindRoleHud";
+import "./dom/bindOpenFlip";
 
 api.enterMode = (r?: string): void => {
   setLabRuleset(r);

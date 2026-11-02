@@ -25,6 +25,13 @@ describe("卡牌图鉴目录", () => {
     expect(strike?.text).toMatch(/数值：/);
     expect(strike?.text).toMatch(/劲 1/);
     expect(strike?.text).toMatch(/牌面伤 5/);
+    expect(strike?.cost).toBe(1);
+    expect(strike?.school).toBe("any");
+    expect(strike?.damage).toBe(5);
+    expect(strike?.cap).toBeUndefined();
+    const brace = skill.find((e) => e.id === "brace");
+    expect(brace?.cap).toBe(12);
+    expect(brace?.cost).toBe(1);
     const leftover = skill.find((e) => e.id === "leftover");
     expect(leftover?.text).toMatch(/1\/2\/3/);
     const iron = skill.find((e) => e.id === "ironBreath");

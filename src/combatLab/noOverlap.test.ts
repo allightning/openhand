@@ -14,6 +14,8 @@ import { renderShellDeath } from "./render/shellDeath";
 import { renderShellEvent } from "./render/shellEvent";
 import { renderShellHall, renderShellPath, type ShellHallView } from "./render/shellHall";
 import { paintShellLoadout, readPoolCards, renderShellPool } from "./render/shellLoadout";
+import { renderOpenRitual } from "./render/openFlip";
+import { armOpeningRitual } from "./storyBeats";
 import { renderShellSettings } from "./render/shellChrome";
 
 const CSS = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "lab.css"), "utf8");
@@ -183,6 +185,84 @@ describe("按钮不重叠", () => {
     expect(html).toContain('data-phase="idle"');
   });
 
+  it("缘分、职业钮、毒层和锁住的换装各自换行", () => {
+    setLabRuleset("climb");
+    setLabMode(true);
+    const b = startLabBattle(buildGauntletPreset(createGauntletRun("bandit", "saber")), true, 1);
+    b.party = ["watch", "lishuangxing", "baimenghe"];
+    b.bondStages = { "lishuangxing|watch": "life" };
+    b.professions = { [b.active]: "diviner" };
+    b.profAdvanced = true;
+    const html = renderProdBattle({
+      b,
+      prev: null,
+      hoverUid: null,
+      hoverIntentIdx: null,
+      weaponId: "saber-a-3",
+      canPlay: () => ({ ok: true }),
+      actionRowHtml: `<button class="fy-btn" id="btn-end">收势</button>`,
+      entranceNote: "",
+      freshNote: "",
+      fxClass: "",
+      pauseOverlay: "",
+      toolbarExtra: "",
+      weaponSheetHtml: "",
+      gauntletStage: 1,
+    });
+    const role = elementByAttr(html, 'data-overlap-group="role-hud"');
+    expect(role).toContain("夜霜 · 生死");
+    expect(role).toContain("医杀");
+    expect(role).toContain('id="battle-weapon-swap"');
+    expect(role).toMatch(/id="battle-weapon-swap"[^>]*disabled/);
+    const names = buttonNames(role);
+    expect(names).toEqual(["prof-advance", "prof-see", "prof-cheat", "battle-weapon-swap"]);
+    assertClear(flowBoxes(names, cssVar("--hud-action-btn-w"), 36, 320, cssVar("--hud-action-gap")));
+    expect(CSS).toMatch(/\.lab-prod-combat \.lab-role-hud button\s*\{[^}]*position:\s*static/);
+  });
+
+  it("敌窗靠右即刻走满，牌意三档贴在蓄力旁", () => {
+    setLabRuleset("climb");
+    setLabMode(true);
+    const b = startLabBattle(buildGauntletPreset(createGauntletRun("bandit", "saber")), true, 1);
+    b.foeReact = { kind: "dismantle", note: "敌拆招 伤害减半，回敬 3" };
+    b.hand = Array.from({ length: 7 }, (_, i) => ({ uid: `cut-${i}`, defId: "cut" }));
+    b.drawPile = [];
+    b.discardPile = [];
+    const html = renderProdBattle({
+      b,
+      prev: null,
+      hoverUid: null,
+      hoverIntentIdx: null,
+      weaponId: "saber-a-3",
+      canPlay: () => ({ ok: true }),
+      actionRowHtml: `<button class="fy-btn" id="btn-end">收势</button>`,
+      entranceNote: "",
+      freshNote: "",
+      fxClass: "",
+      pauseOverlay: "",
+      toolbarExtra: "",
+      weaponSheetHtml: "",
+      gauntletStage: 1,
+    });
+    const foe = elementByAttr(html, 'data-foe-react="1"');
+    expect(foe).toContain("敌");
+    expect(foe).toContain('data-foe-instant="1"');
+    expect(foe).not.toContain("<button");
+    expect(html).toContain("data-foe-note");
+    expect(html).toContain('data-school-count="7"');
+    expect(html).toMatch(/data-tier="4" class="is-met"/);
+    expect(html).toMatch(/data-tier="7" class="is-met"/);
+    expect(html).toMatch(/data-tier="10" class=""/);
+    expect(html).toContain('data-overlap-group="charge-row"');
+    const actions = between(html, 'data-overlap-group="actions"', 'data-overlap-group="hand-row"');
+    expect(actions).not.toContain("data-foe-react");
+    expect(CSS).toMatch(/\.lab-prod-combat \.lab-react-round\.is-foe\s*\{[^}]*right:\s*0\.4rem/);
+    expect(CSS).toMatch(/\.lab-prod-combat \.lab-react-round\.is-foe \.lab-react-arc\s*\{[^}]*animation:\s*none/);
+    expect(CSS).toMatch(/\.lab-prod-combat \.lab-charge-row\s*\{[^}]*position:\s*static/);
+    expect(CSS).toMatch(/\.lab-prod-combat \.lab-intent-marks\s*\{[^}]*position:\s*static/);
+    expect(CSS).toMatch(/\.lab-phase-slot\s*\{[^}]*height:\s*1\.7rem/);
+  });
+
   it("动作钮不许用绝对定位叠在同一点", () => {
     expect(CSS).toMatch(/\.lab-prod-combat \.lab-action-row button\s*\{[^}]*position:\s*static/);
   });
@@ -320,6 +400,11 @@ describe("六屏按钮不重叠", () => {
     assertFlow(html, 'data-overlap-group="loadout-tabs"');
     assertFlow(html, 'data-overlap-group="loadout-ops"');
     assertFlow(html, 'data-overlap-group="loadout-mates"');
+    expect(html).toContain('data-spectrum-source="field"');
+    assertFlow(html, 'data-overlap-group="weapon-swap"');
+    const locked = paintShellLoadout(run, undefined, "deck", null, true);
+    expect(locked).toContain('data-weapon-locked="battle"');
+    expect(locked).toMatch(/id="swap-palm"[^>]*disabled/);
   });
 
   it("图鉴：分册、空检索、长文滚动位；缺字段另列", () => {
@@ -338,7 +423,7 @@ describe("六屏按钮不重叠", () => {
     expect(missed).toContain("shell-empty");
     const gaps = codexFieldGaps();
     expect(gaps.some((line) => line.includes("敌人"))).toBe(true);
-    expect(gaps.some((line) => line.includes("cost"))).toBe(true);
+    expect(gaps.some((line) => line.includes("没有 cost"))).toBe(false);
     expect(gaps.some((line) => line.includes("rarityLabel"))).toBe(true);
   });
 
@@ -410,5 +495,22 @@ describe("六屏按钮不重叠", () => {
     const long = renderShellSettings({ ...base, label: title, tracks: [{ label: title, on: true }] });
     expect(long).toContain(title);
     assertFlow(long, 'data-overlap-group="settings-tracks"');
+  });
+
+  it("开局七张牌背换行，自取名一钮", () => {
+    setLabRuleset("climb");
+    setLabMode(true);
+    const run = armOpeningRitual(createGauntletRun("bandit", "saber"), () => 0);
+    const html = renderOpenRitual(run);
+    expect(html).toContain('data-open-source="field"');
+    expect(html.match(/data-open-face="back"/g)?.length).toBe(7);
+    assertFlow(html, 'data-overlap-group="open-flip"');
+    const named = renderOpenRitual({ ...run, storyFlags: ["s3page:s3-open-name"] });
+    expect(named).toContain('data-name-source="placeholder"');
+    assertFlow(named, 'data-overlap-group="open-name"');
+    const css = shellCss();
+    expect(css).toMatch(/\.shell-open-flip\s*\{[^}]*position:\s*static/);
+    expect(css).toMatch(/\.shell-open-name\s*\{[^}]*position:\s*static/);
+    expect(css).toMatch(/\.shell-open-card\s*\{[^}]*position:\s*static/);
   });
 });
