@@ -7,11 +7,26 @@ import { setLabRuleset } from "../../src/combatLab/labRuleset";
 import { getLabTuning, setLabMode, setLabTuning } from "../../src/combatLab/labTuning";
 import { shellRunContext } from "../../src/combatLab/shellContext";
 import type { ClimbKnobs } from "./knobs";
-import { DEFAULT_KNOBS } from "./knobs";
+import { DEFAULT_KNOBS, stageDmgAdjust } from "./knobs";
 import { mulberry32 } from "./rng";
 import { SIM_PATH } from "./tiers";
-import type { EnemyId, Run, WeaponId } from "../../src/game/types";
+import type { CompanionId, EnemyId, Run, WeaponId } from "../../src/game/types";
 import type { RunContext } from "../../src/game/runContext";
+
+export type FightStamp = {
+  professions?: Run["professions"];
+  party?: CompanionId[];
+  bag?: NonNullable<Run["bag"]>;
+  mateDecks?: Run["mateDecks"];
+  advance?: boolean;
+  mark?: boolean;
+  see?: boolean;
+  wager?: boolean;
+  foeRound?: number;
+  foeStage?: number;
+  foeSalt?: number;
+  thinIds?: import("../../src/game/types").CardId[];
+};
 
 export type OpenedHall = {
   enemyId: EnemyId;
@@ -21,6 +36,7 @@ export type OpenedHall = {
   stage: number;
   waveEnemyId?: EnemyId;
   waveQueue?: EnemyId[];
+  stamp?: FightStamp;
 };
 
 let booted = false;
@@ -47,11 +63,19 @@ export function freshRun(school: WeaponId, seed: number): GauntletRun {
   return createGauntletRun(SIM_PATH, school, "usurper", { rng: mulberry32(seed) });
 }
 
-export function openHall(run: GauntletRun, stage: number, knobs: ClimbKnobs = DEFAULT_KNOBS, hp?: number): OpenedHall {
+export function openHall(
+  run: GauntletRun,
+  stage: number,
+  knobs: ClimbKnobs = DEFAULT_KNOBS,
+  hp?: number,
+  rawLadder = false,
+): OpenedHall {
   bootLab();
   const staged = { ...run, stage, facedEnemies: run.facedEnemies ?? [] };
   applyStageTuning(ladderEntryForRun(staged), staged);
-  applyKnobs(knobs);
+  const ladderEnemy = ladderEntryForRun(staged).dmgCoef;
+  const adj = rawLadder ? { enemy: 1, player: 1 } : stageDmgAdjust(stage, ladderEnemy);
+  applyKnobs({ ...knobs, enemyDmg: knobs.enemyDmg * adj.enemy, playerDmg: knobs.playerDmg * adj.player });
   const preset = buildGauntletPreset(staged);
   const body = runFromPreset(preset);
   const hpMax = body.hpMax;

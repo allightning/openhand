@@ -1,6 +1,6 @@
 import type { RunContext } from "../../src/game/runContext";
 import { canPlay } from "../../src/game/sim";
-import type { Battle, WeaponId } from "../../src/game/types";
+import type { Battle, CompanionId, WeaponId } from "../../src/game/types";
 import { FLAGS_OFF, type SimFlags } from "./flags";
 import { canPlayAttack, canPlayMove } from "./hand";
 import { shouldTakeReaction } from "./reactPolicy";
@@ -12,6 +12,7 @@ export type Policy = {
   flags: SimFlags;
   pick: (b: Battle, rc: RunContext, rng: () => number) => string | null;
   react: (b: Battle, rc: RunContext) => boolean;
+  swap?: (b: Battle, rc: RunContext) => CompanionId | null;
 };
 
 function withFlags(row: Omit<Policy, "flags" | "react">, flags: SimFlags = FLAGS_OFF): Policy {

@@ -11,6 +11,22 @@ function put(b: Battle, id: CardId, uid: string): void {
   b.drawPile.unshift({ uid, defId: id });
 }
 
+/** 单招流：抽堆/手牌只留这几张。 */
+export function injectThinKit(b: Battle, ids: CardId[], seed: number): void {
+  if (!ids.length) return;
+  const pile: Battle["drawPile"] = [];
+  let n = 0;
+  for (const id of ids) {
+    for (let c = 0; c < COPIES * 2; c++) {
+      n += 1;
+      pile.push({ uid: `n4thin${seed}-${n}`, defId: id });
+    }
+  }
+  b.drawPile = pile;
+  b.discardPile = [];
+  b.hand = ids.slice(0, Math.min(5, ids.length)).map((id, i) => ({ uid: `n4thinh${seed}-${i}`, defId: id }));
+}
+
 export function injectMechKit(b: Battle, school: WeaponId, flags: SimFlags, seed: number): void {
   const ids = school === "staff" && flags.charge !== "off" ? STAFF_IDS : school === "dart" && flags.dart !== "off" ? DART_IDS : [];
   if (!ids.length) return;
