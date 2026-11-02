@@ -58,7 +58,7 @@ describe("江湖 v3：选择开下一拍，不预排赌馆", () => {
     expect(beat).not.toBe("market");
   });
 
-  it("选项 openWager 才进赌馆，注额上限当前彩金 80%", () => {
+  it("选项 openWager 才进赌馆，注额平时 30%，座前 80%", () => {
     let run = {
       ...createGauntletRun("bandit", "palm", "usurper", { rng: () => 0 }),
       openingId: "zhounuanxiang" as const,
@@ -74,8 +74,9 @@ describe("江湖 v3：选择开下一拍，不预排赌馆", () => {
     expect(run.pendingOpenWager).toBe(true);
     expect(run.gambleCount).toBe(1);
     expect(shouldSkipWager(2, run)).toBe(false);
-    expect(wagerStakeMax(100, 2)).toBe(80);
-    expect(wagerStakeMax(20, 1)).toBe(16);
+    expect(wagerStakeMax(100, 2)).toBe(30);
+    expect(wagerStakeMax(20, 1)).toBe(6);
+    expect(wagerStakeMax(100, 10)).toBe(80);
     setLabRuleset("break");
     expect(wagerStakeMax(100, 1)).toBe(30);
   });

@@ -34,7 +34,7 @@ describe("营地停留 / 黑市刷新 / 立绘", () => {
   it("黑市与免费奖励都是局内卡牌样式；馆 10 购满上限放开", () => {
     expect(marketBuyCap(2)).toBe(4);
     expect(marketBuyCap(10)).toBe(99);
-    expect(marketRefreshCost({ pot: 100, stage: 2 })).toBeGreaterThanOrEqual(6);
+    expect(marketRefreshCost({ pot: 100, stage: 2 })).toBe(4);
     expect(marketGradientMul(4)).toBeGreaterThan(marketGradientMul(3));
     expect(marketGradientMul(8)).toBeGreaterThan(marketGradientMul(7));
     expect(wagerStakeCap(4)).toBe(120);

@@ -5,6 +5,8 @@ import { gauntletFieldMate, gauntletPorts } from "./gauntletPorts";
 import { breakRewardCardPool, forgeGradeOk, pickWeightedRewardCard, techPool, allOwnedTechs } from "./rewardRules";
 import { grantTechToRun } from "./lifelineRules";
 import { ladderEntry, ladderEntryForRun } from "./ladderRules";
+import { CARD_REGISTRY } from "../content/cards";
+import { CLIMB_MARKET_ADEPT, CLIMB_MARKET_COMMON, CLIMB_MARKET_SUPREME } from "../climbCaps";
 import { basePot } from "./wagerRules";
 
 export function marketStallOf(o: Pick<GauntletMarketOffer, "kind" | "stall">): GauntletShopStall {
@@ -47,7 +49,15 @@ const MARKET_B_MUL: Record<GauntletMarketKind, number> = {
   forge: 1.8,
 };
 
-/** 货架价只跟馆序/底彩/档位，不跟当前彩金池。最便宜 ≈ 0.9B。 */
+/** 黑市牌价按凡 / 精 / 绝。连携没有三档，按凡。 */
+export function shelfCardPrice(id: CardId): number {
+  const rarity = CARD_REGISTRY[id]?.rarity;
+  if (rarity === "supreme") return CLIMB_MARKET_SUPREME;
+  if (rarity === "adept") return CLIMB_MARKET_ADEPT;
+  return CLIMB_MARKET_COMMON;
+}
+
+/** 货架价只跟馆序/底彩/档位，不跟当前彩金池。最便宜 ≈ 0.9B。牌走凡精绝。 */
 export function marketPrice(kind: GauntletMarketKind, stage: number, tier: GauntletTier, _pot?: number): number {
   const B = basePot(stage);
   const jump = kind === "heal" || kind === "item" ? 1 : marketGradientMul(stage);
@@ -105,7 +115,7 @@ export function marketOffers(run: GauntletRun, rng: () => number): GauntletMarke
       pushOffer(out, {
         id: `card:${id}`,
         kind: "card",
-        price: priceOf("card"),
+        price: shelfCardPrice(id),
         title: `谱 · ${def?.name ?? id}`,
         tip: `${body}（买入进牌组）`,
         stall: "pawn",

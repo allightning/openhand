@@ -1,4 +1,5 @@
 import { catalogCell } from "./board";
+export { FOE_FAMILY_ARCHETYPE } from "./foeArchetype";
 import { BOARD_SIZE, type EnemyDef, type EnemyId, type Intent, type WeaponId } from "./types";
 import { GAUNTLET_FOE_IDENTITY, kitCatalogPattern, schoolForGeneratedEnemy } from "./enemyKit";
 
@@ -317,19 +318,35 @@ function build(): Record<string, EnemyDef> {
       skill: stamp.title,
     };
   }
+  cloneSeat(out, "mob_monk_seat", "mob_monk_05", "方丈", "方丈座前");
+  cloneSeat(out, "mob_escortBand_seat", "mob_escortBand_02", "寨主", "寨主堂");
+  cloneSeat(out, "mob_court_seat", "mob_court_07", "殿前", "殿前");
   applyExchangeCurve(out);
   return out;
+}
+
+function cloneSeat(out: Record<string, EnemyDef>, id: string, from: string, name: string, title: string): void {
+  const base = out[from];
+  if (!base) return;
+  out[id] = {
+    ...base,
+    id: id as EnemyId,
+    name,
+    title,
+    pattern: base.pattern.map((p) => ({ ...p })),
+    pitch: `${base.pitch} 座上单独一位。`,
+  };
 }
 
 /** EXCHANGE_V2 §6。有效 HP = catalog × round(馆 hpMul×1.48)/100。双主 ID 跟座前。 */
 const CURVE_MAIN: Record<string, number> = {
   mob_monk_01: 1, mob_monk_02: 2, mob_monk_03: 3, mob_monk_04: 4, mob_monk_05: 5,
-  mob_monk_06: 6, mob_monk_08: 7, mob_monk_10: 8, mob_monk_12: 9,
+  mob_monk_06: 6, mob_monk_08: 7, mob_monk_10: 8, mob_monk_12: 9, mob_monk_seat: 10,
   mob_road_01: 1, mob_road_02: 2, mob_road_05: 3, mob_road_06: 4,
   mob_escortBand_01: 5, mob_escortBand_02: 6, mob_escortBand_03: 7,
-  mob_escortBand_04: 8, mob_escortBand_05: 9,
+  mob_escortBand_04: 8, mob_escortBand_05: 9, mob_escortBand_seat: 10,
   mob_yamenRunner_01: 1, mob_yamenRunner_02: 2, mob_yamenRunner_03: 3, mob_yamenRunner_04: 4,
-  mob_court_02: 5, mob_court_03: 6, mob_court_04: 7, mob_court_06: 8, mob_court_07: 9,
+  mob_court_02: 5, mob_court_03: 6, mob_court_04: 7, mob_court_06: 8, mob_court_07: 9, mob_court_seat: 10,
 };
 const CURVE_EXTRA: Record<string, number> = {
   mob_monk_07: 8, mob_monk_09: 10, mob_monk_11: 8, mob_monk_13: 9, mob_monk_15: 9,

@@ -64,7 +64,7 @@ const SHAOLIN_LADDER: GauntletLadderEntry[] = [
   stage(7, "extreme", "第7程·期中·罗汉", "mob_monk_08", 3.65, 4, 2.4, { forceGrudge: true, stressCap: 5, extraEnemyIds: ["mob_monk_13"] }),
   stage(8, "hard", "第8程·棍阵三僧", "mob_monk_10", 3.4, 3, 2.2, { extraEnemyIds: ["mob_monk_11", "mob_monk_07"] }),
   stage(9, "hard", "第9程·伏魔三杖", "mob_monk_12", 3.7, 4, 2.4, { extraEnemyIds: ["mob_monk_13", "mob_monk_15"] }),
-  stage(10, "extreme", "第10程·期末·方丈座前", "mob_monk_05", 4.2, 5, 2.6, {
+  stage(10, "extreme", "第10程·期末·方丈座前", "mob_monk_seat", 4.2, 5, 2.6, {
     forceGrudge: true,
     stressCap: 6,
     extraEnemyIds: ["mob_monk_06", "mob_monk_08", "mob_monk_09"],
@@ -82,7 +82,7 @@ const BANDIT_LADDER: GauntletLadderEntry[] = [
   stage(7, "extreme", "第7程·期中·寨口", "mob_escortBand_03", 3.65, 4, 2.4, { forceGrudge: true, stressCap: 5, extraEnemyIds: ["mob_road_10"] }),
   stage(8, "hard", "第8程·岸匪三刀", "mob_escortBand_04", 3.4, 3, 2.2, { extraEnemyIds: ["mob_road_09", "mob_canal_02"] }),
   stage(9, "hard", "第9程·水匪哨", "mob_escortBand_05", 3.7, 4, 2.4, { extraEnemyIds: ["mob_canal_01", "mob_canal_05"] }),
-  stage(10, "extreme", "第10程·期末·寨主堂", "mob_escortBand_02", 4.2, 5, 2.6, {
+  stage(10, "extreme", "第10程·期末·寨主堂", "mob_escortBand_seat", 4.2, 5, 2.6, {
     forceGrudge: true,
     stressCap: 6,
     extraEnemyIds: ["mob_canal_03", "mob_canal_04", "mob_canal_02"],
@@ -100,7 +100,7 @@ const COURT_LADDER: GauntletLadderEntry[] = [
   stage(7, "extreme", "第7程·期中·锦衣", "mob_court_04", 3.65, 4, 2.4, { forceGrudge: true, stressCap: 5, extraEnemyIds: ["mob_court_11"] }),
   stage(8, "hard", "第8程·门下暗", "mob_court_06", 3.4, 3, 2.2, { extraEnemyIds: ["mob_yamenRunner_05", "mob_court_09"] }),
   stage(9, "hard", "第9程·案卷刺客", "mob_court_07", 3.7, 4, 2.4, { extraEnemyIds: ["mob_court_08", "mob_court_11"] }),
-  stage(10, "extreme", "第10程·期末·殿前", "mob_court_07", 4.2, 5, 2.6, {
+  stage(10, "extreme", "第10程·期末·殿前", "mob_court_seat", 4.2, 5, 2.6, {
     forceGrudge: true,
     stressCap: 6,
     extraEnemyIds: ["mob_court_08", "mob_court_11", "mob_yamenRunner_07"],

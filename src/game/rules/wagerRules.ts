@@ -1,4 +1,5 @@
 import { CLIMB_GUARD_WAGER, WEAPON_NAME, isBreakAlign, getGauntletFinalStage } from "./gauntletKit";
+import { CLIMB_WAGER_BAND_MAX, CLIMB_WAGER_CLIMAX, climbHallPot } from "../climbCaps";
 import { runCompanions } from "./ladderRules";
 import { GauntletRun, WagerKind, WagerOffer, WagerStats, GAUNTLET_START_POT } from "./gauntletModel";
 import type { Battle, WeaponId } from "../types";
@@ -17,7 +18,7 @@ export function isGauntletEndless(run?: Pick<GauntletRun, "endless"> | null): bo
 }
 
 export function basePot(stage: number): number {
-  return 10 + 6 * stage;
+  return climbHallPot(stage);
 }
 
 export function applyBankerBoost(run: GauntletRun, mult: 2 | 3): GauntletRun {
@@ -36,7 +37,8 @@ export function wagerStakeCap(stage: number): number {
 
 export function wagerStakeMax(pot: number, stage = 1): number {
   if (!isBreakAlign()) {
-    const cap = Math.floor(pot * 0.8);
+    const rate = stage >= 10 ? CLIMB_WAGER_CLIMAX : CLIMB_WAGER_BAND_MAX;
+    const cap = Math.floor(pot * rate);
     return Math.max(1, Math.min(pot, cap || 1));
   }
   return Math.max(1, Math.min(pot, wagerStakeCap(stage)));

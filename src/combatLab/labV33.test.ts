@@ -408,8 +408,9 @@ describe("§31.13/§31.14 赌馆 · 彩金与下注", () => {
   });
 
   it("过馆底彩随馆序涨", () => {
-    expect(basePot(1)).toBe(16);
-    expect(basePot(7)).toBe(52);
+    expect(basePot(1)).toBe(8);
+    expect(basePot(7)).toBe(18);
+    expect(basePot(10)).toBe(40);
   });
 
   it("盘口轮换：馆 1 不开连拆/破眼，每场开三", () => {
