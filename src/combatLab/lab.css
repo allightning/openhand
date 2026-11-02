@@ -5146,6 +5146,205 @@ html.lab-fullscreen #app.lab-root,
   justify-self: end;
 }
 
+/* 表现壳二班：聚合条、圆窗、环境、档位。圆窗绝对定位，不撑阶段条。 */
+.lab-prod-combat .stage-core {
+  position: relative;
+}
+
+.lab-prod-combat .lab-stance-agg,
+.lab-prod-combat .lab-reveal-row,
+.lab-prod-combat .lab-react-actions,
+.lab-prod-combat .lab-react-secs,
+.lab-prod-combat .lab-intent-marks,
+.lab-prod-combat .lab-mech-hud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hud-action-gap);
+  position: static;
+}
+
+.lab-prod-combat .stage-core .lab-intent-band .lab-stance-agg .lab-intent-seg {
+  flex: 0 0 var(--hud-intent-w);
+  width: var(--hud-intent-w);
+  min-width: var(--hud-intent-w);
+  min-height: 2.4rem;
+  margin: 0;
+  position: static;
+}
+
+.lab-prod-combat .lab-stance-chip.is-zero {
+  opacity: 0.45;
+}
+
+.lab-prod-combat .lab-stance-ico {
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  margin-right: 0.2rem;
+  background: #1a1410;
+}
+
+.lab-prod-combat .lab-stance-ico[data-ico="hurt"] { background: #9c2f1b; border-radius: 1px; }
+.lab-prod-combat .lab-stance-ico[data-ico="press"] { clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+.lab-prod-combat .lab-stance-ico[data-ico="back"] { clip-path: polygon(0 0, 100% 0, 50% 100%); }
+.lab-prod-combat .lab-stance-ico[data-ico="hold"] { border-radius: 50%; background: #5a4030; }
+.lab-prod-combat .lab-stance-ico[data-ico="wind"] { border-radius: 50%; background: #c45a28; }
+.lab-prod-combat .lab-stance-ico[data-ico="sly"] { background: transparent; box-shadow: inset 0 0 0 2px #1a1410; }
+
+.lab-prod-combat .lab-stance-chip.is-live[data-stance="wind"] .lab-stance-ico {
+  animation: lab-gather 1.2s ease-in-out infinite;
+}
+
+.lab-prod-combat .lab-stance-unknown,
+.lab-prod-combat .lab-reveal-seg {
+  font-variant-numeric: tabular-nums;
+}
+
+.lab-prod-combat .lab-reveal-row.is-feint-flip .is-feint-flip {
+  animation: lab-feint-flip 0.35s linear 1;
+}
+
+.lab-prod-combat .lab-read-name {
+  color: #9c2f1b;
+  margin-right: 0.4rem;
+}
+
+.lab-prod-combat .strip {
+  position: relative;
+}
+
+.lab-prod-combat .lab-react-round {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 4;
+  width: 11rem;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--hud-action-gap);
+  padding: 0.6rem;
+  background: #f4ead6;
+  color: #1a1410;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px #1a1410;
+}
+
+.lab-prod-combat .lab-react-ring {
+  width: 7.5rem;
+  height: 7.5rem;
+}
+
+.lab-prod-combat .lab-react-track,
+.lab-prod-combat .lab-react-arc {
+  fill: none;
+  stroke-width: 6;
+}
+
+.lab-prod-combat .lab-react-track { stroke: #e8dcc4; }
+.lab-prod-combat .lab-react-arc {
+  stroke: #9c2f1b;
+  stroke-dashoffset: 0;
+  transform: rotate(-90deg);
+  transform-origin: 60px 60px;
+  animation: lab-react-drain var(--react-sec, 5s) linear forwards;
+}
+
+.lab-prod-combat .lab-react-actions button,
+.lab-prod-combat .lab-react-secs button {
+  position: static;
+  flex: 0 0 auto;
+  min-width: var(--hud-action-btn-w);
+}
+
+.lab-prod-combat.is-react-hold .fig,
+.lab-prod-combat.is-react-hold .strip {
+  animation-play-state: paused;
+}
+
+.lab-prod-combat .fig.foe.lab-react-halt {
+  animation: none;
+}
+
+.lab-prod-combat .strip.lab-board-shake {
+  animation: lab-board-shake 0.28s linear 1;
+}
+
+.lab-prod-combat .strip.env-nowall {
+  box-shadow: inset 0 0 0 2px #5a4030;
+}
+
+.lab-prod-combat .cell.env-gap-end {
+  background: repeating-linear-gradient(90deg, transparent, transparent 6px, #5a4030 6px, #5a4030 7px);
+}
+
+.lab-prod-combat .cell.env-gap-mid {
+  background: repeating-linear-gradient(transparent, transparent 6px, #5a4030 6px, #5a4030 7px);
+}
+
+.lab-prod-combat .strip.env-burn.env-burn-due .cell.env-burn-stand::after {
+  animation: lab-burn-tick 0.45s linear 1;
+}
+
+.lab-prod-combat .lab-charge-bar {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hud-action-gap);
+  flex: 1 1 100%;
+  min-height: 1.1rem;
+  background: #e8dcc4;
+  color: #1a1410;
+}
+
+.lab-prod-combat .lab-charge-bar i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: #c45a28;
+}
+
+.lab-prod-combat .lab-charge-bar b,
+.lab-prod-combat .lab-charge-bar em {
+  position: static;
+  z-index: 1;
+}
+
+.lab-prod-combat .lab-pin-chip,
+.lab-prod-combat .lab-dart-form,
+.lab-prod-combat .lab-intent-marks span {
+  flex: 0 0 auto;
+  position: static;
+}
+
+.lab-prod-combat .lab-intent-marks span.is-met {
+  background: #1a1410;
+  color: #f4ead6;
+}
+
+@keyframes lab-gather {
+  50% { transform: scale(1.35); }
+}
+
+@keyframes lab-feint-flip {
+  50% { transform: rotateX(90deg); }
+}
+
+@keyframes lab-react-drain {
+  to { stroke-dashoffset: 327; }
+}
+
+@keyframes lab-board-shake {
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+@keyframes lab-burn-tick {
+  50% { transform: scale(1.8); background: #9c2f1b; }
+}
+
 /* shell2 — 门厅 / 配装 / 图鉴 / 事页 / 死亡 / 设置。不进战斗板。 */
 .lab-root {
   --shell-gap: 8px;
@@ -5480,4 +5679,21 @@ html.lab-fullscreen #app.lab-root,
 .lab-root .shell-settings .lab-slider-row input[type="range"] {
   accent-color: var(--shell-cinnabar);
   width: 100%;
+}
+
+.lab-root .shell-loadout .lab-intent-marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--shell-gap);
+  position: static;
+  margin: 0 0 var(--shell-gap);
+}
+
+.lab-root .shell-loadout .lab-intent-marks span {
+  flex: 0 0 auto;
+  min-width: 2.4rem;
+  text-align: center;
+  border: 1px dashed var(--shell-ink);
+  color: var(--shell-ink);
+  background: transparent;
 }

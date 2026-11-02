@@ -5,6 +5,7 @@ import type { CompanionId } from "../../game/types";
 import { gauntletFieldMate, type GauntletRun } from "../gauntlet";
 import { renderGauntletLoadout, type LoadoutPage, type LoadoutPick } from "../gauntletUi";
 import { mateDeck } from "../loadout";
+import { renderCardIntentMarks } from "./guashowHud";
 import { escapeHtml } from "../setupUi";
 
 export interface PoolCard {
@@ -125,6 +126,7 @@ export function renderShellLoadout(inner: string, pool: string, summary: string)
   return `<div class="shell-loadout" data-shell="loadout">
     <p class="shell-kicker">配装</p>
     <p class="shell-loadout-summary">${escapeHtml(summary)}</p>
+    ${renderCardIntentMarks(undefined)}
     ${marked}
     ${pool}
   </div>`;

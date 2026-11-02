@@ -142,6 +142,45 @@ describe("按钮不重叠", () => {
     expect(intents.length).toBeGreaterThan(0);
     assertClear(flowBoxes(intents.map((_, i) => `seg-${i}`), cssVar("--hud-intent-w"), 40, 640, gap));
     expect(CSS).toMatch(/\.lab-intent-row\s*\{[^}]*flex-wrap:\s*wrap/);
+    expect(CSS).toMatch(/\.lab-stance-agg,\s*\n\.lab-prod-combat \.lab-reveal-row[\s\S]*?flex-wrap:\s*wrap/);
+  });
+
+  it("聚合条六类和圆窗按钮各自换行，圆窗不撑阶段条", () => {
+    setLabRuleset("climb");
+    setLabMode(true);
+    const b = startLabBattle(buildGauntletPreset(createGauntletRun("bandit", "saber")), true, 1);
+    b.holdReaction = true;
+    b.reactionWindow = { kind: "spearReverse", cost: 2, leftover: 1, dir: -1, intentKind: "advance" };
+    const html = renderProdBattle({
+      b,
+      prev: null,
+      hoverUid: null,
+      hoverIntentIdx: null,
+      weaponId: "saber-a-3",
+      canPlay: () => ({ ok: true }),
+      actionRowHtml: `<button class="fy-btn" id="btn-end">收势</button>`,
+      entranceNote: "",
+      freshNote: "",
+      fxClass: "",
+      pauseOverlay: "",
+      toolbarExtra: "",
+      weaponSheetHtml: "",
+      gauntletStage: 1,
+    });
+    const chips = [...elementByAttr(html, 'data-overlap-group="stance-agg"').matchAll(/class="[^"]*lab-stance-chip/g)];
+    expect(chips).toHaveLength(6);
+    const gap = cssVar("--hud-action-gap");
+    assertClear(flowBoxes(chips.map((_, i) => `stance-${i}`), cssVar("--hud-intent-w"), 40, 640, gap));
+    const react = buttonNames(elementByAttr(html, 'data-overlap-group="react-round"'));
+    expect(react).toEqual(["react-take", "react-drop", "react-sec-3", "react-sec-5", "react-sec-10"]);
+    assertClear(flowBoxes(react, cssVar("--hud-action-btn-w"), 36, 176, gap));
+    const actions = buttonNames(elementByAttr(html, 'data-overlap-group="actions"'));
+    expect(actions).toEqual(["btn-end"]);
+    expect(actions.some((name) => react.includes(name))).toBe(false);
+    expect(CSS).toMatch(/\.lab-prod-combat \.lab-react-actions button,\s*\.lab-prod-combat \.lab-react-secs button\s*\{[^}]*position:\s*static/);
+    expect(CSS).toMatch(/\.lab-prod-combat \.lab-react-round\s*\{[^}]*position:\s*absolute/);
+    expect(CSS).toMatch(/\.lab-phase-slot\s*\{[^}]*height:\s*1\.7rem/);
+    expect(html).toContain('data-phase="idle"');
   });
 
   it("动作钮不许用绝对定位叠在同一点", () => {

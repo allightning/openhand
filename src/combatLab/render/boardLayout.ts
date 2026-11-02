@@ -22,10 +22,19 @@ export type BoardLayout = {
   wallEnds: WallEnds;
   wallSide: "low" | "high";
   env: BoardEnv;
+  /** tag = 局上 envTag；board = 旧画面键 boardEnv；none = 都没有。 */
+  envSource: "tag" | "board" | "none";
   /** 文案键。正文留给遭遇窗，这里只留键。 */
   envKey: string;
   fieldsMissing: boolean;
   gapCells: number[];
+};
+
+const TAG_ENV: Record<string, BoardEnv> = {
+  burn: "burn",
+  nowall: "nowall",
+  gap_end: "gap-end",
+  gap_mid: "gap-mid",
 };
 
 export function boardLayout(b: Battle, mode: "climb" | "break"): BoardLayout {
@@ -41,19 +50,24 @@ export function boardLayout(b: Battle, mode: "climb" | "break"): BoardLayout {
     wallEnds = "high";
   }
   const wallSide = extra.wallSide === "low" ? "low" : "high";
+  const tagged = b.envTag ? TAG_ENV[b.envTag] : undefined;
   const rawEnv = extra.boardEnv ?? "";
-  const env: BoardEnv = ENVS.has(rawEnv as BoardEnv) ? (rawEnv as BoardEnv) : "";
-  const gapCells: number[] = [];
-  if (env === "gap-end" && size > 1) gapCells.push(size - 1);
-  if (env === "gap-mid" && size > 2) gapCells.push(Math.floor(size / 2));
+  const boarded = ENVS.has(rawEnv as BoardEnv) ? (rawEnv as BoardEnv) : "";
+  const env: BoardEnv = tagged || boarded || "";
+  const envSource = tagged ? "tag" : boarded ? "board" : "none";
+  const derived: number[] = [];
+  if (env === "gap-end" && size > 1) derived.push(size - 1);
+  if (env === "gap-mid" && size > 2) derived.push(Math.floor(size / 2));
+  const fromField = (b.gapCells ?? []).filter((n) => Number.isInteger(n) && n >= 0 && n < size);
   return {
     size,
     wallEnds,
     wallSide,
     env,
+    envSource,
     envKey: env ? `env.${env}` : "",
     fieldsMissing,
-    gapCells,
+    gapCells: fromField.length ? fromField : derived,
   };
 }
 

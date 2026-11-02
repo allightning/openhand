@@ -25,8 +25,9 @@ import { gearById, starterGear } from "../game/weapons";
 import { escapeHtml } from "./setupUi";
 import { techniqueTip } from "./breakAlign";
 import { isHighStake, stakeHitsAt } from "../game/stake";
-import { renderFxLayer, renderGrudgeBadge, renderFoeIntentStrip, threatCellsForHover } from "./labV2Ui";
+import { renderFxLayer, renderGrudgeBadge, threatCellsForHover } from "./labV2Ui";
 import { boardLayout, cellIsWall, outsideWallSide, type BoardLayout } from "./render/boardLayout";
+import { envBurnDue, reactView, renderMechHud, renderReadNames, renderRevealRow, renderStanceAgg } from "./render/guashowHud";
 
 function escapeAttr(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
@@ -147,6 +148,7 @@ export function renderProdBoard(
     youAnim?: string;
     foeAnim?: string;
     slashTick?: number;
+    foeHalt?: boolean;
   },
 ): string {
   const layout = boardLayout(b, boardMode());
@@ -181,7 +183,8 @@ export function renderProdBoard(
       !gap && b.stakes.includes(i) ? "staked" : "",
       !gap && b.traps.includes(i) ? "trapped" : "",
       pickable ? "summon-pick" : "",
-      gap ? "env-gap" : "",
+      gap ? `env-gap${layout.env.startsWith("gap") ? ` env-${layout.env}` : ""}` : "",
+      layout.env === "burn" && b.burnCells?.includes(i) ? "env-burn-stand" : "",
     ]
       .filter(Boolean)
       .join(" ");
@@ -209,7 +212,8 @@ export function renderProdBoard(
       const foe = livingFoes(b).find((f) => f.pos === i)!;
       const artId = (foe.id === "shadow" ? "twin" : foe.id === "twin" ? "twin" : b.enemyId) as EnemyId;
       const anim = boardFx?.foeAnim ? ` ${boardFx.foeAnim}` : "";
-      body += `<div class="fig foe${anim}" data-tip="${escapeAttr(`${foe.name} · 对手落脚`)}">${foeArt(artId, "board")}${slashOverlay(b, "foe", boardFx?.slashTick ?? 0)}<span>${foe.name}</span></div>`;
+      const halt = boardFx?.foeHalt ? " lab-react-halt" : "";
+      body += `<div class="fig foe${anim}${halt}" data-tip="${escapeAttr(`${foe.name} · 对手落脚`)}">${foeArt(artId, "board")}${slashOverlay(b, "foe", boardFx?.slashTick ?? 0)}<span>${foe.name}</span></div>`;
     } else if (ghostEnemy) {
       body += `<div class="fig ghost">${ghostInk()}<span>将被推到这</span></div>`;
     } else if (ghostYou) {
@@ -480,7 +484,8 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
   const foeTip = foeSideTip(b, foeHp, foeMax);
   const matePassive = MATE_PASSIVE[b.active];
   const passive = matePassive ? ` · ${matePassive.name}：${matePassive.text}` : "";
-  const intentHover = foeResolving && foePlaybackSegIdx != null && foePlaybackSegIdx >= 0 ? foePlaybackSegIdx : hoverIntentIdx;
+  const hideBefore = foeResolving && foePlaybackSegIdx != null && foePlaybackSegIdx >= 0 ? foePlaybackSegIdx : 0;
+  const react = reactView(b);
   // 大立绘只表明身份；受击/刀光/段演出挂石台格内小立绘
   const foeBoardAnim = youPlayAnim === "swing"
     ? "board-anim-hit"
@@ -496,6 +501,7 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
         : "";
   const layout = boardLayout(b, boardMode());
   const boardHtml = renderProdBoard(b, prev, threatHighlight, summonPickCells ?? [], {
+    foeHalt: react.landed,
     youAnim: youBoardAnim,
     foeAnim: foeBoardAnim,
     slashTick: youPlayAnim === "swing" ? 1 : foePlaybackSegIdx ?? 0,
@@ -503,12 +509,14 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
 
   const teachHtml = renderBreakTeachingBanner(teachStage, demoGuide?.teach);
   const coachText = labCoachText(b, prev, teachStage, demoGuide?.coach);
+  const readHtml = renderReadNames(b);
+  const readLive = readHtml.includes('data-read-source="field"');
   const hasTeach = Boolean(teachHtml);
 
   return `
     <div class="lab-battle-shell ${fxClass}${foeResolving ? " foe-resolving" : ""}">
       ${renderGrudgeBadge(b)}
-      <section class="combat fy-combat ink-combat lab-prod-combat${hasTeach ? " has-teach" : ""}${foeResolving ? " is-foe-turn" : ""}" style="background-image:url('${b.labSceneBg ?? combatBg("wharf")}')">
+      <section class="combat fy-combat ink-combat lab-prod-combat${hasTeach ? " has-teach" : ""}${foeResolving ? " is-foe-turn" : ""}${react.hold ? " is-react-hold" : ""}" style="background-image:url('${b.labSceneBg ?? combatBg("wharf")}')">
         ${foeResolving
           ? b.climbPhaseLabel
             ? `<div class="lab-foe-lock" aria-live="assertive"><b>${escapeHtml(b.climbPhaseLabel)}</b><span>这一息看条</span></div>`
@@ -554,10 +562,10 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
                   ? phaseBanner
                   : `<p class="lab-phase-banner is-idle" aria-hidden="true"></p>`
               }</div>
-              <div class="lab-intent-band" data-overlap-group="intents">${renderFoeIntentStrip(b, intentHover, foeResolving && foePlaybackSegIdx != null && foePlaybackSegIdx >= 0 ? foePlaybackSegIdx : 0, foeSegFate)}</div>
+              <div class="lab-intent-band" data-overlap-group="intents">${renderStanceAgg(b, hideBefore, foeSegFate)}${renderRevealRow(b, hideBefore, foeSegFate)}</div>
               ${teachHtml}
-              <div class="strip${layout.env ? ` env-${layout.env}` : ""}" id="strip" data-board="${layout.size}" data-env="${layout.env}" data-wall="${layout.wallEnds}" data-env-key="${layout.envKey}">${boardHtml}</div>
-              ${coachText ? `<div class="coach" id="coach">${escapeHtml(coachText)}</div>` : `<div class="coach coach-empty" id="coach" hidden></div>`}
+              <div class="strip${layout.env ? ` env-${layout.env}` : ""}${react.landed ? " lab-board-shake" : ""}${envBurnDue(b, Boolean(foeResolving)) && layout.env === "burn" ? " env-burn-due" : ""}" id="strip" data-board="${layout.size}" data-env="${layout.env}" data-env-source="${layout.envSource}" data-wall="${layout.wallEnds}" data-env-key="${layout.envKey}">${react.html}${boardHtml}</div>
+              ${coachText ? `<div class="coach" id="coach">${escapeHtml(coachText)}${readHtml}</div>` : `<div class="coach coach-empty" id="coach"${readLive ? "" : " hidden"}>${readHtml}</div>`}
             </div>
 
             <aside class="fighter foe-side">
@@ -595,6 +603,7 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
           <div class="lab-hand-row" data-overlap-group="hand-row">
             <div class="draw-col lab-pile-col">
               ${weaponPlate(gearId, "you")}
+              ${renderMechHud(b)}
               ${renderStatusCol(b, "you")}
             </div>
             <div class="hand-scroll"><div class="hand" id="hand">${hand}</div></div>
