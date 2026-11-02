@@ -116,9 +116,8 @@ describe("ROGUE_GRADIENT 起手/光环/轮番", () => {
     const same = rogueBondCards("saber", ["saber", "saber"]);
     expect(same).toContain("auraSaber");
     const cross = rogueBondCards("saber", ["saber", "palm"]);
-    expect(cross.some((id) => String(id).startsWith("fuse"))).toBe(true);
-    expect(cross).toHaveLength(1);
-    expect(cross).toContain("fusePalmSaber");
+    expect(cross.some((id) => String(id).startsWith("fuse"))).toBe(false);
+    expect(cross).toHaveLength(0);
   });
 
   it("换页表有本系架，没有进步→纵步", () => {

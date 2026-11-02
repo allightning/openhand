@@ -79,6 +79,18 @@ export const CLIMB_FOE_DISMANTLE_MUL = 0.5;
 /** 敌方缠手 / 读破：同系或同招连出次数。 */
 export const CLIMB_FOE_BIND_STREAK = 3;
 export const CLIMB_FOE_READ_STREAK = 3;
+
+/** 赌徒加注：正的回这么多劲；负的自伤这么多。 */
+export const CLIMB_GAMBLE_WIN = 4;
+export const CLIMB_GAMBLE_LOSS = 4;
+/** 出千后奖励升一档。 */
+export const CLIMB_GAMBLE_CHEAT = 6;
+/** 温补初识：收势全队回血。 */
+export const CLIMB_BOND_HEAL = 2;
+/** 医杀初识：两人首手各少的劲。 */
+export const CLIMB_BOND_GRUDGE_QI = 1;
+/** 刀社初识：裂创帽加层。 */
+export const CLIMB_BOND_BLEED_CAP = 1;
 /** 棍撞墙晕段。 */
 export const CLIMB_STAFF_WALL_STUN = 1;
 
@@ -95,7 +107,7 @@ export const CLIMB_MARKET_SUPREME = 40;
 /** 情报：底细 / 命门，占当前彩金。 */
 export const CLIMB_INTEL_DETAIL = 0.15;
 export const CLIMB_INTEL_CORE = 0.3;
-/** 毒：道具 / 心法 / 外功。货架还没有这三件。 */
+/** 毒：淬毒 / 毒经 / 毒功。道具表已登记，结算不读。 */
 export const CLIMB_POISON_ITEM = 6;
 export const CLIMB_POISON_MIND = 20;
 export const CLIMB_POISON_TECH = 36;

@@ -1,5 +1,7 @@
 import type { MindArtId } from "./mindArts";
 
+export type { RunContext } from "./runContext";
+
 /** 缺省板长：登门，以及没写 boardSize 的旧对局。 */
 export const BOARD_SIZE = 7;
 /** 行路板长。恒为奇数，有中格。 */
@@ -264,7 +266,10 @@ export type LabItemId =
   | "aidSword"
   | "aidSpear"
   | "aidStaff"
-  | "aidHook";
+  | "aidHook"
+  | "cuandu"
+  | "dujing"
+  | "dugong";
 
 /** §31.12 助战符召唤的客座好手（与同行完全分家）：实体一格、一回合、放一手本系绝活就走。 */
 export interface SummonState {
@@ -476,11 +481,15 @@ export interface CardDef {
   qiBurn?: number;
   foeQiBurn?: number;
   qiRegenSelf?: number;
+  /** 有这个字段才按条件进手。没有则和现在一样能抽。 */
+  drawWhen?: "moved" | "stood" | "hit" | "blocked";
 }
 
 export interface CardInst {
   uid: string;
   defId: CardId;
+  /** 缘分当场生成的牌。打完不进弃牌堆。 */
+  ephemeral?: boolean;
 }
 
 export type Intent =
@@ -587,6 +596,8 @@ export interface Battle {
   gapCells?: number[];
   /** 出招中途反应窗。无窗则敌段一次兑完。 */
   reactionWindow?: ReactionWindow;
+  /** 表现层：圆窗已接上，用来停一帧。结算不读。 */
+  reactionLanded?: boolean;
   /** 测试：有窗时暂停，不自动放弃。 */
   holdReaction?: boolean;
   /** 本场已打出的反应窗次数。 */
@@ -638,6 +649,17 @@ export interface Battle {
   foeSameCount?: number;
   foeSchoolId?: string;
   foeSchoolStreak?: number;
+  /** 职业。没写就没有职业效果。 */
+  professions?: Partial<Record<CompanionId, "staker" | "diviner" | "gambler">>;
+  profAdvanced?: boolean;
+  /** 相士开战风声：架势名。 */
+  rumor?: string;
+  divinerMarkLeft?: number;
+  /** 本回合虚招当真招。 */
+  feintOpen?: boolean;
+  wagerCheat?: boolean;
+  /** 缘分进阶。缺省初识。 */
+  bondStages?: Record<string, "acquaint" | "road" | "life">;
   envTag?: EnvTag;
   playerBlock: number;
   energy: number;
@@ -1063,6 +1085,10 @@ export interface Run {
   foeStage?: number;
   /** 配招盐。同大轮同敌同盐不变。 */
   foeSalt?: number;
+  /** 馆间换上的武器系。 */
+  mateSchools?: Partial<Record<CompanionId, WeaponId>>;
+  professions?: Partial<Record<CompanionId, "staker" | "diviner" | "gambler">>;
+  bondStages?: Record<string, "acquaint" | "road" | "life">;
   /** Boss-count watermark when last bounty was armed. */
   bountyAt?: number;
   /** Must finish bounty target before beaten.length exceeds this. */

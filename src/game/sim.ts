@@ -1,4 +1,4 @@
-import { ENEMY_WEAPON, STARTER, enemyEnergyMax, enemyPace, intentShortName, isSparEnemy } from "./content";
+import { CARDS, ENEMY_WEAPON, STARTER, enemyEnergyMax, enemyPace, intentShortName, isSparEnemy } from "./content";
 import { labCard, labEnemy } from "./labContent";
 import { sumMindArtBonuses, MIND_ARTS } from "./mindArts";
 import { MATE_PASSIVE, MATES, SCHOOL_REACH, WEAPON_NAME, WEAPON_PACE, cardSchool, deckFor, isLead } from "./party";
@@ -115,8 +115,13 @@ import {
   type WindowTick,
 } from "./reactionWindows";
 import { buildFoeKit, foeKitSeed, kitRng } from "./foeArchetype";
+import { acquaintHeal, bleedCapBonus, bleedStackBonus, fuseForSwap, grudgeQi } from "./affinityBonds";
+import { advanceProfession, cheatWager, fieldProfession, markEnemyOpen, openRumor, rollWager, seeThrough } from "./professions";
+import { pairFusionId } from "./rogueCards";
 
 export { techBonus, battleTechRank, techRankMul } from "./techRank";
+export { swapHallWeapon } from "./weaponKit";
+export { advanceProfession, cheatWager, markEnemyOpen, rollWager, seeThrough };
 
 const SPEAR_RULER_CAP = 6;
 
@@ -421,6 +426,10 @@ function climbHookDisarmOnPull(b: Battle, beforeDist: number, notes: string[], r
 /** 爬塔棍副：我裂桩 → 爆炸伤双方 + 晕 N。 */
 function climbSplitBlast(b: Battle, notes: string[], rc: RunContext): void {
   if (!isClimbQi(rc)) return;
+  if (fieldProfession(b) === "staker" && !b.profAdvanced) {
+    notes.push("桩还没开");
+    return;
+  }
   const dmg = CLIMB_STAKE_BLAST_DMG;
   const foe = targetFoe(b) ?? b.enemy;
   foe.hp -= dmg;
@@ -737,6 +746,11 @@ export function makeBattle(
     orderedDeal: ordered,
   };
   setupBattle(battle, rc);
+  if (run.professions) battle.professions = { ...run.professions };
+  if (run.bondStages) battle.bondStages = { ...run.bondStages };
+  openRumor(battle);
+  const grudge = grudgeQi(battle.party ?? []);
+  if (grudge) battle.energy = Math.max(0, battle.energy - grudge);
   if (run.foeRound != null) {
     const kit = buildFoeKit(
       {
@@ -955,6 +969,23 @@ function drawOne(b: Battle): boolean {
   }
   const drawn = b.drawPile.shift();
   if (!drawn) return false;
+  const when = CARDS[drawn.defId]?.drawWhen;
+  if (when === "moved" && !(b.movedFwd || b.movedBack)) {
+    b.drawPile.unshift(drawn);
+    return false;
+  }
+  if (when === "stood" && (b.movedFwd || b.movedBack)) {
+    b.drawPile.unshift(drawn);
+    return false;
+  }
+  if (when === "hit" && b.attacksThisTurn <= 0) {
+    b.drawPile.unshift(drawn);
+    return false;
+  }
+  if (when === "blocked" && b.playerBlock <= 0) {
+    b.drawPile.unshift(drawn);
+    return false;
+  }
   b.hand.push(drawn);
   return true;
 }
@@ -1657,7 +1688,9 @@ function hitEnemy(b: Battle, raw: number, verb: string, rc: RunContext, spendCha
       if (!b.foeSkipCc) notes.push(...pushEnemy(b, 1, rc));
     }
     if (school === "saber" && dist <= 1) {
-      b.bleed = Math.min(CLIMB_BLEED_CAP, (b.bleed ?? 0) + 1);
+      const cap = CLIMB_BLEED_CAP + bleedCapBonus(b.party ?? []);
+      const extra = bleedStackBonus(b.party ?? []);
+      b.bleed = Math.min(cap, (b.bleed ?? 0) + 1 + extra);
       b.stackedOnFoe = true;
       notes.push(`裂创 ${b.bleed}`);
     }
@@ -2930,7 +2963,7 @@ export function playCard(b: Battle, uid: string, rc: RunContext): Battle {
   const still = next.hand.findIndex((c) => c.uid === uid);
   if (still >= 0) {
     next.hand.splice(still, 1);
-    next.discardPile.push(inst);
+    if (!inst.ephemeral) next.discardPile.push(inst);
   }
   next.playedThisTurn.push(def.name);
   const hitFoe = notes.some((n) => /\d/.test(n) && (n.includes("掌") || n.includes("伤") || n.includes("刺") || n.includes("砍")));
@@ -4534,6 +4567,8 @@ export function canSwap(b: Battle, id: CompanionId, rc: RunContext): { ok: boole
 export function swapFighter(b: Battle, id: CompanionId, rc: RunContext): Battle {
   const gate = canSwap(b, id, rc);
   if (!gate.ok) return b;
+  const outId = b.active;
+  const outSchool = battleEquippedSchool(b, outId, rc);
   const next = cloneBattle(b);
   const bag = next.bench.find((m) => m.id === id);
   if (!bag) return b;
@@ -4568,6 +4603,13 @@ export function swapFighter(b: Battle, id: CompanionId, rc: RunContext): Battle 
     next.log.push(`${MATES[id].name}替上。先机 ${yourPace(next, rc)}。异谱 ${offSchool.length} 张落地，补了同等。`);
   } else {
     next.log.push(`${MATES[id].name}替上。先机 ${yourPace(next, rc)}。手里换了一套谱。`);
+  }
+  if (fuseForSwap(next.party ?? [], outId, id, next.bondStages)) {
+    const fid = pairFusionId(outSchool, battleEquippedSchool(next, id, rc));
+    if (fid) {
+      next.hand.unshift({ uid: uid(), defId: fid, ephemeral: true });
+      next.log.push("缘分连携入手");
+    }
   }
   return next;
 }
@@ -4690,6 +4732,7 @@ function climbAdvanceTurnClock(next: Battle, rc: RunContext): void {
   next.staffPierceUsed = false;
   next.swordStealUsed = false;
   next.displaceSealed = false;
+  next.feintOpen = false;
   if (next.foeBreakHurt) {
     if (next.foeBreakSeen) {
       next.foeBreakHurt = false;
@@ -4995,6 +5038,11 @@ export function endTurn(b: Battle, rc: RunContext, opts: EndTurnOpts = {}): Batt
   if (companionOn(next) && next.active === "pilgrim" && next.attacksThisTurn === 0) {
     const n = healYou(next, 3);
     if (n) next.log.push(`锡息 回 ${n}`);
+  }
+  const bondHeal = acquaintHeal(next.party ?? []);
+  if (bondHeal > 0) {
+    const n = healYou(next, bondHeal);
+    if (n) next.log.push(`缘分温补 回 ${n}`);
   }
   if (next.movedFwd && next.movedBack) {
     next.youSway = Math.max(next.youSway, 2);

@@ -96,6 +96,7 @@ export function isMidtermSuperFought(fought: number): boolean {
 
 export function cardPool(school: WeaponId, withCombo: boolean): CardId[] {
   return (Object.keys(CARDS) as CardId[]).filter((id) => {
+    if (String(id).startsWith("fuse")) return false;
     const cs = cardSchool(id);
     if (cs !== school && cs !== "any") return false;
     if (!withCombo && CARDS[id].tags?.includes("组合")) return false;

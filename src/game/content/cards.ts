@@ -21,6 +21,8 @@ export interface CardDef {
   rarity?: CardRarity;
   /** 连携所跟的武器系。换人结算不读。 */
   bondSchool?: WeaponId;
+  /** 缘分生成物，不进配装池和奖励池。 */
+  generated?: boolean;
 }
 
 /** 旧牌没有 steps 字段、但结算里就是位移。 */
@@ -134,6 +136,7 @@ export function projectCard(card: LegacyCard): CardDef {
     ...projected,
     ...(rarity ? { rarity } : {}),
     ...(bondSchool ? { bondSchool: bondSchool as WeaponId } : {}),
+    ...(card.id.startsWith("fuse") ? { generated: true } : {}),
   };
 }
 

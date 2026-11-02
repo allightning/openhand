@@ -79,6 +79,7 @@ export function publishStance(b: Battle): void {
 }
 
 export function segmentFeint(b: Battle): boolean {
+  if (b.feintOpen) return false;
   return b.stanceBoard?.[b.stanceCursor ?? 0]?.feint === true;
 }
 

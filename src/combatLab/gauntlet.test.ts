@@ -219,7 +219,7 @@ describe("§31 连胜踢馆", () => {
     setLabRuleset("break");
     let run = createGauntletRun("bandit", "saber");
     run = applyCompanion(run, "zhounuanxiang");
-    expect(run.mateDecks?.zhounuanxiang?.some((id) => String(id).startsWith("fuse"))).toBe(true);
+    expect(run.mateDecks?.zhounuanxiang?.some((id) => String(id).startsWith("fuse"))).toBe(false);
     run = applyCompanion(run, "lvchifeng");
     expect(run.mateDecks?.lvchifeng).toContain("auraSaber");
   });

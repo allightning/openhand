@@ -250,22 +250,11 @@ export function breakStarterDeck(school: WeaponId): CardId[] {
   return deck;
 }
 
-const FUSION_CAP = 4;
-
-/** 同系光环卡 1 张；每个异系同伴 1 张融合卡（每对系只一张）。融合牌最多 4。 */
+/** 同系光环卡 1 张。融合牌不进配装，改由缘分换人生成。 */
 export function rogueBondCards(leadSchool: WeaponId, partySchools: WeaponId[]): CardId[] {
-  const others = partySchools.filter((s) => s !== leadSchool);
   const same = partySchools.filter((s) => s === leadSchool).length;
-  const out: CardId[] = [];
-  if (same >= 2) out.push(auraCardId(leadSchool));
-  const seen = new Set<WeaponId>();
-  for (const s of others) {
-    if (seen.has(s)) continue;
-    seen.add(s);
-    if (out.filter((id) => String(id).startsWith("fuse")).length >= FUSION_CAP) break;
-    out.push(fusionCardId(leadSchool, s));
-  }
-  return out.slice(0, 1 + FUSION_CAP);
+  if (same >= 2) return [auraCardId(leadSchool)];
+  return [];
 }
 
 export function injectRogueBondCards(deck: CardId[], leadSchool: WeaponId, partySchools: WeaponId[]): CardId[] {

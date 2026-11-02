@@ -3,6 +3,7 @@
  * 一档 6 主角 / 二档 3 馆 / 三档 7 馆。单系，无双武器。
  * 引擎层数据；产品壳经 `combatLab/rogueRoster.ts` re-export。
  */
+import { WEAPON_SPECTRUM } from "./weaponKit";
 import type { CompanionId, WeaponId } from "./types";
 import type { MateRole } from "./labV25Constants";
 
@@ -21,6 +22,8 @@ export interface RogueMateDef {
   skillName: string;
   skillText: string;
   bio: string;
+  /** 本命加亲和。馆间才能换到这些系。 */
+  spectrum?: WeaponId[];
 }
 
 /** 一档开局主角：选系 = 选人。刀保留沈夜行。 */
@@ -291,6 +294,8 @@ export const ROGUE_ROSTER: RogueMateDef[] = [
     bio: "卸了兵，再喝血。",
   },
 ];
+
+for (const mate of ROGUE_ROSTER) mate.spectrum = WEAPON_SPECTRUM[mate.id] ?? [mate.weapon];
 
 export function rogueMate(id: CompanionId): RogueMateDef | undefined {
   return ROGUE_ROSTER.find((m) => m.id === id);
