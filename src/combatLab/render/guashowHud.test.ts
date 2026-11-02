@@ -175,6 +175,8 @@ describe("反应窗圆窗", () => {
     const html = page(b);
     expect(html).toContain("is-react-hold");
     expect(html).toContain("回马枪");
+    expect(html).toContain('data-react="take">回马<');
+    expect(html).toContain('data-react="drop">放过<');
     expect(html).toContain("耗蓝 2");
     expect(html).toContain('data-react-sec="5"');
     expect(html).toContain('data-react-sec-source="placeholder"');

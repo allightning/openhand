@@ -63,7 +63,8 @@ S.root.querySelector("#btn-end")?.addEventListener("click", () => {
     const campBreaksBefore = S.campaignRun ? (S.battle.v2BreakCount ?? 0) : 0;
     S.foePlaybackIntents = S.battle.intents.length ? S.battle.intents.map((x) => ({ ...x })) : [{ ...S.battle.intent }];
     const origin = { playerPos: S.battle.player.pos, enemyPos: S.battle.enemy.pos };
-    // 先兑完整队、暂不刷下一手；播报完再亮下回合全套意图
+    // 先兑完整队、暂不刷下一手；播报完再亮下回合全套意图。有窗就停在这一帧，等玩家点。
+    if (isClimbQi(shellRunContext())) S.battle.holdReaction = true;
     S.battle = endTurn(S.battle, shellRunContext(), { deferIntentRefresh: true, deferStatusTicks: !isBreakAlign() });
     if (!S.campaignRun && skipFoeRecap(S.battle)) {
       api.endBattle("win");
@@ -96,27 +97,33 @@ S.root.querySelector("#btn-end")?.addEventListener("click", () => {
           const origin = { playerPos: S.battle.player.pos, enemyPos: S.battle.enemy.pos };
           S.foePlaybackBusy = true;
           S.foePlaybackIntents = S.battle.intents.length ? S.battle.intents.map((x) => ({ ...x })) : [{ ...S.battle.intent }];
+          S.battle.holdReaction = true;
           seizeOpening(S.battle, shellRunContext());
-          const recap = [...(S.battle.v2LastIntentRecap ?? [])];
-          S.playbackSegFate = {};
-          S.playbackShow = recapDisplayStart(
-            S.battle.player.hp,
-            S.battle.playerBlock,
-            isClimbQi(shellRunContext()) ? recap : filterEmptyRecap(recap),
-            origin.playerPos,
-            origin.enemyPos,
-          );
-          api.render();
-          api.playFoeRecapThen(() => {
+          const playThisOpen = (): void => {
             if (!S.battle) return;
-            if (S.battle.player.hp <= 0) {
-              S.foePlaybackBusy = false;
-              api.endBattle("loss");
-              return;
-            }
-            S.battle = { ...S.battle, climbPhaseLabel: undefined, lastHitRead: "" };
-            unlockMidAfterFoeOpen();
-          }, origin);
+            const recap = [...(S.battle.v2LastIntentRecap ?? [])];
+            S.playbackSegFate = {};
+            S.playbackShow = recapDisplayStart(
+              S.battle.player.hp,
+              S.battle.playerBlock,
+              isClimbQi(shellRunContext()) ? recap : filterEmptyRecap(recap),
+              origin.playerPos,
+              origin.enemyPos,
+            );
+            api.render();
+            api.playFoeRecapThen(() => {
+              if (!S.battle) return;
+              if (S.battle.player.hp <= 0) {
+                S.foePlaybackBusy = false;
+                api.endBattle("loss");
+                return;
+              }
+              S.battle = { ...S.battle, climbPhaseLabel: undefined, lastHitRead: "" };
+              unlockMidAfterFoeOpen();
+            }, origin);
+          };
+          if (api.deferUntilReact(playThisOpen)) return;
+          playThisOpen();
           return;
         }
         unlockMidAfterFoeOpen();
@@ -209,6 +216,7 @@ S.root.querySelector("#btn-end")?.addEventListener("click", () => {
       S.battle = refreshFoeIntentsIfPending(S.battle, shellRunContext());
       unlockMid();
     };
+    const playResolved = (): void => {
     if (isClimbQi(shellRunContext()) && S.battle) {
       S.battle = { ...S.battle, climbPhaseLabel: "【结束】敌招", lastHitRead: "【结束】兑他整条意图" };
       const recap = [...(S.battle.v2LastIntentRecap ?? [])];
@@ -225,6 +233,9 @@ S.root.querySelector("#btn-end")?.addEventListener("click", () => {
       return;
     }
     api.playFoeRecapThen(afterPlayback, origin);
+    };
+    if (api.deferUntilReact(playResolved)) return;
+    playResolved();
   });
 }
 api.bindDomPart16 = bindDomPart16;

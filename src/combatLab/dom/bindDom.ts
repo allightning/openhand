@@ -19,5 +19,6 @@ function bindEvents(): void {
   api.bindDomPart15();
   api.bindDomPart16();
   api.bindDomPart17();
+  api.bindReact();
 }
 api.bindEvents = bindEvents;

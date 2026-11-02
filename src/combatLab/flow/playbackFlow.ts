@@ -130,8 +130,9 @@ function scheduleFoeFirstHold(): void {
     }
     S.foePlaybackIntents = S.battle.intents.length ? S.battle.intents.map((x) => ({ ...x })) : [{ ...S.battle.intent }];
     const origin = { playerPos: S.battle.player.pos, enemyPos: S.battle.enemy.pos };
+    if (climbOpen) S.battle.holdReaction = true;
     seizeOpening(S.battle, shellRunContext());
-    api.playFoeRecapThen(() => {
+    const playOpen = (): void => api.playFoeRecapThen(() => {
       if (!S.battle) return;
       if (S.battle.player.hp <= 0) {
         api.endBattle("loss");
@@ -142,6 +143,8 @@ function scheduleFoeFirstHold(): void {
       api.resetTurnTimer();
       api.render();
     }, origin);
+    if (S.battle?.reactionWindow && api.deferUntilReact(playOpen)) return;
+    playOpen();
   }, holdMs);
 }
 api.scheduleFoeFirstHold = scheduleFoeFirstHold;

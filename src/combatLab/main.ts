@@ -36,6 +36,7 @@ import "./dom/bindDomPart4";
 import "./dom/bindDomPart5";
 import "./dom/bindDomPart6";
 import "./dom/bindDom";
+import "./dom/bindReact";
 
 api.enterMode = (r?: string): void => {
   setLabRuleset(r);

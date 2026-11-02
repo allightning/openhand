@@ -25,6 +25,17 @@ const REACT_NAME: Record<string, string> = {
   staffPierce: "透棍",
 };
 
+/** 圆窗上的选择。枪的按钮写「回马」，圈内仍是全名。 */
+const REACT_CHOICE: Record<string, string> = {
+  spearReverse: "回马",
+  palmCut: "截拳",
+  dartBreath: "断息",
+  saberParry: "弹反",
+  swordSteal: "偷势",
+  hookLimp: "瘸跛",
+  staffPierce: "透棍",
+};
+
 /** 读懂键没有伤数字。动词跟结算播报的前半，不另编。 */
 const MOVE_NAME: Record<string, string> = {
   strike: "打击",
@@ -168,7 +179,7 @@ export function reactView(b: Battle): { html: string; hold: boolean; landed: boo
   const html = `<div class="lab-react-round" data-overlap-group="react-round" data-react-sec="${sec}" data-react-sec-source="${source}" role="dialog" aria-label="${escapeHtml(reactTitle(w))}">
     <svg class="lab-react-ring" viewBox="0 0 120 120" style="--react-sec:${sec}s" aria-hidden="true"><circle cx="60" cy="60" r="52" class="lab-react-track"/><circle cx="60" cy="60" r="52" class="lab-react-arc" stroke-dasharray="${RING}"/></svg>
     <p class="lab-react-name"><b>${escapeHtml(reactTitle(w))}</b><em>耗蓝 ${w.cost}</em></p>
-    <div class="lab-react-actions"><button type="button" class="fy-btn" id="react-take" data-react="take">接</button><button type="button" class="fy-btn" id="react-drop" data-react="drop">放</button></div>
+    <div class="lab-react-actions"><button type="button" class="fy-btn" id="react-take" data-react="take">${escapeHtml(REACT_CHOICE[w.kind] ?? reactTitle(w))}</button><button type="button" class="fy-btn" id="react-drop" data-react="drop">放过</button></div>
     <div class="lab-react-secs">${secs}</div>
   </div>`;
   return { html, hold: true, landed: false };
