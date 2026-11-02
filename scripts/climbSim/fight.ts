@@ -6,7 +6,7 @@ import { emitHand, emitOpen, notePlay, type FightWatch } from "./fightWatch";
 import { FLAGS_OFF } from "./flags";
 import { envTagForStage } from "./flags";
 import { canPlayAttack, canPlayMove, handIsEmpty } from "./hand";
-import { injectMechKit, injectThinKit } from "./kitInject";
+import { injectExtraCards, injectMechKit, injectThinKit } from "./kitInject";
 import { noteBoard } from "./pool";
 import type { ClimbKnobs } from "./knobs";
 import { mulberry32 } from "./rng";
@@ -114,6 +114,34 @@ function shedToCap(b: Battle, rc: RunContext): Battle {
 
 type Extra = ReturnType<typeof blankExtra>;
 
+type SwapCool = { turn: number; n: number; lock: string | null; left: number };
+
+function cooledSwap(
+  b: Battle,
+  rc: RunContext,
+  policy: Policy,
+  cool: SwapCool,
+  swaps: { n: number },
+): Battle {
+  if (!policy.swap) return b;
+  if (cool.turn !== b.turn) {
+    cool.turn = b.turn;
+    cool.n = 0;
+    if (cool.left > 0) cool.left -= 1;
+  }
+  if (cool.n >= 1) return b;
+  if (cool.left > 0 && cool.lock === b.active) return b;
+  const onto = policy.swap(b, rc);
+  if (!onto || onto === b.active) return b;
+  const stepped = swapFighter(b, onto, rc);
+  if (stepped.active !== onto) return b;
+  cool.n += 1;
+  cool.lock = onto;
+  cool.left = 2;
+  swaps.n += 1;
+  return stepped;
+}
+
 function playOut(
   b: Battle,
   rc: RunContext,
@@ -126,18 +154,12 @@ function playOut(
   extra: Extra,
   foeWin: { dismantle: number; bind: number; read: number },
   swaps: { n: number },
+  cool: SwapCool,
   watch?: FightWatch,
 ): Battle {
   let plays = 0;
   while (plays < PLAYS_PER_HAND && !over(b)) {
-    const onto = policy.swap?.(b, rc);
-    if (onto && onto !== b.active) {
-      const stepped = swapFighter(b, onto, rc);
-      if (stepped.active === onto) {
-        b = stepped;
-        swaps.n += 1;
-      }
-    }
+    b = cooledSwap(b, rc, policy, cool, swaps);
     const uid = policy.pick(b, rc, rng);
     if (!uid) break;
     const card = b.hand.find((c) => c.uid === uid);
@@ -239,6 +261,7 @@ function arm(opened: OpenedHall, knobs: ClimbKnobs, seed: number, policy: Policy
   const school = policy.school === "mix" ? "palm" : policy.school;
   injectMechKit(b, school, flags, seed);
   if (stamp?.thinIds?.length) injectThinKit(b, stamp.thinIds, seed);
+  if (stamp?.extraIds?.length) injectExtraCards(b, stamp.extraIds, seed);
   applyFoeWindowP(b, knobs.foeWindowP ?? 1, opened.stage, stamp?.foeRound != null);
   if (flags.react !== "off") b.holdReaction = true;
   if (stamp?.advance) advanceProfession(b);
@@ -265,6 +288,7 @@ export function fightSample(
   const extra = blankExtra();
   const foeWin = { dismantle: 0, bind: 0, read: 0 };
   const swaps = { n: 0 };
+  const cool: SwapCool = { turn: -1, n: 0, lock: null, left: 0 };
   const foeArmed = (b.foeWindows?.length ?? 0) > 0;
   let hands = 0;
   let emptyHands = 0;
@@ -280,7 +304,7 @@ export function fightSample(
     const hpAt = b.player.hp;
     const paceY = yourPace(b, opened.rc);
     const paceF = b.foePace;
-    b = playOut(b, opened.rc, policy, policyRng, book, hit, tally, seen, extra, foeWin, swaps, watch);
+    b = playOut(b, opened.rc, policy, policyRng, book, hit, tally, seen, extra, foeWin, swaps, cool, watch);
     extra.chargePeak = Math.max(extra.chargePeak, b.chargeStacks ?? 0);
     extra.pinPeak = Math.max(extra.pinPeak, b.foePin ?? 0);
     if (over(b)) {

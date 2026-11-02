@@ -27,6 +27,13 @@ export function injectThinKit(b: Battle, ids: CardId[], seed: number): void {
   b.hand = ids.slice(0, Math.min(5, ids.length)).map((id, i) => ({ uid: `n4thinh${seed}-${i}`, defId: id }));
 }
 
+/** 成长注入：在起手抽堆上加这几张，不换掉原配装。 */
+export function injectExtraCards(b: Battle, ids: CardId[], seed: number): void {
+  ids.forEach((id, i) => {
+    b.drawPile.push({ uid: `n6g${seed}-${i}`, defId: id });
+  });
+}
+
 export function injectMechKit(b: Battle, school: WeaponId, flags: SimFlags, seed: number): void {
   const ids = school === "staff" && flags.charge !== "off" ? STAFF_IDS : school === "dart" && flags.dart !== "off" ? DART_IDS : [];
   if (!ids.length) return;

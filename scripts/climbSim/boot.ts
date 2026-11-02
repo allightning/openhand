@@ -26,6 +26,7 @@ export type FightStamp = {
   foeStage?: number;
   foeSalt?: number;
   thinIds?: import("../../src/game/types").CardId[];
+  extraIds?: import("../../src/game/types").CardId[];
 };
 
 export type OpenedHall = {
