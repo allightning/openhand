@@ -606,6 +606,8 @@ export function rollStoryChoices(run: GauntletRun): EncounterChoice[] {
   if (!pending || pending === "opening" || pending === "travel" || pending === "rest") return [];
   if (pending === "stall" || pending === "market" || pending === "ambush") return [];
   if (pending === "choice") {
+    const s3 = currentStory3(run);
+    if (s3) return s3.choices;
     const s2 = currentStory2(run);
     if (s2) return s2.choices;
     const env = currentEnvPage(run);
@@ -621,6 +623,8 @@ export function rollStoryChoices(run: GauntletRun): EncounterChoice[] {
 
 export function storyEventLead(run: GauntletRun): string {
   if (run.storyPending === "choice") {
+    const s3 = currentStory3(run);
+    if (s3) return s3.lead;
     const s2 = currentStory2(run);
     if (s2) return s2.lead;
     const env = currentEnvPage(run);
@@ -668,6 +672,7 @@ function nextPendingAfterChoice(_run: GauntletRun, choice: EncounterChoice): Sto
   if (id === "story-lv-medicine" || id === "story-zhou-wrap" || id === "story-chen-rope" || id === "story-fu-heal") {
     return "followup";
   }
+  if (STORY3_META[id]?.next) return "choice";
   if (STORY2_META[id]?.next) return "choice";
   if (ENV_CHOICE_META[id]?.nextPage) return "choice";
   return "rest";
@@ -688,6 +693,7 @@ export function applyStoryChoice(run: GauntletRun, choice: EncounterChoice, rng:
   if ((run.storyPending === "choice" || run.storyPending === "followup") && who && !seen.includes(who)) seen.push(who);
   const envApplied = applyEnvChoice(flags, choice, next);
   const s2Applied = applyStory2Choice(envApplied.flags, choice, envApplied.next);
+  const s3Applied = applyStory3Choice(s2Applied.flags, choice, s2Applied.next);
   const dest = travelDest(choice);
   let storyPlace = next.storyPlace ?? run.storyPlace ?? personHome(run.openingId ?? "lvchifeng");
   if (dest === "elsewhere") {
@@ -697,8 +703,8 @@ export function applyStoryChoice(run: GauntletRun, choice: EncounterChoice, rng:
     storyPlace = dest;
   }
   return {
-    ...s2Applied.next,
-    storyFlags: s2Applied.flags,
+    ...s3Applied.next,
+    storyFlags: s3Applied.flags,
     storyPending: nextPendingAfterChoice(next, choice),
     skipCompanionPick: true,
     gambleCount,
@@ -780,6 +786,8 @@ export function storyBeatTitle(run: GauntletRun): string {
   if (run.storyPending === "stall") return "赌馆";
   if (run.storyPending === "market") return "黑市";
   if (run.storyPending === "ambush") return "剪径";
+  const s3 = currentStory3(run);
+  if (s3 && run.storyPending === "choice") return s3.title;
   const s2 = currentStory2(run);
   if (s2 && run.storyPending === "choice") return s2.title;
   const env = currentEnvPage(run);
@@ -1613,5 +1621,469 @@ export function offerStory2Page(run: GauntletRun, pageId: string): GauntletRun {
   if (!page) return run;
   const flags = (run.storyFlags ?? []).filter((f) => !f.startsWith("s2page:") && !f.startsWith("envpage:"));
   flags.push(`s2page:${page.id}`);
+  return { ...run, storyFlags: flags, storyPending: "choice", storyGuest: undefined };
+}
+
+export type Story3Pack = "intel" | "bond" | "group" | "grudge" | "job" | "open";
+
+export interface Story3Page {
+  id: string;
+  pack: Story3Pack;
+  title: string;
+  lead: string;
+  choices: EncounterChoice[];
+}
+
+export interface Story3Meta {
+  next?: string;
+}
+
+export const STORY3_META: Record<string, Story3Meta> = {
+  "s3-stake-stay": { next: "s3-stake-advance" },
+  "s3-read-stay": { next: "s3-read-advance" },
+  "s3-dice-stay": { next: "s3-dice-advance" },
+  "s3-shade-stay": { next: "s3-shade-advance" },
+};
+
+function s3choice(id: string, title: string, blurb: string, extra: Partial<EncounterChoice> = {}): EncounterChoice {
+  return { id, title, blurb, risk: extra.openWager || extra.openMarket ? "rich" : "safe", storyFlag: id, ...extra };
+}
+
+/** 买到或听到的那一句。伤、段、窗长都是占位。 */
+export const INTEL_SAMPLES: { id: string; kind: "feint" | "rage" | "coach"; text: string }[] = [
+  { id: "intel-feint-a", kind: "feint", text: "下一场那人先把肩沉成进的样子，手臂伸直时肩又抬成守。你看见的第一下会换，换过之后的伤仍是 ?。" },
+  { id: "intel-feint-b", kind: "feint", text: "他有一次把退步亮给你，脚停在原地，真正迈出的是进。这一场过后，这条记在他名下，下一次你再看见退，先等手臂。" },
+  { id: "intel-rage-a", kind: "rage", text: "他的血落到一条线以下，出手的段变密，密出来的段数是 X。线画在哪，条子上留白。" },
+  { id: "intel-rage-b", kind: "rage", text: "连续挨过 X 下之后，他的肩不再收回，下一记比前面重。重出来的那一截伤是 ?。" },
+  { id: "intel-coach-a", kind: "coach", text: "下一场那人袖里还有一记。你把同一招连用，他的手会从袖里插进来，插进来的那一下有多长是 ?。" },
+  { id: "intel-coach-b", kind: "coach", text: "茶客把这种人叫教头。他守着你的重复，重复到第 ? 次，他的插入会落到你的腕上。" },
+];
+
+/** 初识、同路、生死各一句，给闪句用。 */
+export const BOND_STAGE_LINES = {
+  meet: "两个人的靴印还隔着一肩，同一件事刚做完第一遍，挂上的那一点是基线。",
+  road: "肩并上了，同一件事做第二遍，幅度往上走，往上多少是 ?。",
+  life: "有一个人在这一场倒下过，活着的那个把换人之后的一刀递到你手里，这一刀随两人当时的兵器。",
+} as const;
+
+export const STORY3_PAGES: Story3Page[] = [
+  {
+    id: "s3-tea-bowl",
+    pack: "intel",
+    title: "碗沿上的半句",
+    lead: "州桥茶摊的碗还烫，掌柜用勺沿点着街对面那个人的肩。肩往下沉，他嘴里吐出半个字，字落在进上。邻桌两个人把耳朵侧过来，茶沫粘在唇上。你的碗扣着，扣着就听不见后半句。柜上压着一张条子，条子上写着下一馆的地名。掌柜看你的钱袋，看完把勺收回锅里。",
+    choices: [
+      s3choice("s3-tea-sit", "把碗翻开听完", "碗沿的热气扑到脸上，后半句补全，下一场偏进。**听全下一场的倾向，花 ? 彩金。**"),
+      s3choice("s3-tea-walk", "扣着碗起身", "你把碗留在桌上，半句停在进上。**不听。下一程照旧，伤 ?。**"),
+      s3choice("s3-tea-wrong", "坐到邻桌那一侧", "邻桌把你认成传话的人，茶沫溅到你袖上。**下一程多 X 人。**"),
+    ],
+  },
+  {
+    id: "s3-tea-wall",
+    pack: "intel",
+    title: "靠墙的位子",
+    lead: "茶馆靠墙的位子空着一张，墙上的灰被肩膀磨出一块浅印。坐在那里的人说话压得很低，低到你要侧过脸才听见守。守这个字他说了两遍，第二遍看了一眼门外。门外有人练推手，推完就停，停的样子和屋里说的对得上。你的茶已经凉了半碗，凉意停在唇上。掌柜不过来添水，他在等你决定坐不坐这张椅子。",
+    choices: [
+      s3choice("s3-tea-wall-sit", "坐上这张椅子", "浅印贴上你的肩，守这个字听完整。**听全下一场的倾向，花 ? 彩金。下一场偏守。**"),
+      s3choice("s3-tea-wall-out", "去门外看推手", "你走出门，推手的人已经散了，屋里的半句留在椅背上。**不听。下一程照旧，伤 ?。**"),
+    ],
+  },
+  {
+    id: "s3-tea-night",
+    pack: "intel",
+    title: "夜茶补后半句",
+    lead: "夜茶的灯比白天矮，掌柜把白天没说完的半句写在一张湿纸上。湿纸扣在壶底，壶壁还是温的。你要看，他先用两根手指按住纸角。纸角上的字是退，退字旁边还有一个没干的点。点干了才算一句完整的话，话才算听全。门外的夜风把灯吹得跳，跳的时候纸上的字一明一暗。你的手停在壶边，没有按下去。",
+    choices: [
+      s3choice("s3-tea-night-pay", "按他要的数看纸", "纸角松开，退字和旁边的点都看见了。**听全下一场的倾向，花 ? 彩金。下一场偏退。**"),
+      s3choice("s3-tea-night-leave", "让纸留在壶底", "你的手离开壶，湿纸仍扣着。**不听。下一程照旧，伤 ?。**"),
+    ],
+  },
+  {
+    id: "s3-slip-paper",
+    pack: "intel",
+    title: "折好的条子",
+    lead: "黑市帘内的摊上放着一张折好的条子，折缝压得很死。摊主用指节敲了敲折缝，敲完才说话。他说条子里是下一场那人会亮的招，招名先空着，空着的格子有多少先写成 ?。你看见格子，看不见里面的字。灯把折缝照出一条发白的边。摊主的另一边手按在你的钱袋上，按着，等你点头。帘外有人咳嗽，咳嗽完没有进来。",
+    choices: [
+      s3choice("s3-slip-buy", "让他把折缝打开", "折缝松开，格子里的字填上，填上多少先记成 ?。**底细买下，花费当前彩金的 ?。**", { openMarket: true }),
+      s3choice("s3-slip-walk", "手从钱袋上拿开", "你的钱袋离开他的手，条子仍折着。**不买，下一程照旧，伤 ?。**"),
+      s3choice("s3-slip-follow", "把条子抢到手里", "折缝在抢的时候裂开一角，摊主从帘内跟出来。**下一程多 X 人。底细没有买成。**"),
+    ],
+  },
+  {
+    id: "s3-slip-box",
+    pack: "intel",
+    title: "匣子里的招名",
+    lead: "第二摊把条子换成一口小匣，匣盖扣着，扣缝里露出纸边。纸边有墨，墨是刚刚磨开的。摊主说匣里是同一场的全份，份数仍是 ? 张。你把匣子抱起来，分量比一张纸重。帘内另一个人看着你的手，看着，不说话。灯跳了一下，扣缝里的墨更清楚。你的手还没有揭开这口匣盖。",
+    choices: [
+      s3choice("s3-slip-box-open", "揭开匣盖", "纸边展开，招名排成一列，列有多长是 ?。**底细在手，花费当前彩金的 ?。**"),
+      s3choice("s3-slip-box-back", "把匣子放回摊上", "匣盖仍扣着，墨留在缝里。**不买，下一程照旧，伤 ?。**"),
+    ],
+  },
+  {
+    id: "s3-slip-blood",
+    pack: "intel",
+    title: "用伤换的底",
+    lead: "这一摊不收钱袋，收你袖口上的血。摊主用布在你腕上按一下，按出的印子深浅他自己看。印子够了，他才把折好的条子递过来。条子上仍是下一场的招，招的数量是 ?。你的腕还在渗，渗出的那一点他用指头抹掉。帘内有一盆水，水已经红了边。他看着你的脸，等你把腕伸过去还是收回去。",
+    choices: [
+      s3choice("s3-slip-blood-give", "把腕伸过去", "布按实，条子到你手里，腕上的伤是 X。**底细换到。花费是伤 X。**"),
+      s3choice("s3-slip-blood-back", "把腕收回袖里", "印子没有按成，条子留在他掌心。**不换。下一程照旧，伤 ?。**"),
+    ],
+  },
+  {
+    id: "s3-fatal-price",
+    pack: "intel",
+    title: "高价的一句",
+    lead: "黑市最里面的桌点着一盏灯，灯下是一张不折的纸。纸上写着下一场的墙在哪一侧，写着那人袖里有没有插入的手，写着他怕不怕贴身。字都在，数字的那一格空着。摊主把价说得很慢，慢到你能听见自己的钱袋。这句比折缝里的条子贵，贵多少是当前彩金的 ?。你的手停在纸边，纸边有一圈油。油是别人的手指留在纸边上的。",
+    choices: [
+      s3choice("s3-fatal-pay", "按他说的价把纸拿走", "纸离桌，墙的一侧和袖里的手都在纸上。**命门买下，花费当前彩金的 ?。**"),
+      s3choice("s3-fatal-no", "让纸留在灯下", "你的手收回来，油圈还在。**不买，下一程照旧，伤 ?。**"),
+    ],
+  },
+  {
+    id: "s3-fatal-win",
+    pack: "intel",
+    title: "赢档之后的话",
+    lead: "赌馆这一档你赢了，筹码还堆在你腕边，庄家没有马上收盅。他把一张纸条压在筹码下面，压着，等你把筹码推开。纸条上是下一场的墙、袖里的插入、怕贴身的那一句。围着的人往后退了半步，退开是为了看你揭不揭。灯照着纸条的一角，一角已经能看见墙字。庄家的手指仍按着纸条中段。你还坐在赢下的这把位子上。",
+    choices: [
+      s3choice("s3-fatal-read", "把筹码拨开看纸条", "墙字露全，袖里的手和怕贴身的一句也露全。**命门在这一档赢来的话里。单注仍不超过当前彩金 80%。**"),
+      s3choice("s3-fatal-again", "筹码留着再押一档", "纸条仍压着，盅又扣上。**再进赌馆。单注最高当前彩金 80%，这一档的话先不拿。**", { openWager: true }),
+      s3choice("s3-fatal-pocket", "把筹码收进袋", "你收筹码，纸条被庄家抽回去。**命门不拿。袋里加上这一档的 ?。**"),
+    ],
+  },
+  {
+    id: "s3-bond-yeshuang",
+    pack: "bond",
+    title: "夜巷里的血纸",
+    lead: "沈夜行的短刀还对着墙缝，缝外站着厉霜行，他掌下按着一叠带血的纸。纸角的血和墙缝里的灰沾在一起。沈夜行先看缝，厉霜行先看血，两个人的眼睛没有交会。你站在两人中间，短刀的光擦过纸边。巷口的灯灭着，灭着的那一截刚好照不见他们的脸。纸上的字被血粘住，刀背还停在缝口。",
+    choices: [
+      s3choice("s3-bond-yeshuang-stay", "让刀背和血纸碰到一起", "刀背离开缝，纸角的血印上一条灰。**两人同行。下一程裂创相关的幅度是 ?。**"),
+      s3choice("s3-bond-yeshuang-split", "把纸从刀边拿开", "你把纸抽走，厉霜行跟着纸，沈夜行留在缝前。**下一程少一人。来的人多 X。**"),
+    ],
+  },
+  {
+    id: "s3-bond-wenbu",
+    pack: "bond",
+    title: "粥勺和药拳",
+    lead: "周暖香的粥还热，白孟和的拳停在同一个脚夫的肋上。她先看布挡不挡得住血，他先按骨，两双手叠在同一处伤上。粥的热气扑到药粉上，药粉结了一小块。脚夫的呼吸顶着两个人的手。你在棚外看见勺、拳、同一条布。对街的骰盅响了一下，两个人都没有抬头。布结最后是她绕的，他按住结。",
+    choices: [
+      s3choice("s3-bond-wenbu-stay", "让两双手都留在肋上", "布绕紧，拳还按着，粥勺搁回锅沿。**两人同行。收势时回的血是 ?。**"),
+      s3choice("s3-bond-wenbu-split", "把粥碗端开", "碗离开桌，周暖香跟着碗走，拳还留在肋上。**下一程少一人。伤 ?。**"),
+    ],
+  },
+  {
+    id: "s3-bond-menzhuang",
+    pack: "bond",
+    title: "先踏稳的闸",
+    lead: "章守山的木杠还横着，石万山先把脚踏进杠侧的泥里，踏稳了才看杠。两根棍，一根压杠，一根抵地。门外的队停住，停在两个人的脚都不再挪的时候。你站在队尾，看见两个新坑和匣沿上的钱。钟声从门里出来，两个人的肩都不跟着动。泥干在两双靴边的折纹里面。杠后那一小块地现在站着两个人。",
+    choices: [
+      s3choice("s3-bond-menzhuang-stay", "在两个坑之间站稳", "你的脚踏实，两根棍才同时抬起一寸。**两人同行。挡在地上的那一层厚 ?。**"),
+      s3choice("s3-bond-menzhuang-split", "从泥路绕开一个人", "你把石万山往泥路一侧引，杠后剩下章守山一个人。**下一程少一人。来的人多 X。**"),
+    ],
+  },
+  {
+    id: "s3-bond-siyin",
+    pack: "bond",
+    title: "线头和卸下的刀",
+    lead: "万俟晚的钩子扣着线头，线头从一口卸下的刀鞘底下伸出来。欧阳饮钩蹲在旁边，先看那把刀离没离手，离了才让钩靠近。刀躺在舱板上，拿刀的手是空的。线越收越短，刀鞘跟着挪了一寸。你站在跳板上，看见两枚钩，一枚收线，一枚停在袖侧。封条裂开一条缝，缝里没有血。船灯照着两个人的腕，腕上都有旧印。",
+    choices: [
+      s3choice("s3-bond-siyin-stay", "按住刀鞘让线收完", "线头绕上腕，另一枚钩这才碰到空着的袖。**两人同行。靠近之后回的血是 ?。**"),
+      s3choice("s3-bond-siyin-split", "把刀踢回那人手里", "刀回到手里，欧阳饮钩退开，万俟晚的线还扣着。**下一程少一人。来的人多 X。**"),
+    ],
+  },
+  {
+    id: "s3-bond-shuangchi",
+    pack: "bond",
+    title: "两杆枪前的空",
+    lead: "霍长川的枪前留着一段空地，公孙四丈又把这段空往外推了半寸。两杆枪尖之间没有人站上去。推车的人停在空处边上，车把放下来。你站在外侧，看见两截空，一截是退开的，一截是再远的。车辙到两双脚前都断成新土。尘在空处里打转，打转的那圈土上没有靴印。两个人都不说话，空处自己在变宽。",
+    choices: [
+      s3choice("s3-bond-shuangchi-stay", "停在两杆枪的外侧", "你不再往里踏，两杆枪尖保持着那截空。**两人同行。远距离的伤加成是 ?。**"),
+      s3choice("s3-bond-shuangchi-in", "踏进两杆枪中间", "你踏进去，两杆枪同时横过来，推车的人喊了一声。**下一程多 X 人。两人分开。**"),
+    ],
+  },
+  {
+    id: "s3-bond-suisheng",
+    pack: "bond",
+    title: "鞘口和草圈",
+    lead: "闻人笙的剑还在鞘里，独孤破岁的剑风把路边的草压出一圈。圈边的草还没有弹起来，鞘口对着这一圈。街口有人把刀碰了一下，闻人笙的肩先动，独孤破岁的剑尖在身侧停住。你站在圈外，看见肩、鞘、伏下的草。名帖夹在独孤破岁肘里，帖角的湿字映着剑穗。两个人没有对视，草和肩在同一拍上停。",
+    choices: [
+      s3choice("s3-bond-suisheng-stay", "等肩动、草也停", "肩先动，草上的圈不再扩大，两个人站在同一拍上。**两人同行。开场叠上的那一层是 ?。**"),
+      s3choice("s3-bond-suisheng-cross", "从剑尖前横穿", "你穿过剑尖，草被踩起来，街口的人拔刀。**下一程多 X 人。两人分开。**"),
+    ],
+  },
+  {
+    id: "s3-bond-lieren",
+    pack: "bond",
+    title: "缺刃对着空架子",
+    lead: "薄青把缺了一小截的剑按在布上，吕赤锋先把对面的刀架拆开，拆完才看这柄缺刃。缺处和空出来的那一格对在一条线上。你进门踩到铁屑，铁屑粘在两个人的靴上。问价的人还在门外，门外的刀鞘和架上缺的一格对得上。薄青的眼睛在缺处，吕赤锋的眼睛在架子上。两个人的刀都没有先落下来。砧上的血还没干到刀背那边。",
+    choices: [
+      s3choice("s3-bond-lieren-stay", "让缺处对准空格", "缺刃移到空格前，两个人同时点头。**两人同行。先撕开的挡是 ?，裂创再加 ?。**"),
+      s3choice("s3-bond-lieren-split", "把剑从布上拿开", "你端起剑，薄青跟着剑，吕赤锋留在空架子前。**下一程少一人。来的人多 X。**"),
+    ],
+  },
+  {
+    id: "s3-bond-bian",
+    pack: "bond",
+    title: "肩印和退开的一步",
+    lead: "傅壁山把人推得肩撞上墙，安岸火在墙根退开一步，退完枪尖才抬起来。肩印和退开的靴印隔着一掌宽的灰。被推的人呼吸稳了一点，枪前的空又长出一寸。你站在街口，看见墙、枪、同一双还在晃的脚。药包夹在傅壁山肘弯里，还没有打开。安岸火不解释这一步，空处自己留在枪前。墙根的灰被两个人的脚改过。",
+    choices: [
+      s3choice("s3-bond-bian-stay", "扶稳的同时把空处留下", "肩离开墙，枪前的空还在，两个人都没有往前补。**两人同行。撞上墙回的血是 ?，远一档的伤是 ?。**"),
+      s3choice("s3-bond-bian-split", "把人从枪前拉开", "你把人拉开，安岸火的空被踩实，傅壁山的手还扶着。**下一程少一人。来的人多 X。**"),
+    ],
+  },
+  {
+    id: "s3-group-dao",
+    pack: "group",
+    title: "三把刀停在同一条血印上",
+    lead: "沈夜行的短刀对着墙缝，吕赤锋把挡路的刀架拆开，厉霜行按着纸上的血。三把刀都没有先落下，落下之前他们在看同一条血印。血印从纸角连到墙缝，再连到空出来的刀架。你站在三人外侧，看见三截刀光停在同一高度。巷灯灭着一排，灭着的那一截刚好照见血，照不见脸。有人在巷尾咳嗽，三把刀同时偏了一寸。偏完又停回那条还湿的血印上。",
+    choices: [
+      s3choice("s3-group-dao-all", "让三把刀都留下", "三截刀光不再偏，血印上的灰被刀背拨开。**三人同场。裂创相关的幅度是 ?。**"),
+      s3choice("s3-group-dao-two", "把血纸先拿开", "厉霜行跟着纸走，剩下两把刀还对着缝。**下一程少一人。来的人多 X。**"),
+    ],
+  },
+  {
+    id: "s3-group-zhang",
+    pack: "group",
+    title: "三双手按在同一处伤上",
+    lead: "白孟和的拳按着肋，周暖香的布绕着同一处，傅壁山把人推到墙边扶稳了才伸手。三双手叠在一起，粥的热气、药粉、墙上的肩印都在。脚夫的呼吸顶着最上面的手。你在棚外看见勺、拳和那堵墙。对街骰盅响了一下，三个人都没有朝灯看。布结打好之后，三双手才一起离开。离开的时候伤者的眼睛是睁着的。",
+    choices: [
+      s3choice("s3-group-zhang-all", "让三双手都留到布结打完", "布结打完，三双手一起离开肋。**三人同场。收势回的血是 ?。**"),
+      s3choice("s3-group-zhang-two", "把粥碗端走", "周暖香跟着碗离开，拳和扶墙的手还在。**下一程少一人。伤 ?。**"),
+    ],
+  },
+  {
+    id: "s3-group-jian",
+    pack: "group",
+    title: "三柄剑停在同一拍",
+    lead: "闻人笙的剑在鞘里，薄青的缺刃按在布上，独孤破岁的剑风把草压着。三个人听见街口铁器一碰，肩、缺处、草圈在同一拍上停住。你站在圈外，看见鞘、缺刃、伏下的草。名帖的湿字印在袖上，剑穗还在轻轻敲腕。有人要从剑尖前过，三个人同时让出半步。让完这一步，草还是伏着的。这一拍没有人把剑全送出去。",
+    choices: [
+      s3choice("s3-group-jian-all", "等这一拍过去再走", "半步让完，三柄剑仍停着，你从圈外绕过去。**三人同场。破绽相关的幅度是 ?。**"),
+      s3choice("s3-group-jian-cross", "从剑尖前直穿", "你直穿过去，草被踩起来，街口的人拔刀。**下一程多 X 人。三人散开。**"),
+    ],
+  },
+  {
+    id: "s3-group-qiang",
+    pack: "group",
+    title: "三杆枪前的空",
+    lead: "霍长川退开一步，安岸火又退开一步，公孙四丈把空处再推远半寸。三杆枪尖前面没有人站上去。推车的人把车把放在空处边上。你站在最外侧，看见三截空叠成一截更长的空。车辙断了三次，断口的土都是新的。尘在空里打转，打转的那圈土上没有靴印。三个人都不解释，空处自己在变宽。风把三杆枪的穗吹向同一边。",
+    choices: [
+      s3choice("s3-group-qiang-all", "停在最外侧", "你的靴尖停在尘圈外面，三杆枪保持着那截空。**三人同场。远距离的伤加成是 ?。**"),
+      s3choice("s3-group-qiang-in", "踏进这截空", "你踏进去，三杆枪同时横过来。**下一程多 X 人。三人散开。**"),
+    ],
+  },
+  {
+    id: "s3-group-zhuang",
+    pack: "group",
+    title: "三根棍先把脚停死",
+    lead: "石万山先踏稳，章守山把杠压住，封堂用棍在地上点一下，点完队就慢。三根棍尾都抵着地，抵着的时候没有人挤。你站在队尾，看见三个坑、一条杠、一溜停住的肩。钟声过来，三个人的肩都不跟着动。泥干在三双靴边的折纹里面。队一旦停，闸口的风都小了。三根棍没有抬，人就先不敢从杠下钻。",
+    choices: [
+      s3choice("s3-group-zhuang-all", "等三根棍都点完", "第三个坑点完，队才被放行半步。**三人同场。挡在地上的那一层厚 ?。**"),
+      s3choice("s3-group-zhuang-rush", "从队侧挤过去", "你挤出队侧，后面的人跟着挤，三根棍同时抬起。**下一程多 X 人。**"),
+    ],
+  },
+  {
+    id: "s3-group-gou",
+    pack: "group",
+    title: "三枚钩都等兵器离手",
+    lead: "万俟晚收着线头，陈沉缆看着卸下的刀，欧阳饮钩确认手是空的才把钩抬高。三枚钩都没有先去咽喉，先停在线、缆、袖侧。你站在跳板上，看见三截钩尖，尖上都有绳屑或木屑。刀躺在舱板上，封条裂着一条缝。船工喊开船，三个人同时没有动。等刀还在甲板上，三枚钩才一起靠近。灯照着三个人的腕，腕上都有旧印。",
+    choices: [
+      s3choice("s3-group-gou-all", "等刀离手再一起靠", "刀仍在甲板上，三枚钩同时碰到袖和线。**三人同场。靠近之后回的血是 ?。**"),
+      s3choice("s3-group-gou-back", "把刀踢回那人手里", "刀回到手里，三枚钩一起退开。**下一程多 X 人。三人散开。**"),
+    ],
+  },
+  {
+    id: "s3-grudge-heal",
+    pack: "grudge",
+    title: "药拳对着血纸",
+    lead: "白孟和的拳按在伤者肋上，厉霜行把带血的纸按在同一张桌上。纸角的血滴到药粉里，药粉结块。白孟和的手停住，停住是因为血还在被往刀上送。厉霜行的刀出了半寸，半寸对着纸，不对着肋。伤者的眼睛看着两个人，呼吸顶着拳，顶不到刀。你站在桌侧，看见药、血、半寸刀光。两个人都没有先说话，桌上的东西已经在争。",
+    choices: [
+      s3choice("s3-grudge-heal-bai", "把纸从药粉边拿开", "纸离开桌，厉霜行跟着纸走，拳还按在肋上。**沥血的人离开，下一程少他，回的血是 ?。**"),
+      s3choice("s3-grudge-heal-li", "让刀把血印看完", "刀又出一分，白孟和的拳离开肋，药包合上。**掌上的人离开，下一程少他，裂创相关的幅度是 ?。**"),
+      s3choice("s3-grudge-heal-both", "两个人都留下", "拳和刀都停在桌上，谁也不把东西收走。**两人同场。各自首手的劲少 ?。**"),
+    ],
+  },
+  {
+    id: "s3-grudge-sword",
+    pack: "grudge",
+    title: "同一圈草上的两柄剑",
+    lead: "闻人笙的剑还在鞘里，独孤破岁的剑已经把草压出一圈。两个人都看着这圈草，谁的剑尖先停在圈心，谁就先开口。闻人笙的肩动了，独孤破岁的剑尖也动了，两下撞在同一拍上，草被两股风压得更扁。你站在圈外，名帖被风掀到你靴边。帖上的字还湿，湿字照见两截剑穗。街口的人停住，等他们分出先后。这一圈草上没有第三柄剑插着。",
+    choices: [
+      s3choice("s3-grudge-sword-wen", "让鞘里的肩先停", "闻人笙的肩先停住，独孤破岁的剑尖让出圈心。**独孤破岁当手的那一层少 ?。**"),
+      s3choice("s3-grudge-sword-du", "让草上的剑尖先停", "剑尖先停在圈心，闻人笙的肩往后收。**闻人笙当手的那一层少 ?。**"),
+      s3choice("s3-grudge-sword-both", "让他们先分出先后", "两柄剑在圈里走完一轮，你站在圈外。**先打他们之间的这一轮，不占程号。你伤 ?。**", { sideSkirmish: true }),
+    ],
+  },
+  {
+    id: "s3-stake-a",
+    pack: "job",
+    title: "地上先多了一根木",
+    lead: "路口的人先跪下，把一根木楔进土里，楔紧了才站起来。木比膝高，横在人要过的那一步上。过路的人绕开它，绕开的靴印在木两侧分成两串。他拍掉手上的土，土还沾在木纹里。你走到木前，木挡住你的靴尖。他看着你的脚，等你绕还是把木拔出来。拔出来的话，这一步就重新空着。他没有把自己的名字报出来。",
+    choices: [
+      s3choice("s3-stake-stay", "绕开这根木，再看他楔第二根", "你绕过去，他已经在第二步上跪下来。**下一程这根木还在。挡下的次数是 ?。**"),
+      s3choice("s3-stake-pull", "把木拔出来", "木离土，靴尖踏过原来的那一步，他的手停在半空。**下一程多 X 人。地上没有这根木。**"),
+    ],
+  },
+  {
+    id: "s3-stake-b",
+    pack: "job",
+    title: "第二根木已经在",
+    lead: "下一处路口，土里已经有一根木，木纹里的土还湿。同一个人蹲在旁边，手里又握着一根。他不看你的脸，看你的脚会不会踩到第一根。第一根挡着路心，第二根还没有入土。过路的小孩绕得很熟，熟到不用看。你停在第一根前面，湿土沾上靴边。他把第二根在掌心转了一圈，转完对着你脚边的空处。空处刚好还能再楔进一根木。",
+    choices: [
+      s3choice("s3-stake-b-let", "让他把第二根楔下", "第二根入土，你的脚改道，两根木之间留出一条窄路。**两根都留到下一程。每根挡住的次数是 ?。**"),
+      s3choice("s3-stake-b-stop", "按住他的手腕", "第二根没有入土，他的手腕在你掌下停住。**下一程多 X 人。地上仍是一根。**"),
+    ],
+  },
+  {
+    id: "s3-stake-advance",
+    pack: "job",
+    title: "木裂开的那一下",
+    lead: "你跟着他把第三根楔进土里，楔到一半，木身发出一声裂响。裂开的木屑飞到你小腿上，也飞到对面那人的膝上。两个人同时退了半步，半步里木已经倒了。土坑还在，坑边有焦色，焦色是裂开时留下的。他看着自己的手，手心有一条新的木刺。你的小腿上有一块热，热过之后才疼。他没有解释这一声，把断木踢到路边。",
+    choices: [
+      s3choice("s3-stake-advance-keep", "把这一声记住", "断木留在路边，下一次你再点地，可以要它再裂一次。**裂开的伤是 X，晕的段数是 ?。**"),
+      s3choice("s3-stake-advance-drop", "把断木扔掉", "你把断木丢进沟里，土坑还在，下一声不会再来。**不留这一下。下一程伤 ?。**"),
+    ],
+  },
+  {
+    id: "s3-read-a",
+    pack: "job",
+    title: "他先说肩",
+    lead: "茶摊上有个人不看你的碗，看你的肩。你的肩还没有沉，他已经说了一个字，字是进。你把肩沉下去，进字和你的肩对上了。邻桌的人笑了一下，笑完又把耳朵侧过来。他有时也会说错，说错的那次你的肩往上抬，他说的是守，肩走成了退。错的那一下他用指节敲了敲桌，敲完重新看。你的茶凉了，他的眼睛还在肩上。",
+    choices: [
+      s3choice("s3-read-stay", "让他再看一轮肩", "你把肩连续换了三次，他对上两次，错一次。**下一程他看肩的话还在。对上的次数是 ?。**"),
+      s3choice("s3-read-leave", "把肩转开", "你侧过身，他的眼睛失去肩，字停在半空。**不听。下一程照旧，伤 ?。**"),
+    ],
+  },
+  {
+    id: "s3-read-b",
+    pack: "job",
+    title: "错的那一次",
+    lead: "第二天他还在茶摊，面前摆着三颗石子，石子代表他昨天说对的次数。你坐下，他把石子推开一颗，推开的是说错的那次。你的肩还没动，他已经用手指在桌上画出一个退字。你把脚往后退，退字和脚对上。邻桌有人要他把下一场的人整个说完，他摇头，摇头是因为肩还没有到。你看见他的眼睛很静，静在等下一次肩线。",
+    choices: [
+      s3choice("s3-read-b-more", "把肩再给他一次", "肩线走到守，他说的字也是守。**再对上一次。下一场能先听见的倾向是 ?。**"),
+      s3choice("s3-read-b-pay", "让他把下一场的人说完", "他仍摇头，石子没有再推。**说不完。你若硬要，花 ? 彩金，他仍是摇头。**"),
+    ],
+  },
+  {
+    id: "s3-read-advance",
+    pack: "job",
+    title: "他把下一记说出口",
+    lead: "这一次他不再等你把肩线送出来。对面的人还在握刀，他已经把下一记的字说出来，字落在进上。刀真的进了，进的幅度和他的字一样。茶摊上的人安静下来，安静是因为字在刀前面。他把一颗新的石子按在你手边，按着，等你收不收。你收下的话，下一次对面的人抬肩，你可以先听见字。石子是凉的，凉意停在掌心。他没有给这颗石子取过名字。",
+    choices: [
+      s3choice("s3-read-advance-take", "把石子收下", "石子进袖，下一次肩线抬起前，你能先听见那个字。**先听见的那一记，类型占位是 ?。**"),
+      s3choice("s3-read-advance-back", "把石子推回去", "石子回到他掌心，下一记仍要等刀落下来才知道。**不收。下一程伤 ?。**"),
+    ],
+  },
+  {
+    id: "s3-dice-a",
+    pack: "job",
+    title: "手指停在盅顶",
+    lead: "赌棚里有个人的手指永远停在盅顶，停的时间比别人长。长出来的那一瞬，盅沿会偏一指。偏过的盅，开出来的点数他事先用指节在桌上敲过。你坐在对面，看见敲过的印子和后来的点数对得上。有一回对不上，对不上的时候他笑，笑完把那枚点数拨给你。围着的人没有看破这一指，他们在看灯。他的钱袋比进来时沉，沉了多少他不说。",
+    choices: [
+      s3choice("s3-dice-stay", "盯着他的指节再看一轮", "指节又敲了三下，开盅后的点数跟上其中两下。**下一程他的手指还在盅上。对上的次数是 ?。**"),
+      s3choice("s3-dice-call", "把偏过的盅沿说出来", "你说出那一指，围着的人转过脸，他的笑收住。**下一程多 X 人。**"),
+    ],
+  },
+  {
+    id: "s3-dice-b",
+    pack: "job",
+    title: "袖里的旧盅",
+    lead: "他袖里还有第二口盅，盅底比桌上的那口更旧。换的时候灯刚好跳，跳完桌上的盅已经是旧底。你看见旧底的一道裂纹，裂纹在开盅前不该出现。他把裂纹用手指挡住，挡住的时候点数已经在他心里。你的注还压在桌边，压着的是新盅该有的那一面。围着的人仍在灯下笑出声来。他看你一眼，看你认不认这道裂纹。",
+    choices: [
+      s3choice("s3-dice-b-stay", "认下这道裂纹", "你点了点裂纹，他把旧盅转回袖里，这一把按你看见的算。**下一程裂纹还在。这一把的输赢是 ?。**"),
+      s3choice("s3-dice-b-leave", "把注从桌边拿开", "注回到袋里，旧盅留在袖中。**不押。下一程照旧，伤 ?。**"),
+    ],
+  },
+  {
+    id: "s3-dice-advance",
+    pack: "job",
+    title: "盅在你手里换了底",
+    lead: "他把旧盅放进你的手，你的手指找到那道裂纹，裂纹对着灯。你学他的样子，在灯跳的一瞬把盅转过去。转完，桌上的点数和你指节事先敲的印子对上了。围着的人这一次看着你，不看着他。他的手离开桌子，离开是把这一下交给你。你的掌心有汗，汗把裂纹浸得更深。下一次灯再跳，你可以自己转。",
+    choices: [
+      s3choice("s3-dice-advance-keep", "把裂纹留在自己掌心", "旧盅进你袖里，下一次灯跳你可以转底。**转成之后的点数仍是 ?。单注最高当前彩金 80%。**"),
+      s3choice("s3-dice-advance-back", "把旧盅还给他", "裂纹回到他袖中，你的注仍按明面算。**不留。下一程照旧，伤 ?。**"),
+    ],
+  },
+  {
+    id: "s3-shade-meet",
+    pack: "job",
+    title: "手臂伸直的那一瞬",
+    lead: "巷战里有个人不跟你对刀，他等你的手臂伸直。伸直的那一瞬，他的脚已经踏进你肘弯空出来的那一步，刀从空处过去。你的刀砍在他刚才站的位置，位置上剩下的是风。他的呼吸很浅，浅到你以为他不在。第二下你故意把手臂收短，他的脚就踏空，踏空之后他停住看你。看完他笑了一下，笑完又退回阴影里。阴影里的墙缝和沈夜行看过的那种不一样，这条缝刚好容一个人侧身。",
+    choices: [
+      s3choice("s3-shade-stay", "再把手臂伸直一次", "手臂伸直，他的脚又踏进肘弯的空处，这一次你看见了。**下一程这个空处还在。插进去的那一下伤是 ?。**"),
+      s3choice("s3-shade-short", "手臂不再伸直", "你把刀收在身前，他的脚没有落点，人退回缝里。**他离开。下一程多 X 人。**"),
+    ],
+  },
+  {
+    id: "s3-shade-advance",
+    pack: "job",
+    title: "空处留给你的手",
+    lead: "他对着你把自己的手臂伸直，伸直之后肘弯空出来，空处够你的手插进去一下。他数你的呼吸，数到出手的前一息才点头。你的手插进去的时候，他的刀已经收住，收住是为了让你感到这一下有多短。短过之后，巷里重新能听见风。他把你的手腕翻过来，翻开的掌心上有一道浅印。浅印是刚才插进去的那一下留下的。下一次别人的手臂伸直，你可以自己找这个空。",
+    choices: [
+      s3choice("s3-shade-advance-keep", "把浅印留下", "浅印还在掌心，下一次手臂伸直，你的手知道往哪插。**插进去的窗有多长是 ?，伤是 X。**"),
+      s3choice("s3-shade-advance-wash", "把浅印擦掉", "你在墙根的水里把掌心擦净，下一次仍要自己撞上。**不留。下一程伤 ?。**"),
+    ],
+  },
+  {
+    id: "s3-open-a",
+    pack: "open",
+    title: "桌上七张扣着的牌",
+    lead: "进门的桌上扣着七张牌，牌背是一种旧布，布上没有字。掌柜让你先翻开三张，其余四张仍扣着。翻开的第一张是一把短刀的印，第二张是一枚拳印，第三张是一截枪杆的印。印是刻在木牌上的，刻痕里有灰。你的手还停在第四张上，第四张他按住了。门外有人在等，等的是你带走哪三张。灯把三张翻开的牌照得很清楚，清楚到能看见刻痕的深浅。这一桌不谈下一场要打的人。",
+    choices: [
+      s3choice("s3-open-a-take", "带走这三张", "三张木牌进你手里，短刀、拳、枪杆的印都在。**开场看见三门兵器。第一程直接打，不进赌馆。**"),
+      s3choice("s3-open-a-back", "把三张重新扣上", "牌背重新朝上，刻痕离开灯光。**三门先不看。第一程仍直接打，伤 ?。**"),
+    ],
+  },
+  {
+    id: "s3-open-b",
+    pack: "open",
+    title: "门石上的七颗",
+    lead: "山门前的石板上摆着七颗卵石，石面朝下，朝下的一面磨得发亮。守门的人让你翻开三颗，翻开的一面是剑穗、棍尾、钩尖。三颗石头比牌重，重在掌心。其余四颗他用袖子整个盖住了。风从门里出来，把翻开的石面吹凉。你看见三样兵器的刻痕，刻痕里有泥。泥是刚才翻开石头时带上的。守门的人不问你的名字，他问你带走哪三颗。",
+    choices: [
+      s3choice("s3-open-b-take", "带走这三颗", "剑穗、棍尾、钩尖进你袋里，石面还凉。**开场看见另外三门兵器。第一程直接打，不进赌馆。**"),
+      s3choice("s3-open-b-back", "把石头翻回朝下", "亮面重新贴着石板，袖子仍盖着其余四颗。**先不带。第一程仍直接打，伤 ?。**"),
+    ],
+  },
+  {
+    id: "s3-open-name",
+    pack: "open",
+    title: "空白的一条",
+    lead: "三张牌旁边还有一条空白的纸，纸上没有字，墨在碟里。掌柜把笔搁在纸边，搁着，等你写。写上去的字会在下一程的闪句里被叫出来，叫的是你写下的那几个。你若留下空白，他们就用你带走的那门兵器叫你。墨香混着茶味，茶还是刚才那碗。门外的人已经在等开打，等的时候纸还是白的。你的手指沾了一点墨，墨点在纸角上，还没有成为名字。",
+    choices: [
+      s3choice("s3-open-name-write", "把名字写下", "墨干在纸上，下一程的闪句会带这个字。**名字记下。第一程仍直接打。**"),
+      s3choice("s3-open-name-blank", "让纸保持空白", "笔放回碟里，纸还是白的。**用兵器叫你，第一程直接打，伤 ?。**"),
+    ],
+  },
+  {
+    id: "s3-open-job",
+    pack: "open",
+    title: "第三程的三个人",
+    lead: "第三程的路口站着三个人，谁也没有先报自己做什么。左边的人膝上有土，脚边立着一根刚楔进地的木。中间的人看着你的肩，看完在掌心写了一个字，字你还没看见。右边的人手指停在一口扣着的盅上，停得比别人长。三条路都通到下一场，通之前他们等你的脚。你若三个人都不跟，路口仍能过，过完下一摊会多给你抽一次。风把木上的土、肩上的字、盅上的灰一起吹起来。",
+    choices: [
+      s3choice("s3-open-job-stake", "跟着膝上有土的人", "你的脚停在那根木旁边，他已经跪下去楔第二根。**下一程地上有木。挡住的次数是 ?。**"),
+      s3choice("s3-open-job-read", "跟着看肩的人", "他把掌心的字给你看，字和你的肩对上。**下一程能先听见倾向。对上与否是 ?。**"),
+      s3choice("s3-open-job-dice", "跟着停在盅上的人", "盅沿偏了一指，他的指节在桌上敲了一下。**下一程盅还在，这一把输赢是 ?，不在第一程开。**"),
+      s3choice("s3-open-job-no", "三个人都不跟", "你从三个人中间走过，木、字、盅都留在路口。**拒绝。下一摊营地多抽 ? 张。**"),
+    ],
+  },
+];
+
+function currentStory3(run: Pick<GauntletRun, "storyFlags">): Story3Page | undefined {
+  const id = [...(run.storyFlags ?? [])].reverse().find((f) => f.startsWith("s3page:"))?.slice("s3page:".length);
+  return id ? STORY3_PAGES.find((p) => p.id === id) : undefined;
+}
+
+function applyStory3Choice(flags: string[], choice: EncounterChoice, next: GauntletRun): { flags: string[]; next: GauntletRun } {
+  const meta = STORY3_META[choice.id];
+  if (!meta) return { flags, next };
+  let f = flags.filter((x) => !x.startsWith("s3page:"));
+  if (meta.next) f.push(`s3page:${meta.next}`);
+  return { flags: f, next };
+}
+
+/** 情报、缘分、职业、开局都从这里打开。不预排，不在第一程自动进赌馆。 */
+export function offerStory3Page(run: GauntletRun, pageId: string): GauntletRun {
+  const page = STORY3_PAGES.find((p) => p.id === pageId);
+  if (!page) return run;
+  const flags = (run.storyFlags ?? []).filter((f) => !f.startsWith("s3page:") && !f.startsWith("s2page:") && !f.startsWith("envpage:"));
+  flags.push(`s3page:${page.id}`);
   return { ...run, storyFlags: flags, storyPending: "choice", storyGuest: undefined };
 }
