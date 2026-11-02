@@ -123,7 +123,10 @@ describe("内容注册表", () => {
     });
     expect(CHARM_REGISTRY.aidPalm?.text).toMatch(/[0-9]/);
     expect(ITEM_HOLDS).toEqual([]);
-    expect(Object.keys(ITEM_REGISTRY)).toHaveLength(6);
+    expect(Object.keys(ITEM_REGISTRY)).toHaveLength(9);
+    expect(ITEM_REGISTRY.cuandu?.values.price).toBe(6);
+    expect(ITEM_REGISTRY.dujing?.values.price).toBe(20);
+    expect(ITEM_REGISTRY.dugong?.values.price).toBe(36);
     expect(ITEM_REGISTRY.jinchuang).toMatchObject({ cost: 1, kind: "item", values: { healPct: 32 } });
     expect(ITEM_REGISTRY.deathSquad?.values.damage).toBe(8);
     expect(ITEM_REGISTRY.pojin?.text).toMatch(/[0-9]/);

@@ -6,12 +6,12 @@ import { breakRewardCardPool, forgeGradeOk, pickWeightedRewardCard, techPool, al
 import { grantTechToRun } from "./lifelineRules";
 import { ladderEntry, ladderEntryForRun } from "./ladderRules";
 import { CARD_REGISTRY } from "../content/cards";
-import { CLIMB_MARKET_ADEPT, CLIMB_MARKET_COMMON, CLIMB_MARKET_SUPREME } from "../climbCaps";
+import { CLIMB_MARKET_ADEPT, CLIMB_MARKET_COMMON, CLIMB_MARKET_SUPREME, intelPrice } from "../climbCaps";
 import { basePot } from "./wagerRules";
 
 export function marketStallOf(o: Pick<GauntletMarketOffer, "kind" | "stall">): GauntletShopStall {
   if (o.stall) return o.stall;
-  return o.kind === "tech" || o.kind === "forge" ? "black" : "pawn";
+  return o.kind === "tech" || o.kind === "forge" || o.kind === "intel" ? "black" : "pawn";
 }
 
 export const GAUNTLET_MARKET_BASE: Record<GauntletMarketKind, number> = {
@@ -20,6 +20,7 @@ export const GAUNTLET_MARKET_BASE: Record<GauntletMarketKind, number> = {
   item: 15,
   tech: 25,
   forge: 40,
+  intel: 0,
 };
 
 function marketTierMul(tier: GauntletTier): number {
@@ -47,6 +48,7 @@ const MARKET_B_MUL: Record<GauntletMarketKind, number> = {
   card: 1.1,
   tech: 1.4,
   forge: 1.8,
+  intel: 0,
 };
 
 /** 黑市牌价按凡 / 精 / 绝。连携没有三档，按凡。 */
@@ -158,6 +160,24 @@ export function marketOffers(run: GauntletRun, rng: () => number): GauntletMarke
       stall: "black",
     });
   }
+  const detail = intelPrice(run.pot, "detail");
+  const core = intelPrice(run.pot, "core");
+  pushOffer(out, {
+    id: "intel:detail",
+    kind: "intel",
+    price: detail,
+    title: "底细",
+    tip: `花 ${detail}。下一馆这人的配招摊开。`,
+    stall: "black",
+  });
+  pushOffer(out, {
+    id: "intel:core",
+    kind: "intel",
+    price: core,
+    title: "命门",
+    tip: `花 ${core}。纸上写着墙、他的窗、他怕的打法。`,
+    stall: "black",
+  });
   return out;
 }
 
@@ -179,6 +199,11 @@ export function buyMarketOffer(run: GauntletRun, offer: GauntletMarketOffer): Ga
   if (offer.kind === "tech") {
     const id = offer.id.slice(5) as TechniqueId;
     return grantTechToRun({ ...run, pot }, id, gauntletFieldMate(run.school));
+  }
+  if (offer.kind === "intel") {
+    const tier = offer.id === "intel:core" ? "core" : "detail";
+    const intelTier = run.intelTier === "core" || tier === "core" ? "core" : "detail";
+    return { ...run, pot, pendingIntel: true, intelTier };
   }
   const nextId = nextGrade(run.weaponId, shellRunContext());
   if (!nextId) return null;

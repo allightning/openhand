@@ -57,7 +57,7 @@ export interface GauntletLadderEntry {
   extraEnemyIds?: EnemyId[];
 }
 
-export type GauntletMarketKind = "heal" | "card" | "item" | "tech" | "forge";
+export type GauntletMarketKind = "heal" | "card" | "item" | "tech" | "forge" | "intel";
 export type GauntletShopStall = "pawn" | "black";
 
 export interface GauntletMarketOffer {
@@ -250,6 +250,8 @@ export interface GauntletRun {
   skipCompanionPick?: boolean;
   forceDangerNext?: boolean;
   pendingIntel?: boolean;
+  /** 黑市买下的情报。命门盖过底细。展示待接线。 */
+  intelTier?: "detail" | "core";
   pendingSkirmish?: "save" | "duel" | "side";
   pendingRecruit?: CompanionId;
   pendingGuestEnemyId?: EnemyId;

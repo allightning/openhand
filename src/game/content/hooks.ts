@@ -118,6 +118,7 @@ export const MECHANISM_HOOKS = [
   "chargeStack",
   "chargeBurst",
   "pin",
+  "poison",
 ] as const;
 
 export type HookId = (typeof MECHANISM_HOOKS)[number];

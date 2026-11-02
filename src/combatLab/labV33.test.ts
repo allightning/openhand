@@ -6,6 +6,7 @@ import { stressMetaAt, tryAppendStressIntent } from "../game/labEnemyStress";
 import { applyTurnDamageGovernor, dangerCellsForIntent, dangerCells, endTurn, playCard, projectedQueueThreat } from "../game/sim";
 import type { Battle, Intent } from "../game/types";
 import { startLabBattle } from "./factory";
+import { intelPrice } from "../game/climbCaps";
 import {
   GAUNTLET_HEAL_RATIO,
   basePot,
@@ -506,11 +507,11 @@ describe("§31.13/§31.14 赌馆 · 彩金与下注", () => {
     const stall = marketOffers(fresh, () => 0);
     expect(stall.some((o) => o.kind === "heal")).toBe(false);
     expect(stall.some((o) => o.kind === "forge")).toBe(false);
-    expect(stall.length).toBe(3); // 谱/货/外功
+    expect(stall.length).toBe(5); // 谱/货/外功/底细/命门
     stall.forEach((o) => expect(o.price).toBeGreaterThan(0));
     const hurt = { ...fresh, hp: fresh.hpMax - 10 };
     const stall2 = marketOffers(hurt, () => 0);
-    expect(stall2.length).toBe(4);
+    expect(stall2.length).toBe(6);
     expect(stall2[0]!.kind).toBe("heal");
     const gated = { ...fresh, stage: 4, streak: 3, weaponId: "palm-a-1" };
     expect(marketOffers(gated, () => 0).some((o) => o.kind === "forge")).toBe(true);
@@ -538,6 +539,18 @@ describe("§31.13/§31.14 赌馆 · 彩金与下注", () => {
     if (tech) expect(buyMarketOffer(run, tech)!.techniques).toContain(tech.id.slice(5));
     const forge = stall.find((o) => o.kind === "forge")!;
     expect(gearById(buyMarketOffer(run, forge)!.weaponId, climbTestContext())!.grade).toBe(2);
+    const detail = stall.find((o) => o.id === "intel:detail")!;
+    const core = stall.find((o) => o.id === "intel:core")!;
+    expect(detail.price).toBe(intelPrice(run.pot, "detail"));
+    expect(core.price).toBe(intelPrice(run.pot, "core"));
+    expect(detail.stall).toBe("black");
+    const slipped = buyMarketOffer(run, detail)!;
+    expect(slipped.pot).toBe(200 - detail.price);
+    expect(slipped.intelTier).toBe("detail");
+    expect(slipped.pendingIntel).toBe(true);
+    const fatal = buyMarketOffer(slipped, core)!;
+    expect(fatal.intelTier).toBe("core");
+    expect(fatal.pot).toBe(slipped.pot - core.price);
     // 彩金不够 → null
     expect(buyMarketOffer(runWithPot(5), forge)).toBeNull();
   });

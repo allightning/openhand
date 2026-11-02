@@ -1,3 +1,4 @@
+import { CLIMB_POISON_ITEM, CLIMB_POISON_MIND, CLIMB_POISON_TECH } from "../climbCaps";
 import { LAB_ITEM_TIP } from "../labV21Constants";
 import type { LabItemId } from "../types";
 import type { HookId, ItemKind, SchoolId } from "./hooks";
@@ -69,6 +70,33 @@ const ROWS: ItemDef[] = [
     effectHooks: uniqueHooks(["damage"]),
     values: { damage: 8 },
     text: LAB_ITEM_TIP.deathSquad!,
+  },
+  {
+    id: "cuandu",
+    cost: 1,
+    school: "any",
+    kind: "item",
+    effectHooks: uniqueHooks(["poison"]),
+    values: { price: CLIMB_POISON_ITEM },
+    text: `淬毒。标价 ${CLIMB_POISON_ITEM}。`,
+  },
+  {
+    id: "dujing",
+    cost: 1,
+    school: "any",
+    kind: "item",
+    effectHooks: uniqueHooks(["poison"]),
+    values: { price: CLIMB_POISON_MIND },
+    text: `毒经。标价 ${CLIMB_POISON_MIND}。`,
+  },
+  {
+    id: "dugong",
+    cost: 1,
+    school: "any",
+    kind: "item",
+    effectHooks: uniqueHooks(["poison"]),
+    values: { price: CLIMB_POISON_TECH },
+    text: `毒功。标价 ${CLIMB_POISON_TECH}。`,
   },
 ];
 
