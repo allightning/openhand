@@ -8,10 +8,9 @@ export const ANY_CARDS: Record<string, CardDef> = {
     cost: 1,
     type: "skill",
     school: "any",
-    text: "前进 1 格。本手走过才进手。抽 1。",
+    text: "前进 1 格。抽 1。",
     flavor: "七步之内。",
     steps: 1,
-    drawWhen: "moved",
   },
   advance2: {
     id: "advance2",

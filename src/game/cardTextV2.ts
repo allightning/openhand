@@ -10,7 +10,7 @@ const CARD_TEXT_V2: Partial<Record<CardId, string>> = {
   finisher2: "打 6。每点势再 +3，并清空势。",
   lateTide: "势拉满。抽 2。",
   // §31.8 v3：拆招答案不再倒贴抽牌（文案与机制同步，D4）
-  advance: "前进 1 格。本手走过才进手。抽 1。",
+  advance: "前进 1 格。抽 1。",
   advance2: "前进 2 格。本手走过才进手。抽 1。",
   sweep: "击退 1 格。位移 +1。",
   retreat: "身后最多退 2 格。位移 +1。",

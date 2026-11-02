@@ -26,8 +26,10 @@ export const CLIMB_STAKE_BREAK_BLOCK = 4;
 
 /** 棍蓄力层帽（占位）。 */
 export const CLIMB_CHARGE_CAP = 6;
-/** 一手伤当量锚。 */
+/** 一手伤当量锚。档 1 回劲 × 5 伤必须等于本值。 */
 export const CLIMB_CHARGE_HAND_EQ = 25;
+/** 档 1 回劲。黄。2026-11-02 主窗：4→5。生成器审计读这个数，不另写一份。 */
+export const CLIMB_REGEN_T1 = 5;
 /** 蓄力手 2 费挡 12 相对一手的净损失。 */
 export const CLIMB_CHARGE_NET_LOSS = 15;
 /** 蓄力利息。默认 25%/手，标黄。 */

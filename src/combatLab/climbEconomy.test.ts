@@ -33,7 +33,7 @@ describe("climbEconomy", () => {
     setLabMode(true);
     const b = startLabBattle(buildGauntletPreset(createGauntletRun("bandit", "saber")), true, 1);
     expect(b.energyMax).toBe(10);
-    expect(b.energyRegen).toBe(4);
+    expect(b.energyRegen).toBe(5);
     expect(b.energy).toBe(6);
     expect(b.player.maxHp).toBe(60);
     // 攻击牌费用回退为牌面 cost（爬塔 floor 1），实际伤害看悬停预演条

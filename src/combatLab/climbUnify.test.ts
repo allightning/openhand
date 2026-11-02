@@ -305,7 +305,7 @@ describe("S1–S10 爬塔收编", () => {
     expect(foeIntentIsStrike({ kind: "strike", damage: 8 })).toBe(true);
   });
 
-  it("方案 C：一档刀客上限 10、开局 6、回 4，蓝跟人走", () => {
+  it("方案 C：一档刀客上限 10、开局 6、回 5，蓝跟人走", () => {
     const b = climbBattle();
     const v = climbVitals(b.active);
     expect(b.energyMax).toBe(v.energyMax);

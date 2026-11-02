@@ -1,6 +1,7 @@
-import type { CompanionId } from "./types";
+import { CLIMB_REGEN_T1 } from "./climbCaps";
 import type { MateRole } from "./labV25Constants";
 import { rogueMate } from "./rogueRoster";
+import type { CompanionId } from "./types";
 
 /** 爬塔角色气血/劲力（读招不读此表）。方案 C：每人一条蓝，回劲当工资。 */
 export interface ClimbVitals {
@@ -14,7 +15,7 @@ function pack(tier: 1 | 2 | 3, role: MateRole): ClimbVitals {
   const hp = { dps: [50, 80, 130], tank: [55, 88, 145], support: [55, 88, 145], control: [45, 72, 115], skirmish: [50, 80, 130] }[role][tier - 1]!;
   const energyMax = { dps: [10, 12, 14], tank: [9, 11, 13], support: [10, 12, 14], control: [11, 13, 15], skirmish: [10, 12, 14] }[role][tier - 1]!;
   const energyStart = [6, 8, 10][tier - 1]!;
-  const energyRegen = [4, 5, 6][tier - 1]!;
+  const energyRegen = [CLIMB_REGEN_T1, 5, 6][tier - 1]!;
   return { hp, energyMax, energyStart, energyRegen };
 }
 

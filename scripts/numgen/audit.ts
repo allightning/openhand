@@ -1,8 +1,16 @@
 import { writeFileSync } from "node:fs";
+import { CLIMB_CHARGE_HAND_EQ, CLIMB_REGEN_T1 } from "../../src/game/climbCaps";
 import { CARD_REGISTRY } from "../../src/game/content/cards";
 import { BASELINE_IDS, BASELINE_SET } from "./baseline";
-import { BAND } from "./coins";
+import { BAND, QI_TO_DMG } from "./coins";
 import { priceCard, type Priced } from "./price";
+
+function assertRegenAnchor(): void {
+  const hand = CLIMB_REGEN_T1 * QI_TO_DMG;
+  if (hand !== CLIMB_CHARGE_HAND_EQ) {
+    throw new Error(`档 1 回劲 ${CLIMB_REGEN_T1} × ${QI_TO_DMG} = ${hand}，锚是 ${CLIMB_CHARGE_HAND_EQ}`);
+  }
+}
 
 export function loadBaseline(): Priced[] {
   const missing = BASELINE_IDS.filter((id) => !CARD_REGISTRY[id]);
@@ -86,6 +94,7 @@ export function renderAudit(rows: Priced[]): string {
 }
 
 export function writeAudit(path = process.argv.includes("--now") ? "docs/combat/NUMGEN_AUDIT_20261102.md" : "docs/combat/NUMGEN_AUDIT_20261023.md"): Priced[] {
+  assertRegenAnchor();
   const rows = loadBaseline();
   if (rows.length !== 131) throw new Error(`基线应 131，实得 ${rows.length}`);
   writeFileSync(path, renderAudit(rows));

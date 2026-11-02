@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 import { climbEnergyRegen, climbEnergyStart, climbVitals } from "./climbVitals";
 
 describe("climbVitals", () => {
-  it("方案 C：一档输出上限 10 / 开局 6 / 回 4，肉盾少 1 上限，控制多 1", () => {
-    expect(climbVitals("watch")).toEqual({ hp: 50, energyMax: 10, energyStart: 6, energyRegen: 4 });
+  it("方案 C：一档输出上限 10 / 开局 6 / 回 5，肉盾少 1 上限，控制多 1", () => {
+    expect(climbVitals("watch")).toEqual({ hp: 50, energyMax: 10, energyStart: 6, energyRegen: 5 });
     expect(climbVitals("shiwanshan").energyMax).toBe(9);
     expect(climbVitals("moqiwan").energyMax).toBe(11);
     expect(climbVitals("shiwanshan").hp).toBeGreaterThan(climbVitals("moqiwan").hp);
     expect(climbEnergyStart("watch")).toBe(6);
-    expect(climbEnergyRegen("watch")).toBe(4);
+    expect(climbEnergyRegen("watch")).toBe(5);
   });
 
   it("二档约 80 血，回劲 5，上限随定位微调", () => {
