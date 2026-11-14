@@ -1,4 +1,5 @@
 import { labCard } from "../../src/game/labContent";
+import { defaultItemCharges, useLabItem } from "../../src/game/labV21";
 import { applyLabEnemyKit, applyLabFightScale, answerReaction, applyClimbOpeningPositions, advanceProfession, canEndPlayerTurn, canPlay, commitFoeKit, endTurn, labDiscardCard, livingFoes, makeBattle, markEnemyOpen, needsDiscardToHandCap, playCard, rollWager, seeThrough, setBattleRng, swapFighter, syncBattleGear, yourPace } from "../../src/game/sim";
 import { buildFoeKit, foeKitSeed, kitRng } from "../../src/game/foeArchetype";
 import type { Battle, Intent } from "../../src/game/types";
@@ -411,6 +412,12 @@ function arm(opened: OpenedHall, knobs: ClimbKnobs, seed: number, policy: Policy
   if (stamp?.advance) advanceProfession(b);
   if (stamp?.mark) markEnemyOpen(b);
   if (stamp?.see) seeThrough(b);
+  if (stamp?.usePoison) {
+    b.labItems = [...(b.labItems ?? []), "cuandu"];
+    b.labItemCharges = { ...(b.labItemCharges ?? defaultItemCharges(["cuandu"])), cuandu: Math.max(1, b.labItemCharges?.cuandu ?? 2) };
+    const used = useLabItem(b, "cuandu", opened.rc);
+    if (used.battle) b = used.battle;
+  }
   return b;
 }
 

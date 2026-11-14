@@ -31,6 +31,8 @@ export type FightStamp = {
   /** 模拟血档。开战后再写到场上和后场，不改 src 气血默认。 */
   partyHp?: number;
   mateWeapons?: Partial<Record<CompanionId, string>>;
+  /** 模拟开局用淬毒。不改 src 默认，要 stamp 点开才喝。 */
+  usePoison?: boolean;
 };
 
 export type OpenedHall = {
