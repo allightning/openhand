@@ -1,4 +1,6 @@
-import { applyLabEnemyKit, answerReaction, applyClimbOpeningPositions, advanceProfession, canEndPlayerTurn, endTurn, labDiscardCard, livingFoes, makeBattle, markEnemyOpen, needsDiscardToHandCap, playCard, rollWager, seeThrough, setBattleRng, swapFighter, syncBattleGear, yourPace } from "../../src/game/sim";
+import { applyLabEnemyKit, applyLabFightScale, answerReaction, applyClimbOpeningPositions, advanceProfession, canEndPlayerTurn, endTurn, labDiscardCard, livingFoes, makeBattle, markEnemyOpen, needsDiscardToHandCap, playCard, rollWager, seeThrough, setBattleRng, swapFighter, syncBattleGear, yourPace } from "../../src/game/sim";
+import { buildFoeKit, foeKitSeed, kitRng } from "../../src/game/foeArchetype";
+import { publishStance } from "../../src/game/intentStance";
 import type { Battle } from "../../src/game/types";
 import type { RunContext } from "../../src/game/runContext";
 import type { OpenedHall } from "./boot";
@@ -39,6 +41,7 @@ export type FightResult = {
   foeBind: number;
   foeRead: number;
   swaps: number;
+  foeVariant: string | null;
 };
 
 function blankExtra() {
@@ -86,6 +89,33 @@ function applyFoeWindowP(b: Battle, p: number, stage: number, want: boolean): vo
     b.foeWindows = ["dismantle", "bind", "read"];
     b.foeWindowCap = stage >= 10 ? 2 : 1;
   }
+}
+
+/** 馆 ≥6 精英/座前：目录没标 elite 时，仍按机制六班抽三套。 */
+function applyEliteKit(b: Battle, opened: OpenedHall, stamp: OpenedHall["stamp"]): void {
+  if (stamp?.foeRound == null || opened.stage < 6) return;
+  const round = stamp.foeRound;
+  const salt = stamp.foeSalt ?? 0;
+  const kit = buildFoeKit(
+    {
+      stage: opened.stage,
+      enemyId: opened.enemyId,
+      round,
+      salt,
+      elite: true,
+      seat: opened.stage >= 10,
+    },
+    kitRng(foeKitSeed(round, opened.enemyId, salt)),
+  );
+  b.intents = kit.cards.map((c) => c.intent);
+  b.intent = b.intents[0] ?? b.intent;
+  b.feintMask = kit.cards.map((c) => c.feint === true);
+  b.foeWindows = kit.foeWindows;
+  b.foeWindowCap = kit.windowCap;
+  b.foeArchetype = kit.archetype;
+  b.foeVariant = kit.foeVariant;
+  b.foeShiftTo = kit.shiftTo;
+  publishStance(b);
 }
 
 function bump(tally: CardTally, id: string, key: "plays" | "draws"): void {
@@ -273,6 +303,8 @@ function arm(opened: OpenedHall, knobs: ClimbKnobs, seed: number, policy: Policy
   if (stamp?.thinIds?.length) injectThinKit(b, stamp.thinIds, seed);
   if (stamp?.extraIds?.length) injectExtraCards(b, stamp.extraIds, seed);
   if (stamp?.extraByMate) injectMateExtras(b, stamp.extraByMate, seed);
+  applyLabFightScale(opened.rc);
+  applyEliteKit(b, opened, stamp);
   applyFoeWindowP(b, knobs.foeWindowP ?? 1, opened.stage, stamp?.foeRound != null);
   if (stamp?.mateWeapons) {
     b.labMateWeapons = { ...(b.labMateWeapons ?? {}), ...stamp.mateWeapons };
@@ -315,6 +347,7 @@ export function fightSample(
   const swaps = { n: 0 };
   const cool: SwapCool = { turn: -1, n: 0, lock: null, left: 0 };
   const foeArmed = (b.foeWindows?.length ?? 0) > 0;
+  const foeVariant = b.foeVariant ?? null;
   let hands = 0;
   let emptyHands = 0;
   let capped = false;
@@ -363,6 +396,7 @@ export function fightSample(
     foeBind: foeWin.bind,
     foeRead: foeWin.read,
     swaps: swaps.n,
+    foeVariant,
   };
 }
 

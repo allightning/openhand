@@ -42,6 +42,8 @@ export type OpenedHall = {
   waveEnemyId?: EnemyId;
   waveQueue?: EnemyId[];
   stamp?: FightStamp;
+  enemyHitMul?: number;
+  dmgCoef?: number;
 };
 
 let booted = false;
@@ -78,14 +80,17 @@ export function openHall(
   bootLab();
   const staged = { ...run, stage, facedEnemies: run.facedEnemies ?? [] };
   applyStageTuning(ladderEntryForRun(staged), staged);
+  const tuned = getLabTuning();
   const ladderEnemy = ladderEntryForRun(staged).dmgCoef;
   const adj = rawLadder ? { enemy: 1, player: 1 } : stageDmgAdjust(stage, ladderEnemy);
   applyKnobs({ ...knobs, enemyDmg: knobs.enemyDmg * adj.enemy, playerDmg: knobs.playerDmg * adj.player });
+  if (tuned.enemyHitMul != null) setLabTuning({ enemyHitMul: tuned.enemyHitMul });
   const preset = buildGauntletPreset(staged);
   const body = runFromPreset(preset);
   const hpMax = body.hpMax;
   const battleRun: Run = { ...body, hpMax, hp: Math.min(hp ?? hpMax, hpMax) };
   const enemyId = preset.enemyId;
+  const now = getLabTuning();
   return {
     enemyId,
     enemyName: ENEMIES[enemyId]?.name ?? enemyId,
@@ -94,5 +99,7 @@ export function openHall(
     stage,
     waveEnemyId: preset.waveEnemyId,
     waveQueue: preset.waveQueue,
+    enemyHitMul: now.enemyHitMul,
+    dmgCoef: now.dmgCoef,
   };
 }
