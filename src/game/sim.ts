@@ -123,6 +123,7 @@ import {
   CLIMB_TIER_SWORD_EXPOSE,
   CLIMB_TIER_SWORD_OPEN,
   CLIMB_FOE_READ_MUL,
+  CLIMB_RELAY_SEG_MUL,
 } from "./climbCaps";
 import { consumeChargeBurst, gainCharge } from "./rules/staffCharge";
 import { addPin, applyPinBudget, dartFormAllows, dartFormFailReason } from "./rules/dartPin";
@@ -4765,6 +4766,11 @@ function planFromFirstAtPos(b: Battle, first: Intent, rc: RunContext): void {
       }
       b.v2StressMeta = meta;
     }
+  }
+  if (isClimbQi(rc) && (b.labGauntletStage ?? 1) >= 2 && b.labEnemyKitRole === "extra" && planned.length > 1) {
+    const keep = Math.max(1, Math.floor(planned.length * CLIMB_RELAY_SEG_MUL));
+    planned.splice(keep);
+    if (b.v2StressMeta && b.v2StressMeta.length > keep) b.v2StressMeta = b.v2StressMeta.slice(0, keep);
   }
   const honest = honestifyQueue(b, planned, rc);
   if (labV2(rc)) applyTurnDamageGovernor(b, honest, rc);

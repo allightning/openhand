@@ -95,6 +95,8 @@ export const CLIMB_FOE_RIPOSTE = 3;
 export const CLIMB_FOE_READ_MUL = 0.7;
 /** 缠手削掉的剩招段。黄。 */
 export const CLIMB_FOE_BIND_CUT = 1;
+/** 馆 2 起，接力上场的第二人及以后，意图段数乘这个数，向下取整，保底 1。黄。不改敌血、敌伤。 */
+export const CLIMB_RELAY_SEG_MUL = 0.5;
 /** 牌意档张数。10 档沿用 CLIMB_TRIPLE_NEED。 */
 export const CLIMB_TIER_LOW = 4;
 export const CLIMB_TIER_MID = 7;
