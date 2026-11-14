@@ -633,7 +633,7 @@ export function storyEventLead(run: GauntletRun): string {
     const cue = bondShowLine(run);
     if (cue) return cue;
     const s2 = currentStory2(run);
-    if (s2) return s2.lead;
+    if (s2) return withRematchLine(run, s2);
     const env = currentEnvPage(run);
     if (env) return env.lead;
   }
@@ -2292,14 +2292,68 @@ export function foeWindowLine(key: string): string | undefined {
   return undefined;
 }
 
-/** 最近几条播报里的敌窗键，换成白描。没有键就空。 */
+/** 最近几条播报里的敌窗键或换势键，换成白描。没有键就空。 */
 export function latestFoeWindowLine(log: string[] | undefined): string {
   const tail = (log ?? []).slice(-8);
   for (let i = tail.length - 1; i >= 0; i--) {
-    const line = foeWindowLine(tail[i] ?? "");
+    const key = tail[i] ?? "";
+    const line = foeWindowLine(key) ?? foeStanceShiftLine(key);
     if (line) return line;
   }
   return "";
+}
+
+/** 血线换势。键 foeStanceShift，龟/游走各一句，其余走 fallback。 */
+export const FOE_STANCE_SHIFT_LINES = {
+  "foeStanceShift:turtle": "他肩上的守势收下去，进势顶到条上，亮着的段数改成 X。",
+  "foeStanceShift:skirmish": "他退着的步子停在原地，进势压到条上，亮着的段数改成 ?。",
+  foeStanceShift: "他的架势条换了一截，旧的段收掉，新上来的段数是 ?。",
+} as const;
+
+export function foeStanceShiftLine(key: string): string | undefined {
+  if (key === "foeStanceShift:wander") return FOE_STANCE_SHIFT_LINES["foeStanceShift:skirmish"];
+  if (key === "foeStanceShift:turtle" || key === "foeStanceShift:skirmish" || key === "foeStanceShift") {
+    return FOE_STANCE_SHIFT_LINES[key];
+  }
+  if (key.startsWith("foeStanceShift")) return FOE_STANCE_SHIFT_LINES.foeStanceShift;
+  return undefined;
+}
+
+/** 买情报前的风声。不写伤、不写段数。 */
+export const FOE_VARIANT_RUMORS = {
+  "foeVariant:brute": "听说他这局肩往下沉，步子往前送，条上尽是进。",
+  "foeVariant:turtle": "听说他这局脚钉在原地，肩扛着守，条上守着没有往前冲。",
+  "foeVariant:skirmish": "听说他这局脚跟着你转，肩不落死，条上退和进轮着亮。",
+} as const;
+
+export function foeVariantRumor(key: string): string | undefined {
+  if (key === "foeVariant:wander") return FOE_VARIANT_RUMORS["foeVariant:skirmish"];
+  if (key === "foeVariant:brute" || key === "foeVariant:turtle" || key === "foeVariant:skirmish") {
+    return FOE_VARIANT_RUMORS[key];
+  }
+  return undefined;
+}
+
+/** 重打同一敌的开场差分。挂在 s2-revive-rematch。 */
+export const REMATCH_OPEN_LINES = {
+  "s2-revive-rematch:elite": "他认出你的脸，袖口还留着上一场溅上的血，这一把禁注，伤从满状态再算，数字是 ?。",
+  "s2-revive-rematch:seat": "座前的人记得你上次倒下的那一格，目光在你肋上停过，这一把禁注，满状态的伤是 X。",
+} as const;
+
+export function rematchOpenLine(key: string): string | undefined {
+  if (key === "s2-revive-rematch:elite" || key === "s2-revive-rematch:seat") return REMATCH_OPEN_LINES[key];
+  return undefined;
+}
+
+function withRematchLine(run: Pick<GauntletRun, "storyFlags">, page: Story2Page): string {
+  if (page.id !== "s2-revive-rematch") return page.lead;
+  const key = has(run, "rematch-seat")
+    ? "s2-revive-rematch:seat"
+    : has(run, "rematch-elite")
+      ? "s2-revive-rematch:elite"
+      : "";
+  const line = key ? rematchOpenLine(key) : "";
+  return line ? `${line}${page.lead}` : page.lead;
 }
 
 /** 牌意 4 档 / 7 档达档一句。10 档不在这里。 */
