@@ -646,6 +646,12 @@ export interface Battle {
   /** 精英 1 / 座前 2。没写时按 1。 */
   foeWindowCap?: number;
   foeArchetype?: "brute" | "turtle" | "skirmish" | "assassin" | "coach";
+  /** 这一局抽中的配招变体。馆 1–3 杂兵没有。 */
+  foeVariant?: string;
+  /** 变体指定的换势目标。缺省走对照表。 */
+  foeShiftTo?: "brute" | "turtle" | "skirmish" | "assassin" | "coach";
+  /** 本场已经换过势的敌 id。 */
+  stanceShiftedIds?: string[];
   /** 剧情窗占位。kind 对拆招 / 缠手 / 读破。 */
   foeReact?: { kind: "dismantle" | "bind" | "read"; note: string };
   foeVoidMove?: boolean;

@@ -241,23 +241,22 @@ describe("过招 P3 敌配招", () => {
     expect(deckCap(10, 1, 0)).toBe(early);
   });
 
-  it("教头在精英 6 馆和座前才挂三件敌窗；词条接口空着", () => {
-    let coach: ReturnType<typeof buildFoeKit> | undefined;
-    for (let salt = 0; salt < 30 && !coach; salt++) {
-      const kit = buildFoeKit(
-        { stage: 8, enemyId: "mob", round: 1, salt, elite: true },
-        kitRng(foeKitSeed(1, "mob", salt)),
-      );
-      if (kit.archetype === "coach") coach = kit;
-    }
-    expect(coach?.foeWindows).toEqual(["dismantle", "bind", "read"]);
-    expect(coach?.tags).toEqual({});
-    expect(coach?.bond).toBeNull();
-    expect(coach?.aura).toBeNull();
+  it("精英 6 馆和座前挂三件敌窗；变体只在精英和座前", () => {
+    const kit = buildFoeKit(
+      { stage: 8, enemyId: "mob", round: 1, salt: 1, elite: true },
+      kitRng(foeKitSeed(1, "mob", 1)),
+    );
+    expect(kit.foeWindows).toEqual(["dismantle", "bind", "read"]);
+    expect(kit.foeVariant).toMatch(/^mob:/);
+    expect(["brute", "turtle", "skirmish"]).toContain(kit.archetype);
+    expect(kit.tags).toEqual({});
+    expect(kit.bond).toBeNull();
+    expect(kit.aura).toBeNull();
     const plain = buildFoeKit(
       { stage: 8, enemyId: "mob", round: 1, salt: 0, elite: false },
       kitRng(1),
     );
+    expect(plain.foeVariant).toBeUndefined();
     if (plain.archetype === "coach") expect(plain.foeWindows).toEqual([]);
   });
 

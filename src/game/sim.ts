@@ -124,6 +124,7 @@ import {
   CLIMB_TIER_SWORD_OPEN,
   CLIMB_FOE_READ_MUL,
   CLIMB_RELAY_SEG_MUL,
+  CLIMB_STANCE_SHIFT_HP,
 } from "./climbCaps";
 import { consumeChargeBurst, gainCharge } from "./rules/staffCharge";
 import { addPin, applyPinBudget, dartFormAllows, dartFormFailReason } from "./rules/dartPin";
@@ -138,7 +139,8 @@ import {
   tickFromIntent,
   type WindowTick,
 } from "./reactionWindows";
-import { buildFoeKit, foeKitSeed, kitRng } from "./foeArchetype";
+import { buildFoeKit, dealArchetypeCards, deckCap, foeKitSeed, kitRng } from "./foeArchetype";
+import { shiftArchetype, STANCE_SHIFT_TO } from "./content/foeVariants";
 import {
   acquaintHeal,
   bleedCapBonus,
@@ -319,6 +321,29 @@ const ENEMY_BLOCK_CAP = 20;
 function uid(): string {
   seq += 1;
   return `c${seq}`;
+}
+
+function watchStanceShift(b: Battle, foe: Unit, beforeHp: number, rc: RunContext): void {
+  if (!isClimbQi(rc) || foe.hp <= 0 || foe.maxHp <= 0) return;
+  const line = foe.maxHp * CLIMB_STANCE_SHIFT_HP;
+  if (beforeHp < line || foe.hp >= line) return;
+  const id = b.enemyId;
+  if (b.stanceShiftedIds?.includes(id)) return;
+  const from = b.foeArchetype ?? "brute";
+  const to = shiftArchetype(from, b.foeShiftTo);
+  if (to === from) return;
+  b.stanceShiftedIds = [...(b.stanceShiftedIds ?? []), id];
+  b.foeArchetype = to;
+  b.foeShiftTo = STANCE_SHIFT_TO[to];
+  b.foeVariant = `${id}:${to}`;
+  const stage = b.labGauntletStage ?? 1;
+  const cards = dealArchetypeCards(to, deckCap(stage, b.turn ?? 1, 0), kitRng(foeKitSeed(stage, id, 90)));
+  b.intents = cards.map((c) => c.intent);
+  b.intent = b.intents[0] ?? { kind: "guard", block: 6 };
+  b.feintMask = cards.map((c) => c.feint === true);
+  publishStance(b);
+  const pct = Math.round(CLIMB_STANCE_SHIFT_HP * 100);
+  note(b, "foe", `foeStanceShift 血线 ${pct}% ${from}→${to}`);
 }
 
 function note(b: Battle, side: "you" | "foe", text: string): void {
@@ -818,6 +843,8 @@ export function makeBattle(
     battle.foeWindows = kit.foeWindows;
     battle.foeWindowCap = kit.windowCap;
     battle.foeArchetype = kit.archetype;
+    battle.foeVariant = kit.foeVariant;
+    battle.foeShiftTo = kit.shiftTo;
     publishStance(battle);
   }
   battle.spar = spar;
@@ -1792,7 +1819,9 @@ function hitEnemy(b: Battle, raw: number, verb: string, rc: RunContext, spendCha
     b.foeGift = 0;
     notes.push("送手 4");
   }
+  const hpBefore = foe.hp;
   foe.hp -= dmg;
+  watchStanceShift(b, foe, hpBefore, rc);
   const stacks = poisonOnHit(b);
   if (raw > 0 && dmg > 0 && stacks > 0) {
     addPoison(b, stacks);
@@ -4938,14 +4967,19 @@ function applyStatusTicksAtTurnEnd(next: Battle, rc: RunContext): void {
       // 旧核选路，阶段3沉 engine/break，勿仿此新增
       const tick =
         rc.lab && rc.ruleset.mode === "break" ? bleedTickDamage(next.bleed) : next.bleed;
+      const hpBefore = foe.hp;
       foe.hp -= tick;
+      watchStanceShift(next, foe, hpBefore, rc);
       note(next, "you", rc.lab && rc.ruleset.mode === "break" ? `裂创跳 ${tick}（${next.bleed} 层）` : `裂创 ${next.bleed}`);
       syncFront(next);
       if (foe.hp <= 0) checkWin(next, rc);
     }
   }
+  const poisonHp = livingFoes(next)[0]?.hp;
   const poison = tickPoison(next);
   if (poison > 0) {
+    const foe = livingFoes(next)[0];
+    if (foe && poisonHp != null) watchStanceShift(next, foe, poisonHp, rc);
     note(next, "you", `毒 ${poison}`);
     syncFront(next);
     if (livingFoes(next).length === 0) checkWin(next, rc);

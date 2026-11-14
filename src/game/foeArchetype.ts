@@ -14,6 +14,7 @@ import {
   CLIMB_FOE_WINDOW_HALL,
 } from "./climbCaps";
 import type { Intent } from "./types";
+import { pickFoeVariant, type FoeVariant } from "./content/foeVariants";
 
 export const ARCHETYPE_IDS = ["brute", "turtle", "skirmish", "assassin", "coach"] as const;
 export type ArchetypeId = (typeof ARCHETYPE_IDS)[number];
@@ -46,6 +47,8 @@ export interface FoeKit {
   aura: FoeAuraSlot | null;
   foeWindows: string[];
   windowCap: number;
+  foeVariant?: string;
+  shiftTo?: ArchetypeId;
 }
 
 /** 族 → 原型。不改目录血和招伤。 */
@@ -182,19 +185,37 @@ function foeWindowsFor(stage: number, elite: boolean, seat: boolean): string[] {
   return [];
 }
 
-/** 馆段 → 原型 → 配牌 → 词条（空）→ 羁绊（空）→ 光环（空）→ 成长。 */
-export function buildFoeKit(input: KitInput, rng: () => number): FoeKit {
-  const poolIds = archetypesForStage(input.stage);
-  const archetype = poolIds[Math.floor(rng() * poolIds.length)] ?? "brute";
+export function dealArchetypeCards(archetype: ArchetypeId, cap: number, rng: () => number): FoeCard[] {
   const bag = POOL[archetype];
+  const cards: FoeCard[] = [];
+  const n = Math.max(0, cap);
+  for (let i = 0; i < n; i++) cards.push(bag[Math.floor(rng() * bag.length)]!);
+  return cards;
+}
+
+export { type FoeVariant };
+
+/** 馆段 → 原型或变体 → 配牌 → 词条（空）→ 羁绊（空）→ 光环（空）→ 成长。 */
+export function buildFoeKit(input: KitInput, rng: () => number): FoeKit {
+  const seat = input.seat === true || input.stage >= 10;
+  const varied = input.elite === true || seat;
+  let archetype: ArchetypeId;
+  let foeVariant: string | undefined;
+  let shiftTo: ArchetypeId | undefined;
+  if (varied) {
+    const variant = pickFoeVariant(input.enemyId, rng);
+    archetype = variant.archetype;
+    foeVariant = variant.id;
+    shiftTo = variant.shiftTo;
+  } else {
+    const poolIds = archetypesForStage(input.stage);
+    archetype = poolIds[Math.floor(rng() * poolIds.length)] ?? "brute";
+  }
   const span = Math.floor(rng() * 1000);
   const cap = deckCap(input.stage, input.turn ?? 1, span);
-  const cards: FoeCard[] = [];
-  for (let i = 0; i < cap; i++) cards.push(bag[Math.floor(rng() * bag.length)]!);
-  const seat = input.seat === true || input.stage >= 10;
   return {
     archetype,
-    cards,
+    cards: dealArchetypeCards(archetype, cap, rng),
     cap,
     growth: deckGrowth(input.stage),
     tags: emptyTag(),
@@ -202,5 +223,6 @@ export function buildFoeKit(input: KitInput, rng: () => number): FoeKit {
     aura: auraSlot(),
     foeWindows: foeWindowsFor(input.stage, input.elite === true, seat),
     windowCap: seat ? CLIMB_FOE_WINDOW_CAP_SEAT : CLIMB_FOE_WINDOW_CAP,
+    ...(foeVariant ? { foeVariant, ...(shiftTo ? { shiftTo } : {}) } : {}),
   };
 }
