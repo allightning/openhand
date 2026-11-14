@@ -1,3 +1,4 @@
+import { labCard } from "../../src/game/labContent";
 import { applyLabEnemyKit, applyLabFightScale, answerReaction, applyClimbOpeningPositions, advanceProfession, canEndPlayerTurn, canPlay, endTurn, labDiscardCard, livingFoes, makeBattle, markEnemyOpen, needsDiscardToHandCap, playCard, rollWager, seeThrough, setBattleRng, swapFighter, syncBattleGear, yourPace } from "../../src/game/sim";
 import { buildFoeKit, foeKitSeed, kitRng } from "../../src/game/foeArchetype";
 import { publishStance } from "../../src/game/intentStance";
@@ -42,6 +43,7 @@ export type FightResult = {
   foeRead: number;
   swaps: number;
   foeVariant: string | null;
+  dumpN: number;
   autopsy?: AutopsyHand[];
 };
 
@@ -185,6 +187,21 @@ function noteDraws(b: Battle, seen: Set<string>, tally: CardTally): void {
     seen.add(card.uid);
     bump(tally, card.defId, "draws");
   }
+}
+
+function dumpUnreachableAttacks(b: Battle, rc: RunContext): { b: Battle; n: number } {
+  const toss = b.hand.filter((card) => {
+    const def = labCard(card.defId, rc);
+    return def.type === "attack" && !canPlayAttack(b, card, rc);
+  });
+  let n = 0;
+  for (const card of toss) {
+    if (!b.hand.some((c) => c.uid === card.uid)) continue;
+    const before = b.hand.length;
+    b = labDiscardCard(b, card.uid, rc);
+    if (b.hand.length < before) n += 1;
+  }
+  return { b, n };
 }
 
 function junkUid(b: Battle, rc: RunContext): string | null {
@@ -406,6 +423,8 @@ export function fightSample(
   const extra = blankExtra();
   const foeWin = { dismantle: 0, bind: 0, read: 0 };
   const swaps = { n: 0 };
+  let dumpN = 0;
+  let farStreak = 0;
   const cool: SwapCool = { turn: -1, n: 0, lock: null, left: 0 };
   const foeArmed = (b.foeWindows?.length ?? 0) > 0;
   const foeVariant = b.foeVariant ?? null;
@@ -425,7 +444,14 @@ export function fightSample(
     const paceF = b.foePace;
     const row = autopsy ? snapHand(b, opened.rc, hands) : null;
     if (row && autopsy) autopsy.push(row);
+    const distNow = Math.abs(b.enemy.pos - b.player.pos);
+    farStreak = distNow > 1 ? farStreak + 1 : 0;
     b = playOut(b, opened.rc, policy, policyRng, book, hit, tally, seen, extra, foeWin, swaps, cool, watch, row?.played);
+    if (policy.dumpMiss && farStreak >= 3 && b.hand.length >= 6) {
+      const dumped = dumpUnreachableAttacks(b, opened.rc);
+      b = dumped.b;
+      dumpN += dumped.n;
+    }
     extra.chargePeak = Math.max(extra.chargePeak, b.chargeStacks ?? 0);
     extra.pinPeak = Math.max(extra.pinPeak, b.foePin ?? 0);
     if (over(b)) {
@@ -460,6 +486,7 @@ export function fightSample(
     foeRead: foeWin.read,
     swaps: swaps.n,
     foeVariant,
+    dumpN,
     ...(autopsy ? { autopsy } : {}),
   };
 }

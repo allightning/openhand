@@ -14,6 +14,8 @@ export type Policy = {
   react: (b: Battle, rc: RunContext) => boolean;
   swap?: (b: Battle, rc: RunContext) => CompanionId | null;
   begin?: (b: Battle) => void;
+  /** 连续没贴身且手牌过厚时，弃够不着的攻击腾摸牌位。 */
+  dumpMiss?: boolean;
 };
 
 function withFlags(row: Omit<Policy, "flags" | "react">, flags: SimFlags = FLAGS_OFF): Policy {
