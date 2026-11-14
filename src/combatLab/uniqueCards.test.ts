@@ -44,7 +44,7 @@ describe("谱可重复至 3 + 换页机制仍在", () => {
     expect(ids.filter((id) => id === "saberBleed").length).toBe(2);
   });
 
-  it("卸力换页会抽牌，吐纳换页清裂创，开山掌会击退", () => {
+  it("卸力换页会抽牌，深息换页清裂创，开山掌会击退", () => {
     expect(CARDS.defend2.text).toMatch(/抽/);
     expect(CARDS.mend2.clearBleed).toBe(true);
     expect(CARDS.strike2.knock).toBe(1);
@@ -53,7 +53,7 @@ describe("谱可重复至 3 + 换页机制仍在", () => {
     b.player.pos = 2;
     b.enemy.pos = 3;
     b.energy = 6;
-    b.bleed = 3;
+    b.youBleed = 3;
     b.hand = [
       { uid: "d2", defId: "defend2" },
       { uid: "m2", defId: "mend2" },
@@ -67,7 +67,7 @@ describe("谱可重复至 3 + 换页机制仍在", () => {
     afterDef.hand = [{ uid: "m2", defId: "mend2" }];
     afterDef.energy = 6;
     const afterMend = playCard(afterDef, "m2", breakTestContext());
-    expect(afterMend.bleed).toBe(0);
+    expect(afterMend.youBleed).toBe(0);
 
     afterMend.hand = [{ uid: "s2", defId: "strike2" }];
     afterMend.energy = 6;

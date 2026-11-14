@@ -131,6 +131,7 @@ import {
 import { consumeChargeBurst, gainCharge } from "./rules/staffCharge";
 import { addPin, applyPinBudget, dartFormAllows, dartFormFailReason } from "./rules/dartPin";
 import { burnCellsFor, gapFieldFor, tickBurnCells } from "./rules/envTags";
+import { mindPierceBlock, shredBlockOnStrike } from "./rules/guardBreak";
 import { hookSmashLine, hookSmashSwap, staffWallOnCrash } from "./rules/wallLinks";
 import { noteSegmentRead, publishStance, segmentFeint } from "./intentStance";
 import {
@@ -1757,6 +1758,8 @@ function hitEnemy(b: Battle, raw: number, verb: string, rc: RunContext, spendCha
     }
   }
   if (!labV2(rc) && b.combo > 0) b.combo = 0;
+  // 裂石：出招时门禁判定，先于裂甲削挡（2026-11-14 拍定，两件同位相加）。
+  notes.push(...shredBlockOnStrike(b));
   if (b.active === "boqing" && b.enemyBlock > 0) {
     const pierce = Math.min(3, b.enemyBlock);
     b.enemyBlock -= pierce;
@@ -1803,9 +1806,13 @@ function hitEnemy(b: Battle, raw: number, verb: string, rc: RunContext, spendCha
     }
   }
   if (b.enemyBlock > 0) {
-    const blocked = Math.min(b.enemyBlock, dmg);
+    // 破甲心法：本击绕过 N 点挡（挡不碎，锚 = 剑破绽穿 4 的一半）。note 只报真正穿过去的伤。
+    const pierceMind = Math.min(mindPierceBlock(b), b.enemyBlock);
+    const blocked = Math.min(b.enemyBlock - pierceMind, dmg);
+    const pierced = dmg - blocked - Math.max(0, dmg - b.enemyBlock);
     b.enemyBlock -= blocked;
     dmg -= blocked;
+    if (pierced > 0) notes.push(`破甲穿挡 ${pierced}`);
     if (blocked) notes.push(`他卸了 ${blocked}`);
   }
   if (isClimbQi(rc) && b.expose > 0 && raw > 0) {
@@ -2356,8 +2363,8 @@ function applyCard(b: Battle, defId: CardId, rc: RunContext): string[] {
     const before = b.player.hp;
     b.player.hp = Math.min(b.player.maxHp, b.player.hp + n);
     notes.push(`回 ${b.player.hp - before}`);
-    if (def.clearBleed && b.bleed > 0) {
-      b.bleed = 0;
+    if (def.clearBleed && b.youBleed > 0) {
+      b.youBleed = 0;
       notes.push("裂创清了");
     }
     return notes;

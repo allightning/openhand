@@ -1,4 +1,4 @@
-import { CLIMB_POISON_ITEM, CLIMB_POISON_MIND, CLIMB_POISON_TECH } from "../climbCaps";
+import { CLIMB_POISON_ITEM, CLIMB_POISON_MIND, CLIMB_POISON_TECH, CLIMB_WINDOW_CAP_BONUS } from "../climbCaps";
 import { LAB_ITEM_TIP } from "../labV21Constants";
 import type { LabItemId } from "../types";
 import type { HookId, ItemKind, SchoolId } from "./hooks";
@@ -97,6 +97,15 @@ const ROWS: ItemDef[] = [
     effectHooks: uniqueHooks(["poison"]),
     values: { price: CLIMB_POISON_TECH },
     text: `毒功。标价 ${CLIMB_POISON_TECH}。`,
+  },
+  {
+    id: "xingshen",
+    cost: 1,
+    school: "any",
+    kind: "item",
+    effectHooks: uniqueHooks(["windowCap"]),
+    values: { windowCap: CLIMB_WINDOW_CAP_BONUS },
+    text: LAB_ITEM_TIP.xingshen!,
   },
 ];
 

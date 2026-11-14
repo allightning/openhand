@@ -123,7 +123,8 @@ describe("内容注册表", () => {
     });
     expect(CHARM_REGISTRY.aidPalm?.text).toMatch(/[0-9]/);
     expect(ITEM_HOLDS).toEqual([]);
-    expect(Object.keys(ITEM_REGISTRY)).toHaveLength(9);
+    expect(Object.keys(ITEM_REGISTRY)).toHaveLength(10);
+    expect(ITEM_REGISTRY.xingshen?.values.windowCap).toBe(1);
     expect(ITEM_REGISTRY.cuandu?.values.price).toBe(6);
     expect(ITEM_REGISTRY.dujing?.values.price).toBe(20);
     expect(ITEM_REGISTRY.dugong?.values.price).toBe(36);

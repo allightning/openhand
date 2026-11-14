@@ -30,7 +30,7 @@ export interface RouteLogEntry {
   note?: string;
 }
 
-export const ALL_ITEMS: LabItemId[] = ["jinchuang", "xiujian", "huiqi", "lianhuan", "pojin", "cuandu", "dujing", "dugong"];
+export const ALL_ITEMS: LabItemId[] = ["jinchuang", "xiujian", "huiqi", "lianhuan", "pojin", "cuandu", "dujing", "dugong", "xingshen"];
 
 export type GauntletTier = "easy" | "mid" | "hard" | "extreme";
 

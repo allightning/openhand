@@ -247,7 +247,7 @@ describe("Combat Lab auto loadouts", () => {
     const cov = autoLoadoutCoverage();
     expect(cov.ok).toBe(true);
     expect(cov.mates).toBe(15);
-    expect(cov.techniques).toBe(32);
+    expect(cov.techniques).toBe(35);
     expect(cov.items).toBe(5);
     expect(cov.comboCards).toBe(6);
   });

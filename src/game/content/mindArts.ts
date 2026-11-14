@@ -33,6 +33,8 @@ function projectMind(def: MindArtDef): MindDef {
   if (def.energyMax) values.energyMax = def.energyMax;
   if (def.turnHeal) values.turnHeal = def.turnHeal;
   if (def.turnEnergy) values.turnEnergy = def.turnEnergy;
+  if (def.pierceBlock) values.pierceBlock = def.pierceBlock;
+  if (def.windowCap) values.windowCap = def.windowCap;
   return {
     id: def.id,
     cost: 1,

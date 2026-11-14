@@ -287,15 +287,17 @@ describe("new verbs and techniques", () => {
     expect(b.player.hp).toBe(STARTER.playerHp - 18);
   });
 
-  it("lets 深息 stop your 裂创", () => {
+  it("lets 深息 heal and clear 我方裂创（敌裂创不动）", () => {
     const run = makeRun("empty");
     run.deck = ["mend2", "defend", "defend", "defend", "defend"];
     let b = makeBattle("catcher", makeTestContext({ mode: "climb", lab: false }), run, true);
-    b.bleed = 4;
+    b.youBleed = 4;
+    b.bleed = 3;
     b.player.hp = 20;
     b.energy = 8;
     b = playNamed(b, "mend2");
-    expect(b.bleed).toBe(0);
+    expect(b.youBleed).toBe(0);
+    expect(b.bleed).toBe(3);
     expect(b.player.hp).toBe(28);
   });
 

@@ -36,7 +36,7 @@ export const CLIMB_CHARGE_NET_LOSS = 15;
 export const CLIMB_CHARGE_INTEREST = 0.25;
 /** 飞刀钉帽（占位）。 */
 export const CLIMB_PIN_CAP = 6;
-/** 灼烧格回合结束扣血（占位）。 */
+/** 灼烧格回合结束扣血。2026-11-14 投放拍定（馆 3/6/8），数值维持。 */
 export const CLIMB_BURN_DMG = 4;
 /** 反应窗大窗耗蓝（回马 / 截拳 / 透棍）。黄。 */
 export const CLIMB_WINDOW_QI_BIG = 2;
@@ -63,6 +63,19 @@ export const CLIMB_LIMP_LEECH_HITS = 2;
 /** 透棍真伤：已有挡 × 此数 + 新增挡 × 此数。 */
 export const CLIMB_STAFF_PIERCE_OLD = 0.5;
 export const CLIMB_STAFF_PIERCE_NEW = 1;
+// 破挡 / 反应窗流构筑件（2026-11-14 拍定，通用薄专精厚：通用件数值低于专精件，偏弱只动价格与获取口）
+/** 破甲心法：攻击穿挡。天花板 2，锚 = 剑破绽穿 4（CLIMB_EXPOSE_THROUGH_BLOCK）。 */
+export const CLIMB_PIERCE_BLOCK_MIND = 2;
+/** 裂石外功：出招时敌挡达到门禁，先削这么多挡，每招一次；与柏青裂甲同位相加。 */
+export const CLIMB_SHRED_BLOCK = 3;
+/** 裂石门禁：敌挡 ≥ 此数才触发。不许放宽。 */
+export const CLIMB_SHRED_BLOCK_GATE = 6;
+/** 听劲外功：反应窗思考时间 +秒。 */
+export const CLIMB_WINDOW_THINK_BONUS = 2;
+/** 抢半招外功：反应窗兑现伤害加成。平直判定，不吃档位放大。 */
+export const CLIMB_WINDOW_PAYOFF_BONUS = 0.5;
+/** 明镜心法 / 醒神丸：反应窗每场帽 +N。 */
+export const CLIMB_WINDOW_CAP_BONUS = 1;
 /** 破防：敌蓝归零后当手受击加成。 */
 export const CLIMB_BREAK_HURT = 0.25;
 /** 敌方反应窗每场次数。 */
@@ -95,7 +108,7 @@ export const CLIMB_FOE_RIPOSTE = 3;
 export const CLIMB_FOE_READ_MUL = 0.7;
 /** 缠手削掉的剩招段。黄。 */
 export const CLIMB_FOE_BIND_CUT = 1;
-/** 馆 2 起，接力上场的第二人及以后，意图段数乘这个数，向下取整，保底 1。黄。不改敌血、敌伤。 */
+/** 馆 2 起，接力上场的第二人及以后，意图段数乘这个数，向下取整，保底 1。不改敌血、敌伤。2026-11-14 用户拍定转正。 */
 export const CLIMB_RELAY_SEG_MUL = 0.5;
 /** 血线换势：敌血首次跌破这个比例就换谱。黄。 */
 export const CLIMB_STANCE_SHIFT_HP = 0.5;
@@ -195,7 +208,7 @@ export const CLIMB_MARKET_SUPREME = 40;
 /** 情报：底细 / 命门，占当前彩金。 */
 export const CLIMB_INTEL_DETAIL = 0.15;
 export const CLIMB_INTEL_CORE = 0.3;
-/** 毒：淬毒 / 毒经 / 毒功。道具表已登记，结算不读。 */
+/** 毒：淬毒 / 毒经 / 毒功。这里是黑市标价；附毒层与回合结束结算在 poison.ts。 */
 export const CLIMB_POISON_ITEM = 6;
 export const CLIMB_POISON_MIND = 20;
 export const CLIMB_POISON_TECH = 36;

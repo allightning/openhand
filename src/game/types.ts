@@ -269,7 +269,8 @@ export type LabItemId =
   | "aidHook"
   | "cuandu"
   | "dujing"
-  | "dugong";
+  | "dugong"
+  | "xingshen";
 
 /** §31.12 助战符召唤的客座好手（与同行完全分家）：实体一格、一回合、放一手本系绝活就走。 */
 export interface SummonState {
@@ -392,7 +393,11 @@ export type TechniqueId =
   | "heavyStaff"
   // 钩
   | "barbedHook"
-  | "hookVeil";
+  | "hookVeil"
+  // §破挡 / 反应窗流（2026-11-14 拍定，通用件）
+  | "lieshi"
+  | "tingjin"
+  | "qiangbanzhao";
 
 export type HeartId = "iron" | "breath" | "empty";
 
@@ -602,6 +607,10 @@ export interface Battle {
   holdReaction?: boolean;
   /** 本场已打出的反应窗次数。 */
   windowsUsed?: number;
+  /** 本场反应窗帽加成（明镜心法常驻 / 醒神丸一次），叠在 CLIMB_WINDOW_FIGHT_CAP 上。 */
+  windowCapBonus?: number;
+  /** 裂石碎挡每招一次的结算键（回合:牌:序），同招多段只削一次。 */
+  shredBlockKey?: string;
   /** 回马之后，本回合剩余位移作废。 */
   displaceSealed?: boolean;
   /** 敌蓄力层（截拳清的是这个）。 */

@@ -1,4 +1,5 @@
 /** 旧内容表。结算仍读这张表。路径 `src/game/content.ts` 只 re-export。 */
+import { CLIMB_SHRED_BLOCK, CLIMB_SHRED_BLOCK_GATE, CLIMB_WINDOW_PAYOFF_BONUS, CLIMB_WINDOW_THINK_BONUS } from "../climbCaps";
 import type {
   CardDef,
   CardId,
@@ -415,6 +416,28 @@ export const TECHNIQUES: Record<TechniqueId, TechniqueDef> = {
     flavor: "他没了家伙，你的钩子就是门帘。",
     chapter: "court",
     school: "hook",
+  },
+  // 破挡 / 反应窗流（2026-11-14 拍定，通用件：通用薄专精厚，偏弱只动价格与获取口）
+  lieshi: {
+    id: "lieshi",
+    name: "裂石",
+    text: `敌挡 ≥${CLIMB_SHRED_BLOCK_GATE} 时，你每招先碎他 ${CLIMB_SHRED_BLOCK} 点挡。`,
+    flavor: "石硬，錾子更硬。",
+    chapter: "dock",
+  },
+  tingjin: {
+    id: "tingjin",
+    name: "听劲",
+    text: `反应窗的思考时间 +${CLIMB_WINDOW_THINK_BONUS} 秒。`,
+    flavor: "他肩一动，风先到。",
+    chapter: "alley",
+  },
+  qiangbanzhao: {
+    id: "qiangbanzhao",
+    name: "抢半招",
+    text: `反应窗兑现的伤害 +${CLIMB_WINDOW_PAYOFF_BONUS * 100}%。`,
+    flavor: "快半招，就是先手。",
+    chapter: "court",
   },
 };
 

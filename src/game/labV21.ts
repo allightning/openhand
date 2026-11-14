@@ -19,6 +19,7 @@ import { gearById } from "./weapons";
 import { labPlayCost } from "./climbEconomy";
 import { emptyV2Turn } from "./labV2";
 import { grantPoisonItem } from "./poison";
+import { CLIMB_WINDOW_CAP_BONUS } from "./climbCaps";
 
 export type { ResonanceStatus as AuraStatus };
 export {
@@ -309,6 +310,9 @@ export function useLabItem(
   } else if (item === "cuandu" || item === "dujing" || item === "dugong") {
     const notes = grantPoisonItem(next, item);
     if (notes[0]) next.journal = [...next.journal, { side: "you", text: notes[0] }];
+  } else if (item === "xingshen") {
+    next.windowCapBonus = (next.windowCapBonus ?? 0) + CLIMB_WINDOW_CAP_BONUS;
+    next.journal = [...next.journal, { side: "you", text: `醒神丸：本馆反应窗多 ${CLIMB_WINDOW_CAP_BONUS} 次` }];
   } else if (item === "lianhuan") {
     next.labComboPillActive = true;
     next.journal = [

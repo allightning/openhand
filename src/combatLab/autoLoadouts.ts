@@ -98,7 +98,7 @@ const AUTO_LOADOUT_DEFS: AutoLoadoutDef[] = [
     mateTechPool: {
       rail: ["longPush", "stackHand", "backstep", "ironPalm", "softPalm", "piercingPalm"],
       hermit: ["hardWall", "keepGuard"],
-      bard: ["backstep", "stackHand"],
+      bard: ["backstep", "stackHand", "qiangbanzhao"],
       hooker: ["bodyCheck", "longPush"],
     },
     labItems: ["huiqi", "jinchuang"],
@@ -140,7 +140,7 @@ const AUTO_LOADOUT_DEFS: AutoLoadoutDef[] = [
     ],
     mateTechPool: {
       sapper: ["keepGuard", "rebound", "stakeArmor", "heavyStaff"],
-      porter: ["throne", "nightStep"],
+      porter: ["throne", "nightStep", "lieshi"],
       pilgrim: ["rebound", "delayGuard"],
       hermit: ["nightStep", "keepGuard"],
     },
@@ -226,7 +226,7 @@ const AUTO_LOADOUT_DEFS: AutoLoadoutDef[] = [
     ],
     mateTechPool: {
       seer: ["ghostStep", "delayGuard", "swordRain", "swordScreen", "flowSword"],
-      scribe: ["delayGuard", "ghostStep"],
+      scribe: ["delayGuard", "ghostStep", "tingjin"],
       guard: ["shortCharge", "throne", "spearWind", "longMarch", "pikeBrace"],
       pilgrim: ["heelStake", "nightStep"],
     },

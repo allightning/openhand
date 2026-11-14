@@ -119,6 +119,11 @@ export const MECHANISM_HOOKS = [
   "chargeBurst",
   "pin",
   "poison",
+  "shredBlock",
+  "pierceBlock",
+  "windowCap",
+  "windowDamage",
+  "windowTime",
 ] as const;
 
 export type HookId = (typeof MECHANISM_HOOKS)[number];

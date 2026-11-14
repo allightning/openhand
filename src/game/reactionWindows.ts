@@ -17,10 +17,13 @@ import {
   CLIMB_WINDOW_BASE_HIT,
   CLIMB_WINDOW_FIGHT_CAP,
   CLIMB_WINDOW_HP_RATIO,
+  CLIMB_WINDOW_PAYOFF_BONUS,
   CLIMB_WINDOW_QI_BIG,
   CLIMB_WINDOW_QI_SMALL,
+  CLIMB_WINDOW_THINK_BONUS,
 } from "./climbCaps";
 import { foeWindowChance } from "./foeArchetype";
+import { sumMindArtBonuses } from "./mindArts";
 import type { Battle, CardDef, Intent, ReactionKind, ReactionWindow, WeaponId } from "./types";
 
 export interface WindowTick {
@@ -155,9 +158,25 @@ export function tickFromIntent(intent: Intent, dist: number, foeSchool?: WeaponI
   return { ...base, phase: "move" };
 }
 
+/** 本场玩家反应窗帽：基础帽 + 醒神丸等一次加成 + 明镜心法。 */
+export function windowFightCap(b: Battle): number {
+  const minds = sumMindArtBonuses(b.labMateMinds?.[b.active] ?? []);
+  return CLIMB_WINDOW_FIGHT_CAP + (b.windowCapBonus ?? 0) + minds.windowCap;
+}
+
+/** 听劲外功：反应窗思考时间 +秒。表现壳读这个数，引擎只管登记。 */
+export function windowThinkBonusSec(b: Battle): number {
+  return b.techniques.includes("tingjin") ? CLIMB_WINDOW_THINK_BONUS : 0;
+}
+
+/** 抢半招外功：反应窗兑现伤害加成。平直判定，不吃档位放大。 */
+function windowPayoffMul(b: Battle): number {
+  return b.techniques.includes("qiangbanzhao") ? 1 + CLIMB_WINDOW_PAYOFF_BONUS : 1;
+}
+
 export function matchWindow(b: Battle, school: WeaponId, tick: WindowTick): WindowRow | null {
   if (tick.feint) return null;
-  if ((b.windowsUsed ?? 0) >= CLIMB_WINDOW_FIGHT_CAP) return null;
+  if ((b.windowsUsed ?? 0) >= windowFightCap(b)) return null;
   if (b.reactionWindow) return null;
   return WINDOWS.find((row) => row.school === school && row.match(b, tick)) ?? null;
 }
@@ -209,8 +228,9 @@ export function takeWindow(b: Battle): string[] {
     const d = distOf(b);
     if (d <= 1) {
       b.foeCharge = 0;
-      b.enemy.hp -= CLIMB_WINDOW_BASE_HIT;
-      return [`截拳 清蓄力，伤 ${CLIMB_WINDOW_BASE_HIT}`];
+      const hit = Math.round(CLIMB_WINDOW_BASE_HIT * windowPayoffMul(b));
+      b.enemy.hp -= hit;
+      return [`截拳 清蓄力，伤 ${hit}`];
     }
     const dir = b.enemy.pos > b.player.pos ? 1 : -1;
     const next = b.player.pos + dir;
@@ -219,14 +239,15 @@ export function takeWindow(b: Battle): string[] {
   }
   if (w.kind === "dartBreath") {
     const n = w.amount ?? 0;
-    b.enemy.hp -= n;
+    const hit = Math.round(n * windowPayoffMul(b));
+    b.enemy.hp -= hit;
     if (w.intentKind === "breathe") b.enemyEnergy = Math.max(0, b.enemyEnergy - n);
-    return [`断息 伤 ${n}`];
+    return [`断息 伤 ${hit}`];
   }
   if (w.kind === "saberParry") {
     const raw = w.amount ?? w.chargeDamage ?? 0;
     const block = Math.round(raw * CLIMB_PARRY_BLOCK_RATIO);
-    const back = Math.round(raw * CLIMB_PARRY_REFLECT_RATIO);
+    const back = Math.round(raw * CLIMB_PARRY_REFLECT_RATIO * windowPayoffMul(b));
     b.playerBlock += block;
     b.enemy.hp -= back;
     b.meleeHits = 0;
@@ -246,7 +267,7 @@ export function takeWindow(b: Battle): string[] {
   }
   if (w.kind === "staffPierce") {
     const added = w.amount ?? 0;
-    const dmg = Math.round(b.enemyBlock * CLIMB_STAFF_PIERCE_OLD + added * CLIMB_STAFF_PIERCE_NEW);
+    const dmg = Math.round((b.enemyBlock * CLIMB_STAFF_PIERCE_OLD + added * CLIMB_STAFF_PIERCE_NEW) * windowPayoffMul(b));
     b.enemyBlock += added;
     b.enemy.hp -= dmg;
     b.staffPierceUsed = true;

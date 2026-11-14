@@ -1,3 +1,4 @@
+import { CLIMB_PIERCE_BLOCK_MIND, CLIMB_WINDOW_CAP_BONUS } from "./climbCaps";
 import type { WeaponId } from "./types";
 
 export type MindArtId =
@@ -10,7 +11,10 @@ export type MindArtId =
   | "swordMirror"
   | "spearStride"
   | "staffRoot"
-  | "hookTide";
+  | "hookTide"
+  // 破挡 / 反应窗流（2026-11-14 拍定，通用件）
+  | "pojia"
+  | "mingjing";
 
 export interface MindArtDef {
   id: MindArtId;
@@ -22,6 +26,10 @@ export interface MindArtDef {
   energyMax?: number;
   turnHeal?: number;
   turnEnergy?: number;
+  /** 攻击穿挡（破甲）。天花板 2，锚 = 剑破绽穿 4。 */
+  pierceBlock?: number;
+  /** 每场反应窗帽 +N（明镜）。 */
+  windowCap?: number;
 }
 
 export const MIND_ARTS: Record<MindArtId, MindArtDef> = {
@@ -98,6 +106,18 @@ export const MIND_ARTS: Record<MindArtId, MindArtDef> = {
     energyMax: 4,
     turnHeal: 6,
   },
+  pojia: {
+    id: "pojia",
+    name: "破甲心法",
+    text: `你的攻击穿 ${CLIMB_PIERCE_BLOCK_MIND} 点格挡。`,
+    pierceBlock: CLIMB_PIERCE_BLOCK_MIND,
+  },
+  mingjing: {
+    id: "mingjing",
+    name: "明镜心法",
+    text: `每场你的反应窗多 ${CLIMB_WINDOW_CAP_BONUS} 次。`,
+    windowCap: CLIMB_WINDOW_CAP_BONUS,
+  },
 };
 
 export const ALL_MIND_ART_IDS = Object.keys(MIND_ARTS) as MindArtId[];
@@ -116,16 +136,20 @@ export interface MindArtBonuses {
   energyMax: number;
   turnHeal: number;
   turnEnergy: number;
+  pierceBlock: number;
+  windowCap: number;
 }
 
 export function sumMindArtBonuses(ids: MindArtId[]): MindArtBonuses {
-  const out: MindArtBonuses = { hpMax: 0, energyMax: 0, turnHeal: 0, turnEnergy: 0 };
+  const out: MindArtBonuses = { hpMax: 0, energyMax: 0, turnHeal: 0, turnEnergy: 0, pierceBlock: 0, windowCap: 0 };
   for (const id of ids) {
     const d = MIND_ARTS[id];
     out.hpMax += d.hpMax ?? 0;
     out.energyMax += d.energyMax ?? 0;
     out.turnHeal += d.turnHeal ?? 0;
     out.turnEnergy += d.turnEnergy ?? 0;
+    out.pierceBlock += d.pierceBlock ?? 0;
+    out.windowCap += d.windowCap ?? 0;
   }
   return out;
 }

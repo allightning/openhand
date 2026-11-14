@@ -1,3 +1,4 @@
+import { CLIMB_SHRED_BLOCK, CLIMB_SHRED_BLOCK_GATE, CLIMB_WINDOW_PAYOFF_BONUS, CLIMB_WINDOW_THINK_BONUS } from "../climbCaps";
 import type { TechniqueDef as LegacyTechnique, TechniqueId } from "../types";
 import { TECHNIQUES } from "./legacy";
 import type { HookId, SchoolId, TechniqueKind } from "./hooks";
@@ -48,6 +49,9 @@ const FACE: Record<TechniqueId, { hooks: readonly HookId[]; values: Record<strin
   heavyStaff: { hooks: ["knock"], values: { knock: 1 } },
   barbedHook: { hooks: ["pull", "damage"], values: { damage: 3 } },
   hookVeil: { hooks: ["block", "disarm"], values: { block: 3 } },
+  lieshi: { hooks: ["shredBlock"], values: { shredBlock: CLIMB_SHRED_BLOCK, shredGate: CLIMB_SHRED_BLOCK_GATE } },
+  tingjin: { hooks: ["windowTime"], values: { windowTime: CLIMB_WINDOW_THINK_BONUS } },
+  qiangbanzhao: { hooks: ["windowDamage"], values: { windowDamage: CLIMB_WINDOW_PAYOFF_BONUS } },
 };
 
 export function projectTechnique(def: LegacyTechnique): TechniqueDef {

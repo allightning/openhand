@@ -1,3 +1,5 @@
+import { CLIMB_WINDOW_CAP_BONUS } from "./climbCaps";
+
 /** §20 道具数值（颗数制：一次给 2 颗，用一少一） */
 export const ITEM_GRANT_QTY = 2;
 export const ITEM_HEAL_PCT = 0.32;
@@ -17,6 +19,7 @@ export const LAB_ITEM_LABEL: Record<string, string> = {
   aidSpear: "助战符·枪",
   aidStaff: "助战符·棍",
   aidHook: "助战符·钩",
+  xingshen: "醒神丸",
 };
 
 export const LAB_ITEM_TIP: Record<string, string> = {
@@ -32,6 +35,7 @@ export const LAB_ITEM_TIP: Record<string, string> = {
   aidSpear: "召长梢上场一回合：把敌挑退 1 格替你控距。实体可卡位挡冲锋。用后符尽",
   aidStaff: "召顿僧上场一回合：敌眩晕 1 段。实体可卡位挡冲锋。用后符尽",
   aidHook: "召缠丝上场一回合：敌缴械 2 息。实体可卡位挡冲锋。用后符尽",
+  xingshen: `本馆反应窗多 ${CLIMB_WINDOW_CAP_BONUS} 次`,
 };
 
 export { AURA_DUO_START_QI } from "./labV25Constants";
