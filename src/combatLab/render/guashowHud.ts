@@ -4,7 +4,8 @@ import { buildStanceBoard, STANCE_LABEL } from "../../game/intentStance";
 import { cardSchool, WEAPON_NAME } from "../../game/party";
 import type { Battle, Intent, ReactionWindow, StanceId, StanceSeg } from "../../game/types";
 import { shellRunContext } from "../shellContext";
-import { cardIntentLine, latestFoeWindowLine } from "../storyBeats";
+import { cardIntentLine } from "../storyBeats";
+import { recentBroadcast } from "./liveFoe";
 import { escapeHtml } from "../setupUi";
 
 const STANCE_ORDER: StanceId[] = ["hurt", "press", "back", "hold", "wind", "sly"];
@@ -226,7 +227,9 @@ export function renderMechHud(b: Battle): string {
   const marks = renderCardIntentMarks(intentNow.n, intentNow.label);
   const intentLine = cardIntentLine(intentNow.school, intentNow.n);
   const intent = intentLine ? `<p class="lab-intent-line">${escapeHtml(intentLine)}</p>` : "";
-  const windowLine = latestFoeWindowLine(b.log);
-  const foeWin = windowLine ? `<p class="lab-foe-window-line">${escapeHtml(windowLine)}</p>` : "";
+  const cast = recentBroadcast(b.log);
+  const foeWin = cast.text
+    ? `<p class="lab-foe-window-line"${cast.shift ? ` data-stance-shift="${cast.shift}" data-stance-shift-source="field"` : ""}>${escapeHtml(cast.text)}</p>`
+    : "";
   return `<div class="lab-mech-hud"><div class="lab-charge-row" data-overlap-group="charge-row">${charge}${marks}</div>${nail}${dart}${intent}${foeWin}</div>`;
 }

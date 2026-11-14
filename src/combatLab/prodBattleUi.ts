@@ -28,6 +28,7 @@ import { isHighStake, stakeHitsAt } from "../game/stake";
 import { renderFxLayer, renderGrudgeBadge, threatCellsForHover } from "./labV2Ui";
 import { boardLayout, cellIsWall, outsideWallSide, type BoardLayout } from "./render/boardLayout";
 import { foeReactView } from "./render/foeReact";
+import { recentBroadcast, renderFoeRumor } from "./render/liveFoe";
 import { envBurnDue, reactView, renderMechHud, renderReadNames, renderRevealRow, renderStanceAgg } from "./render/guashowHud";
 import { renderRoleHud } from "./render/roleHud";
 
@@ -515,6 +516,10 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
   const readLive = readHtml.includes('data-read-source="field"');
   const foe = foeReactView(b);
   const foeNote = foe.note ? `<b class="lab-foe-react-note" data-foe-note>${escapeHtml(foe.note)}</b>` : "";
+  const cast = recentBroadcast(b.log);
+  const shiftNote = cast.shift
+    ? `<b class="lab-stance-shift" data-stance-shift="${cast.shift}" data-stance-shift-source="field">${escapeHtml(cast.text)}</b>`
+    : "";
   const hasTeach = Boolean(teachHtml);
 
   return `
@@ -569,7 +574,7 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
               <div class="lab-intent-band" data-overlap-group="intents">${renderStanceAgg(b, hideBefore, foeSegFate)}${renderRevealRow(b, hideBefore, foeSegFate)}</div>
               ${teachHtml}
               <div class="strip${layout.env ? ` env-${layout.env}` : ""}${react.landed ? " lab-board-shake" : ""}${envBurnDue(b, Boolean(foeResolving)) && layout.env === "burn" ? " env-burn-due" : ""}" id="strip" data-board="${layout.size}" data-env="${layout.env}" data-env-source="${layout.envSource}" data-wall="${layout.wallEnds}" data-env-key="${layout.envKey}">${react.html}${foe.html}${boardHtml}</div>
-              ${coachText || foeNote ? `<div class="coach" id="coach">${escapeHtml(coachText)}${foeNote}${readHtml}</div>` : `<div class="coach coach-empty" id="coach"${readLive ? "" : " hidden"}>${readHtml}</div>`}
+              ${coachText || foeNote || shiftNote ? `<div class="coach" id="coach">${escapeHtml(coachText)}${foeNote}${shiftNote}${readHtml}</div>` : `<div class="coach coach-empty" id="coach"${readLive ? "" : " hidden"}>${readHtml}</div>`}
             </div>
 
             <aside class="fighter foe-side">
@@ -586,7 +591,7 @@ export function renderProdBattle(opts: ProdBattleOpts): string {
                 ${foeBars}
               </div>
               <div class="lab-bar-slot">${qiBar(b.enemyEnergy, b.enemyEnergyMax)}</div>
-              <div class="lab-aside-extra"></div>
+              <div class="lab-aside-extra">${renderFoeRumor(b)}</div>
             </aside>
           </div>
         </div>

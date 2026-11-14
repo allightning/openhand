@@ -5355,6 +5355,16 @@ html.lab-fullscreen #app.lab-root,
   margin: 0;
 }
 
+.lab-prod-combat .lab-stance-shift {
+  position: static;
+  margin: 0;
+}
+
+.lab-prod-combat .lab-foe-rumor {
+  position: static;
+  margin: 0;
+}
+
 .lab-prod-combat .lab-pin-chip,
 .lab-prod-combat .lab-dart-form,
 .lab-prod-combat .lab-intent-marks span {

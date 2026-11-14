@@ -15,7 +15,7 @@ import { renderShellEvent } from "./render/shellEvent";
 import { renderShellHall, renderShellPath, type ShellHallView } from "./render/shellHall";
 import { paintShellLoadout, readPoolCards, renderShellPool } from "./render/shellLoadout";
 import { renderOpenRitual } from "./render/openFlip";
-import { armOpeningRitual } from "./storyBeats";
+import { armOpeningRitual, offerStory2Page, rollStoryChoices } from "./storyBeats";
 import { renderShellSettings } from "./render/shellChrome";
 
 const CSS = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "lab.css"), "utf8");
@@ -260,6 +260,40 @@ describe("按钮不重叠", () => {
     expect(CSS).toMatch(/\.lab-prod-combat \.lab-react-round\.is-foe \.lab-react-arc\s*\{[^}]*animation:\s*none/);
     expect(CSS).toMatch(/\.lab-prod-combat \.lab-charge-row\s*\{[^}]*position:\s*static/);
     expect(CSS).toMatch(/\.lab-prod-combat \.lab-intent-marks\s*\{[^}]*position:\s*static/);
+    expect(CSS).toMatch(/\.lab-phase-slot\s*\{[^}]*height:\s*1\.7rem/);
+  });
+
+  it("换势句和风声不进动作行", () => {
+    setLabRuleset("climb");
+    setLabMode(true);
+    const b = startLabBattle(buildGauntletPreset(createGauntletRun("bandit", "saber")), true, 1);
+    b.log = ["foeStanceShift 血线 50% turtle→brute"];
+    b.foeVariant = "mob:turtle-shell";
+    b.stanceRevealN = 1;
+    const html = renderProdBattle({
+      b,
+      prev: null,
+      hoverUid: null,
+      hoverIntentIdx: null,
+      weaponId: "saber-a-3",
+      canPlay: () => ({ ok: true }),
+      actionRowHtml: `<button class="fy-btn" id="btn-end">收势</button>`,
+      entranceNote: "",
+      freshNote: "",
+      fxClass: "",
+      pauseOverlay: "",
+      toolbarExtra: "",
+      weaponSheetHtml: "",
+      gauntletStage: 1,
+    });
+    const actions = between(html, 'data-overlap-group="actions"', 'data-overlap-group="hand-row"');
+    expect(actions).not.toContain("data-stance-shift");
+    expect(actions).not.toContain("data-intel-slot");
+    expect(html).toContain('data-stance-shift="turtle"');
+    expect(html).toContain('data-intel-slot="rumor"');
+    expect(html).toContain('data-reveal-source="field"');
+    expect(CSS).toMatch(/\.lab-prod-combat \.lab-stance-shift\s*\{[^}]*position:\s*static/);
+    expect(CSS).toMatch(/\.lab-prod-combat \.lab-foe-rumor\s*\{[^}]*position:\s*static/);
     expect(CSS).toMatch(/\.lab-phase-slot\s*\{[^}]*height:\s*1\.7rem/);
   });
 
@@ -512,5 +546,16 @@ describe("六屏按钮不重叠", () => {
     expect(css).toMatch(/\.shell-open-flip\s*\{[^}]*position:\s*static/);
     expect(css).toMatch(/\.shell-open-name\s*\{[^}]*position:\s*static/);
     expect(css).toMatch(/\.shell-open-card\s*\{[^}]*position:\s*static/);
+  });
+
+  it("重打页的选项仍换行", () => {
+    setLabRuleset("climb");
+    setLabMode(true);
+    const run = offerStory2Page(createGauntletRun("bandit", "saber"), "s2-revive-rematch");
+    const seated = { ...run, storyFlags: [...(run.storyFlags ?? []), "rematch-seat"] };
+    const html = renderShellEvent(renderGauntletEvent(seated, "story", rollStoryChoices(seated)));
+    expect(html).toContain('data-rematch-open="seat"');
+    expect(html.indexOf("座前的人记得")).toBeLessThan(html.indexOf("你站回空地中央"));
+    assertFlow(html, 'data-overlap-group="event-choices"');
   });
 });

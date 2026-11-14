@@ -51,6 +51,7 @@ import { weaponArt } from "../art/weaponArt";
 import { campBattleCardHtml, companionPortraitHtml, companionSkillLine } from "./rewardArt";
 import { climbPlace } from "./climbPlaces";
 import { storyBeatTitle, storyEventLead, storyOpeningLead, storyTravelText, usesBanditStory } from "./storyBeats";
+import { rematchOpenMark } from "./render/liveFoe";
 import { FINALE_CHOICES, eventLead, formatEncounterRichText, type EncounterChoice, type EncounterKind } from "./encounter";
 import { canStartBattle, climbCardFusable, climbTechSlotMax, deckBounds, fieldDeck, mateDeck } from "./loadout";
 
@@ -949,7 +950,7 @@ export function renderGauntletEvent(run: GauntletRun, kind: EncounterKind, choic
     <div class="gauntlet-shell ritual-screen">
       <header class="gauntlet-head">
         <h2>${escapeHtml(title)}</h2>
-        <p class="gauntlet-event-lead">${formatEncounterRichText(lead)}</p>
+        <p class="gauntlet-event-lead" data-rematch-open="${rematchOpenMark(run.storyFlags).open}" data-rematch-source="${rematchOpenMark(run.storyFlags).source}">${formatEncounterRichText(lead)}</p>
         ${intel ? `<p class="gauntlet-event-lead">暗桩：${escapeHtml(intel)}</p>` : ""}
         <p>彩金 ${run.pot}</p>
       </header>
