@@ -53,7 +53,8 @@ function add(cell: Night6Cell, fight: FightResult): void {
 }
 
 export function growthOf(stage: number): { grade: number; adept: number; supreme: number } {
-  if (stage <= 2) return { grade: 1, adept: 0, supreme: 0 };
+  if (stage <= 1) return { grade: 1, adept: 0, supreme: 0 };
+  if (stage === 2) return { grade: 1, adept: 1, supreme: 0 };
   if (stage <= 4) return { grade: 2, adept: 2, supreme: 0 };
   if (stage <= 6) return { grade: 2, adept: 4, supreme: 0 };
   if (stage <= 9) return { grade: 3, adept: 4, supreme: 2 };

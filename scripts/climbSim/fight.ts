@@ -1,7 +1,6 @@
 import { labCard } from "../../src/game/labContent";
-import { applyLabEnemyKit, applyLabFightScale, answerReaction, applyClimbOpeningPositions, advanceProfession, canEndPlayerTurn, canPlay, endTurn, labDiscardCard, livingFoes, makeBattle, markEnemyOpen, needsDiscardToHandCap, playCard, rollWager, seeThrough, setBattleRng, swapFighter, syncBattleGear, yourPace } from "../../src/game/sim";
+import { applyLabEnemyKit, applyLabFightScale, answerReaction, applyClimbOpeningPositions, advanceProfession, canEndPlayerTurn, canPlay, commitFoeKit, endTurn, labDiscardCard, livingFoes, makeBattle, markEnemyOpen, needsDiscardToHandCap, playCard, rollWager, seeThrough, setBattleRng, swapFighter, syncBattleGear, yourPace } from "../../src/game/sim";
 import { buildFoeKit, foeKitSeed, kitRng } from "../../src/game/foeArchetype";
-import { publishStance } from "../../src/game/intentStance";
 import type { Battle, Intent } from "../../src/game/types";
 import type { RunContext } from "../../src/game/runContext";
 import type { OpenedHall } from "./boot";
@@ -9,7 +8,7 @@ import { emitHand, emitOpen, notePlay, type FightWatch } from "./fightWatch";
 import { FLAGS_OFF } from "./flags";
 import { envTagForStage } from "./flags";
 import { canPlayAttack, canPlayMove, handIsEmpty, isMoveCard } from "./hand";
-import { injectExtraCards, injectMateExtras, injectMechKit, injectThinKit } from "./kitInject";
+import { injectExtraCards, injectMateExtras, injectMechKit, injectThinKit, shuffleDrawPiles } from "./kitInject";
 import { noteBoard } from "./pool";
 import type { ClimbKnobs } from "./knobs";
 import { mulberry32 } from "./rng";
@@ -44,6 +43,9 @@ export type FightResult = {
   swaps: number;
   foeVariant: string | null;
   dumpN: number;
+  bleedTick: number;
+  poisonTick: number;
+  pierceHit: number;
   autopsy?: AutopsyHand[];
 };
 
@@ -127,6 +129,17 @@ function adopt(book: HpBook, who: string, hp: number): void {
   book.hp = hp;
 }
 
+function scanPierce(lines: string[], into: { bleed: number; poison: number; pierce: number }): void {
+  for (const line of lines) {
+    const bleed = /^裂创 (\d+)$/.exec(line);
+    if (bleed) into.bleed += Number(bleed[1]);
+    const poison = /^毒 (\d+)$/.exec(line);
+    if (poison) into.poison += Number(poison[1]);
+    const pierce = /破绽穿挡 (\d+)/.exec(line);
+    if (pierce) into.pierce += Number(pierce[1]);
+  }
+}
+
 function scanFoeWin(lines: string[], into: { dismantle: number; bind: number; read: number }): void {
   for (const line of lines) {
     if (line.includes("敌拆招")) into.dismantle += 1;
@@ -164,15 +177,7 @@ function applyEliteKit(b: Battle, opened: OpenedHall, stamp: OpenedHall["stamp"]
     },
     kitRng(foeKitSeed(round, opened.enemyId, salt)),
   );
-  b.intents = kit.cards.map((c) => c.intent);
-  b.intent = b.intents[0] ?? b.intent;
-  b.feintMask = kit.cards.map((c) => c.feint === true);
-  b.foeWindows = kit.foeWindows;
-  b.foeWindowCap = kit.windowCap;
-  b.foeArchetype = kit.archetype;
-  b.foeVariant = kit.foeVariant;
-  b.foeShiftTo = kit.shiftTo;
-  publishStance(b);
+  commitFoeKit(b, kit, opened.rc);
 }
 
 function bump(tally: CardTally, id: string, key: "plays" | "draws"): void {
@@ -264,6 +269,7 @@ function playOut(
   seen: Set<string>,
   extra: Extra,
   foeWin: { dismantle: number; bind: number; read: number },
+  pierce: { bleed: number; poison: number; pierce: number },
   swaps: { n: number },
   cool: SwapCool,
   watch?: FightWatch,
@@ -284,7 +290,9 @@ function playOut(
     const log0 = b.log.length;
     const before = { hp: b.enemy.hp, pin: b.foePin ?? 0, charge: b.chargeStacks ?? 0 };
     b = playCard(b, uid, rc);
-    scanFoeWin(b.log.slice(log0), foeWin);
+    const slice = b.log.slice(log0);
+    scanFoeWin(slice, foeWin);
+    scanPierce(slice, pierce);
     if (card) {
       played?.push(card.defId);
       bump(tally, card.defId, "plays");
@@ -319,6 +327,7 @@ function finishHand(
   hit: { hp: number; taken: number },
   extra: Extra,
   foeWin: { dismantle: number; bind: number; read: number },
+  pierce: { bleed: number; poison: number; pierce: number },
 ): Battle | null {
   b = shedToCap(b, rc);
   soak(book, b.player.hp);
@@ -330,6 +339,7 @@ function finishHand(
   b = endTurn(b, rc);
   extra.burnDmg += scanBurn(b.log.slice(logAt));
   scanFoeWin(b.log.slice(logAt), foeWin);
+  scanPierce(b.log.slice(logAt), pierce);
   let guard = 0;
   while (b.reactionWindow && guard < 6) {
     extra.reactOffer += 1;
@@ -365,7 +375,7 @@ function arm(opened: OpenedHall, knobs: ClimbKnobs, seed: number, policy: Policy
     ...(stamp?.foeRound != null ? { foeRound: stamp.foeRound, foeStage: stamp.foeStage ?? opened.stage, foeSalt: stamp.foeSalt ?? 0 } : {}),
   };
   setBattleRng(mulberry32(seed));
-  let b = makeBattle(opened.enemyId, opened.rc, run);
+  let b = makeBattle(opened.enemyId, opened.rc, run, false);
   noteBoard(b);
   b.labGauntletStage = opened.stage;
   applyLabEnemyKit(b, opened.rc);
@@ -380,6 +390,7 @@ function arm(opened: OpenedHall, knobs: ClimbKnobs, seed: number, policy: Policy
   if (stamp?.thinIds?.length) injectThinKit(b, stamp.thinIds, seed);
   if (stamp?.extraIds?.length) injectExtraCards(b, stamp.extraIds, seed);
   if (stamp?.extraByMate) injectMateExtras(b, stamp.extraByMate, seed);
+  shuffleDrawPiles(b, mulberry32(seed ^ 0x9e3779b9));
   applyLabFightScale(opened.rc);
   applyEliteKit(b, opened, stamp);
   applyFoeWindowP(b, knobs.foeWindowP ?? 1, opened.stage, stamp?.foeRound != null);
@@ -422,6 +433,7 @@ export function fightSample(
   const seen = new Set<string>();
   const extra = blankExtra();
   const foeWin = { dismantle: 0, bind: 0, read: 0 };
+  const pierce = { bleed: 0, poison: 0, pierce: 0 };
   const swaps = { n: 0 };
   let dumpN = 0;
   let farStreak = 0;
@@ -446,7 +458,7 @@ export function fightSample(
     if (row && autopsy) autopsy.push(row);
     const distNow = Math.abs(b.enemy.pos - b.player.pos);
     farStreak = distNow > 1 ? farStreak + 1 : 0;
-    b = playOut(b, opened.rc, policy, policyRng, book, hit, tally, seen, extra, foeWin, swaps, cool, watch, row?.played);
+    b = playOut(b, opened.rc, policy, policyRng, book, hit, tally, seen, extra, foeWin, pierce, swaps, cool, watch, row?.played);
     if (policy.dumpMiss && farStreak >= 3 && b.hand.length >= 6) {
       const dumped = dumpUnreachableAttacks(b, opened.rc);
       b = dumped.b;
@@ -458,7 +470,7 @@ export function fightSample(
       emitHand(watch, opened, hands, empty, paceY, paceF, hpAt, b, logAt);
       break;
     }
-    const next = finishHand(b, opened.rc, policy, book, hit, extra, foeWin);
+    const next = finishHand(b, opened.rc, policy, book, hit, extra, foeWin, pierce);
     if (!next) {
       capped = true;
       emitHand(watch, opened, hands, empty, paceY, paceF, hpAt, b, logAt);
@@ -487,6 +499,9 @@ export function fightSample(
     swaps: swaps.n,
     foeVariant,
     dumpN,
+    bleedTick: pierce.bleed,
+    poisonTick: pierce.poison,
+    pierceHit: pierce.pierce,
     ...(autopsy ? { autopsy } : {}),
   };
 }

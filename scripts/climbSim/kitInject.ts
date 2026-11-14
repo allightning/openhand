@@ -34,6 +34,20 @@ export function injectExtraCards(b: Battle, ids: CardId[], seed: number): void {
   });
 }
 
+export function shuffleDrawPiles(b: Battle, rng: () => number): void {
+  b.drawPile = fy(b.drawPile, rng);
+  for (const mate of b.bench) mate.drawPile = fy(mate.drawPile, rng);
+}
+
+function fy<T>(items: T[], rng: () => number): T[] {
+  const next = [...items];
+  for (let i = next.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [next[i], next[j]] = [next[j]!, next[i]!];
+  }
+  return next;
+}
+
 /** 后场自己的成长牌。开战后再塞进对应抽堆，不走配方 ×3。 */
 export function injectMateExtras(b: Battle, byMate: Partial<Record<CompanionId, CardId[]>>, seed: number): void {
   for (const [id, ids] of Object.entries(byMate) as [CompanionId, CardId[] | undefined][]) {
