@@ -1,5 +1,5 @@
 import { MECH_CARDS } from "../../src/game/content/cards/mechPool";
-import type { Battle, CardId, WeaponId } from "../../src/game/types";
+import type { Battle, CardId, CompanionId, WeaponId } from "../../src/game/types";
 import type { SimFlags } from "./flags";
 
 const STAFF_IDS: CardId[] = ["staffPrime", "staffSettle", "staffBurst"];
@@ -32,6 +32,21 @@ export function injectExtraCards(b: Battle, ids: CardId[], seed: number): void {
   ids.forEach((id, i) => {
     b.drawPile.push({ uid: `n6g${seed}-${i}`, defId: id });
   });
+}
+
+/** 后场自己的成长牌。开战后再塞进对应抽堆，不走配方 ×3。 */
+export function injectMateExtras(b: Battle, byMate: Partial<Record<CompanionId, CardId[]>>, seed: number): void {
+  for (const [id, ids] of Object.entries(byMate) as [CompanionId, CardId[] | undefined][]) {
+    if (!ids?.length) continue;
+    const pile =
+      b.active === id
+        ? b.drawPile
+        : b.bench.find((m) => m.id === id)?.drawPile;
+    if (!pile) continue;
+    ids.forEach((defId, i) => {
+      pile.push({ uid: `n8m${id}${seed}-${i}`, defId });
+    });
+  }
 }
 
 export function injectMechKit(b: Battle, school: WeaponId, flags: SimFlags, seed: number): void {

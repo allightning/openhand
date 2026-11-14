@@ -6,7 +6,7 @@ import { emitHand, emitOpen, notePlay, type FightWatch } from "./fightWatch";
 import { FLAGS_OFF } from "./flags";
 import { envTagForStage } from "./flags";
 import { canPlayAttack, canPlayMove, handIsEmpty } from "./hand";
-import { injectExtraCards, injectMechKit, injectThinKit } from "./kitInject";
+import { injectExtraCards, injectMateExtras, injectMechKit, injectThinKit } from "./kitInject";
 import { noteBoard } from "./pool";
 import type { ClimbKnobs } from "./knobs";
 import { mulberry32 } from "./rng";
@@ -272,6 +272,7 @@ function arm(opened: OpenedHall, knobs: ClimbKnobs, seed: number, policy: Policy
   injectMechKit(b, school, flags, seed);
   if (stamp?.thinIds?.length) injectThinKit(b, stamp.thinIds, seed);
   if (stamp?.extraIds?.length) injectExtraCards(b, stamp.extraIds, seed);
+  if (stamp?.extraByMate) injectMateExtras(b, stamp.extraByMate, seed);
   applyFoeWindowP(b, knobs.foeWindowP ?? 1, opened.stage, stamp?.foeRound != null);
   if (stamp?.mateWeapons) {
     b.labMateWeapons = { ...(b.labMateWeapons ?? {}), ...stamp.mateWeapons };
@@ -302,6 +303,7 @@ export function fightSample(
   watch?: FightWatch,
 ): FightResult {
   let b = arm(opened, knobs, seed, policy);
+  policy.begin?.(b);
   emitOpen(watch, b, opened);
   const policyRng = mulberry32(seed + 0x9e3779b9);
   const book: HpBook = { hp: b.player.hp, taken: 0, who: b.active };

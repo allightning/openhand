@@ -13,6 +13,7 @@ export type Policy = {
   pick: (b: Battle, rc: RunContext, rng: () => number) => string | null;
   react: (b: Battle, rc: RunContext) => boolean;
   swap?: (b: Battle, rc: RunContext) => CompanionId | null;
+  begin?: (b: Battle) => void;
 };
 
 function withFlags(row: Omit<Policy, "flags" | "react">, flags: SimFlags = FLAGS_OFF): Policy {
