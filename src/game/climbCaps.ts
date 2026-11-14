@@ -97,6 +97,8 @@ export const CLIMB_FOE_READ_MUL = 0.7;
 export const CLIMB_FOE_BIND_CUT = 1;
 /** 馆 2 起，接力上场的第二人及以后，意图段数乘这个数，向下取整，保底 1。黄。不改敌血、敌伤。 */
 export const CLIMB_RELAY_SEG_MUL = 0.5;
+/** 血线换势：敌血首次跌破这个比例就换谱。黄。 */
+export const CLIMB_STANCE_SHIFT_HP = 0.5;
 /** 牌意档张数。10 档沿用 CLIMB_TRIPLE_NEED。 */
 export const CLIMB_TIER_LOW = 4;
 export const CLIMB_TIER_MID = 7;
@@ -163,9 +165,9 @@ export const CLIMB_TIER_HOOK_LEECH = CLIMB_BOND7_HOOK_LEECH;
 export const CLIMB_TIER_HOOK_LEECH_CAP = CLIMB_BOND7_HOOK_LEECH_CAP;
 export const CLIMB_TIER_DART_PIN_CAP = CLIMB_BOND4_DART_PIN;
 export const CLIMB_TIER_DART_FAR_PIN = CLIMB_BOND7_DART_PIN;
-/** 敌意图伤馆段系数。黄。只乘敌方，不乘玩家牌面。馆 7–10 可吃满。 */
-export const CLIMB_ENEMY_HIT_EARLY = 0.4;
-export const CLIMB_ENEMY_HIT_MID = 0.9;
+/** 敌意图伤馆段系数。黄。只乘敌方，不乘玩家牌面。馆 7–10 可吃满。2026-11-02 第三刀：前 0.4→0.3，中 0.9→0.7。 */
+export const CLIMB_ENEMY_HIT_EARLY = 0.3;
+export const CLIMB_ENEMY_HIT_MID = 0.7;
 export const CLIMB_ENEMY_HIT_LATE = 1;
 /** 毒层：淬毒 / 毒经 / 毒功。黄。 */
 export const CLIMB_POISON_COAT = 2;
