@@ -99,6 +99,10 @@ export const CLIMB_FOE_BIND_CUT = 1;
 export const CLIMB_RELAY_SEG_MUL = 0.5;
 /** 血线换势：敌血首次跌破这个比例就换谱。黄。 */
 export const CLIMB_STANCE_SHIFT_HP = 0.5;
+/** 连续这么多手敌我距离没缩短，下一队进势段加码。黄。 */
+export const CLIMB_APPROACH_STALL = 2;
+/** 加码时多排的进势段数。黄。 */
+export const CLIMB_APPROACH_EXTRA = 1;
 /** 牌意档张数。10 档沿用 CLIMB_TRIPLE_NEED。 */
 export const CLIMB_TIER_LOW = 4;
 export const CLIMB_TIER_MID = 7;

@@ -125,6 +125,8 @@ import {
   CLIMB_FOE_READ_MUL,
   CLIMB_RELAY_SEG_MUL,
   CLIMB_STANCE_SHIFT_HP,
+  CLIMB_APPROACH_EXTRA,
+  CLIMB_APPROACH_STALL,
 } from "./climbCaps";
 import { consumeChargeBurst, gainCharge } from "./rules/staffCharge";
 import { addPin, applyPinBudget, dartFormAllows, dartFormFailReason } from "./rules/dartPin";
@@ -139,7 +141,7 @@ import {
   tickFromIntent,
   type WindowTick,
 } from "./reactionWindows";
-import { buildFoeKit, dealArchetypeCards, deckCap, foeKitSeed, kitRng } from "./foeArchetype";
+import { buildFoeKit, dealArchetypeCards, deckCap, foeKitSeed, kitRng, type FoeKit } from "./foeArchetype";
 import { shiftArchetype, STANCE_SHIFT_TO } from "./content/foeVariants";
 import {
   acquaintHeal,
@@ -341,6 +343,10 @@ function watchStanceShift(b: Battle, foe: Unit, beforeHp: number, rc: RunContext
   b.intents = cards.map((c) => c.intent);
   b.intent = b.intents[0] ?? { kind: "guard", block: 6 };
   b.feintMask = cards.map((c) => c.feint === true);
+  const extra = (b.foeApproachStall ?? 0) >= CLIMB_APPROACH_STALL ? CLIMB_APPROACH_EXTRA : 0;
+  const prev = b.intents;
+  const sealed = sealFoeApproach(b, prev, rc, extra);
+  if (sealed !== prev) adoptApproachQueue(b, prev, sealed);
   publishStance(b);
   const pct = Math.round(CLIMB_STANCE_SHIFT_HP * 100);
   note(b, "foe", `foeStanceShift 血线 ${pct}% ${from}→${to}`);
@@ -837,15 +843,11 @@ export function makeBattle(
       },
       kitRng(foeKitSeed(run.foeRound, enemyId, run.foeSalt ?? 0)),
     );
-    battle.intents = kit.cards.map((c) => c.intent);
-    battle.intent = battle.intents[0] ?? battle.intent;
-    battle.feintMask = kit.cards.map((c) => c.feint === true);
-    battle.foeWindows = kit.foeWindows;
-    battle.foeWindowCap = kit.windowCap;
-    battle.foeArchetype = kit.archetype;
-    battle.foeVariant = kit.foeVariant;
-    battle.foeShiftTo = kit.shiftTo;
-    publishStance(battle);
+    commitFoeKit(battle, kit, rc);
+  }
+  if (isClimbQi(rc)) {
+    battle.foeDistMark = Math.abs(battle.player.pos - battle.enemy.pos);
+    battle.foeApproachStall = 0;
   }
   battle.spar = spar;
   simV2Init(battle, rc);
@@ -4250,6 +4252,10 @@ export function applyLabEnemyKit(b: Battle, rc: RunContext, role: "main" | "extr
   if (profile.name) {
     b.enemy.name = profile.name;
   }
+  if (isClimbQi(rc)) {
+    b.foeApproachStall = 0;
+    b.foeDistMark = distTo(b);
+  }
   rollIntent(b, rc);
   if (yourPace(b, rc) < b.foePace) weakenLabOpeningQueue(b, rc);
 }
@@ -4600,6 +4606,117 @@ function canQueueApproach(planned: Intent[], next: Intent, rc: RunContext): bool
   return long === 0 && short < 2;
 }
 
+function retreatSteps(intent: Intent): number {
+  return intent.kind === "retreat" ? intent.steps : 0;
+}
+
+function shiftNet(queue: Intent[]): number {
+  let net = 0;
+  for (const it of queue) net += approachLen(it) - retreatSteps(it);
+  return net;
+}
+
+function approachAfterRetreat(queue: Intent[]): boolean {
+  let last = -1;
+  for (let i = 0; i < queue.length; i++) {
+    if (queue[i]?.kind === "retreat") last = i;
+  }
+  if (last < 0) return false;
+  for (let i = last + 1; i < queue.length; i++) {
+    if (approachSegment(queue[i]!)) return true;
+  }
+  return false;
+}
+
+function approachChunk(b: Battle, gap: number): Intent {
+  const w = ENEMY_WEAPON[b.enemyId];
+  const cap = w === "spear" || w === "staff" ? 3 : 2;
+  const steps = Math.max(1, Math.min(cap, Math.max(1, gap)));
+  if (w === "hook" && steps >= 2) return { kind: "pull", steps: Math.min(2, steps) };
+  return { kind: "advance", steps };
+}
+
+/** 净位移为零的进退对消改成进势。游走且退完还有进势的留下。 */
+function breakCancelPair(b: Battle, queue: Intent[]): Intent[] {
+  const hasApproach = queue.some(approachSegment);
+  const hasRetreat = queue.some((it) => it.kind === "retreat");
+  if (!hasApproach || !hasRetreat || shiftNet(queue) !== 0) return queue;
+  if (b.foeArchetype === "skirmish" && approachAfterRetreat(queue)) return queue;
+  return queue.map((it) => (it.kind === "retreat" ? approachChunk(b, it.steps) : it));
+}
+
+function fillApproach(b: Battle, queue: Intent[], need: number): Intent[] {
+  if (shiftNet(queue) >= need) return queue;
+  const q = queue.slice();
+  let guard = 0;
+  while (shiftNet(q) < need && guard < 8) {
+    guard += 1;
+    q.unshift(approachChunk(b, need - shiftNet(q)));
+  }
+  return q;
+}
+
+function addExtraApproach(b: Battle, queue: Intent[], extra: number): Intent[] {
+  const q = queue.slice();
+  for (let i = 0; i < extra; i++) q.unshift(approachChunk(b, 2));
+  return q;
+}
+
+/** 爬塔：出射程的队列补足进势，至少能把距离收进敌兵刃。 */
+export function sealFoeApproach(b: Battle, queue: Intent[], rc: RunContext, extra = 0): Intent[] {
+  if (!isClimbQi(rc)) return queue;
+  const base = queue.length ? queue : [b.intent];
+  let q = breakCancelPair(b, base);
+  const need = Math.max(0, distTo(b) - enemyReach(b, rc));
+  if (need > 0) q = fillApproach(b, q, need);
+  if (need > 0 && extra > 0) q = addExtraApproach(b, q, extra);
+  return q;
+}
+
+function adoptApproachQueue(b: Battle, prev: Intent[], next: Intent[]): void {
+  const mask = b.feintMask;
+  const meta = b.v2StressMeta;
+  b.intents = next.length ? next : [{ kind: "guard", block: 6 }];
+  b.intent = b.intents[0]!;
+  if (mask && mask.length) {
+    b.feintMask = b.intents.map((it) => {
+      const i = prev.indexOf(it);
+      return i >= 0 && mask[i] === true;
+    });
+  }
+  if (meta && meta.length) {
+    b.v2StressMeta = b.intents.map((it) => {
+      const i = prev.indexOf(it);
+      return i >= 0 ? (meta[i] ?? null) : null;
+    });
+  }
+}
+
+function noteApproachStall(b: Battle): void {
+  const dist = distTo(b);
+  if (b.foeDistMark != null && dist >= b.foeDistMark) b.foeApproachStall = (b.foeApproachStall ?? 0) + 1;
+  else b.foeApproachStall = 0;
+  b.foeDistMark = dist;
+}
+
+/** 配招落上石台。龟、游走开手出射程时补进势。 */
+export function commitFoeKit(b: Battle, kit: FoeKit, rc: RunContext): void {
+  b.intents = kit.cards.map((c) => c.intent);
+  b.intent = b.intents[0] ?? b.intent;
+  b.feintMask = kit.cards.map((c) => c.feint === true);
+  b.foeWindows = kit.foeWindows;
+  b.foeWindowCap = kit.windowCap;
+  b.foeArchetype = kit.archetype;
+  b.foeVariant = kit.foeVariant;
+  b.foeShiftTo = kit.shiftTo;
+  if (isClimbQi(rc) && (kit.archetype === "turtle" || kit.archetype === "skirmish")) {
+    const prev = b.intents;
+    const sealed = sealFoeApproach(b, prev, rc, 0);
+    if (sealed !== prev) adoptApproachQueue(b, prev, sealed);
+  }
+  publishStance(b);
+}
+
 function coerceInReachStrike(b: Battle, rc: RunContext): Intent {
   return distTo(b) <= enemyReach(b, rc) ? scaleIntent({ kind: "strike", damage: 12 }) : { kind: "breathe", amount: 3 };
 }
@@ -4616,6 +4733,7 @@ export function applyClimbOpeningPositions(b: Battle, rc: RunContext): void {
     if (f.id === b.enemy.id) f.pos = pos.enemyPos;
   }
   syncFront(b);
+  if ((b.foeApproachStall ?? 0) === 0) b.foeDistMark = Math.abs(b.player.pos - b.enemy.pos);
 }
 
 function followIntent(b: Battle, prior: Intent, rc: RunContext): Intent {
@@ -4710,6 +4828,11 @@ function planFromFirst(b: Battle, first: Intent, rc: RunContext): void {
   } finally {
     b.enemy.pos = savedPos;
   }
+  if (!isClimbQi(rc)) return;
+  const extra = (b.foeApproachStall ?? 0) >= CLIMB_APPROACH_STALL ? CLIMB_APPROACH_EXTRA : 0;
+  const prev = b.intents.length ? b.intents : [b.intent];
+  const sealed = sealFoeApproach(b, prev, rc, extra);
+  if (sealed !== prev) adoptApproachQueue(b, prev, sealed);
 }
 
 function planFromFirstAtPos(b: Battle, first: Intent, rc: RunContext): void {
@@ -5145,6 +5268,7 @@ function climbClearHandAndDraw(next: Battle, rc: RunContext): void {
 
 function climbRollNextIntents(next: Battle, rc: RunContext): void {
   next.v2PendingIntentRefresh = false;
+  if (isClimbQi(rc)) noteApproachStall(next);
   rollIntent(next, rc);
   if (hasTech(next, "delayGuard") && next.intent.kind === "windup") {
     next.playerBlock += 3;

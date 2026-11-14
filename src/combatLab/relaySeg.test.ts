@@ -24,12 +24,19 @@ describe("馆 2 起敌接力降节奏", () => {
     const rc = climbTestContext();
     setBattleRng(() => 0.3);
     const front = hall(2);
+    // 贴身再量段数。出射程时保底进势加在减半之后，会把段数补回去。
+    front.player.pos = 0;
+    front.enemy.pos = 1;
+    if (front.foes[0]) front.foes[0].pos = 1;
     applyLabEnemyKit(front, rc, "main");
     const full = front.intents.length;
     const hp = front.enemy.hp;
     const maxHp = front.enemy.maxHp;
     setBattleRng(() => 0.3);
     const relay = hall(2);
+    relay.player.pos = 0;
+    relay.enemy.pos = 1;
+    if (relay.foes[0]) relay.foes[0].pos = 1;
     applyLabEnemyKit(relay, rc, "extra");
     expect(relay.intents.length).toBe(Math.max(1, Math.floor(full * CLIMB_RELAY_SEG_MUL)));
     expect(relay.intents.length).toBeLessThanOrEqual(full);

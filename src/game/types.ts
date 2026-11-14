@@ -652,6 +652,10 @@ export interface Battle {
   foeShiftTo?: "brute" | "turtle" | "skirmish" | "assassin" | "coach";
   /** 本场已经换过势的敌 id。 */
   stanceShiftedIds?: string[];
+  /** 上一手排招时的敌我距离。用来数距离有没有缩短。 */
+  foeDistMark?: number;
+  /** 连续多少手距离没缩短。 */
+  foeApproachStall?: number;
   /** 剧情窗占位。kind 对拆招 / 缠手 / 读破。 */
   foeReact?: { kind: "dismantle" | "bind" | "read"; note: string };
   foeVoidMove?: boolean;
