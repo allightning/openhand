@@ -162,7 +162,7 @@ function pierceUid(b: Battle, rc: Parameters<Policy["pick"]>[1]): string | null 
   return best;
 }
 
-function withNight9(inner: Policy): Policy {
+export function withNight9(inner: Policy): Policy {
   let lastHp = -1;
   let idle = 0;
   let bank = 0;
@@ -203,7 +203,7 @@ function withNight9(inner: Policy): Policy {
   };
 }
 
-function trioPolicy(lead: CompanionId): Policy {
+export function trioPolicy(lead: CompanionId): Policy {
   const saber = schoolPolicy(SCHOOL, FLAGS_ON);
   const palm = schoolPolicy("palm", FLAGS_ON);
   const spear = schoolPolicy("spear", FLAGS_ON);
@@ -242,7 +242,7 @@ function gearStamp(lead: CompanionId, grade: number, heads: number): FightStamp[
   return weapons;
 }
 
-function stampFor(
+export function stampFor(
   lead: CompanionId,
   stage: number,
   extra: CardId[],
@@ -306,7 +306,7 @@ function mateNote(extra: Partial<Record<CompanionId, CardId[]>>): string {
   return `白 ${bai} / 霍 ${huo}`;
 }
 
-function extras(probe: ReturnType<typeof freshRun>, stage: number) {
+export function extras(probe: ReturnType<typeof freshRun>, stage: number) {
   return {
     extra: injectForSchool(probe, stage, SCHOOL),
     mates: {

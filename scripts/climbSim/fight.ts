@@ -1,13 +1,13 @@
-import { applyLabEnemyKit, applyLabFightScale, answerReaction, applyClimbOpeningPositions, advanceProfession, canEndPlayerTurn, endTurn, labDiscardCard, livingFoes, makeBattle, markEnemyOpen, needsDiscardToHandCap, playCard, rollWager, seeThrough, setBattleRng, swapFighter, syncBattleGear, yourPace } from "../../src/game/sim";
+import { applyLabEnemyKit, applyLabFightScale, answerReaction, applyClimbOpeningPositions, advanceProfession, canEndPlayerTurn, canPlay, endTurn, labDiscardCard, livingFoes, makeBattle, markEnemyOpen, needsDiscardToHandCap, playCard, rollWager, seeThrough, setBattleRng, swapFighter, syncBattleGear, yourPace } from "../../src/game/sim";
 import { buildFoeKit, foeKitSeed, kitRng } from "../../src/game/foeArchetype";
 import { publishStance } from "../../src/game/intentStance";
-import type { Battle } from "../../src/game/types";
+import type { Battle, Intent } from "../../src/game/types";
 import type { RunContext } from "../../src/game/runContext";
 import type { OpenedHall } from "./boot";
 import { emitHand, emitOpen, notePlay, type FightWatch } from "./fightWatch";
 import { FLAGS_OFF } from "./flags";
 import { envTagForStage } from "./flags";
-import { canPlayAttack, canPlayMove, handIsEmpty } from "./hand";
+import { canPlayAttack, canPlayMove, handIsEmpty, isMoveCard } from "./hand";
 import { injectExtraCards, injectMateExtras, injectMechKit, injectThinKit } from "./kitInject";
 import { noteBoard } from "./pool";
 import type { ClimbKnobs } from "./knobs";
@@ -42,6 +42,22 @@ export type FightResult = {
   foeRead: number;
   swaps: number;
   foeVariant: string | null;
+  autopsy?: AutopsyHand[];
+};
+
+export type AutopsyHand = {
+  n: number;
+  you: number;
+  foe: number;
+  dist: number;
+  qi: number;
+  block: number;
+  hand: string[];
+  gates: { id: string; ok: boolean; why: string }[];
+  moves: { id: string; ok: boolean; why: string }[];
+  played: string[];
+  intents: string[];
+  approach: string[];
 };
 
 function blankExtra() {
@@ -57,6 +73,45 @@ function won(b: Battle): boolean {
 }
 
 type HpBook = { hp: number; taken: number; who: string };
+
+const APPROACH = new Set(["advance", "lunge", "charge", "pull"]);
+
+function intentText(it: Intent): string {
+  if (it.kind === "advance" || it.kind === "retreat" || it.kind === "charge" || it.kind === "pull") {
+    return `${it.kind}${it.steps}`;
+  }
+  if (it.kind === "strike" || it.kind === "lunge" || it.kind === "bleedcut" || it.kind === "pestle") {
+    return `${it.kind}${it.damage}`;
+  }
+  if (it.kind === "guard") return `guard${it.block}`;
+  return it.kind;
+}
+
+function snapHand(b: Battle, rc: RunContext, n: number): AutopsyHand {
+  const intents = (b.intents?.length ? b.intents : b.intent ? [b.intent] : []).map(intentText);
+  const approach = (b.intents?.length ? b.intents : b.intent ? [b.intent] : [])
+    .filter((it) => APPROACH.has(it.kind))
+    .map(intentText);
+  const gates = b.hand.map((c) => {
+    const gate = canPlay(b, c.uid, rc);
+    return { id: c.defId, ok: gate.ok, why: gate.ok ? "" : gate.reason ?? "不出" };
+  });
+  const moves = gates.filter((g) => isMoveCard(g.id));
+  return {
+    n,
+    you: b.player.pos,
+    foe: b.enemy.pos,
+    dist: Math.abs(b.enemy.pos - b.player.pos),
+    qi: b.energy,
+    block: b.enemyBlock,
+    hand: b.hand.map((c) => c.defId),
+    gates,
+    moves,
+    played: [],
+    intents,
+    approach,
+  };
+}
 
 function soak(book: HpBook, hp: number): void {
   book.taken += Math.max(0, book.hp - hp);
@@ -195,13 +250,17 @@ function playOut(
   swaps: { n: number },
   cool: SwapCool,
   watch?: FightWatch,
+  played?: string[],
 ): Battle {
   let plays = 0;
   while (plays < PLAYS_PER_HAND && !over(b)) {
     b = cooledSwap(b, rc, policy, cool, swaps);
     adopt(book, b.active, b.player.hp);
     const uid = policy.pick(b, rc, rng);
-    if (!uid) break;
+    if (!uid) {
+      if (plays === 0) played?.push("收势");
+      break;
+    }
     const card = b.hand.find((c) => c.uid === uid);
     const bleed0 = b.bleed;
     const expose0 = b.expose;
@@ -210,6 +269,7 @@ function playOut(
     b = playCard(b, uid, rc);
     scanFoeWin(b.log.slice(log0), foeWin);
     if (card) {
+      played?.push(card.defId);
       bump(tally, card.defId, "plays");
       notePlay(watch, bleed0, expose0, log0, b, card.defId);
       extra.chargePeak = Math.max(extra.chargePeak, b.chargeStacks ?? 0, before.charge);
@@ -333,6 +393,7 @@ export function fightSample(
   seed: number,
   knobs: ClimbKnobs,
   watch?: FightWatch,
+  autopsy?: AutopsyHand[],
 ): FightResult {
   let b = arm(opened, knobs, seed, policy);
   policy.begin?.(b);
@@ -362,7 +423,9 @@ export function fightSample(
     const hpAt = b.player.hp;
     const paceY = yourPace(b, opened.rc);
     const paceF = b.foePace;
-    b = playOut(b, opened.rc, policy, policyRng, book, hit, tally, seen, extra, foeWin, swaps, cool, watch);
+    const row = autopsy ? snapHand(b, opened.rc, hands) : null;
+    if (row && autopsy) autopsy.push(row);
+    b = playOut(b, opened.rc, policy, policyRng, book, hit, tally, seen, extra, foeWin, swaps, cool, watch, row?.played);
     extra.chargePeak = Math.max(extra.chargePeak, b.chargeStacks ?? 0);
     extra.pinPeak = Math.max(extra.pinPeak, b.foePin ?? 0);
     if (over(b)) {
@@ -397,6 +460,7 @@ export function fightSample(
     foeRead: foeWin.read,
     swaps: swaps.n,
     foeVariant,
+    ...(autopsy ? { autopsy } : {}),
   };
 }
 
