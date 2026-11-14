@@ -1,4 +1,4 @@
-import { applyLabEnemyKit, answerReaction, applyClimbOpeningPositions, advanceProfession, canEndPlayerTurn, endTurn, labDiscardCard, livingFoes, makeBattle, markEnemyOpen, needsDiscardToHandCap, playCard, rollWager, seeThrough, setBattleRng, swapFighter, yourPace } from "../../src/game/sim";
+import { applyLabEnemyKit, answerReaction, applyClimbOpeningPositions, advanceProfession, canEndPlayerTurn, endTurn, labDiscardCard, livingFoes, makeBattle, markEnemyOpen, needsDiscardToHandCap, playCard, rollWager, seeThrough, setBattleRng, swapFighter, syncBattleGear, yourPace } from "../../src/game/sim";
 import type { Battle } from "../../src/game/types";
 import type { RunContext } from "../../src/game/runContext";
 import type { OpenedHall } from "./boot";
@@ -53,8 +53,17 @@ function won(b: Battle): boolean {
   return b.player.hp > 0 && (b.phase === "won" || livingFoes(b).every((f) => f.hp <= 0));
 }
 
-function soak(book: { hp: number; taken: number }, hp: number): void {
+type HpBook = { hp: number; taken: number; who: string };
+
+function soak(book: HpBook, hp: number): void {
   book.taken += Math.max(0, book.hp - hp);
+  book.hp = hp;
+}
+
+/** 换人先对上新人的当前血，血跳不算掉血。 */
+function adopt(book: HpBook, who: string, hp: number): void {
+  if (book.who === who) return;
+  book.who = who;
   book.hp = hp;
 }
 
@@ -147,7 +156,7 @@ function playOut(
   rc: RunContext,
   policy: Policy,
   rng: () => number,
-  book: { hp: number; taken: number },
+  book: HpBook,
   hit: { hp: number; taken: number },
   tally: CardTally,
   seen: Set<string>,
@@ -160,6 +169,7 @@ function playOut(
   let plays = 0;
   while (plays < PLAYS_PER_HAND && !over(b)) {
     b = cooledSwap(b, rc, policy, cool, swaps);
+    adopt(book, b.active, b.player.hp);
     const uid = policy.pick(b, rc, rng);
     if (!uid) break;
     const card = b.hand.find((c) => c.uid === uid);
@@ -198,7 +208,7 @@ function finishHand(
   b: Battle,
   rc: RunContext,
   policy: Policy,
-  book: { hp: number; taken: number },
+  book: HpBook,
   hit: { hp: number; taken: number },
   extra: Extra,
   foeWin: { dismantle: number; bind: number; read: number },
@@ -263,6 +273,19 @@ function arm(opened: OpenedHall, knobs: ClimbKnobs, seed: number, policy: Policy
   if (stamp?.thinIds?.length) injectThinKit(b, stamp.thinIds, seed);
   if (stamp?.extraIds?.length) injectExtraCards(b, stamp.extraIds, seed);
   applyFoeWindowP(b, knobs.foeWindowP ?? 1, opened.stage, stamp?.foeRound != null);
+  if (stamp?.mateWeapons) {
+    b.labMateWeapons = { ...(b.labMateWeapons ?? {}), ...stamp.mateWeapons };
+    syncBattleGear(b);
+  }
+  if (stamp?.partyHp != null) {
+    const hp = stamp.partyHp;
+    b.player.hp = hp;
+    b.player.maxHp = hp;
+    for (const mate of b.bench) {
+      mate.hp = hp;
+      mate.maxHp = hp;
+    }
+  }
   if (flags.react !== "off") b.holdReaction = true;
   if (stamp?.advance) advanceProfession(b);
   if (stamp?.mark) markEnemyOpen(b);
@@ -281,7 +304,7 @@ export function fightSample(
   let b = arm(opened, knobs, seed, policy);
   emitOpen(watch, b, opened);
   const policyRng = mulberry32(seed + 0x9e3779b9);
-  const book = { hp: b.player.hp, taken: 0 };
+  const book: HpBook = { hp: b.player.hp, taken: 0, who: b.active };
   const hit = { hp: b.enemy.hp, taken: 0 };
   const tally: CardTally = {};
   const seen = new Set<string>();

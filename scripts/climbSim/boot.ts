@@ -27,6 +27,9 @@ export type FightStamp = {
   foeSalt?: number;
   thinIds?: import("../../src/game/types").CardId[];
   extraIds?: import("../../src/game/types").CardId[];
+  /** 模拟血档。开战后再写到场上和后场，不改 src 气血默认。 */
+  partyHp?: number;
+  mateWeapons?: Partial<Record<CompanionId, string>>;
 };
 
 export type OpenedHall = {

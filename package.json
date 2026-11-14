@@ -16,6 +16,7 @@
     "sim:climb:night4": "vite-node scripts/climbSim/night4Main.ts",
     "sim:climb:night5": "vite-node scripts/climbSim/night5Main.ts",
     "sim:climb:night6": "vite-node scripts/climbSim/night6Main.ts",
+    "sim:climb:night7": "vite-node scripts/climbSim/night7Main.ts",
     "lint:prose": "vite-node scripts/proseLint/main.ts",
     "test:balance": "vitest run src/combatLab/labMashBaseline.test.ts",
     "build:pages": "VITE_BASE=/openhand/ vite build",
