@@ -18,6 +18,8 @@ export interface FoeIdentity {
   remnant?: TechniqueId;
   path?: "shaolin" | "jianghu" | "court";
   sigs?: EnemySigId[];
+  /** 压过馆段档。不写则仍走 enemyGradeForStage。 */
+  grade?: EnemyGearGrade;
 }
 
 export interface EnemyProfile {
@@ -70,7 +72,7 @@ export const GAUNTLET_FOE_IDENTITY: Record<string, FoeIdentity> = {
   mob_escortBand_02: { school: "saber", name: "裂旗劫手", path: "jianghu", sigs: ["chaos-cut", "oil", "snare"] },
   mob_escortBand_seat: { school: "saber", name: "寨主", path: "jianghu", sigs: ["chaos-cut", "oil", "snare"] },
   mob_escortBand_03: { school: "hook", name: "同道再聚", path: "jianghu", sigs: ["snare", "oil", "chaos-cut"] },
-  mob_escortBand_04: { school: "saber", name: "岸匪", path: "jianghu" },
+  mob_escortBand_04: { school: "saber", name: "岸匪", path: "jianghu", grade: "xuan" },
   mob_escortBand_05: { school: "spear", name: "水匪哨", path: "jianghu" },
   mob_canal_01: { school: "spear", name: "纤手", path: "jianghu" },
   mob_canal_02: { school: "hook", name: "舱刀", path: "jianghu" },
@@ -224,7 +226,7 @@ export function profileFor(
 ): EnemyProfile {
   const ident = GAUNTLET_FOE_IDENTITY[id];
   const school = schoolForGeneratedEnemy(id);
-  const grade = enemyGradeForStage(stage, role, mode);
+  const grade = ident?.grade ?? enemyGradeForStage(stage, role, mode);
   const remnant = ident?.remnant ?? REMNANT[school];
   const energy = energySpec(stage, school);
   const opener = kitMoves(school, grade, stage, ident?.path);

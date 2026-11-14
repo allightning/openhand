@@ -66,6 +66,19 @@ describe("A 身分 + 敌兵刃", () => {
     expect(enemyGradeForStage(7, "extra")).toBe("xuan");
   });
 
+  it("岸匪压成玄，寨主仍按馆段走神", () => {
+    const band = profileFor("mob_escortBand_04", 8);
+    const seat = profileFor("mob_escortBand_seat", 10);
+    expect(band.grade).toBe("xuan");
+    expect(seat.grade).toBe("shen");
+    expect(band.sigs).toEqual([]);
+    expect(seat.sigs).toContain("chaos-cut");
+    const coef = pathLadder("bandit")[7]!.dmgCoef;
+    const seg = Math.round(enemyStrikeAtDist("saber", band.grade, 1) * coef);
+    expect(seg).toBe(24);
+    expect(seg * 2).toBe(48);
+  });
+
   it("精/玄/神打击档差至少 3", () => {
     const jing = enemyStrikeAtDist("palm", "jing", 1);
     const xuan = enemyStrikeAtDist("palm", "xuan", 1);
