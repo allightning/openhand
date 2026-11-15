@@ -130,17 +130,21 @@ describe("P2 接力段系数转正", () => {
 });
 
 describe("P3 环境投放表", () => {
-  it("灼烧馆 3/6/8，无墙馆 5/9，其余馆不投", () => {
+  it("灼烧馆 3/6/8，无墙馆 5/9，缺格·末端馆 4/7", () => {
     expect(envTagForHall(3)).toBe("burn");
     expect(envTagForHall(6)).toBe("burn");
     expect(envTagForHall(8)).toBe("burn");
     expect(envTagForHall(5)).toBe("nowall");
     expect(envTagForHall(9)).toBe("nowall");
-    for (const h of [1, 2, 4, 7, 10]) expect(envTagForHall(h)).toBeUndefined();
+    expect(envTagForHall(4)).toBe("gap_end");
+    expect(envTagForHall(7)).toBe("gap_end");
+    for (const h of [1, 2, 3, 5, 6, 8, 9, 10]) {
+      const tag = envTagForHall(h);
+      expect(tag === "gap_end" || tag === "gap_mid").toBe(false);
+    }
   });
 
-  it("缺格不投：表里没有任何 gap 标签", () => {
-    expect(Object.values(CLIMB_ENV_SCHEDULE)).not.toContain("gap_end");
+  it("gap_mid 不投", () => {
     expect(Object.values(CLIMB_ENV_SCHEDULE)).not.toContain("gap_mid");
   });
 });

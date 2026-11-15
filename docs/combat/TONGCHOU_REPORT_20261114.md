@@ -1,5 +1,26 @@
 # 统筹收口报告 · 2026-11-14
 
+## 第三刀（机制八班 + 壳三班 + 夜校十六班，HEAD）
+
+| 项 | 值 |
+|---|---|
+| commit 短散列 | `bb365ac`（全 `bb365acb5dd8ab9e3c14ac1a844f89de2f0c1951`） |
+| 提交词 | 机制八班缺格结算，壳三班投放接线，夜校十六班 35 终验。 |
+| 文件数 | 40（新增 13 / 修改 27，1388 insertions / 142 deletions） |
+| 测试绿数 | `test:combat` 100 文件 / 996 绿；`typecheck:combat` exit 0 |
+| HEAD | `bb365ac`，main 比 `origin/main` 超前 50 |
+| push | 未 push |
+
+构成：机制核八班（`rules/envTags.ts`、`sim.ts`、`board.ts`、`wallLinks.ts`、`gapField.test.ts`、`MECH8_REPORT_20261115.md`）；表现壳三班（听劲倒计时、馆开局投放接线，`reactChoice.ts`、`gauntletPaths.ts`、`hallEnv.ts`、`shellWire.test.ts`、`SHELL_REPORT_20261115.md`）；夜校十六班（`night16*`、`package.json`、`NIGHT16_REPORT_20261115.md`）。同刀带上 `RULES.md` 缺格一句、上一节统筹报告、以及下一波任务卡 `NUMGEN12_TASK.md`。
+
+夜校十六班 35 终验：破甲+裂石馆 4 / 6 / 9 为 10% / 10% / 0%，复现不了淬毒 60%。档 3 前移到馆 4 起之后，馆 5 是 95%。
+
+异常清单：无。冻结区 `src/map/**`、`src/story/**`、`docs/frozen/**` 零改动。黄金基线三份未动。主窗已写明夜校 `flags.ts` 仍是馆 3/6 灼烧、馆 8 无墙，和投放表（3/6/8 灼烧、5/9 无墙）不一致；本刀未改 `flags.ts`，留给下一夜班。
+
+本节追加于提交之后，按惯例本文件改动留给下一波。
+
+---
+
 ## 第二刀（夜校十五班 + 数值核十一班，HEAD）
 
 | 项 | 值 |
