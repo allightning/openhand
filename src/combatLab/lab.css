@@ -5567,6 +5567,18 @@ html.lab-fullscreen #app.lab-root,
   overflow-wrap: anywhere;
 }
 
+.lab-root .shell-hall-env {
+  position: static;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.lab-root .gauntlet-env-line {
+  position: static;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .lab-root .shell-loadout {
   display: flex;
   flex-direction: column;

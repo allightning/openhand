@@ -67,6 +67,7 @@ export function runFromPreset(preset: LabPreset): Run {
   run.weapon = primaryWeapon(p);
   run.weapons = Object.values(p.mateWeapons).filter(Boolean) as string[];
   run.techniques = [...(p.mateTechs[p.fieldMate] ?? [])];
+  if (p.envTag) run.envTag = p.envTag;
   run.party = [...p.party];
   run.active = p.fieldMate;
   run.hero = hero;

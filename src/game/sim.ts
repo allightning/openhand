@@ -130,7 +130,7 @@ import {
 } from "./climbCaps";
 import { consumeChargeBurst, gainCharge } from "./rules/staffCharge";
 import { addPin, applyPinBudget, dartFormAllows, dartFormFailReason } from "./rules/dartPin";
-import { burnCellsFor, gapFieldFor, tickBurnCells } from "./rules/envTags";
+import { burnCellsFor, gapFieldFor, isGapCell, readBoardStep, tickBurnCells } from "./rules/envTags";
 import { mindPierceBlock, shredBlockOnStrike } from "./rules/guardBreak";
 import { hookSmashLine, hookSmashSwap, staffWallOnCrash } from "./rules/wallLinks";
 import { noteSegmentRead, publishStance, segmentFeint } from "./intentStance";
@@ -274,14 +274,11 @@ import {
 } from "./labV21";
 import {
   assembleBattleBoard,
-  atBoardEnd,
   boardLen,
+  solidEdge,
   catalogCell,
-  offBoardSide,
   openingPosts,
   twinPosts,
-  wallOnSide,
-  wallEndsOf,
 } from "./board";
 import {
   HAND_SIZE,
@@ -718,7 +715,9 @@ export function makeBattle(
     ...(stone.openingDist != null ? { openingDist: stone.openingDist } : {}),
     ...(run.envTag ? { envTag: run.envTag } : {}),
     ...(burnCellsFor(run.envTag, stone.boardSize) ? { burnCells: burnCellsFor(run.envTag, stone.boardSize) } : {}),
-    ...(gapFieldFor(run.envTag) ? { gapCells: gapFieldFor(run.envTag) } : {}),
+    ...(gapFieldFor(run.envTag, stone.boardSize, run.wallSide)
+      ? { gapCells: gapFieldFor(run.envTag, stone.boardSize, run.wallSide) }
+      : {}),
       playerBlock: run.techniques.includes("nightStep") && !(rc.lab && rc.ruleset.mode === "break") ? 1 : 0,
       // 读招：小池 6/5/3。爬塔：按角色气血档位，不再 ×8。
       ...(rc.lab && rc.ruleset.mode === "break"
@@ -846,6 +845,7 @@ export function makeBattle(
     );
     commitFoeKit(battle, kit, rc);
   }
+  liftOffGaps(battle);
   if (isClimbQi(rc)) {
     battle.foeDistMark = Math.abs(battle.player.pos - battle.enemy.pos);
     battle.foeApproachStall = 0;
@@ -1038,6 +1038,75 @@ export function occupied(b: Battle, pos: number, rc: RunContext, exceptId?: stri
     if (f.pos === pos && f.id !== exceptId) return true;
   }
   return false;
+}
+
+function gapLine(endedOnGap: boolean, crossed: boolean, pos: number): string | null {
+  if (endedOnGap) return `缺格，停在第 ${pos + 1} 步`;
+  if (crossed) return `跨过缺格，落在第 ${pos + 1} 步`;
+  return null;
+}
+
+function walkStand(
+  b: Battle,
+  start: number,
+  dir: number,
+  steps: number,
+  rc: RunContext,
+  exceptId?: string,
+  ignoreStakes = false,
+): { pos: number; crossed: boolean; endedOnGap: boolean } {
+  const stepDir = dir < 0 ? -1 : dir > 0 ? 1 : 0;
+  if (stepDir === 0 || steps <= 0) return { pos: start, crossed: false, endedOnGap: false };
+  let cursor = start;
+  let stand = start;
+  let crossed = false;
+  let endedOnGap = false;
+  for (let i = 0; i < steps; i++) {
+    const step = readBoardStep(b, cursor, stepDir, (pos) => occupied(b, pos, rc, exceptId, ignoreStakes));
+    if (step.kind === "stand") {
+      cursor = step.pos;
+      stand = step.pos;
+      endedOnGap = false;
+      continue;
+    }
+    if (step.kind === "cross") {
+      cursor = step.cursor;
+      crossed = true;
+      endedOnGap = true;
+      continue;
+    }
+    break;
+  }
+  return { pos: stand, crossed, endedOnGap };
+}
+
+function liftOffGaps(b: Battle): void {
+  if (!(b.gapCells ?? []).length) return;
+  const len = boardLen(b);
+  const taken = new Set<number>();
+  const nearest = (pos: number): number => {
+    if (!isGapCell(b, pos) && !taken.has(pos)) return pos;
+    for (let d = 1; d < len; d++) {
+      const low = pos - d;
+      const high = pos + d;
+      if (low >= 0 && !isGapCell(b, low) && !taken.has(low)) return low;
+      if (high < len && !isGapCell(b, high) && !taken.has(high)) return high;
+    }
+    return pos;
+  };
+  b.player.pos = nearest(b.player.pos);
+  taken.add(b.player.pos);
+  const foe = b.foes?.find((f) => f.id === b.enemy.id) ?? b.foes?.[0];
+  const enemyPos = nearest(b.enemy.pos);
+  b.enemy.pos = enemyPos;
+  if (foe) foe.pos = enemyPos;
+  taken.add(enemyPos);
+  for (const f of b.foes ?? []) {
+    if (f === foe || f.id === b.enemy.id) continue;
+    if (!isGapCell(b, f.pos)) continue;
+    f.pos = nearest(f.pos);
+    taken.add(f.pos);
+  }
 }
 
 function recycleDiscardIntoDraw(b: Battle): void {
@@ -1941,11 +2010,29 @@ function knockAway(b: Battle, who: "player" | "enemy", dist: number, rc: RunCont
   const dir = awayDir(other.pos, unit.pos);
   let left = need;
   const from = unit.pos;
+  let cursor = unit.pos;
+  let crossed = false;
+  let endedOnGap = false;
   while (left > 0 && unit.hp > 0) {
-    const next = unit.pos + dir;
-    const off = offBoardSide(next, boardLen(b));
+    const step = readBoardStep(b, cursor, dir, (pos) => occupied(b, pos, rc, unit.id));
+    if (step.kind === "cross") {
+      cursor = step.cursor;
+      crossed = true;
+      endedOnGap = true;
+      left -= 1;
+      continue;
+    }
+    if (step.kind === "stand") {
+      unit.pos = step.pos;
+      cursor = step.pos;
+      endedOnGap = false;
+      left -= 1;
+      continue;
+    }
+    if (step.kind === "void") break;
+    const next = step.kind === "blocked" ? step.pos : cursor + (dir < 0 ? -1 : 1);
+    const off = step.kind === "wall";
     if (off) {
-      if (!wallOnSide(wallEndsOf(b), off)) break;
       let wh = wallHit(b, wall);
       if (who === "enemy" && battleEquippedSchool(b, b.active, rc) === "staff" && tierOn(b, rc, CLIMB_TIER_MID)) {
         wh += CLIMB_TIER_STAFF_WALL;
@@ -2015,10 +2102,12 @@ function knockAway(b: Battle, who: "player" | "enemy", dist: number, rc: RunCont
       if (who === "enemy" && blocker) {
         const blockDir = awayDir(unit.pos, blocker.pos);
         const blockNext = blocker.pos + blockDir;
-        if (blockNext >= 0 && blockNext < boardLen(b) && !occupied(b, blockNext, rc, blocker.id)) {
+        if (blockNext >= 0 && blockNext < boardLen(b) && !isGapCell(b, blockNext) && !occupied(b, blockNext, rc, blocker.id)) {
           blocker.pos = blockNext;
           notes.push(`连带 ${blocker.name} 退到第 ${blockNext + 1} 步`);
           unit.pos = next;
+          cursor = next;
+          endedOnGap = false;
           left -= 1;
           continue;
         }
@@ -2035,11 +2124,12 @@ function knockAway(b: Battle, who: "player" | "enemy", dist: number, rc: RunCont
       }
       break;
     }
-    unit.pos = next;
-    left -= 1;
+    break;
   }
   if (who === "player" && unit.pos !== from) noteStep(b, from, unit.pos);
-  if (left < need && left >= 0) notes.unshift(`击退至第 ${unit.pos + 1} 步`);
+  const gap = gapLine(endedOnGap, crossed, unit.pos);
+  if (gap) notes.unshift(gap);
+  else if (left < need && left >= 0) notes.unshift(`击退至第 ${unit.pos + 1} 步`);
   if (unit.hp <= 0) notes.push(`${who === "player" ? "你" : unit.name}倒下`);
   syncFront(b);
   return notes;
@@ -2065,6 +2155,7 @@ function pullUnit(b: Battle, who: "player" | "enemy", toward: "player" | "enemy"
     const blocked = (pos: number) =>
       pos < 0 ||
       pos >= boardLen(b) ||
+      isGapCell(b, pos) ||
       b.stakes.includes(pos) ||
       (labV2(rc) && !!b.labSummon && b.labSummon.hp > 0 && b.labSummon.pos === pos);
     const notes = hookSmashSwap(b, (pos) => !blocked(pos));
@@ -2086,11 +2177,29 @@ function pullUnit(b: Battle, who: "player" | "enemy", toward: "player" | "enemy"
   }
   let left = who === "enemy" ? applyPinBudget(b, pullSteps) : pullSteps;
   const from = unit.pos;
+  let cursor = unit.pos;
+  let crossed = false;
+  let endedOnGap = false;
   while (left > 0 && unit.hp > 0) {
     const dir = other.pos > unit.pos ? 1 : other.pos < unit.pos ? -1 : 0;
     if (dir === 0) break;
-    const next = unit.pos + dir;
-    if (next === other.pos || occupied(b, next, rc, unit.id)) {
+    const step = readBoardStep(b, cursor, dir, (pos) => pos === other.pos || occupied(b, pos, rc, unit.id));
+    if (step.kind === "cross") {
+      cursor = step.cursor;
+      crossed = true;
+      endedOnGap = true;
+      left -= 1;
+      continue;
+    }
+    if (step.kind === "stand") {
+      unit.pos = step.pos;
+      cursor = step.pos;
+      endedOnGap = false;
+      left -= 1;
+      continue;
+    }
+    const next = step.kind === "blocked" ? step.pos : cursor + dir;
+    if (step.kind === "blocked" && (next === other.pos || occupied(b, next, rc, unit.id))) {
       if (who === "enemy" && b.stakes.includes(next)) {
         unit.hp -= 4;
         notes.push("猎桩 4");
@@ -2102,10 +2211,11 @@ function pullUnit(b: Battle, who: "player" | "enemy", toward: "player" | "enemy"
       }
       break;
     }
-    unit.pos = next;
-    left -= 1;
+    break;
   }
-  if (unit.pos !== from) notes.push(`${who === "player" ? "你" : unit.name}被拉至第 ${unit.pos + 1} 步`);
+  const pulled = gapLine(endedOnGap, crossed, unit.pos);
+  if (pulled) notes.push(pulled);
+  else if (unit.pos !== from) notes.push(`${who === "player" ? "你" : unit.name}被拉至第 ${unit.pos + 1} 步`);
   if (who === "enemy" && unit.pos !== from) {
     const mods = pathSkillMods(battleGearId, rc);
     if (mods.pullDmg) {
@@ -2129,16 +2239,18 @@ function pullUnit(b: Battle, who: "player" | "enemy", toward: "player" | "enemy"
 
 function movePlayer(b: Battle, dir: 1 | -1, steps: number, ignoreStakes: boolean, rc: RunContext): string[] {
   const notes: string[] = [];
-  let moved = 0;
   const from = b.player.pos;
-  for (let i = 0; i < steps; i++) {
-    const next = b.player.pos + dir;
-    if (occupied(b, next, rc, b.player.id, ignoreStakes)) break;
-    b.player.pos = next;
-    moved += 1;
-  }
-  if (moved > 0) {
+  const walked = walkStand(b, from, dir, steps, rc, b.player.id, ignoreStakes);
+  if (walked.pos !== from) {
+    b.player.pos = walked.pos;
     noteStep(b, from, b.player.pos);
+  }
+  const gap = gapLine(walked.endedOnGap, walked.crossed, walked.pos);
+  if (gap) {
+    notes.push(gap);
+    return notes;
+  }
+  if (walked.pos !== from) {
     const closer = Math.abs(b.player.pos - b.enemy.pos) < Math.abs(from - b.enemy.pos);
     notes.push(`${closer ? "前进" : "后退"}至第 ${b.player.pos + 1} 步`);
   }
@@ -2146,18 +2258,19 @@ function movePlayer(b: Battle, dir: 1 | -1, steps: number, ignoreStakes: boolean
 }
 
 function pathClear(b: Battle, from: number, to: number, rc: RunContext): boolean {
-  if (to < 0 || to >= boardLen(b)) return false;
+  if (to < 0 || to >= boardLen(b) || isGapCell(b, to)) return false;
   if (occupied(b, to, rc, b.player.id)) return false;
   const dir = to > from ? 1 : -1;
   for (let p = from + dir; p !== to; p += dir) {
+    if (isGapCell(b, p)) continue;
     if (occupied(b, p, rc, b.player.id)) return false;
   }
   return true;
 }
 
-/** 能否朝 dir 至少挪 1 格（出界 / 占格 / 桩 视为堵）。 */
+/** 能否朝 dir 至少挪 1 格（出界 / 占格 / 桩 / 落在缺格 视为堵）。 */
 function canPlayerStepOne(b: Battle, dir: 1 | -1, ignoreStakes: boolean, rc: RunContext): boolean {
-  return !occupied(b, b.player.pos + dir, rc, b.player.id, ignoreStakes);
+  return walkStand(b, b.player.pos, dir, 1, rc, b.player.id, ignoreStakes).pos !== b.player.pos;
 }
 
 /**
@@ -2183,7 +2296,9 @@ function playerMovePathGate(b: Battle, defId: CardId, rc: RunContext): { ok: boo
     const dir = towardDir(b.player.pos, foe.pos);
     const front = b.player.pos + dir;
     if (hasTech(b, "bodyCheck") && front === foe.pos) return { ok: true };
-    if (canPlayerStepOne(b, dir, ignore, rc)) return { ok: true };
+    const steps = defId === "advance2" ? 2 : 1;
+    if (walkStand(b, b.player.pos, dir, steps, rc, b.player.id, ignore).pos !== b.player.pos) return { ok: true };
+    if (isGapCell(b, b.player.pos + dir)) return { ok: false, reason: `缺格，停在第 ${b.player.pos + 1} 步` };
     if (hasTech(b, "backstep") && canPlayerStepOne(b, awayDir(foe.pos, b.player.pos), ignore, rc)) {
       return { ok: true };
     }
@@ -2348,7 +2463,14 @@ function applyCard(b: Battle, defId: CardId, rc: RunContext): string[] {
       notes.push("已经贴着");
       return notes;
     }
-    if (pathClear(b, b.player.pos, target, rc)) {
+    if (isGapCell(b, target)) {
+      const walked = walkStand(b, from, dir, Math.abs(target - from), rc, b.player.id);
+      if (walked.pos !== from) {
+        b.player.pos = walked.pos;
+        noteStep(b, from, walked.pos);
+      }
+      notes.push(gapLine(true, walked.crossed, walked.pos) ?? `缺格，停在第 ${walked.pos + 1} 步`);
+    } else if (pathClear(b, b.player.pos, target, rc)) {
       b.player.pos = target;
       noteStep(b, from, target);
       notes.push(`贴至第 ${b.player.pos + 1} 步`);
@@ -2416,6 +2538,7 @@ function applyCard(b: Battle, defId: CardId, rc: RunContext): string[] {
     const foe = targetFoe(b) ?? b.enemy;
     const at = b.player.pos + towardDir(b.player.pos, foe.pos);
     if (climbStakeBehindFoe(b, at, rc)) notes.push("敌身后落不下");
+    else if (isGapCell(b, at)) notes.push("缺格，桩落不下");
     else if (at >= 0 && at < boardLen(b) && !occupied(b, at, rc)) {
       addStake(b, at, playerPlantHits(battleEquippedSchool(b, b.active, rc)) + stakeHitBonus(b.party ?? [], b.active, b.bondStages), rc);
       notes.push(`桩落在第 ${at + 1} 步`);
@@ -2947,6 +3070,7 @@ function applyCard(b: Battle, defId: CardId, rc: RunContext): string[] {
     const foe = targetFoe(b) ?? b.enemy;
     const at = b.player.pos + towardDir(b.player.pos, foe.pos);
     if (climbStakeBehindFoe(b, at, rc)) notes.push("敌身后落不下");
+    else if (isGapCell(b, at)) notes.push("缺格，桩落不下");
     else if (at >= 0 && at < boardLen(b) && !occupied(b, at, rc)) {
       addStake(b, at, playerPlantHits(battleEquippedSchool(b, b.active, rc)) + stakeHitBonus(b.party ?? [], b.active, b.bondStages), rc);
       notes.push(`桩落在第 ${at + 1} 步`);
@@ -3367,7 +3491,7 @@ function collapseOrDeathSwap(b: Battle, rc: RunContext): void {
 /** 合法落点：全场任意空格（放敌身后当墙，是拳系连招的核心用法）。 */
 export function legalSummonCells(b: Battle, rc: RunContext): number[] {
   const out: number[] = [];
-  for (let i = 0; i < boardLen(b); i++) if (!occupied(b, i, rc)) out.push(i);
+  for (let i = 0; i < boardLen(b); i++) if (!isGapCell(b, i) && !occupied(b, i, rc)) out.push(i);
   return out;
 }
 
@@ -3393,11 +3517,13 @@ export function summonAssist(b: Battle, school: WeaponId, pos: number, rc: RunCo
     next.log.push(`${def.name}一剑三创：敌裂创 ${next.bleed}。`);
   } else if (school === "spear") {
     const dir = next.enemy.pos > next.player.pos ? 1 : -1;
-    const to = next.enemy.pos + dir;
-    if (to >= 0 && to < boardLen(b) && !occupied(next, to, rc, next.enemy.id)) {
-      next.enemy.pos = to;
+    const walked = walkStand(next, next.enemy.pos, dir, 1, rc, next.enemy.id);
+    if (walked.pos !== next.enemy.pos) {
+      next.enemy.pos = walked.pos;
       syncFront(next);
-      next.log.push(`${def.name}一枪挑退，敌退到第 ${to + 1} 步。`);
+      next.log.push(gapLine(walked.endedOnGap, walked.crossed, walked.pos) ?? `${def.name}一枪挑退，敌退到第 ${walked.pos + 1} 步。`);
+    } else if (walked.endedOnGap) {
+      next.log.push(`缺格，停在第 ${next.enemy.pos + 1} 步`);
     } else {
       next.log.push(`${def.name}挺枪逼位，敌没退路。`);
     }
@@ -3461,14 +3587,16 @@ export function chargePath(b: Battle, rc: RunContext): number[] {
   const steps = chargeSteps(b);
   const dir = towardDir(pos, b.player.pos);
   for (let i = 0; i < steps; i++) {
-    const next = pos + dir;
-    if (next < 0 || next >= boardLen(b)) break;
-    if (next === b.player.pos) {
-      path.push(next);
+    const step = readBoardStep(b, pos, dir, (cell) => cell === b.player.pos || occupied(b, cell, rc, b.enemy.id));
+    if (step.kind === "cross") {
+      pos = step.cursor;
+      continue;
+    }
+    if (step.kind !== "stand") {
+      if (step.kind === "blocked" && step.pos === b.player.pos) path.push(step.pos);
       break;
     }
-    if (occupied(b, next, rc, b.enemy.id)) break;
-    pos = next;
+    pos = step.pos;
     path.push(pos);
   }
   return path;
@@ -3587,30 +3715,20 @@ function advanceThreatProjection(b: Battle, intent: Intent, rc: RunContext): voi
   if (intent.kind === "lunge") {
     const lockPos = intentLockPos(b, rc);
     if ((b.foeRootTurns ?? 0) <= 0 && Math.abs(b.enemy.pos - lockPos) > 1) {
-      const step = b.enemy.pos + towardDir(b.enemy.pos, lockPos);
-      if (step >= 0 && step < boardLen(b) && !occupied(b, step, rc, b.enemy.id)) b.enemy.pos = step;
+      const dir = towardDir(b.enemy.pos, lockPos);
+      b.enemy.pos = walkStand(b, b.enemy.pos, dir, 1, rc, b.enemy.id).pos;
     }
   } else if (intent.kind === "charge") {
     const steps = chargeSteps(b);
     const dir = towardDir(b.enemy.pos, b.player.pos);
-    for (let i = 0; i < steps; i++) {
-      const next = b.enemy.pos + dir;
-      if (next < 0 || next >= boardLen(b)) break;
-      if (next === b.player.pos || occupied(b, next, rc, b.enemy.id)) break;
-      b.enemy.pos = next;
-    }
+    b.enemy.pos = walkStand(b, b.enemy.pos, dir, steps, rc, b.enemy.id).pos;
   } else if (intent.kind === "advance") {
     const dir = towardDir(b.enemy.pos, b.player.pos);
-    for (let i = 0; i < intent.steps; i++) {
-      const next = b.enemy.pos + dir;
-      if (next < 0 || next >= boardLen(b)) break;
-      if (next === b.player.pos || occupied(b, next, rc, b.enemy.id)) break;
-      b.enemy.pos = next;
-    }
+    b.enemy.pos = walkStand(b, b.enemy.pos, dir, intent.steps, rc, b.enemy.id).pos;
   } else if (intent.kind === "swap" && !adjacent(b)) {
     // 非贴脸的换位 = 近一步；贴脸互换取决于你收势位，不可预演（罕见，按不挪处理）
-    const next = b.enemy.pos + towardDir(b.enemy.pos, b.player.pos);
-    if (next >= 0 && next < boardLen(b) && !occupied(b, next, rc, b.enemy.id)) b.enemy.pos = next;
+    const dir = towardDir(b.enemy.pos, b.player.pos);
+    b.enemy.pos = walkStand(b, b.enemy.pos, dir, 1, rc, b.enemy.id).pos;
   } else if (intent.kind === "retreat") {
     b.enemy.pos = retreatLandPos(b, intent.steps, rc);
   }
@@ -3618,13 +3736,7 @@ function advanceThreatProjection(b: Battle, intent: Intent, rc: RunContext): voi
 
 function retreatLandPos(b: Battle, steps: number, rc: RunContext): number {
   const dir = awayDir(b.player.pos, b.enemy.pos);
-  let pos = b.enemy.pos;
-  for (let i = 0; i < steps; i++) {
-    const next = pos + dir;
-    if (next < 0 || next >= boardLen(b) || occupied(b, next, rc, b.enemy.id)) break;
-    pos = next;
-  }
-  return pos;
+  return walkStand(b, b.enemy.pos, dir, steps, rc, b.enemy.id).pos;
 }
 
 function chaseCellsFromLand(land: number, boardSize: number): number[] {
@@ -3686,11 +3798,13 @@ function offerMoveWindow(
   const fromDist = Math.abs(b.player.pos - b.enemy.pos);
   const next = b.enemy.pos + dir;
   const toward = Math.abs(next - b.player.pos) < fromDist;
+  let cursor = b.enemy.pos;
   let pos = b.enemy.pos;
   for (let i = 0; i < leftover; i++) {
-    const step = pos + dir;
+    const step = cursor + dir;
     if (step < 0 || step >= boardLen(b) || step === b.player.pos) break;
-    pos = step;
+    cursor = step;
+    if (!isGapCell(b, step)) pos = step;
   }
   const tick: WindowTick = {
     phase: "move",
@@ -3729,12 +3843,10 @@ function finishSegment(b: Battle, rc: RunContext): void {
 }
 
 function resumeEnemyWalk(b: Battle, leftover: number, dir: number, rc: RunContext): void {
-  for (let i = 0; i < leftover; i++) {
-    const next = b.enemy.pos + dir;
-    if (next < 0 || next >= boardLen(b)) break;
-    if (next === b.player.pos || occupied(b, next, rc, b.enemy.id)) break;
-    moveEnemyTo(b, next);
-  }
+  const walked = walkStand(b, b.enemy.pos, dir, leftover, rc, b.enemy.id);
+  if (walked.pos !== b.enemy.pos) moveEnemyTo(b, walked.pos);
+  const gap = gapLine(walked.endedOnGap, walked.crossed, walked.pos);
+  if (gap) b.log.push(gap);
 }
 
 export function answerReaction(b: Battle, take: boolean, rc: RunContext): Battle {
@@ -3772,10 +3884,20 @@ function resolveCharge(b: Battle, damage: number, rc: RunContext): void {
   let steps = applyPinBudget(b, chargeSteps(b));
   if (offerMoveWindow(b, steps, dir, "charge", rc, damage)) return;
   let hits = false;
+  let cursor = b.enemy.pos;
+  let crossed = false;
+  let endedOnGap = false;
   for (let i = 0; i < steps; i++) {
     if (offerMoveWindow(b, steps - i, dir, "charge", rc, damage)) return;
-    const next = b.enemy.pos + dir;
-    if (next < 0 || next >= boardLen(b)) break;
+    const step = readBoardStep(b, cursor, dir, () => false);
+    if (step.kind === "cross") {
+      cursor = step.cursor;
+      crossed = true;
+      endedOnGap = true;
+      continue;
+    }
+    if (step.kind === "wall" || step.kind === "void") break;
+    const next = step.pos;
     if (next === b.player.pos) {
       hits = true;
       break;
@@ -3794,13 +3916,18 @@ function resolveCharge(b: Battle, damage: number, rc: RunContext): void {
     }
     if (occupied(b, next, rc, b.enemy.id)) break;
     moveEnemyTo(b, next);
+    cursor = next;
+    endedOnGap = false;
   }
   // §31.12 终点贴脸：身前兵刃覆盖才算撞上（身后打不到）
   if (!hits && labV2(rc) && enemyCanHitPlayerPos(b, b.player.pos, rc)) hits = true;
   else if (!hits && !labV2(rc) && Math.abs(b.enemy.pos - b.player.pos) <= 1) hits = true;
   if (hits && damage > 0) hitPlayer(b, damage, "冲锋 ", rc);
   else if (hits) b.log.push(`${b.enemy.name}冲到身前。`);
-  else b.log.push(`${b.enemy.name}冲过去了。`);
+  else {
+    const gap = gapLine(endedOnGap, crossed, b.enemy.pos);
+    b.log.push(gap ?? `${b.enemy.name}冲过去了。`);
+  }
 }
 
 function resolveAdvance(b: Battle, steps: number, rc: RunContext): void {
@@ -3811,22 +3938,38 @@ function resolveAdvance(b: Battle, steps: number, rc: RunContext): void {
   const dir = towardDir(b.enemy.pos, b.player.pos);
   const budget = applyPinBudget(b, steps);
   if (offerMoveWindow(b, budget, dir, "advance", rc)) return;
+  let cursor = b.enemy.pos;
   let moved = 0;
+  let crossed = false;
+  let endedOnGap = false;
   for (let i = 0; i < budget; i++) {
     if (offerMoveWindow(b, budget - i, dir, "advance", rc)) return;
-    const next = b.enemy.pos + dir;
-    if (next < 0 || next >= boardLen(b)) break;
-    if (next === b.player.pos || occupied(b, next, rc, b.enemy.id)) break;
-    moveEnemyTo(b, next);
+    const step = readBoardStep(b, cursor, dir, (pos) => occupied(b, pos, rc, b.enemy.id));
+    if (step.kind === "cross") {
+      cursor = step.cursor;
+      crossed = true;
+      endedOnGap = true;
+      continue;
+    }
+    if (step.kind !== "stand") break;
+    moveEnemyTo(b, step.pos);
+    cursor = step.pos;
+    endedOnGap = false;
     moved += 1;
   }
-  if (moved > 0) b.log.push(`${b.enemy.name}逼近 ${moved} 步。`);
+  const gap = gapLine(endedOnGap, crossed, b.enemy.pos);
+  if (gap) b.log.push(gap);
+  else if (moved > 0) b.log.push(`${b.enemy.name}逼近 ${moved} 步。`);
   else b.log.push(`${b.enemy.name}近不了。`);
 }
 
 function resolveStake(b: Battle, rc: RunContext): void {
   const dir = awayDir(b.player.pos, b.enemy.pos);
   const at = b.enemy.pos + dir;
+  if (isGapCell(b, at)) {
+    b.log.push(`缺格，桩落不下`);
+    return;
+  }
   if (at >= 0 && at < boardLen(b) && !occupied(b, at, rc, b.enemy.id)) {
     const school = ENEMY_WEAPON[b.enemyId];
     addStake(b, at, enemyPlantHits(school, b.labEnemyGrade), rc);
@@ -3852,8 +3995,9 @@ function resolveLunge(b: Battle, damage: number, rc: RunContext): void {
     // 落点 = 朝锁定格进一步；命中 = 你的收势格在落点的兵刃圈内。你挪走了，他就扑空。
     const lockPos = intentLockPos(b, rc);
     if ((b.foeRootTurns ?? 0) <= 0 && Math.abs(b.enemy.pos - lockPos) > 1) {
-      const step = b.enemy.pos + towardDir(b.enemy.pos, lockPos);
-      if (step >= 0 && step < boardLen(b) && !occupied(b, step, rc, b.enemy.id)) moveEnemyTo(b, step);
+      const dir = towardDir(b.enemy.pos, lockPos);
+      const landed = walkStand(b, b.enemy.pos, dir, 1, rc, b.enemy.id).pos;
+      if (landed !== b.enemy.pos) moveEnemyTo(b, landed);
     }
     if (enemyCanHitPlayerPos(b, b.player.pos, rc)) hitPlayer(b, damage, "抢步 ", rc);
     else b.log.push(`${b.enemy.name}抢了个空。`);
@@ -3864,8 +4008,8 @@ function resolveLunge(b: Battle, damage: number, rc: RunContext): void {
     const budget = applyPinBudget(b, 1);
     if (offerMoveWindow(b, budget, dir, "lunge", rc, damage)) return;
     if (budget > 0) {
-      const next = b.enemy.pos + dir;
-      if (next >= 0 && next < boardLen(b) && !occupied(b, next, rc, b.enemy.id)) moveEnemyTo(b, next);
+      const landed = walkStand(b, b.enemy.pos, dir, 1, rc, b.enemy.id).pos;
+      if (landed !== b.enemy.pos) moveEnemyTo(b, landed);
     }
   }
   if (Math.abs(b.enemy.pos - b.player.pos) <= 1) hitPlayer(b, damage, "抢步 ", rc);
@@ -3874,13 +4018,14 @@ function resolveLunge(b: Battle, damage: number, rc: RunContext): void {
 
 function resolveSwap(b: Battle, rc: RunContext): void {
   if (!adjacent(b)) {
-    const next = b.enemy.pos + towardDir(b.enemy.pos, b.player.pos);
-    if (next >= 0 && next < boardLen(b) && !occupied(b, next, rc, b.enemy.id)) {
-      moveEnemyTo(b, next);
-      b.log.push(`${b.enemy.name}近了一步。`);
+    const dir = towardDir(b.enemy.pos, b.player.pos);
+    const walked = walkStand(b, b.enemy.pos, dir, 1, rc, b.enemy.id);
+    if (walked.pos !== b.enemy.pos) {
+      moveEnemyTo(b, walked.pos);
+      b.log.push(gapLine(walked.endedOnGap, walked.crossed, walked.pos) ?? `${b.enemy.name}近了一步。`);
       return;
     }
-    b.log.push(`${b.enemy.name}换不了。`);
+    b.log.push(walked.endedOnGap ? `缺格，停在第 ${b.enemy.pos + 1} 步` : `${b.enemy.name}换不了。`);
     return;
   }
   const p = b.player.pos;
@@ -4119,15 +4264,27 @@ function resolveRetreat(b: Battle, steps: number, rc: RunContext): void {
   const dir = awayDir(b.player.pos, b.enemy.pos);
   const budget = applyPinBudget(b, steps);
   if (offerMoveWindow(b, budget, dir, "retreat", rc)) return;
+  let cursor = b.enemy.pos;
   let moved = 0;
+  let crossed = false;
+  let endedOnGap = false;
   for (let i = 0; i < budget; i++) {
     if (offerMoveWindow(b, budget - i, dir, "retreat", rc)) return;
-    const next = b.enemy.pos + dir;
-    if (next < 0 || next >= boardLen(b) || occupied(b, next, rc, b.enemy.id)) break;
-    moveEnemyTo(b, next);
+    const step = readBoardStep(b, cursor, dir, (pos) => occupied(b, pos, rc, b.enemy.id));
+    if (step.kind === "cross") {
+      cursor = step.cursor;
+      crossed = true;
+      endedOnGap = true;
+      continue;
+    }
+    if (step.kind !== "stand") break;
+    moveEnemyTo(b, step.pos);
+    cursor = step.pos;
+    endedOnGap = false;
     moved += 1;
   }
-  note(b, "foe", moved ? `${b.enemy.name}撤了 ${moved} 格。` : `${b.enemy.name}无路可撤。`);
+  const gap = gapLine(endedOnGap, crossed, b.enemy.pos);
+  note(b, "foe", gap ?? (moved ? `${b.enemy.name}撤了 ${moved} 格。` : `${b.enemy.name}无路可撤。`));
 }
 
 function resolveSignature(b: Battle, id: string, rc: RunContext): void {
@@ -4138,7 +4295,7 @@ function resolveSignature(b: Battle, id: string, rc: RunContext): void {
     if (id === "luohan-array") resolveStake(b, rc);
     if (id === "staff-circle") {
       const extra = b.enemy.pos + towardDir(b.enemy.pos, b.player.pos);
-      if (extra >= 0 && extra < boardLen(b) && !b.stakes.includes(extra)) {
+      if (extra >= 0 && extra < boardLen(b) && !isGapCell(b, extra) && !b.stakes.includes(extra)) {
         addStake(b, extra, enemyPlantHits(ENEMY_WEAPON[b.enemyId], b.labEnemyGrade), rc);
       }
     }
@@ -4220,7 +4377,10 @@ function usesGeneratedKit(id: string): boolean {
 function kitCtx(b: Battle, rc: RunContext): KitCtx {
   const stage = b.labGauntletStage ?? 1;
   const profile = profileFor(b.enemyId, stage, b.labEnemyKitRole ?? "main");
-  const edge = (pos: number) => atBoardEnd(pos, boardLen(b));
+  const edge = (pos: number) => {
+    const len = boardLen(b);
+    return pos === solidEdge(len, "low", b.gapCells) || pos === solidEdge(len, "high", b.gapCells);
+  };
   return {
     dist: distTo(b),
     reach: enemyReach(b, rc),
@@ -4311,8 +4471,9 @@ function reactToPlayer(b: Battle, rc: RunContext): Intent | null {
     if (d === 1) return { kind: "barrage", damage: 10, hits: 2 };
     return { kind: "lunge", damage: 16 };
   }
-  const edge = atBoardEnd(b.player.pos, boardLen(b));
-  const foeEdge = atBoardEnd(b.enemy.pos, boardLen(b));
+  const len = boardLen(b);
+  const edge = b.player.pos === solidEdge(len, "low", b.gapCells) || b.player.pos === solidEdge(len, "high", b.gapCells);
+  const foeEdge = b.enemy.pos === solidEdge(len, "low", b.gapCells) || b.enemy.pos === solidEdge(len, "high", b.gapCells);
   if (d === 1 && edge && !foeEdge && b.turn % 2 === 0) return { kind: "swap" };
   if (b.retainTurns > 0 && d === 1) return { kind: "barrage", damage: 9, hits: 2 };
   // High flow used to force endless guard → infinite 架势, HP looked "stuck".
@@ -4497,10 +4658,12 @@ function actAlly(b: Battle, unit: Unit, rc: RunContext): void {
     return;
   }
   const dir = b.player.pos > unit.pos ? 1 : -1;
-  const next = unit.pos + dir;
-  if (!occupied(b, next, rc, unit.id)) {
-    unit.pos = next;
-    b.log.push(`${unit.name}近了一步。`);
+  const walked = walkStand(b, unit.pos, dir, 1, rc, unit.id);
+  if (walked.pos !== unit.pos) {
+    unit.pos = walked.pos;
+    b.log.push(gapLine(walked.endedOnGap, walked.crossed, walked.pos) ?? `${unit.name}近了一步。`);
+  } else if (walked.endedOnGap) {
+    b.log.push(`缺格，停在第 ${unit.pos + 1} 步`);
   }
 }
 
@@ -4740,6 +4903,7 @@ export function applyClimbOpeningPositions(b: Battle, rc: RunContext): void {
     if (f.id === b.enemy.id) f.pos = pos.enemyPos;
   }
   syncFront(b);
+  liftOffGaps(b);
   if ((b.foeApproachStall ?? 0) === 0) b.foeDistMark = Math.abs(b.player.pos - b.enemy.pos);
 }
 

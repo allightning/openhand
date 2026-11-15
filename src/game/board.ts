@@ -75,17 +75,28 @@ export function atBoardEnd(pos: number, boardSize: number): boolean {
   return pos === 0 || pos === boardSize - 1;
 }
 
+/** 这一侧最后一块实板。没有缺格时就是 0 或板尾。 */
+export function solidEdge(boardSize: number, side: "low" | "high", gaps?: number[]): number {
+  const missing = new Set(gaps ?? []);
+  if (side === "low") {
+    for (let i = 0; i < boardSize; i++) if (!missing.has(i)) return i;
+    return 0;
+  }
+  for (let i = boardSize - 1; i >= 0; i--) if (!missing.has(i)) return i;
+  return Math.max(0, boardSize - 1);
+}
+
 /** 到最近一堵墙的格数。无墙时返回板长，表示贴不上。 */
-export function nearestWallDist(pos: number, boardSize: number, ends: WallEnds): number {
+export function nearestWallDist(pos: number, boardSize: number, ends: WallEnds, gaps?: number[]): number {
   const dists: number[] = [];
-  if (ends === "both" || ends === "low") dists.push(Math.abs(pos));
-  if (ends === "both" || ends === "high") dists.push(Math.abs(boardSize - 1 - pos));
+  if (ends === "both" || ends === "low") dists.push(Math.abs(pos - solidEdge(boardSize, "low", gaps)));
+  if (ends === "both" || ends === "high") dists.push(Math.abs(pos - solidEdge(boardSize, "high", gaps)));
   if (!dists.length) return boardSize;
   return Math.min(...dists);
 }
 
-export function unitAtWall(pos: number, boardSize: number, ends: WallEnds): boolean {
-  if ((ends === "both" || ends === "low") && pos === 0) return true;
-  if ((ends === "both" || ends === "high") && pos === boardSize - 1) return true;
+export function unitAtWall(pos: number, boardSize: number, ends: WallEnds, gaps?: number[]): boolean {
+  if ((ends === "both" || ends === "low") && pos === solidEdge(boardSize, "low", gaps)) return true;
+  if ((ends === "both" || ends === "high") && pos === solidEdge(boardSize, "high", gaps)) return true;
   return false;
 }

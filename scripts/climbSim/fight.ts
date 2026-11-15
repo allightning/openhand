@@ -138,6 +138,8 @@ function scanPierce(lines: string[], into: { bleed: number; poison: number; pier
     if (poison) into.poison += Number(poison[1]);
     const pierce = /破绽穿挡 (\d+)/.exec(line);
     if (pierce) into.pierce += Number(pierce[1]);
+    const mind = /破甲穿挡 (\d+)/.exec(line);
+    if (mind) into.pierce += Number(mind[1]);
   }
 }
 
@@ -374,6 +376,9 @@ function arm(opened: OpenedHall, knobs: ClimbKnobs, seed: number, policy: Policy
     ...(stamp?.bag ? { bag: stamp.bag } : {}),
     ...(stamp?.mateDecks ? { mateDecks: { ...opened.run.mateDecks, ...stamp.mateDecks } } : {}),
     ...(stamp?.foeRound != null ? { foeRound: stamp.foeRound, foeStage: stamp.foeStage ?? opened.stage, foeSalt: stamp.foeSalt ?? 0 } : {}),
+    ...(stamp?.techniques?.length
+      ? { techniques: [...new Set([...(opened.run.techniques ?? []), ...stamp.techniques])] }
+      : {}),
   };
   setBattleRng(mulberry32(seed));
   let b = makeBattle(opened.enemyId, opened.rc, run, false);
@@ -398,6 +403,9 @@ function arm(opened: OpenedHall, knobs: ClimbKnobs, seed: number, policy: Policy
   if (stamp?.mateWeapons) {
     b.labMateWeapons = { ...(b.labMateWeapons ?? {}), ...stamp.mateWeapons };
     syncBattleGear(b);
+  }
+  if (stamp?.mateMinds) {
+    b.labMateMinds = { ...(b.labMateMinds ?? {}), ...stamp.mateMinds };
   }
   if (stamp?.partyHp != null) {
     const hp = stamp.partyHp;

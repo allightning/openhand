@@ -124,7 +124,9 @@ describe("mech P3 env tags", () => {
     const g = makeRun("empty");
     g.envTag = "gap_end";
     const gb = makeBattle("catcher", rc, g, true);
-    expect(gb.gapCells).toEqual([]);
+    expect(gb.gapCells).toEqual([8]);
+    expect(gb.player.pos).not.toBe(8);
+    expect(gb.enemy.pos).not.toBe(8);
   });
 });
 

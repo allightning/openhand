@@ -33,6 +33,10 @@ export type FightStamp = {
   mateWeapons?: Partial<Record<CompanionId, string>>;
   /** 模拟开局用淬毒。不改 src 默认，要 stamp 点开才喝。 */
   usePoison?: boolean;
+  /** 外功注入。开战写进 run.techniques，走正式结算。 */
+  techniques?: import("../../src/game/types").TechniqueId[];
+  /** 心法注入。开战写进 labMateMinds，走 guardBreak / mindArts。 */
+  mateMinds?: Partial<Record<CompanionId, import("../../src/game/mindArts").MindArtId[]>>;
 };
 
 export type OpenedHall = {
@@ -87,6 +91,7 @@ export function openHall(
   const adj = rawLadder ? { enemy: 1, player: 1 } : stageDmgAdjust(stage, ladderEnemy);
   applyKnobs({ ...knobs, enemyDmg: knobs.enemyDmg * adj.enemy, playerDmg: knobs.playerDmg * adj.player });
   if (tuned.enemyHitMul != null) setLabTuning({ enemyHitMul: tuned.enemyHitMul });
+  if (knobs.enemyHitMul != null) setLabTuning({ enemyHitMul: knobs.enemyHitMul });
   const preset = buildGauntletPreset(staged);
   const body = runFromPreset(preset);
   const hpMax = body.hpMax;

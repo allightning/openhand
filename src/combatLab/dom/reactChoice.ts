@@ -1,3 +1,4 @@
+import { windowThinkBonusSec } from "../../game/reactionWindows";
 import { answerReaction } from "../../game/sim";
 import type { Battle, RunContext } from "../../game/types";
 import type { GuashowFields } from "../render/guashowHud";
@@ -14,6 +15,15 @@ export function isReactSec(n: number): n is ReactSec {
 /** 本局圆窗思考秒数。不进结算。 */
 export function writeReactSec(b: ReactBattle, sec: ReactSec): ReactBattle {
   return { ...b, reactionSec: sec };
+}
+
+/** 圆窗倒计时：玩家选定的 3/5/10（未选则 5）加上听劲加成。按钮仍写选定档。 */
+export function reactCountdown(b: ReactBattle): { sec: number; base: ReactSec; source: "field" | "placeholder" } {
+  const raw = b.reactionSec;
+  const chosen = raw != null && isReactSec(raw);
+  const base: ReactSec = chosen ? raw : 5;
+  const bonus = windowThinkBonusSec(b);
+  return { sec: base + bonus, base, source: chosen || bonus > 0 ? "field" : "placeholder" };
 }
 
 /**

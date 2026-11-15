@@ -597,7 +597,7 @@ export interface Battle {
   foePin?: number;
   /** 灼烧格下标。回合结束站其上扣 caps。 */
   burnCells?: number[];
-  /** 缺格下标。本包只留字段，位移不接。 */
+  /** 缺格下标。不可站，路径可跨过。落点是缺格时停在最近实格。 */
   gapCells?: number[];
   /** 出招中途反应窗。无窗则敌段一次兑完。 */
   reactionWindow?: ReactionWindow;

@@ -387,6 +387,13 @@ describe("六屏按钮不重叠", () => {
     expect(crowded).toContain("另开一局");
     expect(crowded).not.toMatch(/id="hall-continue"[^>]*disabled/);
     assertFlow(crowded, 'data-shell="hall"');
+    const burned = renderShellHall(hallView({ continueInfo: { replayLeft: 2, stage: 3, pot: 40 } }));
+    expect(burned).toContain('data-hall-env="burn"');
+    expect(burned).not.toContain('data-overlap-group="hall-primary" data-hall-env');
+    assertFlow(burned, 'data-overlap-group="hall-primary"');
+    const css = shellCss();
+    expect(css).toMatch(/\.shell-hall-env\s*\{[^}]*position:\s*static/);
+    expect(css).toMatch(/\.gauntlet-env-line\s*\{[^}]*position:\s*static/);
   });
 
   it("路线屏三张路卡与回门厅不叠", () => {

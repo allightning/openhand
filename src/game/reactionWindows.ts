@@ -205,14 +205,33 @@ function pay(b: Battle, w: ReactionWindow): boolean {
   return true;
 }
 
-function rejectAt(b: Battle, dist: number): void {
+function rejectAt(b: Battle, dist: number): number {
   const sign = b.enemy.pos >= b.player.pos ? 1 : -1;
   let pos = b.player.pos + sign * dist;
   const last = boardLen(b) - 1;
   if (pos < 0) pos = 0;
   if (pos > last) pos = last;
   if (pos === b.player.pos) pos = Math.min(last, Math.max(0, b.player.pos + sign));
+  if ((b.gapCells ?? []).includes(pos)) {
+    const back = pos - sign;
+    if (back >= 0 && back <= last && !(b.gapCells ?? []).includes(back) && back !== b.player.pos) pos = back;
+    else {
+      for (let d = 1; d <= last; d++) {
+        const a = pos - d;
+        const c = pos + d;
+        if (a >= 0 && !(b.gapCells ?? []).includes(a) && a !== b.player.pos) {
+          pos = a;
+          break;
+        }
+        if (c <= last && !(b.gapCells ?? []).includes(c) && c !== b.player.pos) {
+          pos = c;
+          break;
+        }
+      }
+    }
+  }
   placeEnemy(b, pos);
+  return pos;
 }
 
 export function takeWindow(b: Battle): string[] {
@@ -220,9 +239,11 @@ export function takeWindow(b: Battle): string[] {
   if (!w) return [];
   if (!pay(b, w)) return ["劲不够，窗没打出"];
   if (w.kind === "spearReverse") {
-    rejectAt(b, CLIMB_SPEAR_REJECT_DIST);
+    const landed = rejectAt(b, CLIMB_SPEAR_REJECT_DIST);
     b.displaceSealed = true;
-    return [`回马枪 耗劲 ${w.cost}，敌拒在 ${CLIMB_SPEAR_REJECT_DIST} 格`];
+    const away = Math.abs(landed - b.player.pos);
+    if (away === CLIMB_SPEAR_REJECT_DIST) return [`回马枪 耗劲 ${w.cost}，敌拒在 ${CLIMB_SPEAR_REJECT_DIST} 格`];
+    return [`回马枪 耗劲 ${w.cost}，缺格，敌停在第 ${landed + 1} 步`];
   }
   if (w.kind === "palmCut") {
     const d = distOf(b);
@@ -234,6 +255,7 @@ export function takeWindow(b: Battle): string[] {
     }
     const dir = b.enemy.pos > b.player.pos ? 1 : -1;
     const next = b.player.pos + dir;
+    if ((b.gapCells ?? []).includes(next)) return [`缺格，停在第 ${b.player.pos + 1} 步`];
     if (next !== b.enemy.pos && next >= 0 && next < boardLen(b)) b.player.pos = next;
     return ["截拳 贴上去，这次蓄力没做成"];
   }

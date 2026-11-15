@@ -1,7 +1,7 @@
 import { S } from "../flow/shellState";
 import { api } from "../flow/shellApi";
 import { shellRunContext } from "../shellContext";
-import { applyReactChoice, isReactSec, writeReactSec, type ReactBattle } from "./reactChoice";
+import { applyReactChoice, isReactSec, reactCountdown, writeReactSec, type ReactBattle } from "./reactChoice";
 
 let waitTimer: number | null = null;
 let armedKey: string | null = null;
@@ -71,7 +71,7 @@ function armWait(): void {
     armedKey = null;
     return;
   }
-  const sec = isReactSec(b.reactionSec ?? 0) ? b.reactionSec! : 5;
+  const sec = reactCountdown(b as ReactBattle).sec;
   const key = `${b.turn}:${b.reactionWindow.kind}:${sec}`;
   if (armedKey === key) return;
   clearWait();

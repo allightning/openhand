@@ -13,6 +13,8 @@ export type ClimbKnobs = {
   energyRegen: number;
   /** 敌窗触发倍率。缺省 1。置 0 = 关窗。不进 DEFAULT_KNOBS。 */
   foeWindowP?: number;
+  /** 覆写馆段敌伤系数（enemyHitMul）。缺省不写，沿用 applyStageTuning。 */
+  enemyHitMul?: number;
 };
 
 export const KNOB_VERSION = "1.0";
@@ -47,5 +49,6 @@ export function stageDmgAdjust(stage: number, ladderEnemy: number): { enemy: num
 }
 
 export function knobLabel(k: ClimbKnobs): string {
-  return `汇率${k.exchange} 敌血${k.enemyHp} 敌伤${k.enemyDmg} 我伤${k.playerDmg} 回劲${k.energyRegen}`;
+  const hit = k.enemyHitMul != null ? ` 敌伤系数${k.enemyHitMul}` : "";
+  return `汇率${k.exchange} 敌血${k.enemyHp} 敌伤${k.enemyDmg} 我伤${k.playerDmg} 回劲${k.energyRegen}${hit}`;
 }

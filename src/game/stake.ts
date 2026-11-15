@@ -18,6 +18,7 @@ export function isHighStake(b: Battle, pos: number): boolean {
 
 export function addStake(b: Battle, pos: number, hits: number, ctx: RunContext): boolean {
   if (pos < 0 || pos >= boardLen(b) || b.stakes.includes(pos)) return false;
+  if ((b.gapCells ?? []).includes(pos)) return false;
   const cap = ctx.caps.stake.cap;
   if (cap > 0 && b.stakes.length >= cap) return false;
   b.stakes.push(pos);

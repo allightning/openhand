@@ -6,6 +6,7 @@ import { mateDeck } from "../loadout";
 import { isBreakDemoDone, isRookieDemoDone } from "../breakDemo";
 import { MATES, WEAPON_NAME } from "../../game/party";
 import type { CompanionId } from "../../game/types";
+import { hallEnvHtml } from "./hallEnv";
 import { escapeAttr, escapeHtml } from "../setupUi";
 
 export interface ShellHallMate {
@@ -138,7 +139,7 @@ export function renderShellHall(view: ShellHallView): string {
       <h2>明手</h2>
       <p class="shell-hall-lead">选路线，再开打。</p>
     </header>
-    <section class="shell-hall-primary" aria-label="开打">${primarySlot(view.continueInfo)}</section>
+    <section class="shell-hall-primary" aria-label="开打">${primarySlot(view.continueInfo)}${view.continueInfo ? hallEnvHtml(view.continueInfo.stage, "shell-hall-env") : ""}</section>
     ${routeButtons(view)}
     ${teamBlock(view.team)}
     ${board}

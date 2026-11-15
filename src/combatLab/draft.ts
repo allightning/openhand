@@ -50,6 +50,7 @@ export function normalizePreset(p: LabPreset): LabPreset {
     waveEnemyId: p.waveEnemyId,
     waveQueue: p.waveQueue ? [...p.waveQueue] : undefined,
     gauntletStage: p.gauntletStage,
+    envTag: p.envTag,
     hallLaw: p.hallLaw,
     sceneBg: p.sceneBg,
     statBoostMul: p.statBoostMul,

@@ -1,3 +1,4 @@
+import { envTagForHall } from "../game/content/envSchedule";
 import type { GauntletLadderEntry } from "./gauntlet";
 import type { CompanionId, EnemyId } from "../game/types";
 
@@ -136,9 +137,9 @@ export const ENV_TAG_LABEL: Record<EnvTag, string> = {
 /** 词条出不出、出在第几程：等数值框架。这里不掷概率，也不改梯上的伤和人数。 */
 export const ENV_TAG_APPEAR = "?" as const;
 
-/** 梯上不预挂词条。下一场带哪条，看 run.storyFlags 里最后一条 envtag:。 */
-export function ladderEnvTag(_path: GauntletPath, _stage: number): EnvTag | undefined {
-  return undefined;
+/** 馆号词条以投放表为准。事页旗标补表上没有的馆。 */
+export function ladderEnvTag(_path: GauntletPath, stage: number): EnvTag | undefined {
+  return envTagForHall(stage);
 }
 
 export function readEnvTag(flags: readonly string[] | undefined): EnvTag | undefined {

@@ -2,7 +2,7 @@ import { applyAutoLoadout } from "./autoLoadouts";
 import { BREAK_REWARD_WEIGHTS, itemTip, mindTip, techniqueTip } from "./breakAlign";
 import { climbVitals } from "./climbVitals";
 import { normalizePreset } from "./draft";
-import { GAUNTLET_FINAL_STAGE, GAUNTLET_MIDTERM_STAGE, getGauntletFinalStage, maxCompanions, pathLadder } from "./gauntletPaths";
+import { GAUNTLET_FINAL_STAGE, GAUNTLET_MIDTERM_STAGE, getGauntletFinalStage, ladderEnvTag, maxCompanions, pathLadder, readEnvTag } from "./gauntletPaths";
 import { DEFAULT_LAB_TUNING, getLabTuning, setLabTuning, type LabTuning } from "./labTuning";
 import { isBreakAlign } from "./labRuleset";
 import { fieldDeck, gearSlotMax, grantCardToLoadout, isAidItem, ownedCardIds, replaceOwnedCard, withMateDeck, climbTechSlotMax } from "./loadout";
@@ -267,6 +267,7 @@ export function buildGauntletPreset(run: GauntletRun): LabPreset {
     statBoostMul: run.statBoostMul,
     gauntletStage: run.stage,
     hallLaw: run.pendingHallLaw,
+    envTag: ladderEnvTag(run.path, run.stage) ?? readEnvTag(run.storyFlags),
   });
 }
 

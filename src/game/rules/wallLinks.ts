@@ -1,5 +1,5 @@
 import { CLIMB_SPEAR_REVERSE_QI, CLIMB_STAFF_WALL_STUN } from "../climbCaps";
-import { boardLen, wallEndsOf, wallOnSide } from "../board";
+import { boardLen, solidEdge, wallEndsOf, wallOnSide } from "../board";
 import { WALL_DAMAGE, type Battle, type WeaponId } from "../types";
 
 export const STAFF_WALL = { extraDmg: 0, stun: CLIMB_STAFF_WALL_STUN } as const;
@@ -11,10 +11,10 @@ export function staffWallOnCrash(school: WeaponId, who: "player" | "enemy"): { e
 }
 
 export function unitBackToWall(b: Battle, pos: number): boolean {
-  const last = boardLen(b) - 1;
+  const len = boardLen(b);
   const ends = wallEndsOf(b);
-  if (pos === 0 && wallOnSide(ends, "low")) return true;
-  if (pos === last && wallOnSide(ends, "high")) return true;
+  if (wallOnSide(ends, "low") && pos === solidEdge(len, "low", b.gapCells)) return true;
+  if (wallOnSide(ends, "high") && pos === solidEdge(len, "high", b.gapCells)) return true;
   return false;
 }
 
@@ -24,9 +24,11 @@ export function hookSmashLine(b: Battle): boolean {
   const e = b.enemy.pos;
   if (Math.abs(p - e) !== 1) return false;
   if (!unitBackToWall(b, p)) return false;
-  const last = boardLen(b) - 1;
-  if (p === 0 && e === 1) return true;
-  if (p === last && e === last - 1) return true;
+  const len = boardLen(b);
+  const low = solidEdge(len, "low", b.gapCells);
+  const high = solidEdge(len, "high", b.gapCells);
+  if (p === low && e === low + 1) return true;
+  if (p === high && e === high - 1) return true;
   return false;
 }
 

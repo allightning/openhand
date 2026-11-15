@@ -1,3 +1,4 @@
+import { hallEnvHtml } from "./render/hallEnv";
 import { shellRunContext } from "./shellContext";
 import { CARDS, ENEMIES, TECHNIQUES } from "../game/content";
 import { tierFx } from "../game/labResonance";
@@ -218,6 +219,7 @@ export function renderGauntletWager(run: GauntletRun, offers: WagerOffer[], selK
           连胜 ${run.streak} · 彩金 <b class="gauntlet-pot">${run.pot}</b>${run.bankruptUsed ? " · 已用过赊账" : ""}
         </p>
         <p class="gauntlet-next-info">${escapeHtml(nextLine)}</p>
+        ${hallEnvHtml(run.stage, "gauntlet-env-line")}
         ${run.lastEncounterNote ? `<p class="gauntlet-event-lead">${escapeHtml(run.lastEncounterNote)}</p>` : ""}
       </header>
       <div class="gauntlet-wager-row">${cards}</div>
@@ -951,6 +953,7 @@ export function renderGauntletEvent(run: GauntletRun, kind: EncounterKind, choic
       <header class="gauntlet-head">
         <h2>${escapeHtml(title)}</h2>
         <p class="gauntlet-event-lead" data-rematch-open="${rematchOpenMark(run.storyFlags).open}" data-rematch-source="${rematchOpenMark(run.storyFlags).source}">${formatEncounterRichText(lead)}</p>
+        ${hallEnvHtml(run.stage, "gauntlet-env-line")}
         ${intel ? `<p class="gauntlet-event-lead">暗桩：${escapeHtml(intel)}</p>` : ""}
         <p>彩金 ${run.pot}</p>
       </header>

@@ -1,4 +1,4 @@
-import type { CardId, CompanionId, EnemyId, HeroId, LabItemId, TechniqueId } from "../game/types";
+import type { CardId, CompanionId, EnemyId, EnvTag, HeroId, LabItemId, TechniqueId } from "../game/types";
 import type { MindArtId } from "../game/mindArts";
 
 export interface LabPreset {
@@ -33,6 +33,8 @@ export interface LabPreset {
   waveQueue?: EnemyId[];
   /** 踢馆馆序，供敌人套件/品阶/诚实蓝条。 */
   gauntletStage?: number;
+  /** 本馆环境词条。馆开局按投放表写入，再交给对局。 */
+  envTag?: EnvTag;
   /** 本馆馆法。 */
   hallLaw?: "noMove" | "mustMelee" | "earlyEye";
   /** 本场背景图。 */

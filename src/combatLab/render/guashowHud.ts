@@ -3,6 +3,7 @@ import { battleEquippedSchool } from "../../game/equippedWeapon";
 import { buildStanceBoard, STANCE_LABEL } from "../../game/intentStance";
 import { cardSchool, WEAPON_NAME } from "../../game/party";
 import type { Battle, Intent, ReactionWindow, StanceId, StanceSeg } from "../../game/types";
+import { reactCountdown } from "../dom/reactChoice";
 import { shellRunContext } from "../shellContext";
 import { cardIntentLine } from "../storyBeats";
 import { recentBroadcast } from "./liveFoe";
@@ -159,10 +160,8 @@ export function renderReadNames(b: Battle): string {
   return `<span class="lab-read-names" data-read-source="field">${body}</span>`;
 }
 
-function reactSeconds(b: Battle): { sec: 3 | 5 | 10; source: "field" | "placeholder" } {
-  const raw = fields(b).reactionSec;
-  if (raw === 3 || raw === 5 || raw === 10) return { sec: raw, source: "field" };
-  return { sec: 5, source: "placeholder" };
+function reactSeconds(b: Battle): { sec: number; base: 3 | 5 | 10; source: "field" | "placeholder" } {
+  return reactCountdown(b as Battle & GuashowFields);
 }
 
 function reactTitle(w: ReactionWindow): string {
@@ -174,10 +173,10 @@ export function reactView(b: Battle): { html: string; hold: boolean; landed: boo
   const hold = Boolean(b.reactionWindow) && !landed;
   if (!hold || !b.reactionWindow) return { html: "", hold: false, landed };
   const w = b.reactionWindow;
-  const { sec, source } = reactSeconds(b);
+  const { sec, base, source } = reactSeconds(b);
   const secs = REACT_SECS.map(
     (n) =>
-      `<button type="button" class="fy-btn" id="react-sec-${n}" data-react-sec="${n}"${n === sec ? ` aria-current="true"` : ""}>${n}</button>`,
+      `<button type="button" class="fy-btn" id="react-sec-${n}" data-react-sec="${n}"${n === base ? ` aria-current="true"` : ""}>${n}</button>`,
   ).join("");
   const html = `<div class="lab-react-round" data-overlap-group="react-round" data-react-sec="${sec}" data-react-sec-source="${source}" role="dialog" aria-label="${escapeHtml(reactTitle(w))}">
     <svg class="lab-react-ring" viewBox="0 0 120 120" style="--react-sec:${sec}s" aria-hidden="true"><circle cx="60" cy="60" r="52" class="lab-react-track"/><circle cx="60" cy="60" r="52" class="lab-react-arc" stroke-dasharray="${RING}"/></svg>

@@ -1,4 +1,27 @@
-# 统筹收口报告 · 2026-11-14（夜校十四班波）
+# 统筹收口报告 · 2026-11-14
+
+## 第二刀（夜校十五班 + 数值核十一班，HEAD）
+
+| 项 | 值 |
+|---|---|
+| commit 短散列 | `30c33dc`（全 `30c33dc8545a7dcbd2284a01c6ed6dee64b478a3`） |
+| 提交词 | 夜校十五班与数值十一班：破甲裂石，接力转正，环境投放，深息清我方，反应窗流四件。 |
+| 文件数 | 29（新增 9 / 修改 20，1063 insertions / 30 deletions） |
+| 测试绿数 | `test:combat` 98 文件 / 985 绿；`typecheck:combat` exit 0 |
+| HEAD | `30c33dc`，main 比 `origin/main` 超前 49 |
+| push | 未 push |
+
+构成：夜校十五班（`scripts/climbSim/night15*`、`package.json`、`NIGHT15_REPORT_20261114.md`）；数值核十一班（`src/game` 落码——`rules/guardBreak.ts`、`content/envSchedule.ts`、`climbCaps`、`reactionWindows`、`mindArts`、`items`、`techniques`、`legacy`、`hooks`、`sim`、`types` 等 + `guardBreak.test.ts` + 测试修订 + `NUMGEN11_REPORT_20261114.md`）；`RULES.md`；上一节的统筹报告（按本波指示同刀入库）。
+
+**flake 挂账：** 23:43 主窗复闸第一跑出现 1 失败 / 984，此后 17 跑全绿未复现（本窗提交前复跑亦绿）。疑似与本窗 / 数值核窗写盘竞争有关，未定位到具体测试，标疑似继续盯。
+
+异常清单：无。冻结区 `src/map/**`、`src/story/**`、`docs/frozen/**` 零改动；黄金基线三份未动；SYNC 两节（夜校 / 数值核）在 `.cursor`，gitignore 不入库。
+
+本节追加于提交之后，按惯例本文件改动留给下一波。
+
+---
+
+## 第一刀（夜校十四班波，`0e86dc1`）
 
 ## 提交
 
