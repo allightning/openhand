@@ -106,6 +106,13 @@ describe("馆开局投放", () => {
     expect(wager).toContain("无墙场。这一馆格后没有墙。");
   });
 
+  it("第 4 馆门厅写出缺格末端", () => {
+    const html = hall(4);
+    expect(html).toContain('data-hall-env="gap_end"');
+    expect(html).toContain("缺了末端一格");
+    expect(hall(7)).toContain("缺了末端一格");
+  });
+
   it("第 1 馆没有词条", () => {
     const b = opened(1);
     expect(b.envTag).toBeUndefined();

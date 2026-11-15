@@ -5,6 +5,7 @@ import { escapeHtml } from "../setupUi";
 const HALL_ENV_LINE: Partial<Record<string, string>> = {
   burn: "这一馆石台上有格子在冒烟。",
   nowall: "这一馆格后没有墙。",
+  gap_end: "这一馆石台缺了末端一格。跨得过去，站不住。",
 };
 
 export function hallEnvHtml(stage: number, cls: string): string {

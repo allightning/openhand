@@ -1,5 +1,28 @@
 # 统筹收口报告 · 2026-11-14
 
+## 第四刀（数值核十二班，HEAD）
+
+| 项 | 值 |
+|---|---|
+| commit 短散列 | `0c66ea8`（全 `0c66ea8d85a4b7647c7824ef34fcd39a354d9980`） |
+| 提交词 | 数值十二班：缺格投馆四七。 |
+| 文件数 | 5（新增 1 / 修改 4，77 insertions / 8 deletions） |
+| 测试绿数 | `test:combat` 100 文件 / 996 绿；`typecheck:combat` exit 0 |
+| HEAD | `0c66ea8`，main 比 `origin/main` 超前 51 |
+| push | 未 push |
+
+构成：`envSchedule.ts` 馆 4、馆 7 投 `gap_end`；`guardBreak.test.ts` 全表断言；`RULES.md` 环境投放行；`NUMGEN12_REPORT_20261115.md`；上一节统筹报告同刀。`gap_mid` 不投。馆 1/2 与馆 10 不投。
+
+复核时第一跑 `labHand.test.ts`「超上限仍可出牌，但不能收势；点弃才压到上限」红一次（`playable` 为 undefined），该文件不在本刀。隔离表现壳改动后再跑，100 / 996 绿。
+
+未入库：表现壳微班在复核途中写下 `hallEnv.ts`、`shellWire.test.ts`、`SHELL4_TASK.md`、`SHELL4_REPORT_20261115.md`。已从暂存处放回工作区，不进这一刀。
+
+冻结区零改动。黄金未改。
+
+本节追加于提交之后，按惯例本文件改动留给下一波。
+
+---
+
 ## 第三刀（机制八班 + 壳三班 + 夜校十六班，HEAD）
 
 | 项 | 值 |
