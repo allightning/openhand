@@ -182,10 +182,41 @@ export const CLIMB_TIER_HOOK_LEECH = CLIMB_BOND7_HOOK_LEECH;
 export const CLIMB_TIER_HOOK_LEECH_CAP = CLIMB_BOND7_HOOK_LEECH_CAP;
 export const CLIMB_TIER_DART_PIN_CAP = CLIMB_BOND4_DART_PIN;
 export const CLIMB_TIER_DART_FAR_PIN = CLIMB_BOND7_DART_PIN;
-/** 敌意图伤馆段系数。黄。只乘敌方，不乘玩家牌面。馆 7–10 可吃满。2026-11-02 第三刀：前 0.4→0.3，中 0.9→0.7。 */
+/**
+ * 敌意图伤馆段系数。黄。只乘敌方，不乘玩家牌面。
+ * 第四刀，11-16：三段常量改按馆查表。
+ * 1–3 = 0.3 / 4 = 0.7 / 5 = 0.85 / 6 = 0.6 / 7 = 0.85 / 8–10 = 1.0。
+ * 5→6 段内回落是单调性豁免，引 NUMCUT4「主窗定量」：胜率是难度口径，指数只作参照。
+ * EARLY/MID/LATE 只留作段锚，对局读 `hallEnemyHitMul`。
+ */
 export const CLIMB_ENEMY_HIT_EARLY = 0.3;
 export const CLIMB_ENEMY_HIT_MID = 0.7;
 export const CLIMB_ENEMY_HIT_LATE = 1;
+export const CLIMB_ENEMY_HIT_BY_HALL = [0, 0.3, 0.3, 0.3, 0.7, 0.85, 0.6, 0.85, 1, 1, 1] as const;
+/** 馆 6 主敌目录血 ×0.85。第四刀，11-16。 */
+export const CLIMB_HALL6_MAIN_HP_MUL = 0.85;
+/**
+ * 夺玺者爬塔目录血。修错装：120 × 馆 10 梯乘子 6.22 = 746，越出 400–520。
+ * 74 × 6.22 = 460，对齐寨主。登门仍读目录原血 120。
+ */
+export const CLIMB_USURPER_CATALOG_HP = 74;
+
+export function hallEnemyHitMul(stage: number): number {
+  const s = Math.max(1, Math.min(10, Math.floor(stage)));
+  return CLIMB_ENEMY_HIT_BY_HALL[s] ?? CLIMB_ENEMY_HIT_LATE;
+}
+
+/**
+ * 夜校成长梯。第四刀，11-16：档 3 从馆 7 前移到馆 4。
+ * 馆 1–2 档 1 / 血 60；馆 3 档 2 / 血 90；馆 4 起档 3 / 血 140。馆 7–10 仍是档 3。
+ * 绝牌张数不在这里。产品开局血仍走 `climbVitals`，不按馆跳。
+ */
+export function climbHallGrowth(stage: number): { tier: 1 | 2 | 3; hp: number; weaponGrade: 1 | 2 | 3 } {
+  const s = Math.max(1, Math.floor(stage));
+  if (s <= 2) return { tier: 1, hp: 60, weaponGrade: 1 };
+  if (s <= 3) return { tier: 2, hp: 90, weaponGrade: 2 };
+  return { tier: 3, hp: 140, weaponGrade: 3 };
+}
 /** 毒层：淬毒 / 毒经 / 毒功。黄。 */
 export const CLIMB_POISON_COAT = 2;
 export const CLIMB_POISON_MIND_STACK = 1;

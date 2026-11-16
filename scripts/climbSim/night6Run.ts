@@ -1,4 +1,5 @@
 import { gauntletFieldMate } from "../../src/combatLab/gauntlet";
+import { climbHallGrowth } from "../../src/game/climbCaps";
 import { CARD_REGISTRY } from "../../src/game/content/cards";
 import { breakStarterDeck } from "../../src/game/rogueCards";
 import { breakRewardCardPool } from "../../src/game/rules/rewardRules";
@@ -53,12 +54,13 @@ function add(cell: Night6Cell, fight: FightResult): void {
 }
 
 export function growthOf(stage: number): { grade: number; adept: number; supreme: number } {
-  if (stage <= 1) return { grade: 1, adept: 0, supreme: 0 };
-  if (stage === 2) return { grade: 1, adept: 1, supreme: 0 };
-  if (stage <= 4) return { grade: 2, adept: 2, supreme: 0 };
-  if (stage <= 6) return { grade: 2, adept: 4, supreme: 0 };
-  if (stage <= 9) return { grade: 3, adept: 4, supreme: 2 };
-  return { grade: 3, adept: 4, supreme: 3 };
+  const grade = climbHallGrowth(stage).weaponGrade;
+  if (stage <= 1) return { grade, adept: 0, supreme: 0 };
+  if (stage === 2) return { grade, adept: 1, supreme: 0 };
+  if (stage <= 4) return { grade, adept: 2, supreme: 0 };
+  if (stage <= 6) return { grade, adept: 4, supreme: 0 };
+  if (stage <= 9) return { grade, adept: 4, supreme: 2 };
+  return { grade, adept: 4, supreme: 3 };
 }
 
 function pawnIds(run: ReturnType<typeof freshRun>, stage: number): CardId[] {

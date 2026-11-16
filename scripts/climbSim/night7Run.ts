@@ -1,4 +1,5 @@
 import { gauntletFieldMate } from "../../src/combatLab/gauntlet";
+import { climbHallGrowth } from "../../src/game/climbCaps";
 import { breakStarterDeck } from "../../src/game/rogueCards";
 import { canSwap } from "../../src/game/sim";
 import type { Battle, CardId, CompanionId, WeaponId } from "../../src/game/types";
@@ -17,11 +18,9 @@ const BAI: CompanionId = "baimenghe";
 const HUO: CompanionId = "huochangchuan";
 const HALLS = 10;
 
-/** 锚带中值。只活在模拟配置里。 */
+/** 锚带中值。读 `climbHallGrowth`：馆 4 起血 140。 */
 export function hpOf(stage: number): number {
-  if (stage <= 2) return 60;
-  if (stage <= 6) return 90;
-  return 140;
+  return climbHallGrowth(stage).hp;
 }
 
 export function headsOf(stage: number): number {

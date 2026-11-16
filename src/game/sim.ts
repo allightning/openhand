@@ -127,7 +127,9 @@ import {
   CLIMB_STANCE_SHIFT_HP,
   CLIMB_APPROACH_EXTRA,
   CLIMB_APPROACH_STALL,
+  CLIMB_USURPER_CATALOG_HP,
 } from "./climbCaps";
+import { climbWaveBattleHp } from "./foeCatalog";
 import { consumeChargeBurst, gainCharge } from "./rules/staffCharge";
 import { addPin, applyPinBudget, dartFormAllows, dartFormFailReason } from "./rules/dartPin";
 import { burnCellsFor, gapFieldFor, isGapCell, readBoardStep, tickBurnCells } from "./rules/envTags";
@@ -422,7 +424,8 @@ function foePack(id: EnemyId, rc: RunContext, boardSize: number): Unit[] {
   if (rc.lab && isBossEnemy(id) && id === "lord") {
     hpMul *= 1.4;
   }
-  const hp = Math.max(8, Math.round(def.hp * fightScale.hp * hpMul));
+  const catalogHp = rc.lab && rc.ruleset.mode !== "break" && id === "usurper" ? CLIMB_USURPER_CATALOG_HP : def.hp;
+  const hp = Math.max(8, Math.round(catalogHp * fightScale.hp * hpMul));
   const main: Unit = {
     id: def.id,
     name: def.name,
@@ -3133,7 +3136,9 @@ function tryGauntletWaveSpawn(b: Battle, rc: RunContext): boolean {
   b.gauntletWaveQueue = queue.length > 1 ? queue.slice(1) : undefined;
   const def = labEnemy(waveId, rc);
   let hpMul = rc.lab ? rc.tuning.enemyHpMul : 1;
-  const hp = Math.max(8, Math.round(def.hp * hpMul));
+  const hp = rc.lab
+    ? climbWaveBattleHp(waveId, b.labGauntletStage ?? 1, def.hp, hpMul)
+    : Math.max(8, Math.round(def.hp * hpMul));
   const unit: Unit = {
     id: def.id,
     name: def.name,

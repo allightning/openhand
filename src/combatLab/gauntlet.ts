@@ -10,7 +10,7 @@ import { expandDeckRecipe } from "./rules";
 import { shellRunContext } from "./shellContext";
 import { dealStoryCast, personHome, usesBanditStory } from "./storyBeats";
 import type { LabPreset } from "./types";
-import { CLIMB_ENEMY_HIT_EARLY, CLIMB_ENEMY_HIT_LATE, CLIMB_ENEMY_HIT_MID } from "../game/climbCaps";
+import { hallEnemyHitMul } from "../game/climbCaps";
 import { sumMindArtBonuses } from "../game/mindArts";
 import { MATES, WEAPON_NAME } from "../game/party";
 import { breakStarterDeck } from "../game/rogueRoster";
@@ -316,13 +316,7 @@ export function applyStageTuning(entry: GauntletLadderEntry, run?: Pick<Gauntlet
   const stressCap =
     isBreakAlign() && entry.stage <= 2 ? 0 : (entry.stressCap ?? DEFAULT_LAB_TUNING.enemyStressCap);
   const dmgMul = run?.pendingDmgMul ?? 1;
-  const enemyHitMul = isBreakAlign()
-    ? 1
-    : entry.stage <= 3
-      ? CLIMB_ENEMY_HIT_EARLY
-      : entry.stage <= 6
-        ? CLIMB_ENEMY_HIT_MID
-        : CLIMB_ENEMY_HIT_LATE;
+  const enemyHitMul = isBreakAlign() ? 1 : hallEnemyHitMul(entry.stage);
   setLabTuning({
     enemyHpMul: isBreakAlign() ? entry.hpMul : Math.round(entry.hpMul * 148) / 100,
     enemySegBonus: entry.segBonus,

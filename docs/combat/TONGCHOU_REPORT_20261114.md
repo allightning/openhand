@@ -1,5 +1,24 @@
 # 统筹收口报告 · 2026-11-14
 
+## 第七刀（夜校十七班 + NUMGEN13 + 主窗定量，HEAD）
+
+| 项 | 值 |
+|---|---|
+| commit 短散列 | `d95fc6a`（全 `d95fc6a1637639ff2aae4ff05da605ea8e00a82f`） |
+| 提交词 | 夜校十七班真基线与四刀 bracket，NUMGEN13 审查，主窗定量。 |
+| 文件数 | 12（新增 7 / 修改 5，803 insertions / 5 deletions） |
+| 测试绿数 | `test:combat` 100 文件 / 997 绿；`typecheck:combat` exit 0 |
+| HEAD | `d95fc6a`，main 比 `origin/main` 超前 54 |
+| push | 未 push |
+
+构成：夜校十七班（`night17*`、`flags.ts` 改读 `envTagForHall`、`fight.ts`、`package.json`、`NIGHT17_REPORT_20261116.md`）；`NUMGEN13_REPORT_20261116.md`；`NUMCUT4_DRAFT_20261115.md` 定量末节；`NUMGEN14_TASK.md`、`NIGHT18_TASK.md`；上一节统筹报告。src 结算未改。黄金未改。冻结区零改动。
+
+真基线到线的是馆 1、3、5、7。刀一撤。刀二落（馆 4 = 80%）。刀三落 B（馆 5 伤 0.85 = 70%）。刀四是组合加波次血修正。刀五拆三件。馆 6 的 366 是累计错觉，错装在波次纤手血 269 > 主敌 236。馆 10 座前血表错装，按 bug 修。
+
+本节追加于提交之后，按惯例本文件改动留给下一波。
+
+---
+
 ## 第六刀（第四刀稿 + 夜校十七班 / 数值十三班任务卡，HEAD）
 
 | 项 | 值 |

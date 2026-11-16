@@ -1,4 +1,5 @@
 import { catalogCell } from "./board";
+import { CLIMB_HALL6_MAIN_HP_MUL } from "./climbCaps";
 export { FOE_FAMILY_ARCHETYPE } from "./foeArchetype";
 import { BOARD_SIZE, type EnemyDef, type EnemyId, type Intent, type WeaponId } from "./types";
 import { GAUNTLET_FOE_IDENTITY, kitCatalogPattern, schoolForGeneratedEnemy } from "./enemyKit";
@@ -396,11 +397,22 @@ function applyExchangeCurve(out: Record<string, EnemyDef>): void {
     const hpMul = Math.round(LADDER_HP_MUL[stage]! * 148) / 100;
     const coef = LADDER_DMG[stage]!;
     def.hp = Math.max(8, Math.round(hpTarget / hpMul));
+    if (main === 6) def.hp = Math.max(8, Math.round(def.hp * CLIMB_HALL6_MAIN_HP_MUL));
     def.pattern = def.pattern.map((p) => retargetIntent(p, hit, coef));
   }
 }
 
 export const GENERATED_ENEMIES: Record<string, EnemyDef> = build();
+
+/** 馆 6 波次纤手：目录按馆 9 锚，再乘馆 6 梯会高于主敌。收到不超过主敌。馆 9 不走这条。 */
+export function climbWaveBattleHp(id: string, stage: number, catalogHp: number, hpMul: number): number {
+  let hp = Math.round(catalogHp * hpMul);
+  if (stage === 6 && id === "mob_canal_01") {
+    const main = GENERATED_ENEMIES.mob_escortBand_02?.hp ?? catalogHp;
+    hp = Math.min(hp, Math.round(main * hpMul));
+  }
+  return Math.max(8, hp);
+}
 
 export const GENERATED_ELITE_IDS = Object.keys(ELITE_STAMPS);
 
