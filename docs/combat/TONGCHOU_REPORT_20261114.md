@@ -1,5 +1,24 @@
 # 统筹收口报告 · 2026-11-14
 
+## 第五刀（表现壳四班微班，HEAD）
+
+| 项 | 值 |
+|---|---|
+| commit 短散列 | `0a10860`（全 `0a10860fb36b92f5d072e9435605fda2fb812ded`） |
+| 提交词 | 壳四班：门厅缺格词条句。 |
+| 文件数 | 5（新增 2 / 修改 3，59 insertions） |
+| 测试绿数 | `test:combat` 100 文件 / 997 绿；`typecheck:combat` exit 0 |
+| HEAD | `0a10860`，main 比 `origin/main` 超前 52 |
+| push | 未 push |
+
+构成：`hallEnv.ts` 的 `gap_end` 一句「这一馆石台缺了末端一格。跨得过去，站不住。」；`shellWire.test.ts` 馆 4、馆 7 含「缺了末端一格」；`SHELL4_REPORT_20261115.md`；`SHELL4_TASK.md`；上一节统筹报告同刀。`gap_mid` 没写。未改 `src/game`。
+
+冻结区零改动。黄金未改。
+
+本节追加于提交之后，按惯例本文件改动留给下一波。
+
+---
+
 ## 第四刀（数值核十二班，HEAD）
 
 | 项 | 值 |
