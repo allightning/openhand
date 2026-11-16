@@ -47,6 +47,12 @@ export type FightResult = {
   bleedTick: number;
   poisonTick: number;
   pierceHit: number;
+  /** 意图段打到身上的「你受」。 */
+  dmgDirect: number;
+  /** 你身上的裂创跳血。 */
+  dmgBleed: number;
+  /** 自损 / 付血。 */
+  dmgSelf: number;
   /** 开局敌气血上限。 */
   foeMaxHp: number;
   /** 开局意图段 + 局内「亮招」段合计。 */
@@ -327,6 +333,50 @@ function playOut(
   return b;
 }
 
+export function splitFoeDamage(lines: string[]): { direct: number; burn: number; bleed: number; self: number } {
+  let direct = 0;
+  let burn = 0;
+  let bleed = 0;
+  let self = 0;
+  for (const line of lines) {
+    const burned = /灼烧 你 (\d+)/.exec(line);
+    if (burned) {
+      burn += Number(burned[1]);
+      continue;
+    }
+    const paid = /自损 (\d+)/.exec(line) ?? /付血 (\d+)/.exec(line);
+    if (paid) {
+      self += Number(paid[1]);
+      continue;
+    }
+    if (line.includes("你裂创")) {
+      const hit = /你受 (\d+)/.exec(line);
+      if (hit) bleed += Number(hit[1]);
+      else {
+        const raw = /你裂创 (\d+)。$/.exec(line);
+        if (raw) bleed += Number(raw[1]);
+      }
+      continue;
+    }
+    const hit = /你受 (\d+)/.exec(line);
+    if (hit) direct += Number(hit[1]);
+  }
+  return { direct, burn, bleed, self };
+}
+
+function clipBurn(b: Battle, cap: number | undefined, lines: string[]): void {
+  if (cap == null) return;
+  for (const line of lines) {
+    const burned = /灼烧 你 (\d+)/.exec(line);
+    if (!burned) continue;
+    const n = Number(burned[1]);
+    if (n > cap) b.player.hp += n - cap;
+  }
+  if (b.phase === "lost" && b.player.hp > 0 && !lines.some((line) => line.includes("倒下") || line.includes("顶上"))) {
+    b.phase = "player";
+  }
+}
+
 function scanBurn(lines: string[]): number {
   let n = 0;
   for (const line of lines) {
@@ -345,6 +395,7 @@ function finishHand(
   extra: Extra,
   foeWin: { dismantle: number; bind: number; read: number },
   pierce: { bleed: number; poison: number; pierce: number },
+  burnCap?: number,
 ): Battle | null {
   b = shedToCap(b, rc);
   soak(book, b.player.hp);
@@ -354,7 +405,9 @@ function finishHand(
   const stamp = `${b.turn}:${b.phase}:${b.player.hp}:${b.enemy.hp}:${b.hand.length}`;
   const logAt = b.log.length;
   b = endTurn(b, rc);
-  extra.burnDmg += scanBurn(b.log.slice(logAt));
+  const turned = b.log.slice(logAt);
+  clipBurn(b, burnCap, turned);
+  extra.burnDmg += scanBurn(turned);
   scanFoeWin(b.log.slice(logAt), foeWin);
   scanPierce(b.log.slice(logAt), pierce);
   let guard = 0;
@@ -501,7 +554,7 @@ export function fightSample(
       emitHand(watch, opened, hands, empty, paceY, paceF, hpAt, b, logAt);
       break;
     }
-    const next = finishHand(b, opened.rc, policy, book, hit, extra, foeWin, pierce);
+    const next = finishHand(b, opened.rc, policy, book, hit, extra, foeWin, pierce, knobs.burnCap);
     if (!next) {
       capped = true;
       emitHand(watch, opened, hands, empty, paceY, paceF, hpAt, b, logAt);
@@ -513,6 +566,7 @@ export function fightSample(
   if (hands >= HANDS_CAP && !over(b)) capped = true;
   soak(book, b.player.hp);
   soak(hit, b.enemy.hp);
+  const parts = splitFoeDamage(b.log);
   return {
     win: won(b),
     hands,
@@ -522,6 +576,7 @@ export function fightSample(
     capped,
     tally,
     ...extra,
+    burnDmg: parts.burn,
     dmgDealt: hit.taken,
     foeArmed,
     foeDismantle: foeWin.dismantle,
@@ -533,6 +588,9 @@ export function fightSample(
     bleedTick: pierce.bleed,
     poisonTick: pierce.poison,
     pierceHit: pierce.pierce,
+    dmgDirect: parts.direct,
+    dmgBleed: parts.bleed,
+    dmgSelf: parts.self,
     foeMaxHp,
     segN: openSeg + segAnnounced(b.log),
     ...(autopsy ? { autopsy } : {}),

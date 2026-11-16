@@ -15,6 +15,10 @@ export type ClimbKnobs = {
   foeWindowP?: number;
   /** 覆写馆段敌伤系数（enemyHitMul）。缺省不写，沿用 applyStageTuning。 */
   enemyHitMul?: number;
+  /** 覆写敌段预算加成（enemySegBonus）。缺省不写。 */
+  enemySegBonus?: number;
+  /** 模拟覆写：灼烧扣血封顶。缺省不写。不改 src 常量。 */
+  burnCap?: number;
 };
 
 export const KNOB_VERSION = "1.0";

@@ -92,6 +92,7 @@ export function openHall(
   applyKnobs({ ...knobs, enemyDmg: knobs.enemyDmg * adj.enemy, playerDmg: knobs.playerDmg * adj.player });
   if (tuned.enemyHitMul != null) setLabTuning({ enemyHitMul: tuned.enemyHitMul });
   if (knobs.enemyHitMul != null) setLabTuning({ enemyHitMul: knobs.enemyHitMul });
+  if (knobs.enemySegBonus != null) setLabTuning({ enemySegBonus: knobs.enemySegBonus });
   const preset = buildGauntletPreset(staged);
   const body = runFromPreset(preset);
   const hpMax = body.hpMax;
