@@ -1,3 +1,6 @@
+import { envTagForHall } from "../../src/game/content/envSchedule";
+import type { EnvTag } from "../../src/game/types";
+
 export type ChargeMode = "off" | "bank" | "punch";
 export type DartMode = "off" | "on";
 export type ReactMode = "off" | "value" | "never" | "always";
@@ -33,10 +36,8 @@ export function flagLabel(f: SimFlags): string {
   return `蓄${f.charge} 刀${f.dart} 窗${f.react} 境${f.env ? "开" : "关"} 原型${f.archetype ? "开" : "关"} 亮招${f.intent ? "开" : "关"}`;
 }
 
-/** 馆 3、6 灼烧，馆 8 无墙。关环境开关则不挂。 */
-export function envTagForStage(stage: number, on: boolean): "burn" | "nowall" | undefined {
+/** 对齐 `envSchedule.ts`：灼烧 3/6/8、缺格 4/7、无墙 5/9。关环境开关则不挂。 */
+export function envTagForStage(stage: number, on: boolean): EnvTag | undefined {
   if (!on) return undefined;
-  if (stage === 3 || stage === 6) return "burn";
-  if (stage === 8) return "nowall";
-  return undefined;
+  return envTagForHall(stage);
 }

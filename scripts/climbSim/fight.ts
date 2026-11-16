@@ -47,6 +47,10 @@ export type FightResult = {
   bleedTick: number;
   poisonTick: number;
   pierceHit: number;
+  /** 开局敌气血上限。 */
+  foeMaxHp: number;
+  /** 开局意图段 + 局内「亮招」段合计。 */
+  segN: number;
   autopsy?: AutopsyHand[];
 };
 
@@ -64,6 +68,16 @@ export type AutopsyHand = {
   intents: string[];
   approach: string[];
 };
+
+function segAnnounced(lines: string[]): number {
+  let n = 0;
+  for (const line of lines) {
+    if (!line.includes("亮招")) continue;
+    const hit = /共 (\d+) 段/.exec(line);
+    n += hit ? Number(hit[1]) : 1;
+  }
+  return n;
+}
 
 function blankExtra() {
   return { chargePeak: 0, burstDmg: 0, pinPeak: 0, pinPlays: 0, burnDmg: 0, reactOffer: 0, reactTake: 0, reactQi: 0 };
@@ -455,6 +469,8 @@ export function fightSample(
   const cool: SwapCool = { turn: -1, n: 0, lock: null, left: 0 };
   const foeArmed = (b.foeWindows?.length ?? 0) > 0;
   const foeVariant = b.foeVariant ?? null;
+  const foeMaxHp = b.enemy.maxHp;
+  const openSeg = Math.max(1, b.intents.length || 1);
   let hands = 0;
   let emptyHands = 0;
   let capped = false;
@@ -517,6 +533,8 @@ export function fightSample(
     bleedTick: pierce.bleed,
     poisonTick: pierce.poison,
     pierceHit: pierce.pierce,
+    foeMaxHp,
+    segN: openSeg + segAnnounced(b.log),
     ...(autopsy ? { autopsy } : {}),
   };
 }
