@@ -1,0 +1,30 @@
+---
+description: Openhand session continuity, map polish priority, and summary expectations
+alwaysApply: true
+---
+
+# Openhand agent continuity
+
+## Context handoff (mandatory)
+
+When the conversation is long / near context limits, or before ending a large multi-topic turn:
+
+1. Update `.cursor/lanes/SYNC.md` if other lanes need the new names, verbs, or inboxes.
+2. Optionally append a short diary note to `.cursor/handoff.md` (what changed, open TODOs). Do not treat handoff as the living board.
+3. Start or resume other lane threads by reading `.cursor/lanes/SYNC.md` first. Handoff is history only.
+
+## Product priorities
+
+- **Active line: Combat Lab / 踢馆** — climb-first gauntlet. Full picture: `docs/combat/AGENT.md`. Living board: `.cursor/lanes/SYNC.md`.
+- Mainline map and exploration are **frozen** (`docs/frozen/`). Do not read or polish unless the user asks.
+
+## Map rules (frozen — only when user explicitly works on map)
+
+- Portals: Chebyshev distance **≥ 3** between any two portals in a scene (enforced in `world.test.ts`).
+- Water: no shore overlays; no thin inland streams — connect to rim water or ≥3 wide + long; roads over water use bridges.
+- Building names on portal doors; travel doors use horizontal door art.
+
+## When user asks for「大总结 / 大评估」
+
+Unless they explicitly say「地图」, they mean **playability content**:
+puzzles, side quests, companions, weapons, enemies, cards, buffs/debuffs, combos, hooks, silver — with counts and a short pros/cons playability verdict.

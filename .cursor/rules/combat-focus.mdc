@@ -1,0 +1,31 @@
+---
+description: Combat Lab is the only active dev line; map and mainline are frozen
+alwaysApply: true
+---
+
+# Combat-first development
+
+## Active scope
+
+Only develop **Combat Lab / 踢馆战斗** unless the user explicitly asks for map or mainline.
+
+**产品优先级（2026-09-10）：肉鸽爬塔是根本。** 先把爬塔打好玩、打爽、打舒服。遭遇 / UI / 音频服务于爬塔。读招破招是另一条模式，默认不扩、不改难度；用户点名「读招 / 破招 / 训练馆硬核」再动。
+
+- Read and edit (climb-first): `docs/combat/**`, `src/combatLab/**` 里爬塔相关，combat kernel 在 `src/game/`（sim、content、rogueCards）。
+- 读招专用：`break*`、`intentWeakness.ts`、`labV2*.ts`、`trainingHall.ts` — 非点名不改；改时用车道 `.cursor/lanes/5-读招.md` 另开窗。
+- Entry: `combat-lab.html`，`npm run lab`，`npm run test:combat`。
+- 新窗先读 `docs/combat/AGENT.md`，再读 `.cursor/lanes/SYNC.md`（现行板）。日记：`.cursor/handoff.md`。
+- 爬塔核玩：`.cursor/lanes/1-核玩.md`。读招破招：`.cursor/lanes/5-读招.md`。
+
+## Frozen (do not read, edit, or test by default)
+
+- `src/map/**`, `src/main.ts`, `src/story/**`, `docs/frozen/**`
+- Do not fix map/rewards CI failures unless combat change caused them.
+
+## Tests
+
+Prefer `npm run test:combat` over full `npm test`.
+
+## Docs
+
+Onboarding: `docs/combat/AGENT.md`. Rules tables: `docs/combat/RULES.md`. Design spine: Notion (do not treat old chats as tasks).

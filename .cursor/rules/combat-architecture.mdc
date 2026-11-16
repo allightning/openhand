@@ -1,0 +1,32 @@
+---
+description: Combat Lab 分层架构铁律（引擎/壳分离、双核并列、纯函数、数据驱动）。写或改 src/game、src/combatLab 代码时必须遵守。
+alwaysApply: true
+---
+
+# 架构铁律（2026-09-21 主窗定，v3）
+
+详案、落位表、阶段认领：`docs/combat/ARCHITECTURE.md`。加新内容先查 skill `combat-architecture`。
+
+## 分层
+1. `src/game/**` = 规则核：禁 import `src/combatLab/**`；禁 `document` / `window` / `localStorage`（layerBoundary + DOM 护栏守住）。`economy.ts` 等被 `src/map`、`src/main.ts` 引用的主线遗留归冻结区，不进战斗核治理。
+2. `src/combatLab/**` = 产品壳：只做渲染、事件、屏切换、持久化、入口选核；不写规则判断、不藏数值常量。
+3. 归属判断：换个 UI 它还在不在？在 = 进 `src/game`，不在 = 进 `src/combatLab`。
+
+## 双模式
+4. 登门（qiCommit）与行路（sim）是两套结算核，并列 `engine/break/` / `engine/climb/`。共享层（石台 / types / content / 纯工具）`ruleset.mode` 判断数 = 0；mode 只在壳层入口选核 + content 参数化字段。
+5. caps 分套：`climbCaps.ts` / `breakCaps.ts`，`ctx.caps` 按 mode 注入。登门数值不许塞进 climbCaps。
+6. 禁新增 `isBreakAlign()` 调用点；现存调用随阶段 1 归并共享参数或沉入各自模式核。只把全局 if 换成 ctx if = 假重构。
+
+## 写法
+7. 规则函数必须纯：入 `state` + `ctx`，出新 state；不改全局、不读时间。rng 引擎内必传、无默认值；默认值只在壳层注入。
+8. 嵌套 state 结构化不可变更新：拷贝边界 = 被修改的字段路径，禁浅拷贝后共享突变。
+9. 新机制进数据表（注册表加一行），禁在 sim / main 加内容特例 if。新规则进 `src/game/rules/`（ctx 落地前不接）；`gauntlet.ts` 只减不增。
+10. 数值先登记 Notion 待定页，再落对应 caps；UI / 遭遇文案不自己编数字。
+
+## 体量
+11. 文件超 300 行 = 该拆（纯数据表 / 文案表豁免）；函数超 80 行 = 该抽。
+12. 禁留 `@deprecated` 兼容壳；死代码直接删。
+
+## 流程
+13. 改完跑 `npm run test:combat` + `npm run typecheck:combat`。重构阶段还须黄金对局逐拍 diff 为空（粒度到每个意图段 + 渲染 DOM 事件序列）。
+14. 执行车道禁 git commit。冻结区不读不改：`src/map/**`、`src/story/**`、`docs/frozen/**`。

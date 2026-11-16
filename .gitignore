@@ -3,7 +3,6 @@ node_modules
 dist
 .DS_Store
 *.log
-.cursor
 .venv-art/
 # 本地调试截图与 dump（不入库）
 /*-dump.txt

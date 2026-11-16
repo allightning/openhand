@@ -1,5 +1,24 @@
 # 统筹收口报告 · 2026-11-14
 
+## 第十刀（夜校十九班，HEAD）
+
+| 项 | 值 |
+|---|---|
+| commit 短散列 | `1c859b2`（全 `1c859b2b7a3554dc2354f132c442d5ed721b6a57`） |
+| 提交词 | 夜校十九班：敌伤构成分解，系数刀见顶。 |
+| 文件数 | 12（新增 7 / 修改 5，526 insertions / 2 deletions） |
+| 测试绿数 | `test:combat` 101 文件 / 1001 绿；`typecheck:combat` exit 0 |
+| HEAD | `1c859b2`，main 比 `origin/main` 超前 57 |
+| push | 未 push |
+
+构成：`night19*`、`fight.ts`、`boot.ts`、`knobs.ts`、`package.json`、`NIGHT19_REPORT_20261116.md`、上一刀留下的 `NIGHT19_TASK.md`、`NIGHT20_TASK.md`、`NUMGEN15_TASK.md`、上一节统筹报告。src 未改。黄金未改。冻结区零改动。
+
+馆 8 系数 1.0 对 0.5：fightScale 2.20 对 1.10，直伤比 0.85，总伤比 1.03。馆 2 裂创占日志伤 72.3%。馆 6 直伤 72.7%。馆 9、馆 10 直伤 100%。
+
+本节追加于提交之后，按惯例本文件改动留给下一波。
+
+---
+
 ## 第九刀（夜校十八班，HEAD）
 
 | 项 | 值 |

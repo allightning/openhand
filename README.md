@@ -18,3 +18,5 @@ https://allightning.github.io/openhand/
 npm run test:combat
 npm run typecheck:combat
 ```
+
+构建用 `npm run build:pages`；`npm run build` 的全量 tsc 会扫到冻结区 `src/map` 的历史类型错，不代表战斗线状态。
